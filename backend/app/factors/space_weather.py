@@ -23,6 +23,7 @@ from datetime import date, datetime, timedelta, timezone
 
 from ..cache import SourceUnavailable, registry
 from ..clients import donki, swpc
+from ..timeutil import parse_utc_datetime
 from ..config import settings
 from ..models import ConfidenceLevel, FactorAssessment, FactorKind, Provenance, Signal
 
@@ -184,11 +185,7 @@ async def assess_current(
 
     for alert in alerts or []:
         product_id = str(alert.get("product_id", ""))
-        issue_raw = alert.get("issue_datetime")
-        try:
-            issued = datetime.fromisoformat(issue_raw.replace("Z", "+00:00")) if issue_raw else None
-        except ValueError:
-            issued = None
+        issued = parse_utc_datetime(alert.get("issue_datetime"))
         if issued and not (window_start - timedelta(hours=48) <= issued <= window_end):
             continue
         message = str(alert.get("message", ""))[:400]
@@ -275,11 +272,7 @@ async def assess_historical(
 
     kept, dropped_future = 0, 0
     for item in raw or []:
-        issue_raw = item.get("messageIssueTime")
-        try:
-            issued = datetime.fromisoformat(issue_raw.replace("Z", "+00:00")) if issue_raw else None
-        except ValueError:
-            issued = None
+        issued = parse_utc_datetime(item.get("messageIssueTime"))
         if issued is None:
             continue
         if issued > cutoff:
@@ -357,11 +350,7 @@ async def verification_signals(window_start: datetime, window_end: datetime) -> 
         msg_type = next((k for k in _DONKI_TYPE_SEVERITY if msg_type_raw.upper().startswith(k)), None)
         if msg_type is None:
             continue
-        issue_raw = item.get("messageIssueTime")
-        try:
-            issued = datetime.fromisoformat(issue_raw.replace("Z", "+00:00")) if issue_raw else None
-        except ValueError:
-            issued = None
+        issued = parse_utc_datetime(item.get("messageIssueTime"))
         out.append(
             Signal(
                 factor=FactorKind.space_weather,

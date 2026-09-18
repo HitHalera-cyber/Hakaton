@@ -80,7 +80,17 @@ async def assess_current(
         tca_raw = ev.get("tca")
         tca = None
         if tca_raw:
-            for fmt in ("%Y %b %d %H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S"):
+            # CelesTrak's real SOCRATES export uses "YYYY Mon DD HH:MM:SS.fff";
+            # other formats are tolerated defensively in case the export
+            # variant changes.
+            for fmt in (
+                "%Y %b %d %H:%M:%S.%f",
+                "%Y %b %d %H:%M:%S",
+                "%Y-%m-%d %H:%M:%S.%f",
+                "%Y-%m-%d %H:%M:%S",
+                "%Y-%m-%dT%H:%M:%S.%f",
+                "%Y-%m-%dT%H:%M:%S",
+            ):
                 try:
                     tca = datetime.strptime(tca_raw, fmt).replace(tzinfo=timezone.utc)
                     break
