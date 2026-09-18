@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ВКД на МКС — прогноз внешних рисков</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<header class="topbar">
+  <h1>Прогнозирование внешних рисков и планирование ВКД на МКС</h1>
+  <p class="subtitle">Исследовательский прототип поддержки решений · КосмоХакатон 2026</p>
+</header>
+
+<main class="layout">
+  <section class="controls" aria-label="Параметры запроса">
+    <div class="control-group">
+      <label>Режим</label>
+      <div class="seg">
+        <button type="button" class="seg-btn active" data-mode="current">Текущая обстановка</button>
+        <button type="button" class="seg-btn" data-mode="historical">Историческая дата</button>
+      </div>
+      <p class="hint" id="historical-hint">Исторический режим: 01.05.2024 – 30.06.2024 (UTC).</p>
+    </div>
+
+    <div class="control-group">
+      <label for="reference_time">Начало ВКД (UTC)</label>
+      <input type="datetime-local" id="reference_time" step="60" />
+    </div>
+
+    <div class="control-group">
+      <label for="duration_hours">Длительность ВКД, ч (1–8)</label>
+      <input type="number" id="duration_hours" min="1" max="8" step="0.5" value="4" />
+    </div>
+
+    <div class="control-group">
+      <label for="search_period_hours">Период поиска начала, ч (0–24)</label>
+      <input type="number" id="search_period_hours" min="0" max="24" step="1" value="12" />
+    </div>
+
+    <div class="control-group">
+      <label for="step_minutes">Шаг сравнения окон, мин</label>
+      <input type="number" id="step_minutes" min="5" max="120" step="5" value="60" />
+    </div>
+
+    <details class="control-group sources-panel">
+      <summary>Источники данных: заморозка / отключение (для проверки надёжности)</summary>
+      <div id="sources-toggle-list" class="sources-toggle-list"></div>
+    </details>
+
+    <button type="button" id="analyze-btn" class="primary-btn">Рассчитать</button>
+    <button type="button" id="experiment-btn" class="ghost-btn">Показать эксперимент (сравнение с базовым методом)</button>
+
+    <div id="status-banner" class="status-banner" hidden></div>
+  </section>
+
+  <section class="results" aria-label="Результаты">
+    <div id="loading" class="loading" hidden>Выполняется расчёт…</div>
+    <div id="error-banner" class="error-banner" hidden></div>
+
+    <div id="results-content" hidden>
+      <div class="panel" id="historical-panel" hidden>
+        <h2>Режим и отсечение по времени</h2>
+        <p id="historical-note"></p>
+      </div>
+
+      <div class="panel">
+        <h2>Траектория МКС</h2>
+        <p id="orbit-meta" class="meta-line"></p>
+        <div id="map" class="map"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Сравнение окон ВКД</h2>
+        <p id="recommendation-text" class="recommendation"></p>
+        <canvas id="windows-chart" height="140"></canvas>
+        <div class="table-wrap">
+          <table id="windows-table">
+            <thead>
+              <tr>
+                <th>Окно</th><th>Начало (UTC)</th><th>Окончание (UTC)</th>
+                <th>Оценка риска</th><th>Полнота данных</th><th>Светлое время</th><th></th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Факторы и предупреждения</h2>
+        <div id="factors-list"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Актуальность источников</h2>
+        <div id="sources-status-list" class="table-wrap"></div>
+      </div>
+
+      <div class="panel">
+        <button type="button" id="export-btn" class="primary-btn">Скачать отчёт (JSON + CSV)</button>
+        <span id="result-id-label" class="meta-line"></span>
+      </div>
+    </div>
+
+    <div class="panel" id="experiment-panel" hidden>
+      <h2>Эксперимент: метод команды vs. базовый подход</h2>
+      <div id="experiment-content"></div>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <p>Допуск к реальной ВКД остаётся за уполномоченными специалистами. Сервис — исследовательский прототип поддержки решений.</p>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
