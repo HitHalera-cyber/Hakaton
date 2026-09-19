@@ -170,6 +170,34 @@ class AnalyzeResponse(BaseModel):
     result_id: str
 
 
+class CompareDatesRequest(BaseModel):
+    """Compares two independent EVA scenarios anchored on different
+    reference dates/times (e.g. 10 May vs 21 May) — distinct from
+    AnalyzeRequest.search_period_hours, which only compares different start
+    times clustered around ONE reference date. Duration/search/step/mode
+    and source overrides are shared by both scenarios so the two runs are
+    directly comparable (same weighting, same analysis settings)."""
+
+    mode: Mode
+    date_a: datetime = Field(description="Reference start of EVA window (UTC) for scenario A")
+    date_b: datetime = Field(description="Reference start of EVA window (UTC) for scenario B")
+    duration_hours: float = Field(ge=1.0, le=8.0)
+    search_period_hours: float = Field(ge=0.0, le=24.0, default=0.0)
+    step_minutes: float = Field(default=30.0, ge=5.0, le=120.0)
+    disabled_sources: list[str] = Field(default_factory=list)
+    frozen_sources: list[str] = Field(default_factory=list)
+
+
+class CompareDatesResponse(BaseModel):
+    result_a: AnalyzeResponse
+    result_b: AnalyzeResponse
+    overall_recommendation: Recommendation
+    winning_date: Literal["a", "b"] | None
+    winning_window_index: int | None = Field(
+        description="Index into winning_date's own result.windows identifying the overall-best window"
+    )
+
+
 class ExperimentResult(BaseModel):
     """Output of the simple-vs-team-method comparison (criterion T5)."""
 

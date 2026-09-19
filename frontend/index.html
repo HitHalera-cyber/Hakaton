@@ -45,6 +45,16 @@
 
     <button type="button" id="analyze-btn" class="primary-btn">Рассчитать</button>
 
+    <div class="control-group compare-dates-group">
+      <label>Сравнить два сценария ВКД</label>
+      <p class="hint">Не то же самое, что «Период поиска начала» выше (тот сравнивает разное время старта вокруг ОДНОЙ даты) — здесь сравниваются две полностью разные даты (например 10 мая и 21 мая) при одинаковых длительности/параметрах выше, и сервис называет более безопасный вариант.</p>
+      <label for="compare_date_a">Дата А (UTC)</label>
+      <input type="datetime-local" id="compare_date_a" step="60" />
+      <label for="compare_date_b">Дата Б (UTC)</label>
+      <input type="datetime-local" id="compare_date_b" step="60" />
+      <button type="button" id="compare-dates-btn" class="ghost-btn">Сравнить даты</button>
+    </div>
+
     <details class="control-group advanced-panel">
       <summary>Дополнительно (для проверки надёжности и методики)</summary>
       <div class="control-group">
@@ -126,6 +136,11 @@
     <div class="panel" id="experiment-panel" hidden>
       <h2>Эксперимент: метод команды vs. базовый подход</h2>
       <div id="experiment-content"></div>
+    </div>
+
+    <div class="panel" id="compare-dates-panel" hidden>
+      <h2>Сравнение дат</h2>
+      <div id="compare-dates-content"></div>
     </div>
   </section>
 </main>

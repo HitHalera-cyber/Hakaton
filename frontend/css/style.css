@@ -213,6 +213,19 @@ tr.tied td { background: rgba(245, 196, 81, 0.08); }
 .badge.rec { background: var(--ok); color: #06210f; }
 .badge.tie { background: var(--warn); color: #2a1d00; }
 
+.compare-dates-group .hint { margin-bottom: 8px; }
+.compare-dates-group #compare-dates-btn { margin-top: 10px; width: 100%; }
+
+.compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 14px; }
+@media (max-width: 720px) { .compare-grid { grid-template-columns: 1fr; } }
+.compare-col h3 { margin: 0 0 10px; font-size: 0.95rem; }
+.compare-window { border: 1px solid var(--panel-border); border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 10px; background: rgba(255, 255, 255, .03); font-size: 0.82rem; }
+.compare-window p { margin: 0 0 6px; }
+.compare-window ul { margin: 0; padding-left: 18px; }
+.compare-window li { margin-bottom: 3px; }
+.compare-window-winner { border-color: var(--ok); background: rgba(79, 209, 140, 0.08); }
+.compare-window-winner .badge { margin-bottom: 8px; }
+
 .factor-block { border: 1px solid var(--panel-border); border-radius: var(--radius-sm); padding: 13px 16px; margin-bottom: 12px; background: rgba(255, 255, 255, .03); }
 .factor-block h3 { margin: 0 0 6px; font-size: 0.95rem; }
 .factor-block .factor-meta { font-size: 0.78rem; color: var(--muted); margin-bottom: 8px; }

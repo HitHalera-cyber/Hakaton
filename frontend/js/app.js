@@ -34,10 +34,16 @@ function provenanceLabel(p) {
   return { observation: "наблюдение", external_forecast: "внешний прогноз", team_calculation: "расчёт команды" }[p] || p;
 }
 
+function toLocalInputValue(date) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}T${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}`;
+}
+
 async function init() {
   const now = new Date();
-  const pad = (n) => String(n).padStart(2, "0");
-  $("#reference_time").value = `${now.getUTCFullYear()}-${pad(now.getUTCMonth() + 1)}-${pad(now.getUTCDate())}T${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}`;
+  $("#reference_time").value = toLocalInputValue(now);
+  $("#compare_date_a").value = toLocalInputValue(now);
+  $("#compare_date_b").value = toLocalInputValue(new Date(now.getTime() + 24 * 3600 * 1000));
 
   document.querySelectorAll(".seg-btn[data-mode]").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -47,6 +53,8 @@ async function init() {
       $("#historical-hint").style.display = state.mode === "historical" ? "block" : "none";
       if (state.mode === "historical") {
         $("#reference_time").value = "2024-05-10T06:00";
+        $("#compare_date_a").value = "2024-05-10T06:00";
+        $("#compare_date_b").value = "2024-05-21T06:00";
       }
     });
   });
@@ -74,6 +82,7 @@ async function init() {
 
   $("#analyze-btn").addEventListener("click", runAnalyze);
   $("#experiment-btn").addEventListener("click", runExperiment);
+  $("#compare-dates-btn").addEventListener("click", runCompareDates);
   $("#export-btn").addEventListener("click", exportResult);
 }
 
@@ -832,6 +841,88 @@ async function runExperiment() {
     `;
   } catch (e) {
     content.textContent = "Не удалось выполнить эксперимент: " + e.message;
+  }
+}
+
+function windowSummaryHtml(result, idx, isWinner) {
+  const w = result.windows[idx];
+  const factorLines = w.factor_contributions
+    .map((c) => {
+      const label = { space_weather: "Космическая погода", conjunction_mmod: "Сближения/MMOD" }[c.factor] || c.factor;
+      const driving = c.driving_signals.length ? c.driving_signals.join("; ") : "значимых сигналов нет";
+      return `<li><b>${label}:</b> ${driving} (пересечение ${c.overlap_minutes.toFixed(0)} мин, серьёзность до ${(c.max_severity * 100).toFixed(0)}%)</li>`;
+    })
+    .join("");
+  const score = w.combined_score === null || w.combined_score === undefined ? "нет оценки (недостаточно данных)" : w.combined_score.toFixed(2);
+  return `
+    <div class="compare-window ${isWinner ? "compare-window-winner" : ""}">
+      ${isWinner ? '<span class="badge rec">Лучший вариант</span>' : ""}
+      <p><b>Окно:</b> ${fmt(w.start)} — ${fmt(w.end)}</p>
+      <p><b>Совокупная оценка риска:</b> ${score} · <b>Полнота данных:</b> ${confidenceLabel(w.data_completeness)}</p>
+      <ul>${factorLines}</ul>
+    </div>`;
+}
+
+async function runCompareDates() {
+  const panel = $("#compare-dates-panel");
+  const content = $("#compare-dates-content");
+  panel.hidden = false;
+  content.textContent = "Выполняется…";
+
+  const dateAVal = $("#compare_date_a").value;
+  const dateBVal = $("#compare_date_b").value;
+  if (!dateAVal || !dateBVal) {
+    content.textContent = "Укажите обе даты для сравнения.";
+    return;
+  }
+  const { disabled, frozen } = collectDisabledFrozen();
+  const req = {
+    mode: state.mode,
+    date_a: isoUtc(dateAVal),
+    date_b: isoUtc(dateBVal),
+    duration_hours: parseFloat($("#duration_hours").value),
+    search_period_hours: parseFloat($("#search_period_hours").value),
+    step_minutes: parseFloat($("#step_minutes").value),
+    disabled_sources: disabled,
+    frozen_sources: frozen,
+  };
+
+  try {
+    const res = await fetch(`${API}/compare-dates`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `Ошибка сервера (${res.status})`);
+    }
+    const data = await res.json();
+
+    const bestIdxA = data.winning_date === "a" ? data.winning_window_index : null;
+    const bestIdxB = data.winning_date === "b" ? data.winning_window_index : null;
+    const windowsA = data.result_a.windows
+      .map((_, i) => windowSummaryHtml(data.result_a, i, i === bestIdxA))
+      .join("");
+    const windowsB = data.result_b.windows
+      .map((_, i) => windowSummaryHtml(data.result_b, i, i === bestIdxB))
+      .join("");
+
+    content.innerHTML = `
+      <p class="recommendation">${data.overall_recommendation.reason}${data.overall_recommendation.caveats.length ? " " + data.overall_recommendation.caveats.join(" ") : ""}</p>
+      <div class="compare-grid">
+        <div class="compare-col">
+          <h3>Дата А — ${fmt(data.result_a.request.reference_time)}${data.winning_date === "a" ? " ✓" : ""}</h3>
+          ${windowsA}
+        </div>
+        <div class="compare-col">
+          <h3>Дата Б — ${fmt(data.result_b.request.reference_time)}${data.winning_date === "b" ? " ✓" : ""}</h3>
+          ${windowsB}
+        </div>
+      </div>
+    `;
+  } catch (e) {
+    content.textContent = "Не удалось сравнить даты: " + e.message;
   }
 }
 

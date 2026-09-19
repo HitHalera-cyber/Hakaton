@@ -4,9 +4,9 @@ defaulting to 'safe')."""
 from datetime import datetime, timezone
 from unittest.mock import patch
 
-from app.analysis import run_analysis
-from app.clients import celestrak, swpc
-from app.models import AnalyzeRequest, Mode
+from app.analysis import compare_dates, run_analysis
+from app.clients import celestrak, donki, swpc
+from app.models import AnalyzeRequest, CompareDatesRequest, Mode
 from .conftest import SAMPLE_TLE
 
 
@@ -95,3 +95,85 @@ async def test_recommendation_prefers_lower_risk_window():
     # the recommended window's score must be the minimum among all scored windows
     scored = [w.combined_score for w in resp.windows if w.combined_score is not None]
     assert rec_window.combined_score == min(scored)
+
+
+async def test_compare_dates_never_recommends_the_riskier_window_over_a_quiet_one():
+    """Distinct from search_period_hours (which only compares start times
+    clustered around ONE reference date): compares two entirely different
+    dates against each other, reusing _recommend across their merged
+    windows. Recommendation is time-localized, not date-wide — date A's own
+    *other* window can legitimately still be exactly as quiet as date B's
+    windows (a real DONKI signal issued at-or-before a historical cutoff can
+    never reach a window starting a full duration_hours later, since its
+    influence span is a fixed 30 minutes — see the comment below). So the
+    one guarantee actually worth asserting is that the specific window whose
+    time genuinely overlaps the hazard scores higher and is never the pick,
+    not which exact tied-quiet window numerically wins."""
+    date_a = datetime(2024, 5, 10, 6, 0, tzinfo=timezone.utc)  # first window overlaps a SEP event
+    date_b = datetime(2024, 5, 20, 6, 0, tzinfo=timezone.utc)  # quiet
+
+    async def fake_notifications(start, end, msg_type="all"):
+        if start <= date_a.date() <= end:
+            return [
+                {
+                    "messageType": "SEP",
+                    # Must satisfy two constraints at once: issued no later
+                    # than the cutoff (06:00, strict "forecast from the
+                    # past") AND close enough before the compared window
+                    # (06:00-08:00) that its default 30-minute signal span
+                    # still overlaps it — 05:45 is issued 15 minutes before
+                    # cutoff, whose [05:45, 06:15) span overlaps the window
+                    # by 15 minutes.
+                    "messageIssueTime": "2024-05-10T05:45Z",
+                    "messageBody": "Severe SEP event",
+                    "messageID": "SEP-A",
+                }
+            ]
+        return []
+
+    req = CompareDatesRequest(
+        mode=Mode.historical,
+        date_a=date_a,
+        date_b=date_b,
+        duration_hours=2.0,
+        search_period_hours=0.0,
+        step_minutes=60.0,
+    )
+
+    with patch.object(celestrak, "fetch_current_tle", _fake_tle), \
+         patch.object(donki, "fetch_notifications", fake_notifications):
+        resp = await compare_dates(req)
+
+    assert resp.result_a.windows and resp.result_b.windows
+    assert resp.overall_recommendation.has_recommendation is True
+
+    risky_window = resp.result_a.windows[0]  # 06:00-08:00, overlaps the SEP event
+    assert risky_window.combined_score is not None and risky_window.combined_score > 0.0
+
+    picked_windows = resp.result_a.windows if resp.winning_date == "a" else resp.result_b.windows
+    picked = picked_windows[resp.winning_window_index]
+    assert picked.combined_score is not None
+    assert picked.combined_score < risky_window.combined_score
+    assert picked is not risky_window
+
+
+async def test_compare_dates_shares_duration_and_settings_across_both_scenarios():
+    date_a = datetime(2024, 5, 10, 6, 0, tzinfo=timezone.utc)
+    date_b = datetime(2024, 5, 20, 6, 0, tzinfo=timezone.utc)
+
+    async def fake_notifications(start, end, msg_type="all"):
+        return []
+
+    req = CompareDatesRequest(
+        mode=Mode.historical, date_a=date_a, date_b=date_b,
+        duration_hours=3.5, search_period_hours=0.0, step_minutes=60.0,
+    )
+
+    with patch.object(celestrak, "fetch_current_tle", _fake_tle), \
+         patch.object(donki, "fetch_notifications", fake_notifications):
+        resp = await compare_dates(req)
+
+    assert resp.result_a.request.duration_hours == 3.5
+    assert resp.result_b.request.duration_hours == 3.5
+    assert resp.result_a.request.reference_time == date_a
+    assert resp.result_b.request.reference_time == date_b

@@ -22,6 +22,8 @@ from .factors import conjunction, space_weather
 from .models import (
     AnalyzeRequest,
     AnalyzeResponse,
+    CompareDatesRequest,
+    CompareDatesResponse,
     ConfidenceLevel,
     FactorAssessment,
     FactorKind,
@@ -239,6 +241,52 @@ async def run_analysis(req: AnalyzeRequest) -> AnalyzeResponse:
         recommendation=recommendation,
         sources=registry.all_statuses(),
         result_id=str(uuid.uuid4()),
+    )
+
+
+async def compare_dates(req: CompareDatesRequest) -> CompareDatesResponse:
+    """Two independent scenarios (e.g. 10 May vs 21 May), each run through
+    the full analysis pipeline exactly as /api/analyze does, then compared
+    against each other with the SAME window-comparison logic (_recommend)
+    already used to compare windows within one date — here applied across
+    the two dates' merged window lists instead of one date's own windows.
+    This is deliberately not a separate scoring rule: reusing _recommend
+    keeps the tie/insufficient-data messaging identical and already tested.
+    """
+    req_a = AnalyzeRequest(
+        mode=req.mode, reference_time=req.date_a, duration_hours=req.duration_hours,
+        search_period_hours=req.search_period_hours, step_minutes=req.step_minutes,
+        disabled_sources=req.disabled_sources, frozen_sources=req.frozen_sources,
+    )
+    req_b = AnalyzeRequest(
+        mode=req.mode, reference_time=req.date_b, duration_hours=req.duration_hours,
+        search_period_hours=req.search_period_hours, step_minutes=req.step_minutes,
+        disabled_sources=req.disabled_sources, frozen_sources=req.frozen_sources,
+    )
+    result_a, result_b = await asyncio.gather(run_analysis(req_a), run_analysis(req_b))
+
+    # _recommend only reads its argument (severity/completeness/timing),
+    # never mutates it — safe to feed it both dates' own already-built
+    # WindowAssessment objects directly without touching each date's own
+    # within-date is_recommended/is_tied flags computed by run_analysis.
+    merged_windows = result_a.windows + result_b.windows
+    overall = _recommend(merged_windows)
+
+    winning_date: str | None = None
+    winning_window_index: int | None = None
+    if overall.recommended_window_index is not None:
+        idx = overall.recommended_window_index
+        if idx < len(result_a.windows):
+            winning_date, winning_window_index = "a", idx
+        else:
+            winning_date, winning_window_index = "b", idx - len(result_a.windows)
+
+    return CompareDatesResponse(
+        result_a=result_a,
+        result_b=result_b,
+        overall_recommendation=overall,
+        winning_date=winning_date,
+        winning_window_index=winning_window_index,
     )
 
 
