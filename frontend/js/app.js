@@ -259,18 +259,27 @@ function render(data) {
   $("#orbit-meta").textContent =
     `Источник: ${o.source_name} · эпоха ${fmt(o.epoch)} · давность данных ${o.age_hours.toFixed(1)} ч` +
     (o.is_reconstruction ? " · РЕКОНСТРУКЦИЯ (см. пояснение)" : "") + spanNote;
-  renderTrajectory(o);
 
-  // Windows table + chart + recommendation
-  renderWindows(data);
-
-  // Factors
-  renderFactors(data.factors);
-
-  // Sources
-  renderSources(data.sources);
+  // Each panel below is rendered independently and wrapped so a failure in
+  // one (e.g. the map/globe throwing because a CDN script like Leaflet
+  // didn't load) can't silently cascade into the others never rendering —
+  // previously an exception here aborted the rest of render() outright, so
+  // a single broken panel could make the windows table/chart/factors look
+  // completely empty even though the underlying data was fine.
+  safeRender("trajectory", () => renderTrajectory(o));
+  safeRender("windows", () => renderWindows(data));
+  safeRender("factors", () => renderFactors(data.factors));
+  safeRender("sources", () => renderSources(data.sources));
 
   $("#result-id-label").textContent = `ID результата: ${data.result_id} · версия алгоритма ${data.algorithm_version}`;
+}
+
+function safeRender(label, fn) {
+  try {
+    fn();
+  } catch (e) {
+    console.error(`render step "${label}" failed:`, e);
+  }
 }
 
 // Deliberately not pure yellow/blue: a swatch pair that close to Ukraine's
@@ -898,7 +907,7 @@ async function runExperiment() {
   }
 }
 
-function windowSummaryHtml(result, idx, isWinner) {
+function windowSummaryHtml(result, idx, isWinner, isWorst) {
   const w = result.windows[idx];
   const factorLines = w.factor_contributions
     .map((c) => {
@@ -908,13 +917,37 @@ function windowSummaryHtml(result, idx, isWinner) {
     })
     .join("");
   const score = w.combined_score === null || w.combined_score === undefined ? "нет оценки (недостаточно данных)" : w.combined_score.toFixed(2);
+  const cls = isWinner ? "compare-window-winner" : isWorst ? "compare-window-worst" : "";
+  const badge = isWinner
+    ? '<span class="badge rec">Лучший вариант</span>'
+    : isWorst
+    ? '<span class="badge worst">Худший вариант</span>'
+    : "";
   return `
-    <div class="compare-window ${isWinner ? "compare-window-winner" : ""}">
-      ${isWinner ? '<span class="badge rec">Лучший вариант</span>' : ""}
+    <div class="compare-window ${cls}">
+      ${badge}
       <p><b>Окно:</b> ${fmt(w.start)} — ${fmt(w.end)}</p>
       <p><b>Совокупная оценка риска:</b> ${score} · <b>Полнота данных:</b> ${confidenceLabel(w.data_completeness)}</p>
       <ul>${factorLines}</ul>
     </div>`;
+}
+
+// Worst = highest combined_score across BOTH dates' windows (the backend
+// already picks the cross-date best via _recommend/winning_date/
+// winning_window_index; this mirrors that for the other end of the range).
+// Returns null if there's no real spread (worst ties with best), so a
+// uniformly-quiet or uniformly-scored comparison doesn't show a
+// contradictory "best"+"worst" badge on the same window.
+function findWorstWindow(resultA, resultB, bestDate, bestIdx) {
+  const entries = [];
+  resultA.windows.forEach((w, i) => entries.push({ w, date: "a", idx: i }));
+  resultB.windows.forEach((w, i) => entries.push({ w, date: "b", idx: i }));
+  const scored = entries.filter((e) => e.w.combined_score !== null && e.w.combined_score !== undefined);
+  if (!scored.length) return null;
+  let worst = scored[0];
+  for (const e of scored) if (e.w.combined_score > worst.w.combined_score) worst = e;
+  if (bestDate && worst.date === bestDate && worst.idx === bestIdx) return null;
+  return worst;
 }
 
 async function runCompareDates() {
@@ -956,11 +989,14 @@ async function runCompareDates() {
 
     const bestIdxA = data.winning_date === "a" ? data.winning_window_index : null;
     const bestIdxB = data.winning_date === "b" ? data.winning_window_index : null;
+    const worst = findWorstWindow(data.result_a, data.result_b, data.winning_date, data.winning_window_index);
+    const worstIdxA = worst && worst.date === "a" ? worst.idx : null;
+    const worstIdxB = worst && worst.date === "b" ? worst.idx : null;
     const windowsA = data.result_a.windows
-      .map((_, i) => windowSummaryHtml(data.result_a, i, i === bestIdxA))
+      .map((_, i) => windowSummaryHtml(data.result_a, i, i === bestIdxA, i === worstIdxA))
       .join("");
     const windowsB = data.result_b.windows
-      .map((_, i) => windowSummaryHtml(data.result_b, i, i === bestIdxB))
+      .map((_, i) => windowSummaryHtml(data.result_b, i, i === bestIdxB, i === worstIdxB))
       .join("");
 
     const winningWindow =

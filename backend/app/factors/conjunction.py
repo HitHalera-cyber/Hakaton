@@ -201,7 +201,19 @@ def _events_to_signals(
                 severity=severity,
                 provenance=Provenance.external_forecast,
                 observed_or_expected_start=tca,
-                observed_or_expected_end=tca,
+                # Deliberately None, not tca again: TCA is a single instant
+                # (time of closest approach), and the window-scoring math in
+                # analysis.py computes overlap as
+                # min(end)-max(start) between a signal's span and a
+                # candidate window. A zero-width [tca, tca] "span" always
+                # evaluates to exactly zero overlap minutes with ANY
+                # window — even one that contains tca — so this factor's
+                # score silently never reflected any real conjunction
+                # event. Leaving end unset lets _score_factor_for_window's
+                # existing default span (_DEFAULT_SIGNAL_SPAN, 30 minutes)
+                # apply instead, exactly like DONKI/NOAA-alert point-in-time
+                # signals already do.
+                observed_or_expected_end=None,
                 is_time_uncertain=tca is None,
                 value=float(ev.get("miss_distance_km")) if _is_float(ev.get("miss_distance_km")) else None,
                 unit="км (минимальная дальность)",

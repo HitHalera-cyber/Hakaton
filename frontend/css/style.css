@@ -248,6 +248,7 @@ tr.tied td { background: rgba(245, 196, 81, 0.08); }
 .badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 0.72rem; font-weight: 700; }
 .badge.rec { background: var(--ok); color: #06210f; }
 .badge.tie { background: var(--warn); color: #2a1d00; }
+.badge.worst { background: var(--danger); color: #2a0606; }
 
 .compare-dates-group .hint { margin-bottom: 8px; }
 .compare-dates-group #compare-dates-btn { margin-top: 10px; width: 100%; }
@@ -261,6 +262,8 @@ tr.tied td { background: rgba(245, 196, 81, 0.08); }
 .compare-window li { margin-bottom: 3px; }
 .compare-window-winner { border-color: var(--ok); background: rgba(79, 209, 140, 0.08); }
 .compare-window-winner .badge { margin-bottom: 8px; }
+.compare-window-worst { border-color: var(--danger); background: rgba(255, 107, 107, 0.08); }
+.compare-window-worst .badge { margin-bottom: 8px; }
 
 .factor-block { border: 1px solid var(--panel-border); border-radius: var(--radius-sm); padding: 13px 16px; margin-bottom: 12px; background: rgba(255, 255, 255, .03); }
 .factor-block h3 { margin: 0 0 6px; font-size: 0.95rem; }

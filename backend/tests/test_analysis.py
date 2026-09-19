@@ -97,6 +97,38 @@ async def test_recommendation_prefers_lower_risk_window():
     assert rec_window.combined_score == min(scored)
 
 
+async def test_conjunction_signal_contributes_to_window_score():
+    """Regression: a conjunction event's TCA is a single instant. The
+    window-overlap scoring computes overlap as
+    min(signal_end,window_end) - max(signal_start,window_start); a
+    zero-width [tca, tca] "span" (observed_or_expected_end set to tca
+    itself) always evaluates to exactly zero overlap minutes with ANY
+    window, even one that fully contains tca — silently dropping every
+    conjunction signal's contribution to combined_score, in every window,
+    always. Fixed by leaving observed_or_expected_end unset so the same
+    default-span fallback DONKI/NOAA-alert signals already use applies
+    here too (see conjunction.py)."""
+    socrates_csv = (
+        "NORAD_CAT_ID_1,NORAD_CAT_ID_2,TCA,MIN_RNG,MAX_PROB,SAT1_NAME,SAT2_NAME\n"
+        "25544,44444,2026-01-01 01:00:00,0.3,0.0005,ISS,DEBRIS A\n"
+    )
+
+    async def fake_socrates():
+        return socrates_csv
+
+    with patch.object(celestrak, "fetch_current_tle", _fake_tle), \
+         patch.object(swpc, "fetch_scales", _fake_scales_quiet), \
+         patch.object(swpc, "fetch_alerts", _fake_alerts_empty), \
+         patch.object(celestrak, "fetch_socrates_csv", fake_socrates):
+        resp = await run_analysis(_base_request(search_period_hours=0.0))
+
+    hit = resp.windows[0]  # covers 2026-01-01T00:00-02:00; TCA 01:00 falls inside
+    assert hit.combined_score is not None and hit.combined_score > 0.0
+    conj = next(c for c in hit.factor_contributions if c.factor.value == "conjunction_mmod")
+    assert conj.time_weighted_severity > 0.0
+    assert conj.driving_signals
+
+
 async def test_compare_dates_never_recommends_the_riskier_window_over_a_quiet_one():
     """Distinct from search_period_hours (which only compares start times
     clustered around ONE reference date): compares two entirely different
