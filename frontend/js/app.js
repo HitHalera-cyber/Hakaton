@@ -263,6 +263,11 @@ function renderTrajectory(orbit) {
 function renderMap(orbit) {
   if (!state.map) {
     state.map = L.map("map", { worldCopyJump: true }).setView([0, 0], 2);
+    // Leaflet's default attribution control prepends its own "Leaflet"
+    // branding (with a small flag icon) before whatever the tile layer
+    // contributes; drop that prefix and keep only the OSM credit their
+    // tile usage policy actually requires.
+    state.map.attributionControl.setPrefix(false);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: "&copy; OpenStreetMap",
       maxZoom: 8,
