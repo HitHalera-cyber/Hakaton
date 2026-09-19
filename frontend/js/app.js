@@ -73,24 +73,26 @@ async function refreshSourceToggles() {
   const container = $("#sources-toggle-list");
   container.innerHTML = "";
   sources.forEach((s) => {
+    const current = s.is_disabled ? "disabled" : s.is_frozen ? "frozen" : "normal";
     const row = document.createElement("div");
     row.className = "source-toggle-row";
     row.innerHTML = `
       <span>${s.name}</span>
-      <span class="toggles">
-        <label><input type="checkbox" data-name="${s.name}" data-kind="frozen" ${s.is_frozen ? "checked" : ""}/> заморозить</label>
-        <label><input type="checkbox" data-name="${s.name}" data-kind="disabled" ${s.is_disabled ? "checked" : ""}/> отключить</label>
-      </span>`;
+      <select data-name="${s.name}">
+        <option value="normal" ${current === "normal" ? "selected" : ""}>обычный режим</option>
+        <option value="frozen" ${current === "frozen" ? "selected" : ""}>заморожен (кеш без обновления)</option>
+        <option value="disabled" ${current === "disabled" ? "selected" : ""}>отключён (не используется)</option>
+      </select>`;
     container.appendChild(row);
   });
-  container.querySelectorAll("input[type=checkbox]").forEach((cb) => {
-    cb.addEventListener("change", async () => {
-      const name = cb.dataset.name;
-      const kind = cb.dataset.kind;
+  container.querySelectorAll("select").forEach((sel) => {
+    sel.addEventListener("change", async () => {
+      const name = sel.dataset.name;
+      const value = sel.value;
       await fetch(`${API}/sources/toggle`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, [kind]: cb.checked }),
+        body: JSON.stringify({ name, disabled: value === "disabled", frozen: value === "frozen" }),
       });
     });
   });
@@ -99,8 +101,9 @@ async function refreshSourceToggles() {
 function collectDisabledFrozen() {
   const disabled = [];
   const frozen = [];
-  document.querySelectorAll("#sources-toggle-list input[type=checkbox]").forEach((cb) => {
-    if (cb.checked) (cb.dataset.kind === "disabled" ? disabled : frozen).push(cb.dataset.name);
+  document.querySelectorAll("#sources-toggle-list select").forEach((sel) => {
+    if (sel.value === "disabled") disabled.push(sel.dataset.name);
+    else if (sel.value === "frozen") frozen.push(sel.dataset.name);
   });
   return { disabled, frozen };
 }
@@ -187,39 +190,75 @@ function render(data) {
   $("#result-id-label").textContent = `ID результата: ${data.result_id} · версия алгоритма ${data.algorithm_version}`;
 }
 
+const DAY_COLOR = "#f5c451";
+const NIGHT_COLOR = "#3355a8";
+
 function renderMap(orbit) {
   if (!state.map) {
     state.map = L.map("map", { worldCopyJump: true }).setView([0, 0], 2);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: "&copy; OpenStreetMap",
+      maxZoom: 8,
     }).addTo(state.map);
+
+    const legend = L.control({ position: "bottomright" });
+    legend.onAdd = () => {
+      const div = L.DomUtil.create("div", "map-legend");
+      div.innerHTML = `
+        <div><span class="swatch" style="background:${DAY_COLOR}"></span>день (станция освещена)</div>
+        <div><span class="swatch" style="background:${NIGHT_COLOR}"></span>ночь (станция в тени Земли)</div>
+        <div>🟢 начало периода &nbsp; 🟠 конец периода</div>`;
+      return div;
+    };
+    legend.addTo(state.map);
   }
   if (state.mapLayer) {
     state.map.removeLayer(state.mapLayer);
   }
-  const pts = orbit.track.map((p) => [p.lat, p.lon]);
   const group = L.layerGroup();
-  // split polyline at antimeridian crossings to avoid a horizontal line wrap
-  let segment = [];
-  for (let i = 0; i < pts.length; i++) {
-    if (i > 0 && Math.abs(pts[i][1] - pts[i - 1][1]) > 180) {
-      L.polyline(segment, { color: "#ff5c93", weight: 2 }).addTo(group);
-      segment = [];
-    }
-    segment.push(pts[i]);
-  }
-  if (segment.length) L.polyline(segment, { color: "#ff5c93", weight: 2 }).addTo(group);
+  const track = orbit.track;
 
-  if (orbit.track.length) {
-    const first = orbit.track[0];
-    const last = orbit.track[orbit.track.length - 1];
-    L.circleMarker([first.lat, first.lon], { radius: 6, color: "#4fd1c5", fillOpacity: 1 })
-      .bindTooltip("Начало периода")
-      .addTo(group);
-    L.circleMarker([last.lat, last.lon], { radius: 6, color: "#f5c451", fillOpacity: 1 })
-      .bindTooltip("Конец периода")
-      .addTo(group);
+  if (track.length) {
+    // Split the ground track into contiguous day/night runs, and further at
+    // antimeridian crossings, so nothing draws a false line across the map.
+    let segment = [track[0]];
+    const flush = () => {
+      if (segment.length > 1) {
+        const daylight = segment[0].is_daylight;
+        L.polyline(segment.map((p) => [p.lat, p.lon]), {
+          color: daylight ? DAY_COLOR : NIGHT_COLOR,
+          weight: 3,
+          opacity: 0.9,
+        }).addTo(group);
+      }
+      segment = [];
+    };
+    for (let i = 1; i < track.length; i++) {
+      const prev = track[i - 1];
+      const cur = track[i];
+      const wrapped = Math.abs(cur.lon - prev.lon) > 180;
+      const dayChanged = cur.is_daylight !== prev.is_daylight;
+      if (wrapped || dayChanged) {
+        flush();
+        segment = [prev];
+      }
+      segment.push(cur);
+    }
+    flush();
+
+    const first = track[0];
+    const last = track[track.length - 1];
+    L.marker([first.lat, first.lon], {
+      icon: L.divIcon({ className: "", html: '<div style="background:#4fd18c;width:14px;height:14px;border-radius:50%;border:2px solid #06210f;"></div>', iconSize: [14, 14] }),
+    }).bindTooltip("Начало периода: " + fmt(first.t), { permanent: false }).addTo(group);
+    L.marker([last.lat, last.lon], {
+      icon: L.divIcon({ className: "", html: '<div style="background:#ff9d47;width:14px;height:14px;border-radius:50%;border:2px solid #3a1900;"></div>', iconSize: [14, 14] }),
+    }).bindTooltip("Конец периода: " + fmt(last.t), { permanent: false }).addTo(group);
+
+    const bounds = L.latLngBounds(track.map((p) => [p.lat, p.lon]));
+    state.map.fitBounds(bounds.pad(0.25), { maxZoom: 6 });
   }
+
   group.addTo(state.map);
   state.mapLayer = group;
 }

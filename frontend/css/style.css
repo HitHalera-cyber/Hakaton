@@ -92,7 +92,31 @@ body {
 }
 .primary-btn { background: var(--accent); color: #1a0710; }
 .primary-btn:hover { filter: brightness(1.08); }
-.ghost-btn { background: transparent; border: 1px solid var(--panel-border); color: var(--text); }
+.ghost-btn { background: transparent; border: 1px solid var(--panel-border); color: var(--text); font-size: 0.8rem; padding: 8px 12px; }
+
+.advanced-panel summary { cursor: pointer; font-size: 0.85rem; color: var(--muted); }
+.advanced-panel > .control-group { margin-top: 12px; }
+.advanced-panel #experiment-btn { margin-top: 14px; width: 100%; }
+
+.map-legend {
+  background: rgba(19, 28, 46, 0.92);
+  color: var(--text);
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  border: 1px solid var(--panel-border);
+}
+.map-legend .swatch { display: inline-block; width: 14px; height: 3px; margin-right: 6px; vertical-align: middle; }
+
+.source-toggle-row select {
+  background: #0e1626;
+  color: var(--text);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.78rem;
+}
 
 .status-banner { font-size: 0.8rem; padding: 8px 10px; border-radius: 6px; background: #1c2b1f; color: var(--ok); }
 
