@@ -27,3 +27,13 @@ def isolated_cache_dir(tmp_path, monkeypatch):
         cache._path = cache_dir / f"{cache._state.name}.json"
     yield
     shutil.rmtree(cache_dir, ignore_errors=True)
+
+
+@pytest.fixture(autouse=True)
+def no_retry_backoff(monkeypatch):
+    """SourceCache retries transient failures with a short real-time
+    backoff in production; tests exercise the failure path a lot, so drop
+    the backoff to zero here rather than paying real wall-clock delays."""
+    import app.cache as cache_module
+
+    monkeypatch.setattr(cache_module, "_RETRY_BACKOFF_SECONDS", (0, 0))

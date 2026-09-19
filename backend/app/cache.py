@@ -10,6 +10,7 @@ way under failure.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
@@ -24,6 +25,16 @@ from .models import SourceStatus
 logger = logging.getLogger("eva.cache")
 
 T = TypeVar("T")
+
+# Retry budget for a single logical fetch: 3 attempts total, short backoff
+# between them. This is deliberately small — it smooths over a transient
+# blip (a dropped connection, a slow upstream moment), it does not mask a
+# persistently blocked/unreachable source. A source that fails all 3
+# attempts still degrades exactly as documented (stale cache, or
+# SourceUnavailable if there is no cache at all) — retries never turn a
+# real outage into a silent success.
+_MAX_FETCH_ATTEMPTS = 3
+_RETRY_BACKOFF_SECONDS = (0.75, 2.0)
 
 
 class SourceUnavailable(Exception):
@@ -146,14 +157,37 @@ class SourceCache(Generic[T]):
             return cached["payload"], self.status, False
 
         self._state.last_attempt_at = now
-        try:
-            payload = await fetch_fn()
-        except Exception as exc:  # noqa: BLE001 - deliberately broad: any network/parse failure
-            self._state.last_error = f"{type(exc).__name__}: {exc}"
-            logger.warning("fetch failed for %s: %s", self._state.name, self._state.last_error)
+        last_exc: Exception | None = None
+        payload = None
+        fetched = False
+        # A single transient network hiccup (common on small/free hosting —
+        # e.g. connection resets, brief upstream slowness) shouldn't be
+        # treated the same as a genuinely unreachable/blocked source. Retry
+        # a couple of times with a short backoff before giving up.
+        for attempt in range(_MAX_FETCH_ATTEMPTS):
+            try:
+                payload = await fetch_fn()
+                fetched = True
+                break
+            except Exception as exc:  # noqa: BLE001 - deliberately broad: any network/parse failure
+                last_exc = exc
+                if attempt < _MAX_FETCH_ATTEMPTS - 1:
+                    logger.info(
+                        "fetch attempt %d/%d failed for %s: %s — retrying in %.1fs",
+                        attempt + 1, _MAX_FETCH_ATTEMPTS, self._state.name, exc,
+                        _RETRY_BACKOFF_SECONDS[attempt],
+                    )
+                    await asyncio.sleep(_RETRY_BACKOFF_SECONDS[attempt])
+
+        if not fetched:
+            self._state.last_error = f"{type(last_exc).__name__}: {last_exc}"
+            logger.warning(
+                "fetch failed for %s after %d attempt(s): %s",
+                self._state.name, _MAX_FETCH_ATTEMPTS, self._state.last_error,
+            )
             if cached is not None:
                 return cached["payload"], self.status, False
-            raise SourceUnavailable(self._state.name, self._state.last_error) from exc
+            raise SourceUnavailable(self._state.name, self._state.last_error) from last_exc
 
         self._state.last_error = None
         self._state.last_success_at = now

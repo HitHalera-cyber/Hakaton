@@ -23,6 +23,40 @@ async def test_fetch_success_then_serves_cache_within_ttl():
     assert calls["n"] == 1  # second call served from cache, no refetch
 
 
+async def test_transient_failure_recovers_on_retry_within_same_get_call():
+    """A source that fails once (e.g. a dropped connection) then succeeds
+    should recover within a single .get() call, not be treated as an
+    outage — this is what actually helps against flaky free-tier hosting
+    without masking a real, persistent block."""
+    calls = {"n": 0}
+
+    async def flaky_fetch():
+        calls["n"] += 1
+        if calls["n"] < 2:
+            raise ConnectionError("simulated transient network blip")
+        return {"value": "recovered"}
+
+    cache = SourceCache("t6", "http://example.test", ttl_seconds=3600)
+    payload, status, fresh = await cache.get(flaky_fetch)
+    assert payload == {"value": "recovered"}
+    assert fresh is True
+    assert calls["n"] == 2
+    assert status.last_error is None  # the eventual success clears the error
+
+
+async def test_persistent_failure_still_exhausts_retries_and_reports_error():
+    calls = {"n": 0}
+
+    async def always_fails():
+        calls["n"] += 1
+        raise ConnectionError("simulated persistent block")
+
+    cache = SourceCache("t7", "http://example.test", ttl_seconds=3600)
+    with pytest.raises(SourceUnavailable):
+        await cache.get(always_fails)
+    assert calls["n"] == 3  # exhausted the full retry budget, not just one attempt
+
+
 async def test_fetch_failure_with_no_cache_raises():
     async def failing_fetch():
         raise RuntimeError("network down")
