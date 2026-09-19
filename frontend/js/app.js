@@ -679,4 +679,44 @@ function initStarfield() {
 }
 initStarfield();
 
+/* TEMP: pure connectivity check — GitHub -> Render build -> server ->
+   browser, nothing else. Calls only this service's own /api/health
+   (zero external API calls, no CelesTrak/NOAA/NASA involved at all), so
+   a success here proves the deploy pipeline and server reachability are
+   fine even while an external data source is down/blocked. Delete this
+   block, the #ping-btn button and the #ping-overlay markup/CSS together
+   once the pipeline is confirmed working. */
+function initPingCheck() {
+  const btn = document.getElementById("ping-btn");
+  const overlay = document.getElementById("ping-overlay");
+  const text = document.getElementById("ping-text");
+  const closeBtn = document.getElementById("ping-close");
+  if (!btn || !overlay) return;
+
+  closeBtn.addEventListener("click", () => { overlay.hidden = true; });
+
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    const minDelay = new Promise((resolve) => setTimeout(resolve, 2000));
+    let ok = false;
+    let detail = "";
+    try {
+      const res = await fetch(`${API}/health`);
+      ok = res.ok;
+      if (!ok) detail = `сервер ответил, но со статусом ${res.status}`;
+    } catch (e) {
+      ok = false;
+      detail = e.message || String(e);
+    }
+    await minDelay;
+    overlay.classList.toggle("error", !ok);
+    text.textContent = ok
+      ? "Проверка проведения расчёта выполнена"
+      : `Сервер недоступен: ${detail}`;
+    overlay.hidden = false;
+    btn.disabled = false;
+  });
+}
+initPingCheck();
+
 init();

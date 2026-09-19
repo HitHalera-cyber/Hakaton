@@ -248,3 +248,19 @@ details.signal summary {
 .dot.err { background: var(--danger); }
 
 .footer { padding: 16px 28px 40px; color: var(--muted); font-size: 0.78rem; text-align: center; }
+
+/* TEMP: connectivity-check overlay (see index.html / app.js ping-btn) — delete this block together with them. */
+.ping-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: rgba(0, 0, 0, .55);
+  backdrop-filter: blur(4px);
+}
+.ping-overlay p { margin: 0; font-size: 1.05rem; font-weight: 700; color: var(--text); text-align: center; max-width: 320px; padding: 0 16px; }
+.ping-overlay.error #ping-triangle { fill: var(--warn); }
