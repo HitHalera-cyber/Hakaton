@@ -155,6 +155,10 @@ class AnalyzeRequest(BaseModel):
     step_minutes: float = Field(default=30.0, ge=5.0, le=120.0)
     disabled_sources: list[str] = Field(default_factory=list)
     frozen_sources: list[str] = Field(default_factory=list)
+    force_refresh: bool = Field(
+        default=False,
+        description="Bypass the TTL cache and re-fetch every source now, even if a fresh cached copy exists.",
+    )
 
 
 class AnalyzeResponse(BaseModel):
@@ -186,6 +190,7 @@ class CompareDatesRequest(BaseModel):
     step_minutes: float = Field(default=30.0, ge=5.0, le=120.0)
     disabled_sources: list[str] = Field(default_factory=list)
     frozen_sources: list[str] = Field(default_factory=list)
+    force_refresh: bool = Field(default=False, description="Bypass the TTL cache for both scenarios.")
 
 
 class CompareDatesResponse(BaseModel):

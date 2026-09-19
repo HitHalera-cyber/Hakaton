@@ -69,6 +69,7 @@ async def assess_current(
     window_end: datetime,
     disabled_sources: list[str],
     frozen_sources: list[str],
+    force_refresh: bool = False,
 ) -> FactorAssessment:
     _apply_overrides(disabled_sources, frozen_sources)
     cache = registry.get(SOCRATES_CACHE)
@@ -81,7 +82,7 @@ async def assess_current(
 
     events: list[dict] = []
     try:
-        csv_text, _status, _fresh = await cache.get(celestrak.fetch_socrates_csv)
+        csv_text, _status, _fresh = await cache.get(celestrak.fetch_socrates_csv, force_refresh=force_refresh)
         events = celestrak.parse_socrates_for_norad(csv_text, settings.iss_norad_id)
     except SourceUnavailable as exc:
         data_sufficient = False
@@ -91,7 +92,7 @@ async def assess_current(
             cdm_cache = registry.get(SPACETRACK_CDM_CACHE)
             try:
                 payload, _status, _fresh = await cdm_cache.get(
-                    lambda: spacetrack.fetch_cdm_conjunctions(settings.iss_norad_id)
+                    lambda: spacetrack.fetch_cdm_conjunctions(settings.iss_norad_id), force_refresh=force_refresh
                 )
                 events = spacetrack.parse_cdm_events(payload, settings.iss_norad_id)
                 data_sufficient = True
@@ -246,7 +247,12 @@ def _events_to_signals(
     return signals
 
 
-async def assess_historical(cutoff: datetime, window_start: datetime, window_end: datetime) -> FactorAssessment:
+async def assess_historical(
+    cutoff: datetime,
+    window_start: datetime,
+    window_end: datetime,
+    force_refresh: bool = False,
+) -> FactorAssessment:
     """CelesTrak SOCRATES itself has no archive (only ever a rolling
     ~7-day-ahead forecast), but Space-Track's cdm_public class keeps its
     full history — so a genuine "forecast from the past" replay (T4) is
@@ -284,7 +290,8 @@ async def assess_historical(cutoff: datetime, window_start: datetime, window_end
     ]
     try:
         payload, _status, _fresh = await cache.get(
-            lambda: spacetrack.fetch_cdm_conjunctions_for_window(settings.iss_norad_id, cutoff)
+            lambda: spacetrack.fetch_cdm_conjunctions_for_window(settings.iss_norad_id, cutoff),
+            force_refresh=force_refresh,
         )
         events = spacetrack.parse_cdm_events(payload, settings.iss_norad_id)
     except Exception as exc:  # noqa: BLE001 - reported, never swallowed

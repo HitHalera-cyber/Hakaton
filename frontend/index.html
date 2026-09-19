@@ -68,6 +68,13 @@
         <p class="hint">Заморозить или отключить отдельный источник — проверить, как сервис ведёт себя при его недоступности.</p>
         <div id="sources-toggle-list" class="sources-toggle-list"></div>
       </div>
+      <div class="control-group">
+        <label class="checkbox-label" for="force_refresh">
+          <input type="checkbox" id="force_refresh" />
+          Обновить данные источников сейчас (не использовать кеш)
+        </label>
+        <p class="hint">Игнорирует срок годности кеша и заново запрашивает все источники — полезно, если данные явно устарели.</p>
+      </div>
       <button type="button" id="experiment-btn" class="ghost-btn">Эксперимент: метод команды vs. базовый подход</button>
     </details>
 

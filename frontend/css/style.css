@@ -129,6 +129,16 @@ body {
 
 .hint { font-size: 0.78rem; color: var(--muted); margin: 4px 0 0; }
 
+.checkbox-label {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500 !important;
+  color: var(--text) !important;
+  cursor: pointer;
+}
+.checkbox-label input[type="checkbox"] { width: auto; flex: none; accent-color: var(--accent); }
+
 .sources-panel summary { cursor: pointer; font-size: 0.85rem; color: var(--muted); }
 .sources-toggle-list { margin-top: 10px; display: flex; flex-direction: column; gap: 10px; }
 /* Stacked, not side-by-side: the <select> options ("обычный режим",

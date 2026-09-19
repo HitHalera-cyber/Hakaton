@@ -149,13 +149,22 @@ async def run_analysis(req: AnalyzeRequest) -> AnalyzeResponse:
         start=span_start,
         end=span_end,
         step_minutes=min(req.step_minutes, 10.0),
+        force_refresh=req.force_refresh,
     )
     if is_historical:
-        sw_task = space_weather.assess_historical(req.reference_time, span_start, span_end)
-        conj_task = conjunction.assess_historical(req.reference_time, span_start, span_end)
+        sw_task = space_weather.assess_historical(
+            req.reference_time, span_start, span_end, force_refresh=req.force_refresh
+        )
+        conj_task = conjunction.assess_historical(
+            req.reference_time, span_start, span_end, force_refresh=req.force_refresh
+        )
     else:
-        sw_task = space_weather.assess_current(span_start, span_end, req.disabled_sources, req.frozen_sources)
-        conj_task = conjunction.assess_current(span_start, span_end, req.disabled_sources, req.frozen_sources)
+        sw_task = space_weather.assess_current(
+            span_start, span_end, req.disabled_sources, req.frozen_sources, force_refresh=req.force_refresh
+        )
+        conj_task = conjunction.assess_current(
+            span_start, span_end, req.disabled_sources, req.frozen_sources, force_refresh=req.force_refresh
+        )
 
     orbit_info, sw_assessment, conj_assessment = await asyncio.gather(orbit_task, sw_task, conj_task)
 
@@ -257,11 +266,13 @@ async def compare_dates(req: CompareDatesRequest) -> CompareDatesResponse:
         mode=req.mode, reference_time=req.date_a, duration_hours=req.duration_hours,
         search_period_hours=req.search_period_hours, step_minutes=req.step_minutes,
         disabled_sources=req.disabled_sources, frozen_sources=req.frozen_sources,
+        force_refresh=req.force_refresh,
     )
     req_b = AnalyzeRequest(
         mode=req.mode, reference_time=req.date_b, duration_hours=req.duration_hours,
         search_period_hours=req.search_period_hours, step_minutes=req.step_minutes,
         disabled_sources=req.disabled_sources, frozen_sources=req.frozen_sources,
+        force_refresh=req.force_refresh,
     )
     result_a, result_b = await asyncio.gather(run_analysis(req_a), run_analysis(req_b))
 

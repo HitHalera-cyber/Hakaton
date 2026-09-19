@@ -143,6 +143,7 @@ async function runAnalyze() {
     step_minutes: parseFloat($("#step_minutes").value),
     disabled_sources: disabled,
     frozen_sources: frozen,
+    force_refresh: $("#force_refresh").checked,
   };
 
   setLoading(true);
@@ -960,6 +961,7 @@ async function runCompareDates() {
     step_minutes: parseFloat($("#step_minutes").value),
     disabled_sources: disabled,
     frozen_sources: frozen,
+    force_refresh: $("#force_refresh").checked,
   };
 
   setCompareLoading(true);

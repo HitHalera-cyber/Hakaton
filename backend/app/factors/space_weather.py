@@ -90,6 +90,7 @@ async def assess_current(
     window_end: datetime,
     disabled_sources: list[str],
     frozen_sources: list[str],
+    force_refresh: bool = False,
 ) -> FactorAssessment:
     _apply_overrides(disabled_sources, frozen_sources)
     signals: list[Signal] = []
@@ -109,9 +110,11 @@ async def assess_current(
     # Independent sources, fetched concurrently rather than one after the
     # other — reduces the worst-case wait when one of them is slow/down.
     scales_result, alerts_result, donki_result = await asyncio.gather(
-        scales_cache.get(swpc.fetch_scales),
-        alerts_cache.get(swpc.fetch_alerts),
-        donki_cache.get(lambda: donki.fetch_notifications(donki_query_start, donki_query_end)),
+        scales_cache.get(swpc.fetch_scales, force_refresh=force_refresh),
+        alerts_cache.get(swpc.fetch_alerts, force_refresh=force_refresh),
+        donki_cache.get(
+            lambda: donki.fetch_notifications(donki_query_start, donki_query_end), force_refresh=force_refresh
+        ),
         return_exceptions=True,
     )
 
@@ -267,11 +270,22 @@ async def assess_current(
             )
         )
 
+    seen_message_ids: set[str] = set()
     for item in donki_raw or []:
         msg_type_raw = str(item.get("messageType", ""))
         msg_type = next((k for k in _DONKI_TYPE_SEVERITY if msg_type_raw.upper().startswith(k)), None)
         if msg_type is None:
             continue
+        # DONKI notifications are keyed by messageID, but the same message can
+        # legitimately appear more than once in one response (e.g. an update
+        # to an already-issued notification, or overlap between adjacent
+        # query pages) — without dedup this double-counted the same event as
+        # two separate signals, inflating severity (T1: "дубли сообщений").
+        message_id = str(item.get("messageID", "")).strip()
+        if message_id:
+            if message_id in seen_message_ids:
+                continue
+            seen_message_ids.add(message_id)
         issued = parse_utc_datetime(item.get("messageIssueTime"))
         body = str(item.get("messageBody", ""))[:400]
         is_forecast_wording = any(w in body.lower() for w in ("predicted", "expected", "forecast", "likely"))
@@ -362,6 +376,7 @@ async def assess_historical(
     cutoff: datetime,
     window_start: datetime,
     window_end: datetime,
+    force_refresh: bool = False,
 ) -> FactorAssessment:
     """Strict 'forecast from the past' replay: only DONKI notifications with
     messageIssueTime <= cutoff are used. This directly satisfies T4."""
@@ -390,13 +405,16 @@ async def assess_historical(
     notes_parts: list[str] = []
     data_sufficient = True
     try:
-        raw, _status, _fresh = await cache.get(lambda: donki.fetch_notifications(query_start, query_end))
+        raw, _status, _fresh = await cache.get(
+            lambda: donki.fetch_notifications(query_start, query_end), force_refresh=force_refresh
+        )
     except SourceUnavailable as exc:
         data_sufficient = False
         raw = []
         notes_parts.append(f"NASA DONKI недоступен: {exc.reason}.")
 
-    kept, dropped_future = 0, 0
+    kept, dropped_future, dropped_duplicate = 0, 0, 0
+    seen_message_ids: set[str] = set()
     for item in raw or []:
         issued = parse_utc_datetime(item.get("messageIssueTime"))
         if issued is None:
@@ -408,6 +426,12 @@ async def assess_historical(
         msg_type = next((k for k in _DONKI_TYPE_SEVERITY if msg_type_raw.upper().startswith(k)), None)
         if msg_type is None:
             continue
+        message_id = str(item.get("messageID", "")).strip()
+        if message_id:
+            if message_id in seen_message_ids:
+                dropped_duplicate += 1
+                continue
+            seen_message_ids.add(message_id)
         body = str(item.get("messageBody", ""))[:500]
         is_forecast_wording = any(w in body.lower() for w in ("predicted", "expected", "forecast", "likely"))
         kept += 1
@@ -440,9 +464,11 @@ async def assess_historical(
             )
         )
 
+    dup_note = f" Обнаружено и исключено {dropped_duplicate} дублей сообщений." if dropped_duplicate else ""
     notes_parts.append(
         f"Прогноз из прошлого: учтено {kept} уведомлений, опубликованных не позже {cutoff.isoformat()}; "
         f"{dropped_future} более поздних уведомлений исключены из расчёта и доступны только для проверки."
+        f"{dup_note}"
     )
 
     overall_confidence = ConfidenceLevel.insufficient_data if not data_sufficient else (

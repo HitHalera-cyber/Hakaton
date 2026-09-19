@@ -96,3 +96,40 @@ async def test_assess_current_donki_unavailable_does_not_block_swpc_signals():
     assert result.data_sufficient is True  # SWPC alert still counts as sufficient
     assert len(result.signals) == 1
     assert "DONKI недоступен" in result.notes
+
+
+async def test_assess_current_deduplicates_repeated_donki_message_id():
+    """T1: 'дубли сообщений' — the same messageID appearing twice in one
+    DONKI response (e.g. an update re-issued under the same id) must count
+    as one signal, not double the severity contribution."""
+    async def fake_scales():
+        return {}
+
+    async def fake_alerts():
+        return []
+
+    async def fake_notifications(start, end, msg_type="all"):
+        return [
+            {
+                "messageType": "SEP",
+                "messageIssueTime": "2024-05-10T05:00Z",
+                "messageBody": "Solar energetic particle event expected to persist.",
+                "messageID": "SEP-DUP-1",
+            },
+            {
+                "messageType": "SEP",
+                "messageIssueTime": "2024-05-10T05:00Z",
+                "messageBody": "Solar energetic particle event expected to persist.",
+                "messageID": "SEP-DUP-1",
+            },
+        ]
+
+    window_start = datetime(2024, 5, 10, 0, 0, tzinfo=timezone.utc)
+    window_end = datetime(2024, 5, 10, 12, 0, tzinfo=timezone.utc)
+
+    with patch.object(swpc, "fetch_scales", fake_scales), \
+         patch.object(swpc, "fetch_alerts", fake_alerts), \
+         patch.object(donki, "fetch_notifications", fake_notifications):
+        result = await space_weather.assess_current(window_start, window_end, [], [])
+
+    assert len(result.signals) == 1
