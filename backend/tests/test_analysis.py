@@ -186,9 +186,12 @@ async def test_donki_old_notification_still_scores_todays_window_in_current_mode
     purposes long before today's candidate windows — it still showed up
     with real severity in the factors list while silently never
     contributing to any window's score (reported live: 7 real DONKI
-    signals shown, every window still 0.00). Fixed by extending the
-    signal's end to also cover the full requested window span, not just a
-    fixed offset from its own issue time."""
+    signals shown, every window still 0.00). Fixed by anchoring the
+    signal's end to max(issued, now) + forecast_horizon_hours, so a
+    notification still being surfaced as relevant context stays
+    scoring-relevant through the near-term future from "now" — see
+    test_donki_far_future_window_still_shows_zero_not_a_uniform_blanket
+    for why this is anchored to "now" and not the whole compared range."""
     now = datetime.now(timezone.utc)
     issued_3_days_ago = (now - timedelta(days=3)).strftime("%Y-%m-%dT%H:%MZ")
 
@@ -211,6 +214,45 @@ async def test_donki_old_notification_still_scores_todays_window_in_current_mode
 
     hit = resp.windows[0]
     assert hit.combined_score is not None and hit.combined_score > 0.0
+
+
+async def test_donki_far_future_window_still_shows_zero_not_a_uniform_blanket():
+    """Regression on the FIRST attempted fix for the bug above: extending a
+    signal's end to window_end (the far edge of the WHOLE compared range)
+    blanketed every compared window with the identical severity, collapsing
+    a wide comparison to one flat number — reported live as a flat/empty-
+    looking chart and an unclear "best window" pick, since everything was
+    tied. Anchoring to "now" instead means a window far enough into the
+    future (beyond the forecast horizon from now) must still honestly show
+    no contribution from an old notification, preserving real
+    differentiation between near and far windows."""
+    now = datetime.now(timezone.utc)
+    issued_3_days_ago = (now - timedelta(days=3)).strftime("%Y-%m-%dT%H:%MZ")
+
+    async def fake_notifications(start, end, msg_type="all"):
+        return [
+            {
+                "messageType": "CME",
+                "messageIssueTime": issued_3_days_ago,
+                "messageBody": "test coronal mass ejection",
+                "messageID": "CME-1",
+            }
+        ]
+
+    with patch.object(celestrak, "fetch_current_tle", _fake_tle), \
+         patch.object(swpc, "fetch_scales", _fake_scales_quiet), \
+         patch.object(swpc, "fetch_alerts", _fake_alerts_empty), \
+         patch.object(celestrak, "fetch_socrates_csv", _fake_socrates_empty), \
+         patch.object(donki, "fetch_notifications", fake_notifications):
+        resp = await run_analysis(_base_request(
+            reference_time=now, duration_hours=4.0, search_period_hours=18.0, step_minutes=60.0,
+        ))
+
+    near_window = resp.windows[0]  # starts at "now", well within the forecast horizon
+    far_window = resp.windows[-1]  # starts ~18h from "now", well beyond it
+    assert near_window.combined_score is not None and near_window.combined_score > 0.0
+    assert far_window.combined_score == 0.0
+    assert far_window.combined_score != near_window.combined_score
 
 
 async def test_compare_dates_never_recommends_the_riskier_window_over_a_quiet_one():

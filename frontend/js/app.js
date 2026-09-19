@@ -9,7 +9,6 @@ let state = {
   lastOrbit: null,
   map: null,
   mapLayer: null,
-  chart: null,
   globe: null, // lazily-created three.js state, see renderGlobe()
 };
 
@@ -775,33 +774,6 @@ function renderWindows(data) {
       <td>${(w.daylight_fraction * 100).toFixed(0)}%</td>
       <td>${badge}</td>`;
     tbody.appendChild(tr);
-  });
-
-  const ctx = document.getElementById("windows-chart");
-  const labels = data.windows.map((w, i) => `#${i + 1} ${fmt(w.start).slice(5, 16)}`);
-  const factorNames = [...new Set(data.windows.flatMap((w) => w.factor_contributions.map((c) => c.factor)))];
-  const colors = { space_weather: "#f5c451", conjunction_mmod: "#c9a8ff" };
-  const datasets = factorNames.map((f) => ({
-    label: f === "space_weather" ? "Космическая погода" : "Сближения/MMOD",
-    data: data.windows.map((w) => {
-      const c = w.factor_contributions.find((c) => c.factor === f);
-      return c ? c.time_weighted_severity : 0;
-    }),
-    backgroundColor: colors[f] || "#bfe6ff",
-  }));
-
-  if (state.chart) state.chart.destroy();
-  state.chart = new Chart(ctx, {
-    type: "bar",
-    data: { labels, datasets },
-    options: {
-      responsive: true,
-      scales: {
-        x: { stacked: true, ticks: { color: "#9fb7d6" } },
-        y: { stacked: true, beginAtZero: true, max: 1, ticks: { color: "#9fb7d6" } },
-      },
-      plugins: { legend: { labels: { color: "#f3f8ff" } } },
-    },
   });
 }
 

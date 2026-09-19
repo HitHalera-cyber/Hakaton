@@ -242,9 +242,15 @@ async def assess_current(
                 # to 48h old (see the lookback check above) and still be
                 # surfaced as active context, but a bare 30-minute default
                 # span would make it "expire" for scoring purposes long
-                # before any window being compared today.
+                # before any window being compared today. Anchored to "now"
+                # (not window_end — see the DONKI comment for why that was
+                # wrong) so it stays a fixed, realistic duration regardless
+                # of how wide the user's comparison range is.
                 observed_or_expected_end=(
-                    max(issued + timedelta(hours=settings.forecast_horizon_hours), window_end)
+                    max(
+                        issued + timedelta(hours=settings.forecast_horizon_hours),
+                        datetime.now(timezone.utc) + timedelta(hours=settings.forecast_horizon_hours),
+                    )
                     if issued
                     else None
                 ),
@@ -291,11 +297,22 @@ async def assess_current(
                 # window being compared today. The signal then showed up
                 # with real severity in the factors list while silently
                 # never contributing to any window's score — exactly what
-                # was reported. Extending the end to also cover window_end
-                # makes a notification's scoring relevance match how long
-                # it's actually still being treated as relevant context.
+                # was reported. FIRST attempt at a fix extended the end to
+                # window_end (the far edge of the whole compared range) —
+                # wrong: for a wide search period that blankets EVERY
+                # compared window with the identical severity, collapsing
+                # all of them to the same score and defeating the entire
+                # point of comparing windows (reported live: a flat,
+                # undifferentiated chart and an unclear "best" pick).
+                # Anchored to "now" instead — a fixed, realistic duration
+                # regardless of how wide the comparison range is, so
+                # windows further into the future correctly show reduced
+                # risk from this signal again.
                 observed_or_expected_end=(
-                    max(issued + timedelta(hours=settings.forecast_horizon_hours), window_end)
+                    max(
+                        issued + timedelta(hours=settings.forecast_horizon_hours),
+                        datetime.now(timezone.utc) + timedelta(hours=settings.forecast_horizon_hours),
+                    )
                     if issued
                     else None
                 ),
