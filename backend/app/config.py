@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     # Optional: Space-Track (needed only for authenticated historical GP_HISTORY orbit elements).
     spacetrack_login_url: str = "https://www.space-track.org/ajaxauth/login"
     spacetrack_query_url: str = "https://www.space-track.org/basicspacedata/query"
+    # "modeldef" is its own request type under the same "basicspacedata"
+    # controller, not a predicate appended after "query" — a distinct base
+    # URL avoids ever reconstructing it wrong. See clients/spacetrack.py.
+    spacetrack_modeldef_url: str = "https://www.space-track.org/basicspacedata/modeldef"
     spacetrack_identity: str | None = None
     spacetrack_password: str | None = None
 

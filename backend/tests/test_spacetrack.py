@@ -42,3 +42,46 @@ async def test_login_without_credentials_raises_not_configured(monkeypatch):
     async with httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(200))) as client:
         with pytest.raises(spacetrack.SpaceTrackNotConfigured):
             await spacetrack._login(client)
+
+
+async def test_fetch_cdm_conjunctions_requests_modeldef_at_the_dedicated_url(monkeypatch):
+    """Regression test: modeldef is its own request type under
+    basicspacedata ("/basicspacedata/modeldef/..."), not a predicate tacked
+    onto the query request type ("/basicspacedata/query/modeldef/...") —
+    the latter is exactly the mistake that produced a live 400 Bad Request."""
+    monkeypatch.setattr(settings, "spacetrack_identity", "user")
+    monkeypatch.setattr(settings, "spacetrack_password", "pass")
+
+    seen_urls = []
+
+    def handler(request):
+        seen_urls.append(str(request.url))
+        if request.url.path.endswith("/ajaxauth/login"):
+            return httpx.Response(200, content=b"")
+        if request.url.path.startswith("/basicspacedata/modeldef/"):
+            return httpx.Response(
+                200,
+                json={
+                    "data": [
+                        {"Field": "TCA"},
+                        {"Field": "MISS_DISTANCE"},
+                        {"Field": "PC"},
+                        {"Field": "SAT_1_ID"},
+                        {"Field": "SAT_2_ID"},
+                        {"Field": "SAT_1_NAME"},
+                        {"Field": "SAT_2_NAME"},
+                    ]
+                },
+            )
+        return httpx.Response(200, json=[])
+
+    def fake_new_client():
+        return httpx.AsyncClient(transport=httpx.MockTransport(handler))
+
+    monkeypatch.setattr(spacetrack, "new_client", fake_new_client)
+
+    payload = await spacetrack.fetch_cdm_conjunctions(25544)
+
+    assert "https://www.space-track.org/basicspacedata/modeldef/class/cdm_public/format/json" in seen_urls
+    assert not any("/basicspacedata/query/modeldef" in u for u in seen_urls)
+    assert payload["rows"] == []

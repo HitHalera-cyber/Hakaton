@@ -145,7 +145,7 @@ async def fetch_cdm_conjunctions(norad_id: int, limit: int = 50) -> dict:
     async with new_client() as client:
         await _login(client)
 
-        modeldef_resp = await client.get(f"{settings.spacetrack_query_url}/modeldef/class/cdm_public/format/json")
+        modeldef_resp = await client.get(f"{settings.spacetrack_modeldef_url}/class/cdm_public/format/json")
         modeldef_resp.raise_for_status()
         modeldef = modeldef_resp.json()
         rows = modeldef.get("data", modeldef) if isinstance(modeldef, dict) else modeldef
