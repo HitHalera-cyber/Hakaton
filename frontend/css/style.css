@@ -85,6 +85,14 @@ body {
   padding: 18px;
   position: sticky;
   top: 16px;
+  /* Without its own scroll, a sticky sidebar taller than the viewport
+     (e.g. once "Дополнительно" is expanded) has no way to bring its own
+     bottom into view — the page's scroll range is governed by the OTHER
+     column, so if results are short/empty, the tail of this panel is
+     simply unreachable. Giving it its own max-height + scrollbar makes it
+     always fully reachable regardless of what's next to it. */
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -122,8 +130,11 @@ body {
 .hint { font-size: 0.78rem; color: var(--muted); margin: 4px 0 0; }
 
 .sources-panel summary { cursor: pointer; font-size: 0.85rem; color: var(--muted); }
-.sources-toggle-list { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
-.source-toggle-row { display: flex; align-items: center; justify-content: space-between; font-size: 0.8rem; gap: 6px; }
+.sources-toggle-list { margin-top: 10px; display: flex; flex-direction: column; gap: 10px; }
+/* Stacked, not side-by-side: the <select> options ("обычный режим",
+   "заморожен (кеш без обновления)", ...) are long enough that fitting a
+   source name AND the select on one row overflowed the 320px sidebar. */
+.source-toggle-row { display: flex; flex-direction: column; gap: 4px; font-size: 0.8rem; }
 .source-toggle-row .toggles { display: flex; gap: 8px; }
 .source-toggle-row label { display: flex; align-items: center; gap: 4px; color: var(--text); margin: 0; }
 
@@ -160,6 +171,7 @@ body {
 .map-legend .swatch { display: inline-block; width: 14px; height: 3px; margin-right: 6px; vertical-align: middle; }
 
 .source-toggle-row select {
+  width: 100%;
   background: rgba(255, 255, 255, .07);
   color: var(--text);
   border: 1px solid var(--panel-border);
@@ -202,6 +214,30 @@ body {
 .status-msg button { background: var(--panel); border: 1px solid var(--panel-border); color: var(--text); padding: 7px 14px; border-radius: var(--radius-sm); cursor: pointer; font-family: inherit; font-size: 0.76rem; }
 
 .recommendation { background: rgba(255, 255, 255, .06); border-left: 3px solid var(--accent); padding: 11px 15px; border-radius: var(--radius-sm); font-size: 0.9rem; }
+
+/* The plain-language go/no-go verdict — the first thing a non-specialist
+   user should see after a calculation, distinct from (and above) the
+   detailed per-window table and factor breakdown. */
+.verdict-panel { text-align: center; }
+.verdict-badge {
+  display: inline-block;
+  padding: 12px 28px;
+  border-radius: 999px;
+  font-family: "Unbounded", "Manrope", sans-serif;
+  margin-bottom: 10px;
+}
+.verdict-title { font-size: 1.15rem; font-weight: 800; letter-spacing: -0.01em; }
+.verdict-detail { color: var(--muted); font-size: 0.88rem; max-width: 720px; margin: 0 auto; }
+.verdict-ok { background: rgba(79, 209, 140, .18); box-shadow: 0 0 24px -6px var(--ok); }
+.verdict-ok .verdict-title { color: var(--ok); }
+.verdict-caution { background: rgba(245, 196, 81, .18); box-shadow: 0 0 24px -6px var(--warn); }
+.verdict-caution .verdict-title { color: var(--warn); }
+.verdict-danger { background: rgba(255, 107, 107, .18); box-shadow: 0 0 24px -6px var(--danger); }
+.verdict-danger .verdict-title { color: var(--danger); }
+.verdict-unknown { background: rgba(159, 183, 214, .18); }
+.verdict-unknown .verdict-title { color: var(--muted); }
+
+.compare-verdict { margin-bottom: 14px; }
 
 .table-wrap { overflow-x: auto; margin-top: 10px; }
 table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }

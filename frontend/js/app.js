@@ -173,6 +173,54 @@ function setLoading(v) {
   $("#loading").hidden = !v;
   $("#analyze-btn").disabled = v;
 }
+
+function setCompareLoading(v) {
+  const btn = $("#compare-dates-btn");
+  const status = $("#compare-dates-status");
+  btn.disabled = v;
+  status.hidden = !v;
+  status.textContent = v ? "Выполняется расчёт обеих дат…" : "";
+}
+
+// Buckets a window's combined_score (0..1, "team calculation" per O2/O4 —
+// see analysis.py's module docstring for the underlying weighted-average
+// rule) into a plain-language go/no-go verdict. Deliberately NOT presented
+// as an authoritative safety threshold: it is a stylised simplification of
+// the same number already shown in the windows table, meant to give a
+// non-specialist user an immediate first read — the detailed reason text
+// and the footer's "требует допуска уполномоченных специалистов" disclaimer
+// stay right next to it.
+function verdictFromScore(score) {
+  if (score === null || score === undefined) {
+    return { level: "unknown", title: "Недостаточно данных для вердикта" };
+  }
+  if (score <= 0.15) return { level: "ok", title: "Можно выходить" };
+  if (score <= 0.4) return { level: "caution", title: "Выход возможен, требуется повышенное внимание" };
+  return { level: "danger", title: "Не рекомендуется без дополнительной проверки" };
+}
+
+function verdictForWindow(recommendation, w) {
+  if (!recommendation.has_recommendation || !w) {
+    return {
+      level: "unknown",
+      title: "Недостаточно данных для вердикта",
+      detail: recommendation.reason + (recommendation.caveats.length ? " " + recommendation.caveats.join(" ") : ""),
+    };
+  }
+  const incomplete = w.data_completeness === "insufficient_data";
+  const { level, title } = verdictFromScore(w.combined_score);
+  let detail = recommendation.reason;
+  if (recommendation.caveats.length) detail += " " + recommendation.caveats.join(" ");
+  if (incomplete) detail += " Внимание: часть факторов для этого окна не имеет данных — вердикт может измениться, когда данные появятся.";
+  return { level, title, detail };
+}
+
+function verdictBadgeHtml(v) {
+  return (
+    `<div class="verdict-badge verdict-${v.level}"><span class="verdict-title">${v.title}</span></div>` +
+    `<p class="verdict-detail">${v.detail}</p>`
+  );
+}
 function showError(msg) {
   const el = $("#error-banner");
   el.textContent = "Ошибка: " + msg;
@@ -184,6 +232,12 @@ function hideError() {
 
 function render(data) {
   $("#results-content").hidden = false;
+
+  // Plain-language go/no-go verdict, first thing shown — see verdictForWindow.
+  const v = verdictForWindow(data.recommendation, data.windows[data.recommendation.recommended_window_index]);
+  $("#verdict-badge").className = "verdict-badge verdict-" + v.level;
+  $("#verdict-title").textContent = v.title;
+  $("#verdict-detail").textContent = v.detail;
 
   // Historical panel
   const hp = $("#historical-panel");
@@ -887,6 +941,7 @@ async function runCompareDates() {
     frozen_sources: frozen,
   };
 
+  setCompareLoading(true);
   try {
     const res = await fetch(`${API}/compare-dates`, {
       method: "POST",
@@ -908,8 +963,14 @@ async function runCompareDates() {
       .map((_, i) => windowSummaryHtml(data.result_b, i, i === bestIdxB))
       .join("");
 
+    const winningWindow =
+      data.winning_date === "a" ? data.result_a.windows[data.winning_window_index] :
+      data.winning_date === "b" ? data.result_b.windows[data.winning_window_index] :
+      null;
+    const v = verdictForWindow(data.overall_recommendation, winningWindow);
+
     content.innerHTML = `
-      <p class="recommendation">${data.overall_recommendation.reason}${data.overall_recommendation.caveats.length ? " " + data.overall_recommendation.caveats.join(" ") : ""}</p>
+      <div class="compare-verdict">${verdictBadgeHtml(v)}</div>
       <div class="compare-grid">
         <div class="compare-col">
           <h3>Дата А — ${fmt(data.result_a.request.reference_time)}${data.winning_date === "a" ? " ✓" : ""}</h3>
@@ -923,6 +984,8 @@ async function runCompareDates() {
     `;
   } catch (e) {
     content.textContent = "Не удалось сравнить даты: " + e.message;
+  } finally {
+    setCompareLoading(false);
   }
 }
 
