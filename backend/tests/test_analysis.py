@@ -1,7 +1,7 @@
 """Criterion O3/T3: window comparison, recommendation, and correct handling
 of the 'insufficient basis for a recommendation' case (never silently
 defaulting to 'safe')."""
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 from app.analysis import compare_dates, run_analysis
@@ -175,6 +175,42 @@ async def test_donki_signal_scores_nearby_windows_but_not_ones_far_beyond_the_ho
 
     far_window = resp.windows[-1]  # starts 24h after the event, well beyond 6h
     assert far_window.combined_score == 0.0
+
+
+async def test_donki_old_notification_still_scores_todays_window_in_current_mode():
+    """Regression: assess_current deliberately looks back up to 7 days for
+    DONKI notifications ("still describing an ongoing/expected event" —
+    see the comment above donki_query_start), but a notification's scoring
+    span used to be tied only to issued+forecast_horizon_hours. A
+    notification issued, say, 3 days ago had already "expired" for scoring
+    purposes long before today's candidate windows — it still showed up
+    with real severity in the factors list while silently never
+    contributing to any window's score (reported live: 7 real DONKI
+    signals shown, every window still 0.00). Fixed by extending the
+    signal's end to also cover the full requested window span, not just a
+    fixed offset from its own issue time."""
+    now = datetime.now(timezone.utc)
+    issued_3_days_ago = (now - timedelta(days=3)).strftime("%Y-%m-%dT%H:%MZ")
+
+    async def fake_notifications(start, end, msg_type="all"):
+        return [
+            {
+                "messageType": "CME",
+                "messageIssueTime": issued_3_days_ago,
+                "messageBody": "test coronal mass ejection",
+                "messageID": "CME-1",
+            }
+        ]
+
+    with patch.object(celestrak, "fetch_current_tle", _fake_tle), \
+         patch.object(swpc, "fetch_scales", _fake_scales_quiet), \
+         patch.object(swpc, "fetch_alerts", _fake_alerts_empty), \
+         patch.object(celestrak, "fetch_socrates_csv", _fake_socrates_empty), \
+         patch.object(donki, "fetch_notifications", fake_notifications):
+        resp = await run_analysis(_base_request(reference_time=now, duration_hours=4.0, search_period_hours=0.0))
+
+    hit = resp.windows[0]
+    assert hit.combined_score is not None and hit.combined_score > 0.0
 
 
 async def test_compare_dates_never_recommends_the_riskier_window_over_a_quiet_one():

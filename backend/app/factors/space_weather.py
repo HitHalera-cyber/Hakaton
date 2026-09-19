@@ -238,7 +238,16 @@ async def assess_current(
                 severity=0.3,
                 provenance=Provenance.observation,
                 observed_or_expected_start=issued,
-                observed_or_expected_end=None,
+                # Same fix as the DONKI signals below: an alert can be up
+                # to 48h old (see the lookback check above) and still be
+                # surfaced as active context, but a bare 30-minute default
+                # span would make it "expire" for scoring purposes long
+                # before any window being compared today.
+                observed_or_expected_end=(
+                    max(issued + timedelta(hours=settings.forecast_horizon_hours), window_end)
+                    if issued
+                    else None
+                ),
                 is_time_uncertain=issued is None,
                 value=None,
                 unit=None,
@@ -268,20 +277,27 @@ async def assess_current(
                 severity=_DONKI_TYPE_SEVERITY[msg_type],
                 provenance=Provenance.external_forecast if is_forecast_wording else Provenance.observation,
                 observed_or_expected_start=issued,
-                # NOT left as None: without an explicit end,
-                # _score_factor_for_window's fallback treats this as a
+                # Two problems fixed here, not one. (1) Without an explicit
+                # end, _score_factor_for_window's fallback treats this as a
                 # 30-minute point event (_DEFAULT_SIGNAL_SPAN) — far too
                 # short for how long a real solar/geomagnetic event's
-                # elevated-risk period actually lasts, so any compared
-                # window more than ~30 minutes after the notification's
-                # issue time saw zero contribution even for a real, severe
-                # event. Uses the project's own established forecast
-                # horizon (settings.forecast_horizon_hours, 6h) as the
-                # span — a stylised approximation (DONKI doesn't give a
-                # precise event end either), but a much more realistic one
-                # than 30 minutes.
+                # elevated-risk period actually lasts. (2) Fixing just that
+                # (issued + forecast_horizon_hours) still wasn't enough here:
+                # this query deliberately looks back up to 7 days (see
+                # donki_query_start above) to keep surfacing a notification
+                # that's "still describing an ongoing/expected event" — but
+                # a notification issued, say, 3 days ago would have its
+                # 6-hour span end 3 days ago too, long before "now" or any
+                # window being compared today. The signal then showed up
+                # with real severity in the factors list while silently
+                # never contributing to any window's score — exactly what
+                # was reported. Extending the end to also cover window_end
+                # makes a notification's scoring relevance match how long
+                # it's actually still being treated as relevant context.
                 observed_or_expected_end=(
-                    issued + timedelta(hours=settings.forecast_horizon_hours) if issued else None
+                    max(issued + timedelta(hours=settings.forecast_horizon_hours), window_end)
+                    if issued
+                    else None
                 ),
                 is_time_uncertain=True,
                 value=None,
