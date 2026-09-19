@@ -123,6 +123,20 @@ def _find_field(fields: set[str], *patterns: str) -> str | None:
     return None
 
 
+async def _discover_cdm_fields(client: httpx.AsyncClient) -> set[str]:
+    """Space-Track's "modeldef" is its own request type under the same
+    basicspacedata controller as "query" (not a predicate appended after
+    "query" — an earlier version of this code got exactly that wrong and
+    got a live 400 Bad Request back). Reads the live column names for
+    cdm_public so callers never have to hardcode a guessed spelling — see
+    fetch_cdm_conjunctions for why that matters here specifically."""
+    modeldef_resp = await client.get(f"{settings.spacetrack_modeldef_url}/class/cdm_public/format/json")
+    modeldef_resp.raise_for_status()
+    modeldef = modeldef_resp.json()
+    rows = modeldef.get("data", modeldef) if isinstance(modeldef, dict) else modeldef
+    return {str(row.get("Field", "")).upper() for row in rows if isinstance(row, dict) and row.get("Field")}
+
+
 async def fetch_cdm_conjunctions(norad_id: int, limit: int = 50) -> dict:
     """Fallback conjunction-data source for when CelesTrak SOCRATES is
     unreachable — observed in practice to share CelesTrak's own domain-level
@@ -135,21 +149,15 @@ async def fetch_cdm_conjunctions(norad_id: int, limit: int = 50) -> dict:
     inconsistent answers even across seemingly authoritative sources, and
     space-track.org itself is unreachable from this project's own dev
     environment to verify live against. Instead, immediately before the
-    real query, we call Space-Track's "modeldef" endpoint — a schema
-    introspection request every class supports — to read the *actual* live
-    field names, and use only those (never a guessed name) to build the
-    query and later parse the response in parse_cdm_events. If the live
-    schema doesn't expose what's needed, this raises SpaceTrackSchemaError
-    rather than silently returning nothing or fabricating a field.
+    real query, we read the *actual* live field names (_discover_cdm_fields)
+    and use only those (never a guessed name) to build the query and later
+    parse the response in parse_cdm_events. If the live schema doesn't
+    expose what's needed, this raises SpaceTrackSchemaError rather than
+    silently returning nothing or fabricating a field.
     """
     async with new_client() as client:
         await _login(client)
-
-        modeldef_resp = await client.get(f"{settings.spacetrack_modeldef_url}/class/cdm_public/format/json")
-        modeldef_resp.raise_for_status()
-        modeldef = modeldef_resp.json()
-        rows = modeldef.get("data", modeldef) if isinstance(modeldef, dict) else modeldef
-        fields = {str(row.get("Field", "")).upper() for row in rows if isinstance(row, dict) and row.get("Field")}
+        fields = await _discover_cdm_fields(client)
 
         tca_field = _find_field(fields, r"TCA")
         sat1_id_field = _find_field(fields, r"SAT_?1_?ID", r"SAT1_OBJECT_ID")
@@ -166,6 +174,53 @@ async def fetch_cdm_conjunctions(norad_id: int, limit: int = 50) -> dict:
         resp.raise_for_status()
         # fields as a sorted list, not a set: this payload goes through the
         # disk-backed cache's JSON serialization.
+        return {"rows": resp.json(), "fields": sorted(fields), "source_url": query_url}
+
+
+async def fetch_cdm_conjunctions_for_window(norad_id: int, cutoff: datetime, limit: int = 200) -> dict:
+    """Historical counterpart to fetch_cdm_conjunctions. Unlike CelesTrak
+    SOCRATES — only ever a rolling ~7-day-ahead forecast, never archived —
+    Space-Track's cdm_public class keeps its full history, so a genuine
+    "forecast from the past" replay (criterion T4) is actually possible for
+    conjunctions too, not just DONKI space weather. That requires a
+    publication/creation-time field on top of TCA and satellite-id, so the
+    same strict cutoff DONKI already applies (only using CDMs that would
+    genuinely have been known by `cutoff`) can apply here too. If the live
+    schema doesn't expose a creation-time field, this raises rather than
+    silently filtering by TCA alone, which would let later-published
+    knowledge leak into what's supposed to be a past forecast.
+
+    Filtered server-side by satellite id (equality) and creation time
+    (strictly before cutoff, most-recent-first, capped at `limit`); the
+    caller (conjunction.py) filters the returned rows' TCA against the
+    requested EVA window itself — parse_cdm_events doesn't know about
+    windows, mirroring the existing SOCRATES parse/filter split.
+    """
+    if not settings.spacetrack_identity or not settings.spacetrack_password:
+        raise SpaceTrackNotConfigured("Space-Track credentials not configured")
+
+    async with new_client() as client:
+        await _login(client)
+        fields = await _discover_cdm_fields(client)
+
+        sat1_id_field = _find_field(fields, r"SAT_?1_?ID", r"SAT1_OBJECT_ID")
+        created_field = _find_field(fields, r"CREATION_DATE", r"CREATED", r"MSG_EPOCH")
+        if not sat1_id_field or not created_field:
+            raise SpaceTrackSchemaError(
+                "cdm_public schema exposes no recognizable satellite-id/creation-time field "
+                f"needed for a cutoff-respecting historical query (saw: {sorted(fields)})"
+            )
+
+        # Same "%3C" (URL-encoded "<") less-than predicate already used and
+        # working for GP_HISTORY's EPOCH filter above — deliberately not a
+        # new/unverified predicate shape.
+        cutoff_str = cutoff.strftime("%Y-%m-%dT%H:%M:%S")
+        query_url = (
+            f"{settings.spacetrack_query_url}/class/cdm_public/{sat1_id_field}/{norad_id}"
+            f"/{created_field}/%3C{cutoff_str}/orderby/{created_field}%20desc/limit/{limit}/format/json"
+        )
+        resp = await client.get(query_url)
+        resp.raise_for_status()
         return {"rows": resp.json(), "fields": sorted(fields), "source_url": query_url}
 
 

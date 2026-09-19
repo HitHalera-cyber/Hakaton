@@ -131,3 +131,53 @@ async def test_assess_current_without_spacetrack_credentials_reports_insufficien
 
     assert result.data_sufficient is False
     assert result.signals == []
+
+
+async def test_assess_historical_without_credentials_reports_insufficient_data():
+    cutoff = datetime(2024, 5, 10, 6, 0, tzinfo=timezone.utc)
+    with patch.object(settings, "spacetrack_identity", None), \
+         patch.object(settings, "spacetrack_password", None):
+        result = await conjunction.assess_historical(cutoff, cutoff, cutoff.replace(hour=18))
+
+    assert result.data_sufficient is False
+    assert result.signals == []
+
+
+async def test_assess_historical_uses_spacetrack_cdm_archive_within_cutoff():
+    """Unlike SOCRATES, Space-Track's cdm_public keeps its full history, so
+    with credentials configured a genuine past-forecast replay is possible
+    for conjunctions too — this is the whole point of the new fallback."""
+    cutoff = datetime(2024, 5, 10, 6, 0, tzinfo=timezone.utc)
+    window_start = cutoff
+    window_end = cutoff.replace(hour=18)
+
+    async def fake_cdm_window(norad_id, cutoff_arg, limit=200):
+        return {
+            "rows": [
+                {
+                    "TCA": "2024-05-10T10:00:00.000000",  # inside the window
+                    "MISS_DISTANCE": "437",
+                    "PC": "0.0002",
+                    "SAT_1_ID": "25544",
+                    "SAT_2_ID": "44444",
+                    "SAT_1_NAME": "ISS",
+                    "SAT_2_NAME": "DEBRIS A",
+                    "CREATION_DATE": "2024-05-09T00:00:00.000000",  # before cutoff
+                },
+            ],
+            "fields": [
+                "TCA", "MISS_DISTANCE", "PC", "SAT_1_ID", "SAT_2_ID",
+                "SAT_1_NAME", "SAT_2_NAME", "CREATION_DATE",
+            ],
+            "source_url": "https://www.space-track.org/basicspacedata/query/class/cdm_public/test",
+        }
+
+    with patch.object(settings, "spacetrack_identity", "test-user"), \
+         patch.object(settings, "spacetrack_password", "test-pass"), \
+         patch.object(spacetrack, "fetch_cdm_conjunctions_for_window", fake_cdm_window):
+        result = await conjunction.assess_historical(cutoff, window_start, window_end)
+
+    assert result.data_sufficient is True
+    assert len(result.signals) == 1
+    assert "DEBRIS A" in result.signals[0].label
+    assert "исторический архив" in result.signals[0].source_name
