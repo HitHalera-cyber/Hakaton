@@ -240,6 +240,42 @@ function splitDaylightSegments(track) {
   return segments;
 }
 
+// Same sparseness problem as the 3D globe (see densifyTrackPoints below),
+// but for a flat [lat, lon] polyline: a straight line between samples up
+// to ~10 minutes (~38 degrees of arc) apart looks like short straight
+// facets, not the gentle curve a real ground track has. Inserting
+// great-circle intermediate points (the standard "intermediate point on a
+// great circle" formula) between each pair fixes that without needing a
+// smoothing spline that might drift off the true path.
+function densifyLatLon(points, stepsBetween) {
+  if (points.length < 2) return points.map((p) => [p.lat, p.lon]);
+  const out = [];
+  for (let i = 0; i < points.length - 1; i++) {
+    const a = points[i], b = points[i + 1];
+    const lat1 = (a.lat * Math.PI) / 180, lon1 = (a.lon * Math.PI) / 180;
+    const lat2 = (b.lat * Math.PI) / 180, lon2 = (b.lon * Math.PI) / 180;
+    const d = 2 * Math.asin(Math.sqrt(
+      Math.sin((lat2 - lat1) / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin((lon2 - lon1) / 2) ** 2
+    ));
+    out.push([a.lat, a.lon]);
+    if (d > 1e-8) {
+      for (let s = 1; s < stepsBetween; s++) {
+        const f = s / stepsBetween;
+        const A = Math.sin((1 - f) * d) / Math.sin(d);
+        const B = Math.sin(f * d) / Math.sin(d);
+        const x = A * Math.cos(lat1) * Math.cos(lon1) + B * Math.cos(lat2) * Math.cos(lon2);
+        const y = A * Math.cos(lat1) * Math.sin(lon1) + B * Math.cos(lat2) * Math.sin(lon2);
+        const z = A * Math.sin(lat1) + B * Math.sin(lat2);
+        const latI = Math.atan2(z, Math.sqrt(x * x + y * y));
+        const lonI = Math.atan2(y, x);
+        out.push([(latI * 180) / Math.PI, (lonI * 180) / Math.PI]);
+      }
+    }
+  }
+  out.push([points[points.length - 1].lat, points[points.length - 1].lon]);
+  return out;
+}
+
 function updateViewHint() {
   $("#view-hint").textContent =
     state.viewMode === "3d"
@@ -262,7 +298,20 @@ function renderTrajectory(orbit) {
 
 function renderMap(orbit) {
   if (!state.map) {
-    state.map = L.map("map", { worldCopyJump: true }).setView([0, 0], 2);
+    // A multi-orbit ground track can span close to the full 360° of
+    // longitude, which used to make Leaflet zoom out far enough (combined
+    // with worldCopyJump) to render the whole world map two or three
+    // times side by side ("glued" copies) instead of one continuous map.
+    // Locking the map to a single world copy — no wrap-jumping, tiles
+    // that don't repeat past +/-180°, and hard bounds so it can never
+    // zoom out past showing that one copy — fixes this regardless of how
+    // wide the track's bounding box is.
+    state.map = L.map("map", {
+      worldCopyJump: false,
+      maxBounds: [[-90, -180], [90, 180]],
+      maxBoundsViscosity: 1.0,
+      minZoom: 2,
+    }).setView([0, 0], 2);
     // Leaflet's default attribution control prepends its own "Leaflet"
     // branding (with a small flag icon) before whatever the tile layer
     // contributes; drop that prefix and keep only the OSM credit their
@@ -271,6 +320,7 @@ function renderMap(orbit) {
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: "&copy; OpenStreetMap",
       maxZoom: 8,
+      noWrap: true,
     }).addTo(state.map);
 
     const legend = L.control({ position: "bottomright" });
@@ -292,7 +342,7 @@ function renderMap(orbit) {
 
   if (track.length) {
     splitDaylightSegments(track).forEach((segment) => {
-      L.polyline(segment.map((p) => [p.lat, p.lon]), {
+      L.polyline(densifyLatLon(segment, 8), {
         color: segment[0].is_daylight ? DAY_COLOR : NIGHT_COLOR,
         weight: 3,
         opacity: 0.9,
