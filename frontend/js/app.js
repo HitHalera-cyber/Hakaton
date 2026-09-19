@@ -514,14 +514,14 @@ function renderWindows(data) {
   const ctx = document.getElementById("windows-chart");
   const labels = data.windows.map((w, i) => `#${i + 1} ${fmt(w.start).slice(5, 16)}`);
   const factorNames = [...new Set(data.windows.flatMap((w) => w.factor_contributions.map((c) => c.factor)))];
-  const colors = { space_weather: "#f5c451", conjunction_mmod: "#ff5c93" };
+  const colors = { space_weather: "#f5c451", conjunction_mmod: "#c9a8ff" };
   const datasets = factorNames.map((f) => ({
     label: f === "space_weather" ? "Космическая погода" : "Сближения/MMOD",
     data: data.windows.map((w) => {
       const c = w.factor_contributions.find((c) => c.factor === f);
       return c ? c.time_weighted_severity : 0;
     }),
-    backgroundColor: colors[f] || "#4fd1c5",
+    backgroundColor: colors[f] || "#bfe6ff",
   }));
 
   if (state.chart) state.chart.destroy();
@@ -531,10 +531,10 @@ function renderWindows(data) {
     options: {
       responsive: true,
       scales: {
-        x: { stacked: true, ticks: { color: "#93a3bd" } },
-        y: { stacked: true, beginAtZero: true, max: 1, ticks: { color: "#93a3bd" } },
+        x: { stacked: true, ticks: { color: "#9fb7d6" } },
+        y: { stacked: true, beginAtZero: true, max: 1, ticks: { color: "#9fb7d6" } },
       },
-      plugins: { legend: { labels: { color: "#e7edf7" } } },
+      plugins: { legend: { labels: { color: "#f3f8ff" } } },
     },
   });
 }
@@ -634,11 +634,49 @@ async function runExperiment() {
       <p>${data.description}</p>
       <p><b>Период события:</b> ${fmt(data.event_period[0])} — ${fmt(data.event_period[1])}<br/>
       <b>Контрольный период:</b> ${fmt(data.control_period[0])} — ${fmt(data.control_period[1])}</p>
-      <pre style="white-space:pre-wrap;background:#0e1626;padding:10px;border-radius:6px;">${JSON.stringify(data.metrics, null, 2)}</pre>
+      <pre style="white-space:pre-wrap;background:rgba(255,255,255,.06);padding:12px;border-radius:14px;">${JSON.stringify(data.metrics, null, 2)}</pre>
     `;
   } catch (e) {
     content.textContent = "Не удалось выполнить эксперимент: " + e.message;
   }
 }
+
+/* Decorative twinkling starfield behind the whole page (the "Классика"
+   gradient background chosen for the site). Purely cosmetic — runs
+   independently of everything else and never touches app state. */
+function initStarfield() {
+  const cv = document.getElementById("bgfx");
+  if (!cv) return;
+  const ctx = cv.getContext("2d");
+  let stars = [];
+  function resize() {
+    cv.width = window.innerWidth;
+    cv.height = window.innerHeight;
+    stars = Array.from({ length: 140 }, () => ({
+      x: Math.random() * cv.width,
+      y: Math.random() * cv.height,
+      r: Math.random() * 1.4 + 0.3,
+      p: Math.random() * Math.PI * 2,
+      s: Math.random() * 0.02 + 0.01,
+    }));
+  }
+  window.addEventListener("resize", resize);
+  resize();
+  let t = 0;
+  function loop() {
+    requestAnimationFrame(loop);
+    t += 1;
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    stars.forEach((s) => {
+      const alpha = 0.35 + 0.65 * Math.abs(Math.sin(s.p + t * s.s));
+      ctx.beginPath();
+      ctx.fillStyle = `rgba(230,238,255,${alpha.toFixed(2)})`;
+      ctx.arc(s.x, s.y, s.r, 0, 7);
+      ctx.fill();
+    });
+  }
+  loop();
+}
+initStarfield();
 
 init();
