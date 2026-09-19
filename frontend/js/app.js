@@ -187,9 +187,15 @@ function render(data) {
 
   // Orbit + map
   const o = data.orbit;
+  let spanNote = "";
+  if (o.track.length > 1) {
+    const spanHours = (new Date(o.track[o.track.length - 1].t) - new Date(o.track[0].t)) / 3_600_000;
+    const orbits = spanHours / 1.545; // ISS orbital period ~92.68 min
+    spanNote = ` · показан период ${fmt(o.track[0].t)} — ${fmt(o.track[o.track.length - 1].t)} (${spanHours.toFixed(1)} ч ≈ ${orbits.toFixed(1)} витка МКС) — охватывает все сравниваемые окна, а не только одну длительность ВКД`;
+  }
   $("#orbit-meta").textContent =
     `Источник: ${o.source_name} · эпоха ${fmt(o.epoch)} · давность данных ${o.age_hours.toFixed(1)} ч` +
-    (o.is_reconstruction ? " · РЕКОНСТРУКЦИЯ (см. пояснение)" : "");
+    (o.is_reconstruction ? " · РЕКОНСТРУКЦИЯ (см. пояснение)" : "") + spanNote;
   renderTrajectory(o);
 
   // Windows table + chart + recommendation
@@ -204,8 +210,11 @@ function render(data) {
   $("#result-id-label").textContent = `ID результата: ${data.result_id} · версия алгоритма ${data.algorithm_version}`;
 }
 
-const DAY_COLOR = "#f5c451";
-const NIGHT_COLOR = "#3355a8";
+// Deliberately not pure yellow/blue: a swatch pair that close to Ukraine's
+// flag colors, stacked in the legend, was reading as the flag rather than
+// as "day/night" — shifted to amber/indigo, still warm=day, cool=night.
+const DAY_COLOR = "#e0a83e";
+const NIGHT_COLOR = "#4a3f8c";
 
 // Splits a track into contiguous day/night runs (and at antimeridian
 // crossings), so both the 2D map and the 3D globe draw the same
@@ -234,8 +243,8 @@ function splitDaylightSegments(track) {
 function updateViewHint() {
   $("#view-hint").textContent =
     state.viewMode === "3d"
-      ? "Жёлтый участок — станция освещена Солнцем (день), синий — в тени Земли (ночь), по тем же данным, что и в 2D. Освещение самого глобуса декоративное (студийный свет), реальное положение Солнца не отражает — ориентируйтесь по цвету трассы. Тяните мышью, крутите колесо для приближения."
-      : "Жёлтая линия — станция освещена Солнцем (день), тёмно-синяя — станция в тени Земли (ночь). Зелёная метка — начало показанного периода, оранжевая — конец. Карта автоматически приближена к участку трассы.";
+      ? "Золотистый участок — станция освещена Солнцем (день), фиолетовый — в тени Земли (ночь), по тем же данным, что и в 2D. Освещение самого глобуса декоративное (студийный свет), реальное положение Солнца не отражает — ориентируйтесь по цвету трассы. Тяните мышью, крутите колесо для приближения."
+      : "Золотистая линия — станция освещена Солнцем (день), тёмно-фиолетовая — станция в тени Земли (ночь). Зелёная метка — начало показанного периода, оранжевая — конец. Карта автоматически приближена к участку трассы.";
 }
 
 function renderTrajectory(orbit) {
@@ -500,7 +509,7 @@ function renderGlobe(orbit) {
     const pts = densifyTrackPoints(segment, 8);
     const curve = new THREE.CatmullRomCurve3(pts, false, "catmullrom", 0.5);
     const tube = new THREE.TubeGeometry(curve, Math.max(8, pts.length * 2), 0.014, 8, false);
-    group.add(new THREE.Mesh(tube, new THREE.MeshBasicMaterial({ color: segment[0].is_daylight ? 0xfbbf24 : 0x3355c4 })));
+    group.add(new THREE.Mesh(tube, new THREE.MeshBasicMaterial({ color: segment[0].is_daylight ? 0xe0a83e : 0x4a3f8c })));
   });
   if (track.length) {
     const first = track[0], last = track[track.length - 1];
