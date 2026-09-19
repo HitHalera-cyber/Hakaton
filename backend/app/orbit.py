@@ -20,8 +20,10 @@ from .models import OrbitInfo, TrackPoint
 from .orbit_math import ecef_to_geodetic, is_sunlit, teme_to_ecef
 
 CELESTRAK_GP_CACHE = "celestrak_gp"
+SPACETRACK_GP_CACHE = "spacetrack_gp_current"
 
 registry.register(CELESTRAK_GP_CACHE, settings.celestrak_gp_url, settings.current_data_ttl_seconds)
+registry.register(SPACETRACK_GP_CACHE, settings.spacetrack_query_url, settings.current_data_ttl_seconds)
 
 
 def _epoch_from_satrec(sat: Satrec) -> datetime:
@@ -63,6 +65,14 @@ async def _load_current_gp(force_refresh: bool = False) -> dict:
     return payload
 
 
+async def _load_current_gp_via_spacetrack(force_refresh: bool = False) -> dict:
+    cache = registry.get(SPACETRACK_GP_CACHE)
+    payload, _status, _fresh = await cache.get(
+        lambda: spacetrack.fetch_current_tle(settings.iss_norad_id), force_refresh=force_refresh
+    )
+    return payload
+
+
 async def get_orbit(
     mode_current: bool,
     start: datetime,
@@ -74,8 +84,28 @@ async def get_orbit(
     reconstruction_note = None
 
     if mode_current:
-        gp = await _load_current_gp(force_refresh=force_refresh)
-        source_name, source_url = "CelesTrak GP (current)", gp["source_url"]
+        try:
+            gp = await _load_current_gp(force_refresh=force_refresh)
+            source_name, source_url = "CelesTrak GP (current)", gp["source_url"]
+        except SourceUnavailable as celestrak_exc:
+            # CelesTrak needs no account and is preferred whenever it
+            # works, but some hosts (observed in practice on at least one
+            # free-tier PaaS deployment) have their outbound traffic to it
+            # blocked or rate-limited. Only attempt the Space-Track
+            # fallback when credentials are actually configured — trying
+            # (and retrying, per cache.py) an unconfigured source would
+            # just add latency without any chance of success.
+            if not (settings.spacetrack_identity and settings.spacetrack_password):
+                raise
+            try:
+                gp = await _load_current_gp_via_spacetrack(force_refresh=force_refresh)
+                source_name, source_url = "Space-Track GP (резервный источник)", gp["source_url"]
+            except Exception:
+                # Both sources failed: surface the original, more specific
+                # CelesTrak error rather than the fallback's, since
+                # CelesTrak is the primary/expected source for most
+                # deployments and its error is what a user should act on.
+                raise celestrak_exc from None
     else:
         try:
             gp = await spacetrack.fetch_historical_tle(settings.iss_norad_id, start)
