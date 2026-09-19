@@ -14,15 +14,17 @@ from datetime import datetime, timedelta, timezone
 from sgp4.api import Satrec, jday
 
 from .cache import SourceUnavailable, registry
-from .clients import celestrak, spacetrack
+from .clients import celestrak, spacetrack, tle_mirror
 from .config import settings
 from .models import OrbitInfo, TrackPoint
 from .orbit_math import ecef_to_geodetic, is_sunlit, teme_to_ecef
 
 CELESTRAK_GP_CACHE = "celestrak_gp"
+TLE_MIRROR_CACHE = "tle_mirror"
 SPACETRACK_GP_CACHE = "spacetrack_gp_current"
 
 registry.register(CELESTRAK_GP_CACHE, settings.celestrak_gp_url, settings.current_data_ttl_seconds)
+registry.register(TLE_MIRROR_CACHE, settings.tle_mirror_url, settings.current_data_ttl_seconds)
 registry.register(SPACETRACK_GP_CACHE, settings.spacetrack_query_url, settings.current_data_ttl_seconds)
 
 
@@ -65,6 +67,14 @@ async def _load_current_gp(force_refresh: bool = False) -> dict:
     return payload
 
 
+async def _load_current_gp_via_mirror(force_refresh: bool = False) -> dict:
+    cache = registry.get(TLE_MIRROR_CACHE)
+    payload, _status, _fresh = await cache.get(
+        lambda: tle_mirror.fetch_current_tle(settings.iss_norad_id), force_refresh=force_refresh
+    )
+    return payload
+
+
 async def _load_current_gp_via_spacetrack(force_refresh: bool = False) -> dict:
     cache = registry.get(SPACETRACK_GP_CACHE)
     payload, _status, _fresh = await cache.get(
@@ -84,28 +94,40 @@ async def get_orbit(
     reconstruction_note = None
 
     if mode_current:
-        try:
-            gp = await _load_current_gp(force_refresh=force_refresh)
-            source_name, source_url = "CelesTrak GP (current)", gp["source_url"]
-        except SourceUnavailable as celestrak_exc:
-            # CelesTrak needs no account and is preferred whenever it
-            # works, but some hosts (observed in practice on at least one
-            # free-tier PaaS deployment) have their outbound traffic to it
-            # blocked or rate-limited. Only attempt the Space-Track
-            # fallback when credentials are actually configured — trying
-            # (and retrying, per cache.py) an unconfigured source would
-            # just add latency without any chance of success.
-            if not (settings.spacetrack_identity and settings.spacetrack_password):
-                raise
+        # Ordered fallback chain: CelesTrak needs no account and has the
+        # best freshness, so it's always tried first and preferred
+        # whenever it works. The GitHub mirror needs no account either and
+        # is tried next automatically — it only re-publishes CelesTrak's
+        # own data (not an independent measurement) but runs on
+        # infrastructure (GitHub's raw-content CDN) that is far less
+        # likely to share celestrak.org's own blocking/rate-limiting than
+        # CelesTrak itself (observed in practice on at least one
+        # deployment). Space-Track is tried last, and only if the user
+        # actually configured credentials for it.
+        attempts = [
+            ("CelesTrak GP (current)", _load_current_gp),
+            ("Зеркало TLE на GitHub (резервный источник)", _load_current_gp_via_mirror),
+        ]
+        if settings.spacetrack_identity and settings.spacetrack_password:
+            attempts.append(("Space-Track GP (резервный источник)", _load_current_gp_via_spacetrack))
+
+        errors: list[str] = []
+        gp = None
+        source_name = source_url = None
+        for label, loader in attempts:
             try:
-                gp = await _load_current_gp_via_spacetrack(force_refresh=force_refresh)
-                source_name, source_url = "Space-Track GP (резервный источник)", gp["source_url"]
-            except Exception:
-                # Both sources failed: surface the original, more specific
-                # CelesTrak error rather than the fallback's, since
-                # CelesTrak is the primary/expected source for most
-                # deployments and its error is what a user should act on.
-                raise celestrak_exc from None
+                gp = await loader(force_refresh=force_refresh)
+                source_name, source_url = label, gp["source_url"]
+                break
+            except Exception as exc:  # noqa: BLE001 - aggregated below, never swallowed
+                errors.append(f"{label} — {exc}")
+
+        if gp is None:
+            # Every configured source failed: surface ALL of their errors,
+            # not just the first one, so a deployment with e.g. Space-Track
+            # also misconfigured doesn't get misdiagnosed as "just" a
+            # CelesTrak problem.
+            raise SourceUnavailable("celestrak_gp", "; ".join(errors))
     else:
         try:
             gp = await spacetrack.fetch_historical_tle(settings.iss_norad_id, start)
