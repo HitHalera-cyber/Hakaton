@@ -1,4 +1,12 @@
+from datetime import datetime, timezone
+from unittest.mock import patch
+
+from app.cache import SourceUnavailable
+from app.clients import celestrak as celestrak_client, spacetrack
 from app.clients.celestrak import parse_socrates_for_norad
+from app.clients.spacetrack import parse_cdm_events
+from app.config import settings
+from app.factors import conjunction
 from app.factors.conjunction import _severity_from_event
 
 
@@ -26,3 +34,100 @@ def test_severity_falls_back_to_distance_bucket_without_probability():
     assert _severity_from_event("15", "") == 0.3
     assert _severity_from_event("0.5", "") == 0.9
     assert _severity_from_event("", "") == 0.2  # unknown geometry: low-confidence baseline, never zero
+
+
+def test_parse_cdm_events_matches_norad_and_converts_meters_to_km():
+    """Field names come from a live modeldef call, never hardcoded — this
+    test fixes one plausible real schema and checks both the discovery
+    (via the regex candidates) and the meters->km unit conversion (the CDM
+    spec documents MISS_DISTANCE in meters, unlike SOCRATES' own km field)."""
+    payload = {
+        "fields": {"TCA", "MISS_DISTANCE", "PC", "SAT_1_ID", "SAT_2_ID", "SAT_1_NAME", "SAT_2_NAME"},
+        "rows": [
+            {
+                "TCA": "2024-05-10T06:00:00.000000",
+                "MISS_DISTANCE": "437",  # meters
+                "PC": "0.0002",
+                "SAT_1_ID": "25544",
+                "SAT_2_ID": "44444",
+                "SAT_1_NAME": "ISS",
+                "SAT_2_NAME": "DEBRIS A",
+            },
+            {
+                # unrelated pair, must be excluded
+                "TCA": "2024-05-10T07:00:00.000000",
+                "MISS_DISTANCE": "1000",
+                "PC": "",
+                "SAT_1_ID": "11111",
+                "SAT_2_ID": "22222",
+                "SAT_1_NAME": "OTHER",
+                "SAT_2_NAME": "OTHER",
+            },
+        ],
+    }
+    events = parse_cdm_events(payload, 25544)
+    assert len(events) == 1
+    ev = events[0]
+    assert ev["other_object"] == "DEBRIS A"
+    assert abs(ev["miss_distance_km"] - 0.437) < 1e-9
+
+
+def test_parse_cdm_events_missing_fields_degrade_gracefully_not_fabricated():
+    """If the live schema doesn't expose a field we recognize, that value
+    must come back as None, never a guessed/fabricated number."""
+    payload = {"fields": {"SAT_1_ID"}, "rows": [{"SAT_1_ID": "25544"}]}
+    events = parse_cdm_events(payload, 25544)
+    assert len(events) == 1
+    assert events[0]["tca"] is None
+    assert events[0]["miss_distance_km"] is None
+    assert events[0]["max_probability"] is None
+
+
+async def _failing_socrates():
+    raise ConnectionError("simulated CelesTrak block")
+
+
+async def test_assess_current_falls_back_to_spacetrack_cdm_when_socrates_fails():
+    async def fake_cdm(norad_id, limit=50):
+        return {
+            "rows": [
+                {
+                    "TCA": "2024-05-10T06:00:00.000000",
+                    "MISS_DISTANCE": "437",
+                    "PC": "0.0002",
+                    "SAT_1_ID": "25544",
+                    "SAT_2_ID": "44444",
+                    "SAT_1_NAME": "ISS",
+                    "SAT_2_NAME": "DEBRIS A",
+                }
+            ],
+            "fields": ["TCA", "MISS_DISTANCE", "PC", "SAT_1_ID", "SAT_2_ID", "SAT_1_NAME", "SAT_2_NAME"],
+            "source_url": "https://www.space-track.org/basicspacedata/query/class/cdm_public/test",
+        }
+
+    window_start = datetime(2024, 5, 10, 0, 0, tzinfo=timezone.utc)
+    window_end = datetime(2024, 5, 10, 12, 0, tzinfo=timezone.utc)
+
+    with patch.object(settings, "spacetrack_identity", "test-user"), \
+         patch.object(settings, "spacetrack_password", "test-pass"), \
+         patch.object(celestrak_client, "fetch_socrates_csv", _failing_socrates), \
+         patch.object(spacetrack, "fetch_cdm_conjunctions", fake_cdm):
+        result = await conjunction.assess_current(window_start, window_end, [], [])
+
+    assert result.data_sufficient is True
+    assert len(result.signals) == 1
+    assert "Space-Track" in result.signals[0].source_name
+    assert "DEBRIS A" in result.signals[0].label
+
+
+async def test_assess_current_without_spacetrack_credentials_reports_insufficient_data():
+    window_start = datetime(2024, 5, 10, 0, 0, tzinfo=timezone.utc)
+    window_end = datetime(2024, 5, 10, 12, 0, tzinfo=timezone.utc)
+
+    with patch.object(settings, "spacetrack_identity", None), \
+         patch.object(settings, "spacetrack_password", None), \
+         patch.object(celestrak_client, "fetch_socrates_csv", _failing_socrates):
+        result = await conjunction.assess_current(window_start, window_end, [], [])
+
+    assert result.data_sufficient is False
+    assert result.signals == []

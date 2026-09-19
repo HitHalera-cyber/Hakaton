@@ -1,8 +1,13 @@
 """Space-weather factor: solar radiation storms (S-scale/SEP — the dominant
 driver of extra astronaut radiation dose during EVA), geomagnetic storms
-(G-scale) and radio blackouts (R-scale) as contextual signals, and
-DONKI-based historical notifications for the required "forecast from the
-past" replay mode.
+(G-scale) and radio blackouts (R-scale) as contextual signals, plus NASA
+DONKI notifications — used both for the required historical "forecast from
+the past" replay (strict cutoff by messageIssueTime) and, since DONKI is a
+second, independently-operated public source with its own event typing
+(SEP/GST/RBE/IPS/CME/FLR), also in current mode alongside NOAA SWPC: NOAA's
+noaa-scales.json only gives day-granularity "today"/"tomorrow" buckets,
+while DONKI's dated, typed notifications add coverage across the whole
+requested EVA window rather than just the current day.
 
 Rule summary (documented here so O2/T3 reviewers can audit it in one place):
   - S-scale (and DONKI SEP notifications) is the PRIMARY driver of severity,
@@ -14,6 +19,14 @@ Rule summary (documented here so O2/T3 reviewers can audit it in one place):
     event linkage when available, otherwise by overlapping issue time
     windows). This directly implements the requirement that "связанные
     сигналы не увеличивают риск автоматически несколько раз".
+  - DONKI notifications in current mode are each typed and severity-scored
+    the same way as in historical mode (see _DONKI_TYPE_SEVERITY), but are
+    NOT deduplicated against NOAA's S/G/R signals: DONKI and SWPC are two
+    independently operated sources that may legitimately both report the
+    same underlying solar event from their own editorial process. Per T1
+    ("не менее 2 независимых факторов риска") the intent is cross-checkable
+    coverage, not a single merged number, so both are surfaced with their
+    own source/time/rule/confidence rather than silently merged.
   - Missing/unavailable sub-scores lower confidence, they are never treated
     as "0 risk".
 """
@@ -30,9 +43,11 @@ from ..models import ConfidenceLevel, FactorAssessment, FactorKind, Provenance, 
 
 SWPC_SCALES_CACHE = "swpc_scales"
 SWPC_ALERTS_CACHE = "swpc_alerts"
+DONKI_CURRENT_CACHE = "donki_notifications_current"
 
 registry.register(SWPC_SCALES_CACHE, settings.swpc_scales_url, settings.current_data_ttl_seconds)
 registry.register(SWPC_ALERTS_CACHE, settings.swpc_alerts_url, settings.current_data_ttl_seconds)
+registry.register(DONKI_CURRENT_CACHE, settings.donki_base_url, settings.current_data_ttl_seconds)
 
 _CONTEXT_CAP = 0.15  # max additive contribution from G/R scales, see module docstring
 
@@ -55,7 +70,7 @@ _DONKI_TYPE_LABEL = {
 
 
 def _apply_overrides(disabled: list[str], frozen: list[str]) -> None:
-    for name in (SWPC_SCALES_CACHE, SWPC_ALERTS_CACHE):
+    for name in (SWPC_SCALES_CACHE, SWPC_ALERTS_CACHE, DONKI_CURRENT_CACHE):
         cache = registry.get(name)
         (cache.disable if name in disabled else cache.enable)()
         (cache.freeze if name in frozen else cache.unfreeze)()
@@ -82,11 +97,22 @@ async def assess_current(
 
     scales_cache = registry.get(SWPC_SCALES_CACHE)
     alerts_cache = registry.get(SWPC_ALERTS_CACHE)
+    donki_cache = registry.get(DONKI_CURRENT_CACHE)
+
+    # Look back far enough to catch a notification issued a few days ago
+    # that is still describing an ongoing/expected event, and forward to
+    # cover the requested window even if it extends past "today" (DONKI
+    # simply returns nothing for dates it has no notifications for yet).
+    donki_query_start = (datetime.now(timezone.utc) - timedelta(days=7)).date()
+    donki_query_end = max(window_end, datetime.now(timezone.utc)).date()
 
     # Independent sources, fetched concurrently rather than one after the
-    # other — halves the worst-case wait when one of them is slow/down.
-    scales_result, alerts_result = await asyncio.gather(
-        scales_cache.get(swpc.fetch_scales), alerts_cache.get(swpc.fetch_alerts), return_exceptions=True
+    # other — reduces the worst-case wait when one of them is slow/down.
+    scales_result, alerts_result, donki_result = await asyncio.gather(
+        scales_cache.get(swpc.fetch_scales),
+        alerts_cache.get(swpc.fetch_alerts),
+        donki_cache.get(lambda: donki.fetch_notifications(donki_query_start, donki_query_end)),
+        return_exceptions=True,
     )
 
     scales_ok = True
@@ -104,6 +130,14 @@ async def assess_current(
         alerts, alerts_status = [], alerts_cache.status
     else:
         alerts, alerts_status, _ = alerts_result
+
+    donki_ok = True
+    if isinstance(donki_result, SourceUnavailable):
+        donki_ok = False
+        notes_parts.append(f"NASA DONKI недоступен: {donki_result.reason}.")
+        donki_raw = []
+    else:
+        donki_raw, _donki_status, _ = donki_result
 
     # Determine which forecast-horizon day-buckets ("0" = today ... "3") this
     # window overlaps. NOAA publishes day-granularity scales, coarser than
@@ -218,7 +252,44 @@ async def assess_current(
             )
         )
 
-    data_sufficient = scales_ok or alerts_ok
+    for item in donki_raw or []:
+        msg_type_raw = str(item.get("messageType", ""))
+        msg_type = next((k for k in _DONKI_TYPE_SEVERITY if msg_type_raw.upper().startswith(k)), None)
+        if msg_type is None:
+            continue
+        issued = parse_utc_datetime(item.get("messageIssueTime"))
+        body = str(item.get("messageBody", ""))[:400]
+        is_forecast_wording = any(w in body.lower() for w in ("predicted", "expected", "forecast", "likely"))
+        signals.append(
+            Signal(
+                factor=FactorKind.space_weather,
+                label=f"{_DONKI_TYPE_LABEL[msg_type]} — уведомление DONKI",
+                description=body or item.get("messageID", ""),
+                severity=_DONKI_TYPE_SEVERITY[msg_type],
+                provenance=Provenance.external_forecast if is_forecast_wording else Provenance.observation,
+                observed_or_expected_start=issued,
+                observed_or_expected_end=None,
+                is_time_uncertain=True,
+                value=None,
+                unit=None,
+                source_name="NASA DONKI notifications",
+                source_url=settings.donki_base_url,
+                published_at=issued,
+                rule_applied=(
+                    f"фиксированная значимость по типу уведомления DONKI ({msg_type}="
+                    f"{_DONKI_TYPE_SEVERITY[msg_type]}); независимый источник, дополняющий NOAA SWPC "
+                    "(без отсечения по времени — это не режим прогноза из прошлого)"
+                ),
+                limitations=(
+                    "DONKI-уведомление не даёт точной числовой интенсивности; момент относится к "
+                    "публикации уведомления, а не обязательно к пику события."
+                ),
+                confidence=ConfidenceLevel.medium,
+                confidence_rationale="Официальное уведомление NASA DONKI с указанным временем публикации.",
+            )
+        )
+
+    data_sufficient = scales_ok or alerts_ok or donki_ok
     overall_confidence = ConfidenceLevel.insufficient_data if not data_sufficient else (
         ConfidenceLevel.medium if signals else ConfidenceLevel.high
     )
@@ -229,8 +300,9 @@ async def assess_current(
         factor=FactorKind.space_weather,
         title="Космическая погода (радиация, геомагнитная обстановка)",
         mechanism_description=(
-            "Оценивает риск повышенной дозы облучения и связанных возмущений среды "
-            "во время ВКД по данным NOAA SWPC (текущая обстановка и краткосрочный прогноз)."
+            "Оценивает риск повышенной дозы облучения и связанных возмущений среды во время ВКД "
+            "по данным NOAA SWPC (текущая обстановка и краткосрочный прогноз) и NASA DONKI "
+            "(типизированные уведомления о солнечных/геомагнитных событиях на весь запрошенный период)."
         ),
         data_sufficient=data_sufficient,
         signals=signals,

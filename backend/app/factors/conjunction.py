@@ -1,6 +1,11 @@
 """Conjunction / MMOD factor: uses CelesTrak SOCRATES to flag close
 approaches of tracked objects to the ISS as a proxy for elevated debris risk
-around a candidate EVA window.
+around a candidate EVA window. If SOCRATES itself is unreachable — observed
+in practice to share CelesTrak's own domain-level blocking with the GP
+orbit source on some hosts — falls back to Space-Track's public CDM class
+("cdm_public") when credentials are configured, the same optional account
+already used as a GP fallback (see clients/spacetrack.py for why its field
+names are discovered live rather than hardcoded).
 
 Per the task's own domain guidance: a conjunction warning concerns the
 *station* and tracked objects; it does not itself give the probability of a
@@ -8,28 +13,32 @@ small untracked fragment striking a crew member. We surface it as exactly
 that — a proxy indicator with an explicit scope limitation — never as a
 direct EVA-safety verdict.
 
-Historical mode: SOCRATES has no practical, license-compatible historical
-archive without a Space-Track account, so historical requests for this
-factor are honestly reported as data-insufficient rather than fabricated.
-This is a deliberate, documented choice — see README limitations.
+Historical mode: neither SOCRATES nor cdm_public has a practical,
+license-compatible historical archive queryable the same way, so historical
+requests for this factor are honestly reported as data-insufficient rather
+than fabricated. This is a deliberate, documented choice — see README
+limitations.
 """
 from __future__ import annotations
 
 from datetime import datetime, timezone
 
 from ..cache import SourceUnavailable, registry
-from ..clients import celestrak
+from ..clients import celestrak, spacetrack
 from ..config import settings
 from ..models import ConfidenceLevel, FactorAssessment, FactorKind, Provenance, Signal
 
 SOCRATES_CACHE = "celestrak_socrates"
+SPACETRACK_CDM_CACHE = "spacetrack_cdm"
 registry.register(SOCRATES_CACHE, settings.celestrak_socrates_url, ttl_seconds=6 * 3600)
+registry.register(SPACETRACK_CDM_CACHE, settings.spacetrack_query_url, settings.current_data_ttl_seconds)
 
 
 def _apply_overrides(disabled: list[str], frozen: list[str]) -> None:
-    cache = registry.get(SOCRATES_CACHE)
-    (cache.disable if SOCRATES_CACHE in disabled else cache.enable)()
-    (cache.freeze if SOCRATES_CACHE in frozen else cache.unfreeze)()
+    for name in (SOCRATES_CACHE, SPACETRACK_CDM_CACHE):
+        cache = registry.get(name)
+        (cache.disable if name in disabled else cache.enable)()
+        (cache.freeze if name in frozen else cache.unfreeze)()
 
 
 def _severity_from_event(miss_km: str, max_prob: str) -> float:
@@ -66,15 +75,41 @@ async def assess_current(
     signals: list[Signal] = []
     notes_parts: list[str] = []
     data_sufficient = True
+    source_name = "CelesTrak SOCRATES"
+    source_url = settings.celestrak_socrates_url
+    is_cdm_fallback = False
 
+    events: list[dict] = []
     try:
         csv_text, _status, _fresh = await cache.get(celestrak.fetch_socrates_csv)
+        events = celestrak.parse_socrates_for_norad(csv_text, settings.iss_norad_id)
     except SourceUnavailable as exc:
         data_sufficient = False
-        csv_text = ""
         notes_parts.append(f"CelesTrak SOCRATES недоступен: {exc.reason}.")
 
-    events = celestrak.parse_socrates_for_norad(csv_text, settings.iss_norad_id) if csv_text else []
+        if settings.spacetrack_identity and settings.spacetrack_password:
+            cdm_cache = registry.get(SPACETRACK_CDM_CACHE)
+            try:
+                payload, _status, _fresh = await cdm_cache.get(
+                    lambda: spacetrack.fetch_cdm_conjunctions(settings.iss_norad_id)
+                )
+                events = spacetrack.parse_cdm_events(payload, settings.iss_norad_id)
+                data_sufficient = True
+                is_cdm_fallback = True
+                source_name = "Space-Track cdm_public (резервный источник)"
+                source_url = payload.get("source_url", settings.spacetrack_query_url)
+                notes_parts.append(
+                    "Использован резервный источник Space-Track cdm_public: официальные CDM для "
+                    "станции; названия полей схемы определены динамически по live-ответу сервера "
+                    "(см. clients/spacetrack.py), поэтому уверенность в этих сигналах понижена."
+                )
+            except Exception as cdm_exc:  # noqa: BLE001 - reported, never swallowed
+                notes_parts.append(f"Резервный источник Space-Track cdm_public тоже недоступен: {cdm_exc}.")
+        else:
+            notes_parts.append(
+                "Резервный источник Space-Track cdm_public не настроен (не заданы EVA_SPACETRACK_IDENTITY / "
+                "EVA_SPACETRACK_PASSWORD)."
+            )
 
     for ev in events:
         tca_raw = ev.get("tca")
@@ -104,7 +139,7 @@ async def assess_current(
                 factor=FactorKind.conjunction_mmod,
                 label=f"Сближение с объектом «{ev.get('other_object')}»",
                 description=(
-                    "Расчётное сближение отслеживаемого объекта со станцией (CelesTrak SOCRATES). "
+                    f"Расчётное сближение отслеживаемого объекта со станцией ({source_name}). "
                     "Показатель относится к станции и каталогизированным объектам; он не задаёт "
                     "вероятность попадания мелкого несопровождаемого фрагмента в космонавта."
                 ),
@@ -115,8 +150,8 @@ async def assess_current(
                 is_time_uncertain=tca is None,
                 value=float(ev.get("miss_distance_km")) if _is_float(ev.get("miss_distance_km")) else None,
                 unit="км (минимальная дальность)",
-                source_name="CelesTrak SOCRATES",
-                source_url=settings.celestrak_socrates_url,
+                source_name=source_name,
+                source_url=source_url,
                 published_at=None,
                 rule_applied=(
                     "severity = вероятность/1e-4 при наличии; иначе ступенчато по минимальной "
@@ -125,11 +160,26 @@ async def assess_current(
                 limitations=(
                     "Прокси-показатель обстановки вокруг станции, не индивидуальная оценка риска "
                     "для скафандра или конкретного члена экипажа."
+                    + (
+                        " Резервный источник: названия полей cdm_public определены динамически "
+                        "во время запроса, а не проверены заранее живым вызовом разработчика."
+                        if is_cdm_fallback
+                        else ""
+                    )
                 ),
-                confidence=ConfidenceLevel.medium if tca else ConfidenceLevel.low,
+                confidence=(
+                    ConfidenceLevel.low
+                    if is_cdm_fallback
+                    else (ConfidenceLevel.medium if tca else ConfidenceLevel.low)
+                ),
                 confidence_rationale=(
-                    "Публичный расчёт CelesTrak на основе каталогизированных элементов; "
-                    "не учитывает некаталогизированные мелкие фрагменты (MMOD)."
+                    "Резервный источник Space-Track cdm_public, схема определена динамически — "
+                    "используется, но с пониженной уверенностью."
+                    if is_cdm_fallback
+                    else (
+                        "Публичный расчёт CelesTrak на основе каталогизированных элементов; "
+                        "не учитывает некаталогизированные мелкие фрагменты (MMOD)."
+                    )
                 ),
             )
         )
@@ -142,16 +192,17 @@ async def assess_current(
         )
 
     overall_confidence = ConfidenceLevel.insufficient_data if not data_sufficient else (
-        ConfidenceLevel.medium if signals else ConfidenceLevel.high
+        ConfidenceLevel.low if is_cdm_fallback else (ConfidenceLevel.medium if signals else ConfidenceLevel.high)
     )
 
     return FactorAssessment(
         factor=FactorKind.conjunction_mmod,
         title="Сближения и MMOD (микрометеороиды/орбитальный мусор)",
         mechanism_description=(
-            "Использует публичный отчёт CelesTrak SOCRATES о расчётных сближениях "
-            "каталогизированных объектов со станцией как прокси-показатель обстановки "
-            "по мусору; статистический фон MMOD не даёт индивидуального прогноза по частицам."
+            "Использует публичный отчёт CelesTrak SOCRATES о расчётных сближениях каталогизированных "
+            "объектов со станцией как прокси-показатель обстановки по мусору (при недоступности "
+            "CelesTrak — резервно Space-Track cdm_public, если настроены учётные данные); "
+            "статистический фон MMOD не даёт индивидуального прогноза по частицам."
         ),
         data_sufficient=data_sufficient,
         signals=signals,
