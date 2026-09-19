@@ -45,11 +45,6 @@
 
     <button type="button" id="analyze-btn" class="primary-btn">Рассчитать</button>
 
-    <!-- TEMP: pure connectivity check (GitHub -> Render -> browser),
-         touches no external API (NASA/NOAA/CelesTrak) at all — remove
-         once the deploy pipeline is confirmed working. -->
-    <button type="button" id="ping-btn" class="ghost-btn">Проверить связь с сервером</button>
-
     <details class="control-group advanced-panel">
       <summary>Дополнительно (для проверки надёжности и методики)</summary>
       <div class="control-group">
@@ -138,16 +133,6 @@
 <footer class="footer">
   <p>Допуск к реальной ВКД остаётся за уполномоченными специалистами. Сервис — исследовательский прототип поддержки решений.</p>
 </footer>
-
-<!-- TEMP: overlay for the connectivity-check button above; remove together with it. -->
-<div id="ping-overlay" class="ping-overlay" hidden>
-  <svg viewBox="0 0 100 90" width="90" height="80" aria-hidden="true">
-    <polygon points="50,6 96,84 4,84" id="ping-triangle" fill="#ff6b6b" stroke="#3a0d0d" stroke-width="2" stroke-linejoin="round"/>
-    <text x="50" y="68" text-anchor="middle" font-size="34" font-weight="800" fill="#3a0d0d" font-family="sans-serif">!</text>
-  </svg>
-  <p id="ping-text"></p>
-  <button type="button" id="ping-close" class="ghost-btn">Закрыть</button>
-</div>
 
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
