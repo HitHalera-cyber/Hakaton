@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     # --- Data sources ---
     celestrak_gp_url: str = "https://celestrak.org/NORAD/elements/gp.php"
     celestrak_socrates_url: str = "https://celestrak.org/SOCRATES/socrates-limited-7.csv"
+    # Fallback only — re-publishes CelesTrak's own data via GitHub's raw
+    # CDN, refreshed roughly every 8h. See clients/tle_mirror.py.
+    tle_mirror_url: str = "https://raw.githubusercontent.com/caelo-works/tle-mirror/main/tle/stations.tle"
     swpc_scales_url: str = "https://services.swpc.noaa.gov/products/noaa-scales.json"
     swpc_kp_url: str = "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json"
     swpc_alerts_url: str = "https://services.swpc.noaa.gov/products/alerts.json"
@@ -22,6 +25,10 @@ class Settings(BaseSettings):
     # Optional: Space-Track (needed only for authenticated historical GP_HISTORY orbit elements).
     spacetrack_login_url: str = "https://www.space-track.org/ajaxauth/login"
     spacetrack_query_url: str = "https://www.space-track.org/basicspacedata/query"
+    # "modeldef" is its own request type under the same "basicspacedata"
+    # controller, not a predicate appended after "query" — a distinct base
+    # URL avoids ever reconstructing it wrong. See clients/spacetrack.py.
+    spacetrack_modeldef_url: str = "https://www.space-track.org/basicspacedata/modeldef"
     spacetrack_identity: str | None = None
     spacetrack_password: str | None = None
 

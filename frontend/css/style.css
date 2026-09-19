@@ -85,6 +85,14 @@ body {
   padding: 18px;
   position: sticky;
   top: 16px;
+  /* Without its own scroll, a sticky sidebar taller than the viewport
+     (e.g. once "Дополнительно" is expanded) has no way to bring its own
+     bottom into view — the page's scroll range is governed by the OTHER
+     column, so if results are short/empty, the tail of this panel is
+     simply unreachable. Giving it its own max-height + scrollbar makes it
+     always fully reachable regardless of what's next to it. */
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -121,9 +129,22 @@ body {
 
 .hint { font-size: 0.78rem; color: var(--muted); margin: 4px 0 0; }
 
+.checkbox-label {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500 !important;
+  color: var(--text) !important;
+  cursor: pointer;
+}
+.checkbox-label input[type="checkbox"] { width: auto; flex: none; accent-color: var(--accent); }
+
 .sources-panel summary { cursor: pointer; font-size: 0.85rem; color: var(--muted); }
-.sources-toggle-list { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
-.source-toggle-row { display: flex; align-items: center; justify-content: space-between; font-size: 0.8rem; gap: 6px; }
+.sources-toggle-list { margin-top: 10px; display: flex; flex-direction: column; gap: 10px; }
+/* Stacked, not side-by-side: the <select> options ("обычный режим",
+   "заморожен (кеш без обновления)", ...) are long enough that fitting a
+   source name AND the select on one row overflowed the 320px sidebar. */
+.source-toggle-row { display: flex; flex-direction: column; gap: 4px; font-size: 0.8rem; }
 .source-toggle-row .toggles { display: flex; gap: 8px; }
 .source-toggle-row label { display: flex; align-items: center; gap: 4px; color: var(--text); margin: 0; }
 
@@ -160,6 +181,7 @@ body {
 .map-legend .swatch { display: inline-block; width: 14px; height: 3px; margin-right: 6px; vertical-align: middle; }
 
 .source-toggle-row select {
+  width: 100%;
   background: rgba(255, 255, 255, .07);
   color: var(--text);
   border: 1px solid var(--panel-border);
@@ -203,6 +225,30 @@ body {
 
 .recommendation { background: rgba(255, 255, 255, .06); border-left: 3px solid var(--accent); padding: 11px 15px; border-radius: var(--radius-sm); font-size: 0.9rem; }
 
+/* The plain-language go/no-go verdict — the first thing a non-specialist
+   user should see after a calculation, distinct from (and above) the
+   detailed per-window table and factor breakdown. */
+.verdict-panel { text-align: center; }
+.verdict-badge {
+  display: inline-block;
+  padding: 12px 28px;
+  border-radius: 999px;
+  font-family: "Unbounded", "Manrope", sans-serif;
+  margin-bottom: 10px;
+}
+.verdict-title { font-size: 1.15rem; font-weight: 800; letter-spacing: -0.01em; }
+.verdict-detail { color: var(--muted); font-size: 0.88rem; max-width: 720px; margin: 0 auto; }
+.verdict-ok { background: rgba(79, 209, 140, .18); box-shadow: 0 0 24px -6px var(--ok); }
+.verdict-ok .verdict-title { color: var(--ok); }
+.verdict-caution { background: rgba(245, 196, 81, .18); box-shadow: 0 0 24px -6px var(--warn); }
+.verdict-caution .verdict-title { color: var(--warn); }
+.verdict-danger { background: rgba(255, 107, 107, .18); box-shadow: 0 0 24px -6px var(--danger); }
+.verdict-danger .verdict-title { color: var(--danger); }
+.verdict-unknown { background: rgba(159, 183, 214, .18); }
+.verdict-unknown .verdict-title { color: var(--muted); }
+
+.compare-verdict { margin-bottom: 14px; }
+
 .table-wrap { overflow-x: auto; margin-top: 10px; }
 table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
 th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--panel-border); white-space: nowrap; }
@@ -212,6 +258,22 @@ tr.tied td { background: rgba(245, 196, 81, 0.08); }
 .badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 0.72rem; font-weight: 700; }
 .badge.rec { background: var(--ok); color: #06210f; }
 .badge.tie { background: var(--warn); color: #2a1d00; }
+.badge.worst { background: var(--danger); color: #2a0606; }
+
+.compare-dates-group .hint { margin-bottom: 8px; }
+.compare-dates-group #compare-dates-btn { margin-top: 10px; width: 100%; }
+
+.compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 14px; }
+@media (max-width: 720px) { .compare-grid { grid-template-columns: 1fr; } }
+.compare-col h3 { margin: 0 0 10px; font-size: 0.95rem; }
+.compare-window { border: 1px solid var(--panel-border); border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 10px; background: rgba(255, 255, 255, .03); font-size: 0.82rem; }
+.compare-window p { margin: 0 0 6px; }
+.compare-window ul { margin: 0; padding-left: 18px; }
+.compare-window li { margin-bottom: 3px; }
+.compare-window-winner { border-color: var(--ok); background: rgba(79, 209, 140, 0.08); }
+.compare-window-winner .badge { margin-bottom: 8px; }
+.compare-window-worst { border-color: var(--danger); background: rgba(255, 107, 107, 0.08); }
+.compare-window-worst .badge { margin-bottom: 8px; }
 
 .factor-block { border: 1px solid var(--panel-border); border-radius: var(--radius-sm); padding: 13px 16px; margin-bottom: 12px; background: rgba(255, 255, 255, .03); }
 .factor-block h3 { margin: 0 0 6px; font-size: 0.95rem; }

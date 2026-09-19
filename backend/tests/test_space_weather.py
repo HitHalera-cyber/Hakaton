@@ -59,3 +59,19 @@ async def test_verification_signals_are_not_used_in_calculation_but_available_se
 
     assert len(calc.signals) == 1
     assert len(verify) == 2  # verification sees the full archive, unfiltered by cutoff
+
+
+async def test_historical_deduplicates_repeated_donki_message_id():
+    """T1: 'дубли сообщений' — a repeated messageID must not be counted twice."""
+    cutoff = datetime(2024, 5, 11, 12, 0, 0, tzinfo=timezone.utc)
+    notif = _notif("SEP", "2024-05-11T10:00Z")
+    notifications = [notif, dict(notif)]  # same messageID appears twice
+
+    async def fake_fetch(start, end, msg_type="all"):
+        return notifications
+
+    with patch.object(donki, "fetch_notifications", fake_fetch):
+        result = await space_weather.assess_historical(cutoff, cutoff, cutoff.replace(hour=18))
+
+    assert len(result.signals) == 1
+    assert "дублей" in result.notes
