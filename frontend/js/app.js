@@ -215,29 +215,52 @@ function render(data) {
 // as "day/night" — shifted to amber/indigo, still warm=day, cool=night.
 const DAY_COLOR = "#e0a83e";
 const NIGHT_COLOR = "#4a3f8c";
+const TRACK_DENSIFY_STEPS = 8;
+const TRANSITION_GRADIENT_STEPS = 8;
 
-// Splits a track into contiguous day/night runs (and at antimeridian
-// crossings), so both the 2D map and the 3D globe draw the same
-// server-computed illumination without a false line jumping across the
-// map or a seam at +/-180 degrees longitude. This is the single place
-// that logic lives, shared by both renderers.
-function splitDaylightSegments(track) {
+function hexToRgb(hex) {
+  const v = parseInt(hex.slice(1), 16);
+  return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
+}
+
+// Linear RGB interpolation between two hex colors: used to draw a short
+// gradient band across a day/night transition edge instead of a hard
+// color cut, since dawn/dusk is gradual in reality, not instantaneous.
+// A stylised visual approximation spread evenly over one sample gap, not
+// a physical twilight/penumbra model.
+function colorLerp(hexA, hexB, t) {
+  const [r1, g1, b1] = hexToRgb(hexA);
+  const [r2, g2, b2] = hexToRgb(hexB);
+  const lerp = (a, b) => Math.round(a + (b - a) * t);
+  return "#" + [lerp(r1, r2), lerp(g1, g2), lerp(b1, b2)].map((c) => c.toString(16).padStart(2, "0")).join("");
+}
+
+// Splits a track only at antimeridian (+/-180 degree longitude) crossings.
+// On the flat 2D map, connecting a point pair from either side of the
+// seam draws a spurious straight line across the whole map, so those runs
+// must never share a polyline; in the 3D Cartesian view there is no real
+// seam, so callers pass breakAtWrap=false to keep one continuous curve,
+// matching the previous (correct) 3D behavior. Day/night coloring,
+// including the transition gradient, is handled separately per-edge (see
+// buildDayNightPieces2D/3D below), so this no longer also splits on
+// daylight change the way it used to.
+function splitWrapRuns(track, breakAtWrap) {
   if (!track.length) return [];
-  const segments = [];
-  let segment = [track[0]];
+  if (!breakAtWrap) return [track];
+  const runs = [];
+  let run = [track[0]];
   for (let i = 1; i < track.length; i++) {
     const prev = track[i - 1];
     const cur = track[i];
-    const wrapped = Math.abs(cur.lon - prev.lon) > 180;
-    const dayChanged = cur.is_daylight !== prev.is_daylight;
-    if (wrapped || dayChanged) {
-      if (segment.length > 1) segments.push(segment);
-      segment = [prev];
+    if (Math.abs(cur.lon - prev.lon) > 180) {
+      if (run.length > 1) runs.push(run);
+      run = [cur];
+    } else {
+      run.push(cur);
     }
-    segment.push(cur);
   }
-  if (segment.length > 1) segments.push(segment);
-  return segments;
+  if (run.length > 1) runs.push(run);
+  return runs;
 }
 
 // Same sparseness problem as the 3D globe (see densifyTrackPoints below),
@@ -274,6 +297,47 @@ function densifyLatLon(points, stepsBetween) {
   }
   out.push([points[points.length - 1].lat, points[points.length - 1].lon]);
   return out;
+}
+
+// Turns one wrap-free run into drawable [lat, lon] pieces: consecutive
+// same-state points are grouped into a single densified polyline (solid
+// color), and each point pair where day/night actually flips is rendered
+// as several short color-interpolated sub-pieces spanning that one edge —
+// the gradual-dawn effect. (Previously every polyline here was colored
+// from the *first* point of its group; after a day/night change that
+// first point was still the old state, so the new group — mostly the new
+// state's points — was drawn in the old color. Coloring per-edge instead
+// fixes that along with adding the gradient.)
+function buildDayNightPieces2D(run) {
+  const pieces = [];
+  let group = [run[0]];
+  const flushGroup = () => {
+    if (group.length > 1) {
+      pieces.push({
+        latlngs: densifyLatLon(group, TRACK_DENSIFY_STEPS),
+        color: group[0].is_daylight ? DAY_COLOR : NIGHT_COLOR,
+      });
+    }
+  };
+  for (let i = 1; i < run.length; i++) {
+    const prev = run[i - 1];
+    const cur = run[i];
+    if (cur.is_daylight !== prev.is_daylight) {
+      flushGroup();
+      const latlngs = densifyLatLon([prev, cur], TRANSITION_GRADIENT_STEPS);
+      const colorA = prev.is_daylight ? DAY_COLOR : NIGHT_COLOR;
+      const colorB = cur.is_daylight ? DAY_COLOR : NIGHT_COLOR;
+      for (let s = 0; s < latlngs.length - 1; s++) {
+        const t = (s + 0.5) / (latlngs.length - 1);
+        pieces.push({ latlngs: [latlngs[s], latlngs[s + 1]], color: colorLerp(colorA, colorB, t) });
+      }
+      group = [cur];
+    } else {
+      group.push(cur);
+    }
+  }
+  flushGroup();
+  return pieces;
 }
 
 function updateViewHint() {
@@ -341,12 +405,10 @@ function renderMap(orbit) {
   const track = orbit.track;
 
   if (track.length) {
-    splitDaylightSegments(track).forEach((segment) => {
-      L.polyline(densifyLatLon(segment, 8), {
-        color: segment[0].is_daylight ? DAY_COLOR : NIGHT_COLOR,
-        weight: 3,
-        opacity: 0.9,
-      }).addTo(group);
+    splitWrapRuns(track, true).forEach((run) => {
+      buildDayNightPieces2D(run).forEach((piece) => {
+        L.polyline(piece.latlngs, { color: piece.color, weight: 3, opacity: 0.9 }).addTo(group);
+      });
     });
 
     const first = track[0];
@@ -411,6 +473,40 @@ function densifyTrackPoints(points, stepsBetween) {
   }
   out.push(latLonAltToVec3(points[points.length - 1].lat, points[points.length - 1].lon, points[points.length - 1].alt_km));
   return out;
+}
+
+// 3D counterpart of buildDayNightPieces2D: same grouping/gradient logic,
+// but producing THREE.Vector3 point arrays and numeric colors for tubes.
+function buildDayNightPieces3D(run) {
+  const pieces = [];
+  let group = [run[0]];
+  const flushGroup = () => {
+    if (group.length > 1) {
+      pieces.push({
+        points: densifyTrackPoints(group, TRACK_DENSIFY_STEPS),
+        color: group[0].is_daylight ? 0xe0a83e : 0x4a3f8c,
+      });
+    }
+  };
+  for (let i = 1; i < run.length; i++) {
+    const prev = run[i - 1];
+    const cur = run[i];
+    if (cur.is_daylight !== prev.is_daylight) {
+      flushGroup();
+      const pts = densifyTrackPoints([prev, cur], TRANSITION_GRADIENT_STEPS);
+      const colorA = prev.is_daylight ? DAY_COLOR : NIGHT_COLOR;
+      const colorB = cur.is_daylight ? DAY_COLOR : NIGHT_COLOR;
+      for (let s = 0; s < pts.length - 1; s++) {
+        const t = (s + 0.5) / (pts.length - 1);
+        pieces.push({ points: [pts[s], pts[s + 1]], color: parseInt(colorLerp(colorA, colorB, t).slice(1), 16) });
+      }
+      group = [cur];
+    } else {
+      group.push(cur);
+    }
+  }
+  flushGroup();
+  return pieces;
 }
 
 function setGlobeStatus(kind, html) {
@@ -559,12 +655,13 @@ function renderGlobe(orbit) {
   }
   const group = new THREE.Group();
   const track = orbit.track;
-  splitDaylightSegments(track).forEach((segment) => {
-    if (segment.length < 2) return;
-    const pts = densifyTrackPoints(segment, 8);
-    const curve = new THREE.CatmullRomCurve3(pts, false, "catmullrom", 0.5);
-    const tube = new THREE.TubeGeometry(curve, Math.max(8, pts.length * 2), 0.014, 8, false);
-    group.add(new THREE.Mesh(tube, new THREE.MeshBasicMaterial({ color: segment[0].is_daylight ? 0xe0a83e : 0x4a3f8c })));
+  splitWrapRuns(track, false).forEach((run) => {
+    buildDayNightPieces3D(run).forEach((piece) => {
+      if (piece.points.length < 2) return;
+      const curve = new THREE.CatmullRomCurve3(piece.points, false, "catmullrom", 0.5);
+      const tube = new THREE.TubeGeometry(curve, Math.max(2, piece.points.length * 2), 0.014, 8, false);
+      group.add(new THREE.Mesh(tube, new THREE.MeshBasicMaterial({ color: piece.color })));
+    });
   });
   if (track.length) {
     const first = track[0], last = track[track.length - 1];
