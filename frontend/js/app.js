@@ -414,7 +414,7 @@ function buildDayNightPieces2D(run) {
 function updateViewHint() {
   $("#view-hint").textContent =
     state.viewMode === "3d"
-      ? "Золотистый участок — станция освещена Солнцем (день), фиолетовый — в тени Земли (ночь), по тем же данным, что и в 2D. Освещение самого глобуса декоративное (студийный свет), реальное положение Солнца не отражает — ориентируйтесь по цвету трассы. Тяните мышью, крутите колесо для приближения."
+      ? "Золотистый участок — станция освещена Солнцем (день), фиолетовый — в тени Земли (ночь). Освещение глобуса декоративное, ориентируйтесь по цвету трассы. Тяните мышью, крутите колесо для приближения."
       : "Золотистая линия — станция освещена Солнцем (день), тёмно-фиолетовая — станция в тени Земли (ночь). Зелёная метка — начало показанного периода, оранжевая — конец. Карта автоматически приближена к участку трассы.";
 }
 
@@ -618,15 +618,31 @@ function initGlobeScene() {
   starGeo.setAttribute("position", new THREE.Float32BufferAttribute(starPos, 3));
   scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0x445077, size: 0.06 })));
 
-  const earth = new THREE.Mesh(
-    new THREE.SphereGeometry(GLOBE_RADIUS, 64, 48),
-    new THREE.MeshPhongMaterial({ color: 0x123a5e, shininess: 10, specular: 0x224466 })
-  );
+  // Flat blue placeholder shown immediately; swapped for a real Earth
+  // photo texture once it loads (see below) — never left blocking globe
+  // render on a slow/unreachable CDN, and degrades gracefully to the
+  // placeholder colour if the texture fails to load at all.
+  const earthMaterial = new THREE.MeshPhongMaterial({ color: 0x123a5e, shininess: 6, specular: 0x223344 });
+  const earth = new THREE.Mesh(new THREE.SphereGeometry(GLOBE_RADIUS, 64, 48), earthMaterial);
   scene.add(earth);
+  new THREE.TextureLoader().load(
+    "https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_atmos_2048.jpg",
+    (tex) => {
+      earthMaterial.map = tex;
+      earthMaterial.color.set(0xffffff);
+      earthMaterial.needsUpdate = true;
+    },
+    undefined,
+    () => {} // texture unreachable: keep the flat-colour fallback already on screen
+  );
+
+  // Soft atmospheric haze at the limb, replacing the previous wireframe
+  // grid overlay — a plain colour shell reads far closer to a real photo
+  // of Earth from orbit than a technical-looking grid does.
   scene.add(
     new THREE.Mesh(
-      new THREE.SphereGeometry(GLOBE_RADIUS * 1.003, 24, 16),
-      new THREE.MeshBasicMaterial({ color: 0x5eead4, wireframe: true, transparent: true, opacity: 0.1 })
+      new THREE.SphereGeometry(GLOBE_RADIUS * 1.02, 48, 32),
+      new THREE.MeshBasicMaterial({ color: 0x6ab7ff, transparent: true, opacity: 0.12, side: THREE.BackSide })
     )
   );
 
@@ -634,8 +650,8 @@ function initGlobeScene() {
   // faces the viewer). Deliberately NOT positioned to represent the real
   // sun direction, so it never contradicts the server-computed day/night
   // colouring on the track itself, which is the one authoritative signal.
-  scene.add(new THREE.AmbientLight(0x8fa5ff, 0.55));
-  const keyLight = new THREE.DirectionalLight(0xffffff, 0.9);
+  scene.add(new THREE.AmbientLight(0x8fa5ff, 0.45));
+  const keyLight = new THREE.DirectionalLight(0xffffff, 1.0);
   camera.add(keyLight);
   scene.add(camera);
 

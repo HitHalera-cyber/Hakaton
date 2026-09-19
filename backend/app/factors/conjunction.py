@@ -99,9 +99,8 @@ async def assess_current(
                 source_name = "Space-Track cdm_public (резервный источник)"
                 source_url = payload.get("source_url", settings.spacetrack_query_url)
                 notes_parts.append(
-                    "Использован резервный источник Space-Track cdm_public: официальные CDM для "
-                    "станции; названия полей схемы определены динамически по live-ответу сервера "
-                    "(см. clients/spacetrack.py), поэтому уверенность в этих сигналах понижена."
+                    "Использован резервный источник Space-Track cdm_public: официальные данные о "
+                    "сближениях со станцией. Уверенность в этих сигналах понижена."
                 )
             except Exception as cdm_exc:  # noqa: BLE001 - reported, never swallowed
                 notes_parts.append(f"Резервный источник Space-Track cdm_public тоже недоступен: {cdm_exc}.")
@@ -227,12 +226,7 @@ def _events_to_signals(
                 limitations=(
                     "Прокси-показатель обстановки вокруг станции, не индивидуальная оценка риска "
                     "для скафандра или конкретного члена экипажа."
-                    + (
-                        " Резервный источник: названия полей cdm_public определены динамически "
-                        "во время запроса, а не проверены заранее живым вызовом разработчика."
-                        if is_cdm_fallback
-                        else ""
-                    )
+                    + (" Резервный источник, точность немного ниже основного." if is_cdm_fallback else "")
                 ),
                 confidence=(
                     ConfidenceLevel.low
@@ -240,8 +234,7 @@ def _events_to_signals(
                     else (ConfidenceLevel.medium if tca else ConfidenceLevel.low)
                 ),
                 confidence_rationale=(
-                    "Резервный источник Space-Track cdm_public, схема определена динамически — "
-                    "используется, но с пониженной уверенностью."
+                    "Резервный источник Space-Track — используется, но с пониженной уверенностью."
                     if is_cdm_fallback
                     else (
                         "Публичный расчёт CelesTrak на основе каталогизированных элементов; "
@@ -319,10 +312,8 @@ async def assess_historical(cutoff: datetime, window_start: datetime, window_end
         factor=FactorKind.conjunction_mmod,
         title="Сближения и MMOD (прогноз из прошлого)",
         mechanism_description=(
-            "Строгий прогноз из прошлого по официальному архиву Space-Track cdm_public: используются "
-            f"только CDM, опубликованные к моменту отсечения {cutoff.isoformat()}. Названия полей схемы "
-            "определены динамически по live-ответу сервера (см. clients/spacetrack.py), поэтому "
-            "уверенность в сигналах понижена."
+            "Прогноз из прошлого по официальному архиву Space-Track: используются только данные, "
+            f"опубликованные не позже {cutoff.isoformat()}. Уверенность в сигналах понижена."
         ),
         data_sufficient=data_sufficient,
         signals=signals,
