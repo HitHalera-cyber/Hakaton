@@ -83,6 +83,43 @@ async def _load_current_gp_via_spacetrack(force_refresh: bool = False) -> dict:
     return payload
 
 
+async def _load_current_gp_with_fallback(force_refresh: bool = False) -> tuple[dict, str]:
+    """Ordered fallback chain, shared by both the current-mode path and the
+    historical-mode reconstruction path (the latter used to call CelesTrak
+    directly and skip the fallback chain entirely — a real bug: a blocked
+    CelesTrak broke the "reconstruction" fallback too, not just the primary
+    current-mode flow).
+
+    CelesTrak needs no account and has the best freshness, so it's always
+    tried first and preferred whenever it works. The GitHub mirror needs no
+    account either and is tried next automatically — it only re-publishes
+    CelesTrak's own data (not an independent measurement) but runs on
+    infrastructure (GitHub's raw-content CDN) that is far less likely to
+    share celestrak.org's own blocking/rate-limiting (observed in practice
+    on at least one deployment). Space-Track is tried last, and only if the
+    user actually configured credentials for it.
+    """
+    attempts = [
+        ("CelesTrak GP (current)", _load_current_gp),
+        ("Зеркало TLE на GitHub (резервный источник)", _load_current_gp_via_mirror),
+    ]
+    if settings.spacetrack_identity and settings.spacetrack_password:
+        attempts.append(("Space-Track GP (резервный источник)", _load_current_gp_via_spacetrack))
+
+    errors: list[str] = []
+    for label, loader in attempts:
+        try:
+            gp = await loader(force_refresh=force_refresh)
+            return gp, label
+        except Exception as exc:  # noqa: BLE001 - aggregated below, never swallowed
+            errors.append(f"{label} — {exc}")
+
+    # Every configured source failed: surface ALL of their errors, not just
+    # the first one, so a deployment with e.g. Space-Track also
+    # misconfigured doesn't get misdiagnosed as "just" a CelesTrak problem.
+    raise SourceUnavailable("celestrak_gp", "; ".join(errors))
+
+
 async def get_orbit(
     mode_current: bool,
     start: datetime,
@@ -94,51 +131,23 @@ async def get_orbit(
     reconstruction_note = None
 
     if mode_current:
-        # Ordered fallback chain: CelesTrak needs no account and has the
-        # best freshness, so it's always tried first and preferred
-        # whenever it works. The GitHub mirror needs no account either and
-        # is tried next automatically — it only re-publishes CelesTrak's
-        # own data (not an independent measurement) but runs on
-        # infrastructure (GitHub's raw-content CDN) that is far less
-        # likely to share celestrak.org's own blocking/rate-limiting than
-        # CelesTrak itself (observed in practice on at least one
-        # deployment). Space-Track is tried last, and only if the user
-        # actually configured credentials for it.
-        attempts = [
-            ("CelesTrak GP (current)", _load_current_gp),
-            ("Зеркало TLE на GitHub (резервный источник)", _load_current_gp_via_mirror),
-        ]
-        if settings.spacetrack_identity and settings.spacetrack_password:
-            attempts.append(("Space-Track GP (резервный источник)", _load_current_gp_via_spacetrack))
-
-        errors: list[str] = []
-        gp = None
-        source_name = source_url = None
-        for label, loader in attempts:
-            try:
-                gp = await loader(force_refresh=force_refresh)
-                source_name, source_url = label, gp["source_url"]
-                break
-            except Exception as exc:  # noqa: BLE001 - aggregated below, never swallowed
-                errors.append(f"{label} — {exc}")
-
-        if gp is None:
-            # Every configured source failed: surface ALL of their errors,
-            # not just the first one, so a deployment with e.g. Space-Track
-            # also misconfigured doesn't get misdiagnosed as "just" a
-            # CelesTrak problem.
-            raise SourceUnavailable("celestrak_gp", "; ".join(errors))
+        gp, source_name = await _load_current_gp_with_fallback(force_refresh=force_refresh)
+        source_url = gp["source_url"]
     else:
         try:
             gp = await spacetrack.fetch_historical_tle(settings.iss_norad_id, start)
             source_name, source_url = "Space-Track GP_HISTORY", gp["source_url"]
         except Exception:
             # Not configured or unavailable: fall back to the freshest
-            # current elements we have and mark this explicitly as a
-            # reconstruction, never as a verified historical position
-            # (criterion: "современная орбита не подменяет историческую").
-            gp = await _load_current_gp(force_refresh=False)
-            source_name, source_url = "CelesTrak GP (current, использована как реконструкция)", gp["source_url"]
+            # current elements we have (through the SAME fallback chain as
+            # current mode — this used to call CelesTrak directly and skip
+            # the chain, so a blocked CelesTrak broke the reconstruction
+            # path too) and mark this explicitly as a reconstruction,
+            # never as a verified historical position (criterion:
+            # "современная орбита не подменяет историческую").
+            gp, fallback_source = await _load_current_gp_with_fallback(force_refresh=False)
+            source_name = f"{fallback_source} (использована как реконструкция)"
+            source_url = gp["source_url"]
             is_reconstruction = True
             reconstruction_note = (
                 "Историческая орбита недоступна без учётных данных Space-Track "

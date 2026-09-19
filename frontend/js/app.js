@@ -316,6 +316,39 @@ function latLonAltToVec3(lat, lon, altKm) {
   );
 }
 
+// Server track points can be up to ~10 minutes apart, which for the ISS
+// (~7.7 km/s) is tens of degrees of arc — a straight Catmull-Rom spline
+// through such sparse 3D points cuts corners and looks like a jagged
+// "star" instead of an orbit. Inserting spherical-linear-interpolated
+// (slerp) points between each pair keeps every inserted point on the true
+// great-circle path at the correct altitude, so the curve actually hugs
+// the globe the way a real ground track does.
+function densifyTrackPoints(points, stepsBetween) {
+  if (points.length < 2) return points.map((p) => latLonAltToVec3(p.lat, p.lon, p.alt_km));
+  const out = [];
+  for (let i = 0; i < points.length - 1; i++) {
+    const a = points[i], b = points[i + 1];
+    const va = latLonAltToVec3(a.lat, a.lon, a.alt_km);
+    const vb = latLonAltToVec3(b.lat, b.lon, b.alt_km);
+    const ra = va.length(), rb = vb.length();
+    const ua = va.clone().normalize(), ub = vb.clone().normalize();
+    const cosTheta = Math.max(-1, Math.min(1, ua.dot(ub)));
+    const theta = Math.acos(cosTheta);
+    out.push(va);
+    if (theta > 1e-6) {
+      for (let s = 1; s < stepsBetween; s++) {
+        const t = s / stepsBetween;
+        const w1 = Math.sin((1 - t) * theta) / Math.sin(theta);
+        const w2 = Math.sin(t * theta) / Math.sin(theta);
+        const dir = ua.clone().multiplyScalar(w1).add(ub.clone().multiplyScalar(w2)).normalize();
+        out.push(dir.multiplyScalar(ra + (rb - ra) * t));
+      }
+    }
+  }
+  out.push(latLonAltToVec3(points[points.length - 1].lat, points[points.length - 1].lon, points[points.length - 1].alt_km));
+  return out;
+}
+
 function setGlobeStatus(kind, html) {
   const el = $("#globe-status");
   if (kind === null) {
@@ -464,9 +497,9 @@ function renderGlobe(orbit) {
   const track = orbit.track;
   splitDaylightSegments(track).forEach((segment) => {
     if (segment.length < 2) return;
-    const pts = segment.map((p) => latLonAltToVec3(p.lat, p.lon, p.alt_km));
-    const curve = new THREE.CatmullRomCurve3(pts, false);
-    const tube = new THREE.TubeGeometry(curve, Math.max(4, segment.length * 2), 0.014, 6, false);
+    const pts = densifyTrackPoints(segment, 8);
+    const curve = new THREE.CatmullRomCurve3(pts, false, "catmullrom", 0.5);
+    const tube = new THREE.TubeGeometry(curve, Math.max(8, pts.length * 2), 0.014, 8, false);
     group.add(new THREE.Mesh(tube, new THREE.MeshBasicMaterial({ color: segment[0].is_daylight ? 0xfbbf24 : 0x3355c4 })));
   });
   if (track.length) {
