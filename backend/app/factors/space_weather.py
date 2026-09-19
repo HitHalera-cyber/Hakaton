@@ -268,7 +268,21 @@ async def assess_current(
                 severity=_DONKI_TYPE_SEVERITY[msg_type],
                 provenance=Provenance.external_forecast if is_forecast_wording else Provenance.observation,
                 observed_or_expected_start=issued,
-                observed_or_expected_end=None,
+                # NOT left as None: without an explicit end,
+                # _score_factor_for_window's fallback treats this as a
+                # 30-minute point event (_DEFAULT_SIGNAL_SPAN) — far too
+                # short for how long a real solar/geomagnetic event's
+                # elevated-risk period actually lasts, so any compared
+                # window more than ~30 minutes after the notification's
+                # issue time saw zero contribution even for a real, severe
+                # event. Uses the project's own established forecast
+                # horizon (settings.forecast_horizon_hours, 6h) as the
+                # span — a stylised approximation (DONKI doesn't give a
+                # precise event end either), but a much more realistic one
+                # than 30 minutes.
+                observed_or_expected_end=(
+                    issued + timedelta(hours=settings.forecast_horizon_hours) if issued else None
+                ),
                 is_time_uncertain=True,
                 value=None,
                 unit=None,
@@ -372,7 +386,11 @@ async def assess_historical(
                 severity=_DONKI_TYPE_SEVERITY[msg_type],
                 provenance=Provenance.external_forecast if is_forecast_wording else Provenance.observation,
                 observed_or_expected_start=issued,
-                observed_or_expected_end=None,
+                # See the matching comment in assess_current: an unset end
+                # falls back to a 30-minute default, far shorter than a
+                # real event's actual persistence, so windows more than
+                # ~30 minutes past cutoff never saw this signal at all.
+                observed_or_expected_end=issued + timedelta(hours=settings.forecast_horizon_hours),
                 is_time_uncertain=True,
                 value=None,
                 unit=None,

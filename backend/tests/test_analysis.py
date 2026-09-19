@@ -129,6 +129,54 @@ async def test_conjunction_signal_contributes_to_window_score():
     assert conj.driving_signals
 
 
+async def test_donki_signal_scores_nearby_windows_but_not_ones_far_beyond_the_horizon():
+    """Regression: DONKI notifications also had no explicit
+    observed_or_expected_end, so they fell back to the same 30-minute
+    default span — far shorter than how long a real solar/geomagnetic
+    event's elevated-risk period actually lasts. A user comparing windows
+    across a wide search period (e.g. the default 12h) would see every
+    window past the first one or two read as "0 risk", which looked
+    exactly like "verified safe" even though it really meant "beyond our
+    signal's reach". Widened to settings.forecast_horizon_hours (6h,
+    already an established project constant) — this test checks BOTH ends:
+    a window close to the event must now score it, and a window genuinely
+    far beyond any reasonable forecast horizon must still honestly show no
+    contribution (not a fabricated score)."""
+    async def fake_notifications(start, end, msg_type="all"):
+        return [
+            {
+                "messageType": "RBE",
+                "messageIssueTime": "2024-05-10T00:00Z",
+                "messageBody": "test radio blackout event",
+                "messageID": "RBE-1",
+            }
+        ]
+
+    with patch.object(celestrak, "fetch_current_tle", _fake_tle), \
+         patch.object(swpc, "fetch_scales", _fake_scales_quiet), \
+         patch.object(swpc, "fetch_alerts", _fake_alerts_empty), \
+         patch.object(celestrak, "fetch_socrates_csv", _fake_socrates_empty), \
+         patch.object(donki, "fetch_notifications", fake_notifications):
+        resp = await run_analysis(_base_request(
+            mode=Mode.historical,
+            reference_time=datetime(2024, 5, 10, 0, 0, tzinfo=timezone.utc),  # within the supported historical range
+            duration_hours=4.0, search_period_hours=24.0, step_minutes=120.0,
+        ))
+
+    # windows step every 2h starting at cutoff (00:00): #0=00:00-04:00,
+    # #1=02:00-06:00, #2=04:00-08:00, ... The event is issued at 00:00, so
+    # window #0 would overlap it even under the OLD 30-minute-default span
+    # (it starts exactly when the event does) — that wouldn't distinguish
+    # old from new behavior. Window #2 (starts 4h after the event) is the
+    # one that only the new 6h-wide span reaches; the old 30-minute default
+    # would show zero overlap with it.
+    near_window = resp.windows[2]  # 04:00-08:00: inside the new 6h horizon, outside the old 30-min one
+    assert near_window.combined_score is not None and near_window.combined_score > 0.0
+
+    far_window = resp.windows[-1]  # starts 24h after the event, well beyond 6h
+    assert far_window.combined_score == 0.0
+
+
 async def test_compare_dates_never_recommends_the_riskier_window_over_a_quiet_one():
     """Distinct from search_period_hours (which only compares start times
     clustered around ONE reference date): compares two entirely different
