@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     cache_dir: Path = Path(__file__).resolve().parents[2] / "data" / "cache"
     current_data_ttl_seconds: int = 300  # how often "current" sources are considered fresh
     http_timeout_seconds: float = 20.0
+    # Kept short and separate from http_timeout_seconds on purpose: a host
+    # that is unreachable/blocked (not just slow) should fail fast, not
+    # eat the full read-timeout on every attempt — see http.py.
+    http_connect_timeout_seconds: float = 6.0
     # Optional explicit proxy (e.g. "http://user:pass@host:port" or
     # "socks5://host:port") for deployments where a source (typically
     # api.nasa.gov) is rate-limited or unreachable from the local network.

@@ -22,7 +22,21 @@ def new_client() -> httpx.AsyncClient:
     regardless of the process environment.
     """
     return httpx.AsyncClient(
-        timeout=settings.http_timeout_seconds,
+        # A separate, short connect-timeout matters a lot for a genuinely
+        # unreachable/blocked host (e.g. celestrak.org from some cloud
+        # hosts — see README): with a single flat timeout, each of the 3
+        # retry attempts in cache.py would hang for the full read-timeout
+        # duration before failing, so one blocked source alone could stall
+        # a request past what Render's proxy or the browser's own fetch()
+        # will wait for, surfacing as an opaque "Failed to fetch" instead
+        # of the server's own JSON error. A slow-but-working response
+        # still gets the full http_timeout_seconds to complete.
+        timeout=httpx.Timeout(
+            connect=settings.http_connect_timeout_seconds,
+            read=settings.http_timeout_seconds,
+            write=settings.http_timeout_seconds,
+            pool=settings.http_timeout_seconds,
+        ),
         headers={"User-Agent": _USER_AGENT},
         follow_redirects=True,
         proxy=settings.http_proxy or None,

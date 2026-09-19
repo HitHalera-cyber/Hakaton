@@ -19,6 +19,7 @@ Rule summary (documented here so O2/T3 reviewers can audit it in one place):
 """
 from __future__ import annotations
 
+import asyncio
 from datetime import date, datetime, timedelta, timezone
 
 from ..cache import SourceUnavailable, registry
@@ -82,21 +83,27 @@ async def assess_current(
     scales_cache = registry.get(SWPC_SCALES_CACHE)
     alerts_cache = registry.get(SWPC_ALERTS_CACHE)
 
+    # Independent sources, fetched concurrently rather than one after the
+    # other — halves the worst-case wait when one of them is slow/down.
+    scales_result, alerts_result = await asyncio.gather(
+        scales_cache.get(swpc.fetch_scales), alerts_cache.get(swpc.fetch_alerts), return_exceptions=True
+    )
+
     scales_ok = True
-    try:
-        scales, scales_status, _ = await scales_cache.get(swpc.fetch_scales)
-    except SourceUnavailable as exc:
+    if isinstance(scales_result, SourceUnavailable):
         scales_ok = False
-        notes_parts.append(f"Источник шкал NOAA SWPC недоступен: {exc.reason}.")
+        notes_parts.append(f"Источник шкал NOAA SWPC недоступен: {scales_result.reason}.")
         scales, scales_status = {}, scales_cache.status
+    else:
+        scales, scales_status, _ = scales_result
 
     alerts_ok = True
-    try:
-        alerts, alerts_status, _ = await alerts_cache.get(swpc.fetch_alerts)
-    except SourceUnavailable as exc:
+    if isinstance(alerts_result, SourceUnavailable):
         alerts_ok = False
-        notes_parts.append(f"Лента предупреждений NOAA SWPC недоступна: {exc.reason}.")
+        notes_parts.append(f"Лента предупреждений NOAA SWPC недоступна: {alerts_result.reason}.")
         alerts, alerts_status = [], alerts_cache.status
+    else:
+        alerts, alerts_status, _ = alerts_result
 
     # Determine which forecast-horizon day-buckets ("0" = today ... "3") this
     # window overlaps. NOAA publishes day-granularity scales, coarser than

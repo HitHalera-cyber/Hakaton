@@ -12,6 +12,7 @@ Scoring rule (documented for O3/T3 auditability):
 """
 from __future__ import annotations
 
+import asyncio
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -134,23 +135,27 @@ async def run_analysis(req: AnalyzeRequest) -> AnalyzeResponse:
         ),
     )
 
-    orbit_info = await orbit.get_orbit(
+    # Orbit + both factor assessments hit independent external sources
+    # (CelesTrak, NOAA, DONKI) and don't depend on each other's results, so
+    # they run concurrently rather than one-after-another — with a slow or
+    # unreachable source, a sequential await chain could stack up well past
+    # what a browser's own fetch() or a hosting platform's request proxy
+    # will wait for, surfacing as an opaque network error instead of this
+    # service's own (much more informative) JSON error.
+    orbit_task = orbit.get_orbit(
         mode_current=not is_historical,
         start=span_start,
         end=span_end,
         step_minutes=min(req.step_minutes, 10.0),
     )
-
     if is_historical:
-        sw_assessment = await space_weather.assess_historical(req.reference_time, span_start, span_end)
-        conj_assessment = await conjunction.assess_historical(req.reference_time, span_start, span_end)
+        sw_task = space_weather.assess_historical(req.reference_time, span_start, span_end)
+        conj_task = conjunction.assess_historical(req.reference_time, span_start, span_end)
     else:
-        sw_assessment = await space_weather.assess_current(
-            span_start, span_end, req.disabled_sources, req.frozen_sources
-        )
-        conj_assessment = await conjunction.assess_current(
-            span_start, span_end, req.disabled_sources, req.frozen_sources
-        )
+        sw_task = space_weather.assess_current(span_start, span_end, req.disabled_sources, req.frozen_sources)
+        conj_task = conjunction.assess_current(span_start, span_end, req.disabled_sources, req.frozen_sources)
+
+    orbit_info, sw_assessment, conj_assessment = await asyncio.gather(orbit_task, sw_task, conj_task)
 
     factors: list[FactorAssessment] = [sw_assessment, conj_assessment]
     by_factor_signals = {sw_assessment.factor: sw_assessment.signals, conj_assessment.factor: conj_assessment.signals}
