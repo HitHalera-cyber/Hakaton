@@ -21,12 +21,26 @@ from __future__ import annotations
 import re
 from datetime import datetime
 
+import httpx
+
 from ..config import settings
 from ..http import new_client
 
 
 class SpaceTrackNotConfigured(Exception):
     pass
+
+
+class SpaceTrackLoginError(Exception):
+    """Raised when Space-Track rejects the configured credentials. Space-
+    Track's login endpoint is unusual: a failed login still comes back as
+    HTTP 200, with a JSON body like {"Login": "Failed"} instead of an error
+    status — httpx's raise_for_status() alone would NOT catch that, and
+    every later request in the same session would then fail with an
+    unrelated-looking 401/403 instead of a clear "wrong credentials"
+    message. We check the login response body explicitly so a bad
+    identity/password shows up as exactly that, not a confusing downstream
+    failure."""
 
 
 class SpaceTrackSchemaError(Exception):
@@ -46,19 +60,34 @@ def _row_to_gp(row: dict) -> dict:
     }
 
 
-async def _login_and_query(query_path: str) -> list[dict]:
+async def _login(client: httpx.AsyncClient) -> None:
     if not settings.spacetrack_identity or not settings.spacetrack_password:
         raise SpaceTrackNotConfigured("Space-Track credentials not configured")
 
-    async with new_client() as client:
-        login = await client.post(
-            settings.spacetrack_login_url,
-            data={
-                "identity": settings.spacetrack_identity,
-                "password": settings.spacetrack_password,
-            },
+    resp = await client.post(
+        settings.spacetrack_login_url,
+        data={"identity": settings.spacetrack_identity, "password": settings.spacetrack_password},
+    )
+    resp.raise_for_status()
+    # A failed login is still HTTP 200; only the body says so (see
+    # SpaceTrackLoginError docstring). A successful login returns an empty
+    # body, so anything that parses as {"Login": "Failed", ...} is the one
+    # shape we must treat as a hard failure here.
+    try:
+        body = resp.json()
+    except ValueError:
+        return  # empty/non-JSON body: the normal successful-login response
+    if isinstance(body, dict) and str(body.get("Login", "")).lower() == "failed":
+        raise SpaceTrackLoginError(
+            f"Space-Track login rejected for identity '{settings.spacetrack_identity}' "
+            "(wrong password, or the account needs to accept the site's Acceptable Use "
+            "Policy by logging in via the space-track.org website first)"
         )
-        login.raise_for_status()
+
+
+async def _login_and_query(query_path: str) -> list[dict]:
+    async with new_client() as client:
+        await _login(client)
         resp = await client.get(f"{settings.spacetrack_query_url}/{query_path}")
         resp.raise_for_status()
         return resp.json()
@@ -113,15 +142,8 @@ async def fetch_cdm_conjunctions(norad_id: int, limit: int = 50) -> dict:
     schema doesn't expose what's needed, this raises SpaceTrackSchemaError
     rather than silently returning nothing or fabricating a field.
     """
-    if not settings.spacetrack_identity or not settings.spacetrack_password:
-        raise SpaceTrackNotConfigured("Space-Track credentials not configured")
-
     async with new_client() as client:
-        login = await client.post(
-            settings.spacetrack_login_url,
-            data={"identity": settings.spacetrack_identity, "password": settings.spacetrack_password},
-        )
-        login.raise_for_status()
+        await _login(client)
 
         modeldef_resp = await client.get(f"{settings.spacetrack_query_url}/modeldef/class/cdm_public/format/json")
         modeldef_resp.raise_for_status()
