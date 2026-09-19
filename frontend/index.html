@@ -70,10 +70,20 @@
       </div>
 
       <div class="panel">
-        <h2>Траектория МКС</h2>
+        <div class="panel-head">
+          <h2>Траектория МКС</h2>
+          <div class="seg small" id="view-toggle">
+            <button type="button" class="seg-btn active" data-view="2d">2D карта</button>
+            <button type="button" class="seg-btn" data-view="3d">3D глобус</button>
+          </div>
+        </div>
         <p id="orbit-meta" class="meta-line"></p>
-        <p class="hint">Жёлтая линия — станция освещена Солнцем (день), тёмно-синяя — станция в тени Земли (ночь). Зелёная метка — начало показанного периода, оранжевая — конец. Карта автоматически приближена к участку трассы.</p>
+        <p class="hint" id="view-hint">Жёлтая линия — станция освещена Солнцем (день), тёмно-синяя — станция в тени Земли (ночь). Зелёная метка — начало показанного периода, оранжевая — конец. Карта автоматически приближена к участку трассы.</p>
         <div id="map" class="map"></div>
+        <div id="globe-box" class="map" hidden>
+          <canvas id="globe-canvas"></canvas>
+          <div class="status-msg" id="globe-status">Загружаю 3D-движок…</div>
+        </div>
       </div>
 
       <div class="panel">
@@ -122,6 +132,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

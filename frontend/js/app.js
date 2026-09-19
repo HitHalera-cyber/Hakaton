@@ -3,11 +3,14 @@
 const API = "/api";
 let state = {
   mode: "current",
+  viewMode: "2d",
   config: null,
   lastResponse: null,
+  lastOrbit: null,
   map: null,
   mapLayer: null,
   chart: null,
+  globe: null, // lazily-created three.js state, see renderGlobe()
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -36,9 +39,9 @@ async function init() {
   const pad = (n) => String(n).padStart(2, "0");
   $("#reference_time").value = `${now.getUTCFullYear()}-${pad(now.getUTCMonth() + 1)}-${pad(now.getUTCDate())}T${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}`;
 
-  document.querySelectorAll(".seg-btn").forEach((btn) => {
+  document.querySelectorAll(".seg-btn[data-mode]").forEach((btn) => {
     btn.addEventListener("click", () => {
-      document.querySelectorAll(".seg-btn").forEach((b) => b.classList.remove("active"));
+      document.querySelectorAll(".seg-btn[data-mode]").forEach((b) => b.classList.remove("active"));
       btn.classList.add("active");
       state.mode = btn.dataset.mode;
       $("#historical-hint").style.display = state.mode === "historical" ? "block" : "none";
@@ -48,6 +51,17 @@ async function init() {
     });
   });
   $("#historical-hint").style.display = "none";
+
+  document.querySelectorAll(".seg-btn[data-view]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".seg-btn[data-view]").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      state.viewMode = btn.dataset.view;
+      updateViewHint();
+      if (state.lastOrbit) renderTrajectory(state.lastOrbit);
+    });
+  });
+  updateViewHint();
 
   try {
     const cfg = await fetch(`${API}/config`).then((r) => r.json());
@@ -176,7 +190,7 @@ function render(data) {
   $("#orbit-meta").textContent =
     `Источник: ${o.source_name} · эпоха ${fmt(o.epoch)} · давность данных ${o.age_hours.toFixed(1)} ч` +
     (o.is_reconstruction ? " · РЕКОНСТРУКЦИЯ (см. пояснение)" : "");
-  renderMap(o);
+  renderTrajectory(o);
 
   // Windows table + chart + recommendation
   renderWindows(data);
@@ -192,6 +206,50 @@ function render(data) {
 
 const DAY_COLOR = "#f5c451";
 const NIGHT_COLOR = "#3355a8";
+
+// Splits a track into contiguous day/night runs (and at antimeridian
+// crossings), so both the 2D map and the 3D globe draw the same
+// server-computed illumination without a false line jumping across the
+// map or a seam at +/-180 degrees longitude. This is the single place
+// that logic lives, shared by both renderers.
+function splitDaylightSegments(track) {
+  if (!track.length) return [];
+  const segments = [];
+  let segment = [track[0]];
+  for (let i = 1; i < track.length; i++) {
+    const prev = track[i - 1];
+    const cur = track[i];
+    const wrapped = Math.abs(cur.lon - prev.lon) > 180;
+    const dayChanged = cur.is_daylight !== prev.is_daylight;
+    if (wrapped || dayChanged) {
+      if (segment.length > 1) segments.push(segment);
+      segment = [prev];
+    }
+    segment.push(cur);
+  }
+  if (segment.length > 1) segments.push(segment);
+  return segments;
+}
+
+function updateViewHint() {
+  $("#view-hint").textContent =
+    state.viewMode === "3d"
+      ? "Жёлтый участок — станция освещена Солнцем (день), синий — в тени Земли (ночь), по тем же данным, что и в 2D. Освещение самого глобуса декоративное (студийный свет), реальное положение Солнца не отражает — ориентируйтесь по цвету трассы. Тяните мышью, крутите колесо для приближения."
+      : "Жёлтая линия — станция освещена Солнцем (день), тёмно-синяя — станция в тени Земли (ночь). Зелёная метка — начало показанного периода, оранжевая — конец. Карта автоматически приближена к участку трассы.";
+}
+
+function renderTrajectory(orbit) {
+  state.lastOrbit = orbit;
+  if (state.viewMode === "3d") {
+    $("#map").hidden = true;
+    $("#globe-box").hidden = false;
+    renderGlobe(orbit);
+  } else {
+    $("#globe-box").hidden = true;
+    $("#map").hidden = false;
+    renderMap(orbit);
+  }
+}
 
 function renderMap(orbit) {
   if (!state.map) {
@@ -219,32 +277,13 @@ function renderMap(orbit) {
   const track = orbit.track;
 
   if (track.length) {
-    // Split the ground track into contiguous day/night runs, and further at
-    // antimeridian crossings, so nothing draws a false line across the map.
-    let segment = [track[0]];
-    const flush = () => {
-      if (segment.length > 1) {
-        const daylight = segment[0].is_daylight;
-        L.polyline(segment.map((p) => [p.lat, p.lon]), {
-          color: daylight ? DAY_COLOR : NIGHT_COLOR,
-          weight: 3,
-          opacity: 0.9,
-        }).addTo(group);
-      }
-      segment = [];
-    };
-    for (let i = 1; i < track.length; i++) {
-      const prev = track[i - 1];
-      const cur = track[i];
-      const wrapped = Math.abs(cur.lon - prev.lon) > 180;
-      const dayChanged = cur.is_daylight !== prev.is_daylight;
-      if (wrapped || dayChanged) {
-        flush();
-        segment = [prev];
-      }
-      segment.push(cur);
-    }
-    flush();
+    splitDaylightSegments(track).forEach((segment) => {
+      L.polyline(segment.map((p) => [p.lat, p.lon]), {
+        color: segment[0].is_daylight ? DAY_COLOR : NIGHT_COLOR,
+        weight: 3,
+        opacity: 0.9,
+      }).addTo(group);
+    });
 
     const first = track[0];
     const last = track[track.length - 1];
@@ -262,6 +301,187 @@ function renderMap(orbit) {
   group.addTo(state.map);
   state.mapLayer = group;
 }
+
+const EARTH_RADIUS_KM = 6371;
+const GLOBE_RADIUS = 2;
+
+function latLonAltToVec3(lat, lon, altKm) {
+  const r = GLOBE_RADIUS * (EARTH_RADIUS_KM + altKm) / EARTH_RADIUS_KM;
+  const phi = (lat * Math.PI) / 180;
+  const lambda = (lon * Math.PI) / 180;
+  return new THREE.Vector3(
+    r * Math.cos(phi) * Math.cos(lambda),
+    r * Math.sin(phi),
+    r * Math.cos(phi) * Math.sin(lambda)
+  );
+}
+
+function setGlobeStatus(kind, html) {
+  const el = $("#globe-status");
+  if (kind === null) {
+    el.classList.add("hidden");
+    return;
+  }
+  el.classList.remove("hidden");
+  el.classList.toggle("error", kind === "error");
+  el.innerHTML = html;
+}
+
+function initGlobeScene() {
+  if (typeof THREE === "undefined") {
+    setGlobeStatus(
+      "error",
+      'Не удалось загрузить библиотеку 3D (three.js). Проверьте подключение к интернету.<br><button id="globe-retry">Повторить</button>'
+    );
+    $("#globe-retry")?.addEventListener("click", () => {
+      state.globe = null;
+      renderGlobe(state.lastOrbit);
+    });
+    return null;
+  }
+  const box = $("#globe-box");
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(45, box.clientWidth / Math.max(1, box.clientHeight), 0.1, 100);
+  const renderer = new THREE.WebGLRenderer({ canvas: $("#globe-canvas"), antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+
+  const starGeo = new THREE.BufferGeometry();
+  const starPos = [];
+  for (let i = 0; i < 500; i++) {
+    const r = 40, th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1);
+    starPos.push(r * Math.sin(ph) * Math.cos(th), r * Math.sin(ph) * Math.sin(th), r * Math.cos(ph));
+  }
+  starGeo.setAttribute("position", new THREE.Float32BufferAttribute(starPos, 3));
+  scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0x445077, size: 0.06 })));
+
+  const earth = new THREE.Mesh(
+    new THREE.SphereGeometry(GLOBE_RADIUS, 64, 48),
+    new THREE.MeshPhongMaterial({ color: 0x123a5e, shininess: 10, specular: 0x224466 })
+  );
+  scene.add(earth);
+  scene.add(
+    new THREE.Mesh(
+      new THREE.SphereGeometry(GLOBE_RADIUS * 1.003, 24, 16),
+      new THREE.MeshBasicMaterial({ color: 0x5eead4, wireframe: true, transparent: true, opacity: 0.1 })
+    )
+  );
+
+  // Studio-style lighting attached to the camera (always lights whatever
+  // faces the viewer). Deliberately NOT positioned to represent the real
+  // sun direction, so it never contradicts the server-computed day/night
+  // colouring on the track itself, which is the one authoritative signal.
+  scene.add(new THREE.AmbientLight(0x8fa5ff, 0.55));
+  const keyLight = new THREE.DirectionalLight(0xffffff, 0.9);
+  camera.add(keyLight);
+  scene.add(camera);
+
+  const globeState = {
+    scene, camera, renderer, earth,
+    orbitGroup: null,
+    rotX: 0.3, rotY: 0.6, dist: 6.2,
+    autoRotate: true, lastInteract: 0,
+    dragging: false, lastX: 0, lastY: 0,
+  };
+
+  const box2 = box;
+  box2.addEventListener("pointerdown", (e) => {
+    globeState.dragging = true; globeState.autoRotate = false;
+    globeState.lastX = e.clientX; globeState.lastY = e.clientY;
+    box2.setPointerCapture(e.pointerId);
+  });
+  box2.addEventListener("pointerup", () => { globeState.dragging = false; globeState.lastInteract = performance.now(); });
+  box2.addEventListener("pointermove", (e) => {
+    if (!globeState.dragging) return;
+    globeState.rotY += (e.clientX - globeState.lastX) * 0.006;
+    globeState.rotX = Math.max(-1.2, Math.min(1.2, globeState.rotX + (e.clientY - globeState.lastY) * 0.006));
+    globeState.lastX = e.clientX; globeState.lastY = e.clientY;
+  });
+  box2.addEventListener(
+    "wheel",
+    (e) => {
+      e.preventDefault();
+      globeState.autoRotate = false; globeState.lastInteract = performance.now();
+      globeState.dist = Math.max(3.2, Math.min(14, globeState.dist + (e.deltaY > 0 ? 0.4 : -0.4)));
+    },
+    { passive: false }
+  );
+
+  return globeState;
+}
+
+function resizeGlobe() {
+  const g = state.globe;
+  if (!g || !g.inited) return;
+  const box = $("#globe-box");
+  g.camera.aspect = box.clientWidth / Math.max(1, box.clientHeight);
+  g.camera.updateProjectionMatrix();
+  g.renderer.setSize(box.clientWidth, box.clientHeight, false);
+}
+
+function globeLoop() {
+  requestAnimationFrame(globeLoop);
+  const g = state.globe;
+  if (state.viewMode !== "3d" || !g || !g.inited || g.failed) return;
+  if (g.autoRotate) g.rotY += 0.0025;
+  else if (!g.dragging && performance.now() - g.lastInteract > 4000) g.autoRotate = true;
+  try {
+    g.camera.position.set(
+      g.dist * Math.cos(g.rotX) * Math.sin(g.rotY),
+      g.dist * Math.sin(g.rotX),
+      g.dist * Math.cos(g.rotX) * Math.cos(g.rotY)
+    );
+    g.camera.lookAt(0, 0, 0);
+    g.renderer.render(g.scene, g.camera);
+  } catch (err) {
+    g.failed = true;
+    setGlobeStatus(
+      "error",
+      "Ошибка при отрисовке 3D-сцены: " + (err && err.message ? err.message : String(err)) +
+        '<br><button id="globe-retry">Повторить</button>'
+    );
+    $("#globe-retry")?.addEventListener("click", () => { state.globe = null; renderGlobe(state.lastOrbit); });
+  }
+}
+requestAnimationFrame(globeLoop);
+
+function renderGlobe(orbit) {
+  if (!orbit) return;
+  if (!state.globe) {
+    setGlobeStatus("normal", "Загружаю 3D-движок…");
+    const g = initGlobeScene();
+    if (!g) return; // error already shown by initGlobeScene
+    g.inited = true;
+    g.failed = false;
+    state.globe = g;
+    resizeGlobe();
+    setGlobeStatus(null);
+  }
+  const g = state.globe;
+  if (g.orbitGroup) {
+    g.scene.remove(g.orbitGroup);
+  }
+  const group = new THREE.Group();
+  const track = orbit.track;
+  splitDaylightSegments(track).forEach((segment) => {
+    if (segment.length < 2) return;
+    const pts = segment.map((p) => latLonAltToVec3(p.lat, p.lon, p.alt_km));
+    const curve = new THREE.CatmullRomCurve3(pts, false);
+    const tube = new THREE.TubeGeometry(curve, Math.max(4, segment.length * 2), 0.014, 6, false);
+    group.add(new THREE.Mesh(tube, new THREE.MeshBasicMaterial({ color: segment[0].is_daylight ? 0xfbbf24 : 0x3355c4 })));
+  });
+  if (track.length) {
+    const first = track[0], last = track[track.length - 1];
+    const mk = (p, color) =>
+      new THREE.Mesh(new THREE.SphereGeometry(0.045, 16, 16), new THREE.MeshBasicMaterial({ color }));
+    const m1 = mk(first, 0x4fd18c); m1.position.copy(latLonAltToVec3(first.lat, first.lon, first.alt_km + 5));
+    const m2 = mk(last, 0xff9d47); m2.position.copy(latLonAltToVec3(last.lat, last.lon, last.alt_km + 5));
+    group.add(m1); group.add(m2);
+  }
+  g.scene.add(group);
+  g.orbitGroup = group;
+}
+
+window.addEventListener("resize", resizeGlobe);
 
 function renderWindows(data) {
   const rec = data.recommendation;
