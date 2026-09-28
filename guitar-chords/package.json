@@ -1,0 +1,82 @@
+{
+  "name": "guitar-chords",
+  "productName": "GuitarChords",
+  "version": "1.0.0",
+  "description": "Интерактивный гриф гитары: определение и проигрывание аккордов, поддержка MIDI-клавиатуры",
+  "author": "Hakaton",
+  "license": "MIT",
+  "private": true,
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "concurrently -k -n vite,electron \"vite\" \"wait-on tcp:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .\"",
+    "build": "tsc --noEmit && vite build",
+    "start": "electron .",
+    "test": "vitest run",
+    "dist": "npm run build && electron-builder --publish never",
+    "dist:win": "npm run build && electron-builder --win nsis portable --publish never",
+    "dist:mac": "npm run build && electron-builder --mac --publish never",
+    "dist:linux": "npm run build && electron-builder --linux AppImage --publish never"
+  },
+  "build": {
+    "appId": "com.hakaton.guitarchords",
+    "productName": "GuitarChords",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "Гитарные аккорды",
+      "artifactName": "GuitarChords-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "GuitarChords-Portable-${version}.${ext}"
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.music",
+      "icon": "build/icon.png"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Audio",
+      "icon": "build/icon.png"
+    },
+    "publish": null
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "concurrently": "^10.0.5",
+    "cross-env": "^10.1.0",
+    "electron": "^38.8.6",
+    "electron-builder": "^26.15.3",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.1",
+    "vitest": "^5.0.2",
+    "wait-on": "^9.1.0"
+  },
+  "dependencies": {
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "desktopName": "guitarchords.desktop"
+}
