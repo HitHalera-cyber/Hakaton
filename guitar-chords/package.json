@@ -1,7 +1,7 @@
 {
   "name": "guitar-chords",
   "productName": "GuitarChords",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Интерактивный гриф гитары: определение и проигрывание аккордов, поддержка MIDI-клавиатуры",
   "author": "Hakaton",
   "license": "MIT",
@@ -50,7 +50,10 @@
         "dmg"
       ],
       "category": "public.app-category.music",
-      "icon": "build/icon.png"
+      "icon": "build/icon.png",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Микрофон нужен для тюнера и распознавания аккордов по звуку."
+      }
     },
     "linux": {
       "target": [
@@ -59,7 +62,12 @@
       "category": "Audio",
       "icon": "build/icon.png"
     },
-    "publish": null
+    "publish": {
+      "provider": "github",
+      "owner": "HitHalera-cyber",
+      "repo": "Hakaton",
+      "releaseType": "release"
+    }
   },
   "devDependencies": {
     "@types/react": "^19.3.0",
@@ -69,14 +77,15 @@
     "cross-env": "^10.1.0",
     "electron": "^38.8.6",
     "electron-builder": "^26.15.3",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.1",
     "vitest": "^5.0.2",
     "wait-on": "^9.1.0"
   },
   "dependencies": {
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "electron-updater": "^6.8.9"
   },
   "desktopName": "guitarchords.desktop"
 }

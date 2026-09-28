@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Board } from '../music/fretboard';
-import { TUNINGS, type TuningId } from '../music/tunings';
+import { TUNINGS } from '../music/tunings';
 
 export interface HistoryEntry {
   id: string;
@@ -9,7 +9,9 @@ export interface HistoryEntry {
   notes: string[];
   time: number;
   source: 'board' | 'midi';
-  tuning: TuningId;
+  tuning: string;
+  strings: number[];
+  capo: number;
   board?: Board;
   midi?: number[];
 }
@@ -19,17 +21,19 @@ export interface SavedShape {
   name: string;
   symbol: string;
   nameRu: string;
-  tuning: TuningId;
+  tuning: string;
+  strings: number[];
+  capo: number;
   board: Board;
   created: number;
 }
 
 /** Табулатурная запись аппликатуры от 6-й к 1-й струне: «x32010». */
-export function boardTab(board: Board): string {
+export function boardTab(board: Board, capo = 0): string {
   return board
     .map((s) => {
       if (s.muted) return 'x';
-      const pos = [...(s.open ? [0] : []), ...s.frets];
+      const pos = [...(s.open ? [capo] : []), ...s.frets];
       if (pos.length === 0) return '–';
       if (pos.length === 1) return String(pos[0]);
       return `(${pos.join(',')})`;
@@ -82,20 +86,36 @@ export function SavedPanel({
   onPick,
   onDelete,
   onRename,
+  onExport,
+  onImport,
 }: {
   items: SavedShape[];
   onPick: (s: SavedShape) => void;
   onDelete: (id: string) => void;
   onRename: (id: string, name: string) => void;
+  onExport: () => void;
+  onImport: () => void;
 }) {
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
 
   return (
     <section className="panel list-panel">
-      <h3>Избранные аппликатуры</h3>
+      <h3>
+        Избранное
+        <span className="h-actions">
+          <button className="link" onClick={onImport} title="Загрузить избранное из файла">
+            импорт
+          </button>
+          {items.length > 0 && (
+            <button className="link" onClick={onExport} title="Сохранить избранное в файл">
+              экспорт
+            </button>
+          )}
+        </span>
+      </h3>
       {items.length === 0 ? (
-        <p className="hint">Нажмите «★ Сохранить», чтобы добавить текущую аппликатуру</p>
+        <p className="hint">Нажмите «★ В избранное», чтобы сохранить текущую аппликатуру</p>
       ) : (
         <ul className="list">
           {items.map((s) => (
@@ -120,10 +140,11 @@ export function SavedPanel({
               ) : (
                 <span className="sym">{s.name}</span>
               )}
-              <span className="desc tab">{boardTab(s.board)}</span>
+              <span className="desc tab">{boardTab(s.board, s.capo)}</span>
               <span className="meta">
                 {s.symbol !== s.name ? `${s.symbol} · ` : ''}
-                {TUNINGS[s.tuning].id === 'dropD' ? 'Drop D' : 'Standard'}
+                {s.tuning === 'standard' ? '' : (TUNINGS[s.tuning]?.name.split(' (')[0] ?? s.tuning) + ' · '}
+                {s.capo ? `капо ${s.capo}` : ''}
               </span>
               <span className="item-actions">
                 <button

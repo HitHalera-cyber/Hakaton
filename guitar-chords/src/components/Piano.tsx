@@ -4,14 +4,14 @@ interface Props {
   from: number;
   to: number;
   active: Set<number>;
-  guitarRange: [number, number];
+  range: [number, number];
   onKey: (midi: number) => void;
 }
 
 const BLACK = new Set([1, 3, 6, 8, 10]);
 
 /** Мини-клавиатура: показывает ноты с MIDI и позволяет собрать аккорд мышью. */
-export function Piano({ from, to, active, guitarRange, onKey }: Props) {
+export function Piano({ from, to, active, range, onKey }: Props) {
   const whites: number[] = [];
   for (let m = from; m <= to; m++) if (!BLACK.has(mod12(m))) whites.push(m);
   const ww = 100 / whites.length;
@@ -21,7 +21,7 @@ export function Piano({ from, to, active, guitarRange, onKey }: Props) {
       {whites.map((m, i) => (
         <button
           key={m}
-          className={`white ${active.has(m) ? 'on' : ''} ${m < guitarRange[0] || m > guitarRange[1] ? 'out' : ''}`}
+          className={`white ${active.has(m) ? 'on' : ''} ${m < range[0] || m > range[1] ? 'out' : ''}`}
           style={{ left: `${i * ww}%`, width: `${ww}%` }}
           onMouseDown={() => onKey(m)}
           title={midiName(m)}

@@ -105,19 +105,12 @@ describe('модель грифа', () => {
     b = cycleNut(b, 5); // e открыта
     b = cycleNut(b, 0);
     b = cycleNut(b, 0); // 6-я заглушена
-    expect(detectChord(soundingNotes(b, STD, false).map((n) => n.midi)).primary!.symbol).toBe('C');
-  });
-  it('реалистичный режим — звучит только верхний лад на струне', () => {
-    let b = emptyBoard();
-    b = toggleFret(b, 1, 3);
-    b = toggleFret(b, 1, 7);
-    expect(soundingNotes(b, STD, false)).toHaveLength(2);
-    expect(soundingNotes(b, STD, true).map((n) => n.fret)).toEqual([7]);
+    expect(detectChord(soundingNotes(b, STD).map((n) => n.midi)).primary!.symbol).toBe('C');
   });
   it('раскладка MIDI-аккорда на гриф сохраняет звучание', () => {
     const notes = [48, 52, 55, 60, 64];
     const b = boardFromMidi(notes, STD);
-    expect(soundingNotes(b, STD, true).map((n) => n.midi).sort()).toEqual(notes.sort());
+    expect(soundingNotes(b, STD).map((n) => n.midi).sort()).toEqual(notes.sort());
   });
   it('Drop D меняет басовую струну', () => {
     const r = detectChord(shape('000232', TUNINGS.dropD.strings));

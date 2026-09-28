@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TIMBRES, renderPluck } from '../src/audio/guitarSynth';
+import { PLUCK_PRESETS as TIMBRES, renderPluck } from '../src/audio/pluck';
 import { midiToFreq } from '../src/music/notes';
 
 /** Оценка частоты основного тона по автокорреляции с параболической интерполяцией. */

@@ -1,0 +1,7 @@
+Guitar and bass samples in this folder (steel, nylon, electric, bass) are taken from
+FluidR3 GM SoundFont by Frank Wen, as converted to per-note MP3 files by the
+midi-js-soundfonts project (https://github.com/gleitz/midi-js-soundfonts).
+
+License: Creative Commons Attribution 3.0 — https://creativecommons.org/licenses/by/3.0/
+Instruments used: acoustic_guitar_steel, acoustic_guitar_nylon, electric_guitar_clean,
+electric_bass_finger. Files were renamed to MIDI note numbers; audio is unmodified.

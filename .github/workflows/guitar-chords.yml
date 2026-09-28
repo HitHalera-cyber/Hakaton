@@ -2,6 +2,10 @@ name: Guitar Chords — сборка
 
 on:
   push:
+    branches:
+      - '**'
+    tags:
+      - 'v*'
     paths:
       - 'guitar-chords/**'
       - '.github/workflows/guitar-chords.yml'
@@ -30,20 +34,25 @@ jobs:
 
   package:
     needs: test
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: windows-latest
             script: dist:win
+            publish: --win nsis portable
             files: |
               guitar-chords/release/*.exe
           - os: macos-latest
             script: dist:mac
+            publish: --mac
             files: |
               guitar-chords/release/*.dmg
           - os: ubuntu-latest
             script: dist:linux
+            publish: --linux AppImage
             files: |
               guitar-chords/release/*.AppImage
     runs-on: ${{ matrix.os }}
@@ -58,6 +67,12 @@ jobs:
           cache-dependency-path: guitar-chords/package-lock.json
       - run: npm ci
       - run: npm run ${{ matrix.script }}
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+      # Для тега vX.Y.Z — публикуем релиз на GitHub (из него программа берёт автообновления).
+      - run: npm run build && npx electron-builder ${{ matrix.publish }} --publish always
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/upload-artifact@v4
         with:
           name: GuitarChords-${{ runner.os }}

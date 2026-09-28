@@ -23,6 +23,8 @@
   --string: #d9dde5;
   --inlay: #e9e1cf;
   --hover: rgba(255, 255, 255, 0.14);
+  --scale: #facc15;
+  --scale-root: #fb923c;
   --tt-bg: #0b0d12;
   --shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
   color-scheme: dark;
@@ -49,6 +51,8 @@
   --string: #f1f3f6;
   --inlay: #f6efdf;
   --hover: rgba(255, 255, 255, 0.28);
+  --scale: #eab308;
+  --scale-root: #ea580c;
   --tt-bg: #1b2130;
   --shadow: 0 6px 20px rgba(30, 40, 60, 0.12);
   color-scheme: light;
@@ -112,60 +116,6 @@ body {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-}
-
-/* ---------- Раскладка ---------- */
-.workspace {
-  flex: 1;
-  min-height: 0;
-  display: grid;
-  gap: 14px;
-  padding: 14px;
-  overflow: auto;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 290px;
-  grid-template-areas:
-    'board board side'
-    'controls controls side';
-  grid-template-rows: auto 1fr;
-}
-.board-panel {
-  grid-area: board;
-}
-.controls {
-  grid-area: controls;
-  display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1.2fr);
-  gap: 14px;
-  align-content: start;
-}
-.side {
-  grid-area: side;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  min-height: 0;
-}
-
-.app.vertical .workspace {
-  grid-template-columns: minmax(300px, 380px) minmax(0, 1fr) 290px;
-  grid-template-areas: 'board controls side';
-  grid-template-rows: 1fr;
-}
-.app.vertical .controls {
-  grid-template-columns: minmax(0, 1fr);
-}
-.app.vertical .board-wrap {
-  height: calc(100vh - 170px);
-  min-height: 520px;
-}
-
-@media (max-width: 1250px) {
-  .controls {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
-  .controls .chord-panel {
-    grid-column: 1 / -1;
-  }
 }
 
 /* ---------- Панели и элементы ---------- */
@@ -323,150 +273,6 @@ input[type='checkbox'] {
   accent-color: var(--accent);
   width: 16px;
   height: 16px;
-}
-
-/* ---------- Гриф ---------- */
-.board-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.board-wrap {
-  display: flex;
-  justify-content: center;
-  min-height: 0;
-}
-.fretboard {
-  width: 100%;
-  height: auto;
-  max-height: 340px;
-  display: block;
-}
-.fretboard.vertical {
-  height: 100%;
-  max-height: none;
-  width: auto;
-}
-.fretboard text {
-  text-anchor: middle;
-  dominant-baseline: central;
-  pointer-events: none;
-}
-.fretboard .nut {
-  stroke: var(--nut);
-  stroke-width: 8;
-}
-.fretboard .fret-wire {
-  stroke: var(--fret);
-  stroke-width: 3;
-}
-.fretboard .inlay {
-  fill: var(--inlay);
-  opacity: 0.85;
-}
-.fretboard .string {
-  stroke: var(--string);
-  filter: drop-shadow(0 1px 0.5px rgba(0, 0, 0, 0.5));
-}
-.fretboard .string.muted {
-  opacity: 0.35;
-  stroke-dasharray: 6 5;
-}
-.fretboard .string-label {
-  fill: var(--text-2);
-  font-size: 15px;
-  font-weight: 600;
-}
-.fretboard .fret-num {
-  fill: var(--text-2);
-  font-size: 12px;
-}
-.fretboard .fret-num.marked {
-  fill: var(--text);
-  font-weight: 700;
-}
-.fretboard .hit {
-  fill: transparent;
-  cursor: pointer;
-}
-.fretboard .hover-cell {
-  fill: var(--hover);
-  pointer-events: none;
-}
-.fretboard .note-name {
-  fill: #fff;
-  opacity: 0.55;
-  font-size: 11px;
-  font-weight: 600;
-  paint-order: stroke;
-  stroke: rgba(0, 0, 0, 0.45);
-  stroke-width: 2.5px;
-}
-.fretboard .dot circle {
-  fill: var(--dot);
-  stroke: #fff;
-  stroke-width: 2;
-  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5));
-  transition: fill 0.15s;
-}
-.fretboard .dot.root circle {
-  fill: var(--root);
-}
-.fretboard .dot.silent {
-  opacity: 0.4;
-}
-.fretboard .dot text {
-  fill: var(--dot-text);
-  font-size: 12px;
-  font-weight: 700;
-}
-.fretboard .open-mark {
-  fill: none;
-  stroke: var(--text);
-  stroke-width: 3;
-}
-.fretboard .open-mark.root {
-  stroke: var(--root);
-}
-.fretboard .open-mark.silent {
-  opacity: 0.4;
-}
-.fretboard .open-label {
-  fill: var(--text);
-  font-size: 10px;
-  font-weight: 700;
-}
-.fretboard .mute-mark {
-  fill: var(--danger);
-  font-size: 22px;
-  font-weight: 700;
-}
-.fretboard .midi-ghost {
-  fill: color-mix(in srgb, var(--midi) 25%, transparent);
-  stroke: var(--midi);
-  stroke-width: 3;
-  pointer-events: none;
-  animation: pulse 1.2s ease-in-out infinite;
-}
-@keyframes pulse {
-  50% {
-    stroke-opacity: 0.45;
-  }
-}
-.fretboard .tooltip rect {
-  fill: var(--tt-bg);
-  opacity: 0.94;
-}
-.fretboard .tooltip .tt-title {
-  fill: #fff;
-  font-size: 13px;
-  font-weight: 700;
-}
-.fretboard .tooltip .tt-sub {
-  fill: #b9c0cf;
-  font-size: 11px;
 }
 
 /* ---------- Аккорд ---------- */
@@ -694,4 +500,850 @@ input.rename {
 ::-webkit-scrollbar-thumb {
   background: var(--border);
   border-radius: 10px;
+}
+
+/* ---------- Раскладка ---------- */
+.workspace {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+  overflow: auto;
+  grid-template-columns: minmax(390px, 1fr) minmax(0, 1.45fr) 270px;
+  grid-template-areas:
+    'board board side'
+    'chord tools side';
+  grid-template-rows: auto 1fr;
+  align-items: start;
+}
+.board-panel {
+  grid-area: board;
+}
+.chord-panel {
+  grid-area: chord;
+}
+.tools {
+  grid-area: tools;
+  padding-top: 8px;
+}
+.side {
+  grid-area: side;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-self: stretch;
+  min-height: 0;
+}
+@media (max-width: 1300px) {
+  .workspace {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+    grid-template-areas:
+      'board board'
+      'chord tools'
+      'side side';
+  }
+  .side {
+    flex-direction: row;
+  }
+  .side > * {
+    flex: 1;
+  }
+}
+
+.row.between {
+  justify-content: space-between;
+  align-items: center;
+}
+.row {
+  align-items: center;
+}
+.grow {
+  flex: 1;
+}
+.grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.btn.small {
+  padding: 4px 9px;
+  font-size: 12px;
+  border-radius: 7px;
+}
+.btn.round {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  padding: 0;
+  font-size: 18px;
+}
+.text-input {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 7px 10px;
+  font: inherit;
+  user-select: text;
+}
+.text-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.error {
+  color: var(--danger);
+  font-size: 13px;
+  margin: 0;
+}
+.check.big {
+  font-size: 15px;
+  font-weight: 600;
+}
+.center {
+  text-align: center;
+}
+.badge {
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--warn) 20%, transparent);
+  color: var(--warn);
+}
+.h-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* ---------- Верхняя панель ---------- */
+.transpose {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.custom-tuning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+.update-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 8px 16px;
+  background: color-mix(in srgb, var(--ok) 22%, var(--bg-2));
+  border-bottom: 1px solid var(--ok);
+  font-size: 14px;
+}
+
+/* ---------- Гриф ---------- */
+.board-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.fretboard {
+  width: 100%;
+  height: auto;
+  max-height: 360px;
+  display: block;
+}
+.fretboard text {
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+}
+.fretboard .nut {
+  stroke: var(--nut);
+  stroke-width: 8;
+}
+.fretboard .fret-wire {
+  stroke: var(--fret);
+  stroke-width: 3;
+}
+.fretboard .inlay {
+  fill: var(--inlay);
+  opacity: 0.85;
+}
+.fretboard .string {
+  stroke: var(--string);
+  filter: drop-shadow(0 1px 0.5px rgba(0, 0, 0, 0.5));
+}
+.fretboard .string.muted {
+  opacity: 0.35;
+  stroke-dasharray: 6 5;
+}
+.fretboard .string-label {
+  fill: var(--text);
+  font-size: 16px;
+  font-weight: 700;
+}
+.fretboard .fret-num {
+  fill: var(--text-2);
+  font-size: 13px;
+}
+.fretboard .fret-num.marked {
+  fill: var(--text);
+  font-weight: 700;
+}
+.fretboard .hit {
+  fill: transparent;
+  cursor: pointer;
+}
+.fretboard .hover-cell {
+  fill: var(--hover);
+  pointer-events: none;
+}
+.fretboard .capo-shade {
+  fill: rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+.fretboard .capo rect {
+  fill: #2b2b2b;
+  stroke: #9ca3af;
+  stroke-width: 1.5;
+}
+.fretboard .capo text {
+  fill: var(--text-2);
+  font-size: 10px;
+  font-weight: 700;
+}
+/* Подписи нот: контрастные «таблетки», хорошо читаются на тёмном дереве */
+.fretboard .note-pill circle {
+  fill: rgba(10, 12, 18, 0.72);
+  stroke: rgba(255, 255, 255, 0.35);
+  stroke-width: 1;
+}
+.fretboard .note-pill text {
+  fill: #ffffff;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.fretboard .scale-mark circle {
+  fill: var(--scale);
+  stroke: rgba(0, 0, 0, 0.35);
+  stroke-width: 1.5;
+}
+.fretboard .scale-mark.root circle {
+  fill: var(--scale-root);
+}
+.fretboard .scale-mark text {
+  fill: #1a1204;
+  font-size: 12px;
+  font-weight: 800;
+}
+.fretboard .dot circle {
+  fill: var(--dot);
+  stroke: #fff;
+  stroke-width: 2;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5));
+}
+.fretboard .dot.root circle {
+  fill: var(--root);
+}
+.fretboard .dot text {
+  fill: var(--dot-text);
+  font-size: 13px;
+  font-weight: 800;
+}
+.fretboard .barre {
+  fill: var(--dot);
+  opacity: 0.55;
+  pointer-events: none;
+}
+.fretboard .open-mark {
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 3;
+}
+.fretboard .open-mark.root {
+  stroke: var(--root);
+}
+.fretboard .open-label {
+  fill: var(--text);
+  font-size: 10px;
+  font-weight: 700;
+}
+.fretboard .mute-mark {
+  fill: var(--danger);
+  font-size: 22px;
+  font-weight: 700;
+}
+.fretboard .midi-ghost {
+  fill: color-mix(in srgb, var(--midi) 25%, transparent);
+  stroke: var(--midi);
+  stroke-width: 3;
+  pointer-events: none;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+@keyframes pulse {
+  50% {
+    stroke-opacity: 0.45;
+  }
+}
+.fretboard .flash {
+  fill: none;
+  stroke-width: 5;
+  pointer-events: none;
+  animation: flash 0.9s ease-out forwards;
+}
+.fretboard .flash.ok {
+  stroke: var(--ok);
+}
+.fretboard .flash.bad {
+  stroke: var(--danger);
+}
+@keyframes flash {
+  from {
+    stroke-opacity: 1;
+  }
+  to {
+    stroke-opacity: 0;
+  }
+}
+.fretboard .tooltip rect {
+  fill: var(--tt-bg);
+  opacity: 0.94;
+}
+.fretboard .tooltip .tt-title {
+  fill: #fff;
+  font-size: 13px;
+  font-weight: 700;
+}
+.fretboard .tooltip .tt-sub {
+  fill: #b9c0cf;
+  font-size: 11px;
+}
+
+/* ---------- Аккорд: дополнения ---------- */
+.capo-note {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.warnings {
+  font-size: 13px;
+  color: var(--warn);
+}
+.export-row {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+.chord-symbol {
+  font-size: 52px;
+}
+
+/* ---------- Вкладки ---------- */
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+}
+.tabs button {
+  border: none;
+  background: transparent;
+  color: var(--text-2);
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+}
+.tabs button:hover {
+  background: var(--panel-2);
+  color: var(--text);
+}
+.tabs button.on {
+  background: color-mix(in srgb, var(--accent) 20%, var(--panel-2));
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+.tab-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 4px;
+}
+.segmented.wide {
+  display: flex;
+}
+.segmented.wide button {
+  flex: 1;
+}
+.subpanel {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ---------- Справочник / тональность ---------- */
+.root-picker {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 4px;
+}
+.root-picker button {
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  border-radius: 7px;
+  padding: 6px 0;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  font-size: 13px;
+}
+.root-picker button.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+.lib-head {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+.lib-symbol {
+  font-size: 30px;
+  font-weight: 800;
+  color: var(--accent);
+}
+.lib-notes {
+  display: flex;
+  gap: 8px;
+  font-weight: 600;
+}
+.lib-notes .opt {
+  color: var(--text-2);
+  font-weight: 400;
+}
+.voicing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 8px;
+}
+.voicing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 4px 6px;
+  cursor: pointer;
+  color: var(--text);
+  font: inherit;
+}
+.voicing:hover,
+.voicing.on {
+  border-color: var(--accent);
+}
+.voicing.on {
+  background: color-mix(in srgb, var(--accent) 14%, var(--panel-2));
+}
+.v-pos {
+  font-size: 12px;
+  font-weight: 600;
+}
+.v-tab {
+  font-size: 11px;
+  color: var(--text-2);
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+}
+.mini-diagram .md-line {
+  stroke: var(--text-2);
+  stroke-width: 0.8;
+}
+.mini-diagram .md-nut {
+  stroke: var(--text);
+  stroke-width: 3;
+}
+.mini-diagram .md-dot {
+  fill: var(--text);
+}
+.mini-diagram .md-open {
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 1;
+}
+.mini-diagram text {
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+.mini-diagram .md-mark {
+  fill: var(--text-2);
+  font-size: 9px;
+}
+.mini-diagram .md-fret {
+  fill: var(--text-2);
+  font-size: 8px;
+}
+.mini-diagram .md-finger {
+  fill: var(--panel);
+  font-size: 7px;
+  font-weight: 700;
+}
+.scale-notes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.scale-notes span {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 40px;
+  padding: 6px 8px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--scale) 22%, var(--panel-2));
+}
+.scale-notes span.root {
+  background: color-mix(in srgb, var(--scale-root) 35%, var(--panel-2));
+}
+.scale-notes b {
+  font-size: 17px;
+}
+.scale-notes small {
+  color: var(--text-2);
+  font-size: 11px;
+}
+.key-chords {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+.key-chord {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 2px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+}
+.key-chord:hover {
+  border-color: var(--accent);
+}
+.key-chord.f-T {
+  border-top: 3px solid var(--ok);
+}
+.key-chord.f-S {
+  border-top: 3px solid var(--dot);
+}
+.key-chord.f-D {
+  border-top: 3px solid var(--root);
+}
+.key-chord .roman {
+  font-size: 12px;
+  color: var(--text-2);
+  font-family: Georgia, serif;
+}
+.key-chord .sym {
+  font-weight: 800;
+  font-size: 15px;
+}
+.prog-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.prog-preview span {
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  font-weight: 700;
+}
+
+/* ---------- Последовательность ---------- */
+.seq-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.seq-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+}
+.seq-item.playing {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.seq-main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border: none;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+}
+.seq-main .sym {
+  font-weight: 800;
+  font-size: 16px;
+  color: var(--accent);
+}
+.seq-item select {
+  font-size: 11px;
+  padding: 2px 4px;
+}
+.seq-actions {
+  display: flex;
+}
+
+/* ---------- Метроном ---------- */
+.metro-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.metro-bpm {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.metro-bpm div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.metro-bpm b {
+  font-size: 48px;
+  line-height: 1;
+}
+.metro-bpm span {
+  font-size: 12px;
+  color: var(--text-2);
+}
+.metro-beats {
+  display: flex;
+  gap: 10px;
+}
+.metro-beats span {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--panel-2);
+  border: 2px solid var(--border);
+}
+.metro-beats span.accent {
+  border-color: var(--accent);
+}
+.metro-beats span.on {
+  background: var(--accent);
+}
+
+/* ---------- Тюнер ---------- */
+.tuner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.tuner.off {
+  opacity: 0.5;
+}
+.tuner-gauge {
+  width: 280px;
+  max-width: 100%;
+}
+.tuner-gauge .arc {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 6;
+}
+.tuner-gauge .tick {
+  stroke: var(--text-2);
+  stroke-width: 2;
+}
+.tuner-gauge .tick-label {
+  fill: var(--text-2);
+  font-size: 10px;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+.tuner-gauge .needle {
+  stroke: var(--root);
+  stroke-width: 3;
+  stroke-linecap: round;
+  transition: transform 0.12s linear;
+}
+.tuner-gauge .needle.ok {
+  stroke: var(--ok);
+}
+.tuner-gauge .hub {
+  fill: var(--text);
+}
+.tuner-note {
+  font-size: 46px;
+  font-weight: 800;
+  line-height: 1;
+}
+.tuner-note.ok {
+  color: var(--ok);
+}
+.tuner-note sub {
+  font-size: 18px;
+  color: var(--text-2);
+}
+.tuner-info {
+  font-size: 13px;
+  color: var(--text-2);
+}
+.tuner-hint {
+  font-weight: 600;
+  color: var(--warn);
+}
+.tuner-hint.ok {
+  color: var(--ok);
+}
+.level {
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--panel-2);
+  overflow: hidden;
+}
+.level span {
+  display: block;
+  height: 100%;
+  background: var(--ok);
+}
+.big-sym {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--accent);
+}
+
+/* ---------- Тренажёр ---------- */
+.score {
+  font-size: 13px;
+  color: var(--text-2);
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.score b {
+  color: var(--text);
+}
+.question {
+  font-size: 19px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--panel-2);
+}
+.question b {
+  color: var(--accent);
+}
+.question small {
+  display: block;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.answers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.btn.correct {
+  border-color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 25%, var(--panel-2));
+  opacity: 1;
+}
+.feedback {
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+.feedback.ok {
+  background: color-mix(in srgb, var(--ok) 18%, transparent);
+  color: var(--ok);
+}
+.feedback.bad {
+  background: color-mix(in srgb, var(--danger) 15%, transparent);
+  color: var(--danger);
+}
+
+/* ---------- Окна и уведомления ---------- */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--tt-bg);
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  z-index: 20;
+}
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 30;
+}
+.modal {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px 24px;
+  width: min(520px, 92vw);
+  max-height: 88vh;
+  overflow: auto;
+  box-shadow: var(--shadow);
+}
+.modal h2 {
+  margin: 0 0 4px;
+}
+.modal h4 {
+  margin: 16px 0 6px;
+  color: var(--text-2);
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+}
+.keys {
+  margin: 0;
+  padding-left: 18px;
+}
+kbd {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 1px 6px;
+  font-family: inherit;
+  font-size: 12px;
 }

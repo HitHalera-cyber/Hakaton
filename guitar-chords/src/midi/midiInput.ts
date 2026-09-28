@@ -1,4 +1,5 @@
-// Приём MIDI через Web MIDI API (в Electron разрешение выдаёт главный процесс).
+// MIDI через Web MIDI API (в Electron разрешение выдаёт главный процесс):
+// приём нот с клавиатуры и вывод нот на внешнее устройство / в DAW.
 // Обрабатываются стандартные сообщения Note On (0x9n) и Note Off (0x8n);
 // Note On с velocity 0 трактуется как Note Off. Устройства отслеживаются «на лету».
 
@@ -13,7 +14,7 @@ export const ALL_DEVICES = 'all';
 export interface MidiHandlers {
   onNoteOn: (note: number, velocity: number) => void;
   onNoteOff: (note: number) => void;
-  onDevicesChanged: (devices: MidiDevice[]) => void;
+  onDevicesChanged: (inputs: MidiDevice[], outputs: MidiDevice[]) => void;
   /** Педаль сустейна (CC 64). */
   onSustain?: (down: boolean) => void;
 }
@@ -21,6 +22,8 @@ export interface MidiHandlers {
 export class MidiInput {
   private access: MIDIAccess | null = null;
   private selected: string = ALL_DEVICES;
+  private output: MIDIOutput | null = null;
+  private outputId: string | null = null;
 
   constructor(private handlers: MidiHandlers) {}
 
@@ -46,6 +49,47 @@ export class MidiInput {
     return list;
   }
 
+  outputs(): MidiDevice[] {
+    if (!this.access?.outputs) return [];
+    const list: MidiDevice[] = [];
+    this.access.outputs.forEach((o) => {
+      if (o.state === 'connected') list.push({ id: o.id, name: o.name ?? 'MIDI-выход', manufacturer: o.manufacturer ?? '' });
+    });
+    return list;
+  }
+
+  /** Выбрать MIDI-выход (null — не выводить). */
+  selectOutput(id: string | null) {
+    this.allNotesOff();
+    this.outputId = id;
+    this.output = id && this.access?.outputs ? (this.access.outputs.get(id) ?? null) : null;
+  }
+
+  get hasOutput(): boolean {
+    return this.output != null;
+  }
+
+  /** Отправить ноту на выход: Note On через delaySec, Note Off через durationSec после него. */
+  sendNote(midi: number, velocity: number, delaySec: number, durationSec: number, channel = 0) {
+    if (!this.output) return;
+    const t = performance.now() + delaySec * 1000;
+    const vel = Math.max(1, Math.min(127, Math.round(velocity * 127)));
+    try {
+      this.output.send([0x90 | channel, midi, vel], t);
+      this.output.send([0x80 | channel, midi, 0], t + durationSec * 1000);
+    } catch {
+      // устройство отключили — игнорируем
+    }
+  }
+
+  allNotesOff() {
+    try {
+      this.output?.send([0xb0, 123, 0]);
+    } catch {
+      // устройство недоступно
+    }
+  }
+
   select(id: string) {
     this.selected = id;
     this.refresh();
@@ -57,7 +101,9 @@ export class MidiInput {
       const listen = this.selected === ALL_DEVICES || this.selected === input.id;
       input.onmidimessage = listen ? (e) => this.handle(e) : null;
     });
-    this.handlers.onDevicesChanged(this.devices());
+    if (this.outputId && this.access.outputs && !this.access.outputs.get(this.outputId)) this.output = null;
+    else if (this.outputId && this.access.outputs) this.output = this.access.outputs.get(this.outputId) ?? null;
+    this.handlers.onDevicesChanged(this.devices(), this.outputs());
   }
 
   private handle(e: MIDIMessageEvent) {
