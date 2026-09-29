@@ -13,8 +13,7 @@ export type TabId =
   | 'trainer'
   | 'tuner'
   | 'midi'
-  | 'favorites'
-  | 'theme';
+  | 'favorites';
 
 export interface NavItem {
   id: TabId;
@@ -54,7 +53,6 @@ export const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
       { id: 'tuner', icon: '🎤', label: 'Тюнер' },
       { id: 'midi', icon: '🎹', label: 'MIDI' },
       { id: 'favorites', icon: '⭐', label: 'Избранное и история' },
-      { id: 'theme', icon: '🎨', label: 'Оформление' },
     ],
   },
 ];

@@ -14,7 +14,7 @@ export function DashboardLayout() {
 
   return (
     <RailFrame active={drawer.tab} onNav={drawer.show}>
-      <main className="workspace dashboard">
+      <main className={`workspace dashboard ${tiles.includes('circle') ? 'has-circle' : ''}`}>
         <BoardCard />
         <ChordCard />
         {tiles.map((tab, i) => (

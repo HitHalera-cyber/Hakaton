@@ -118,3 +118,23 @@
   gap: 8px 16px;
   align-items: center;
 }
+
+/* Схема «как играть» для распознанного аккорда. */
+.listen-shape {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  background: var(--panel-2);
+}
+.listen-shape small {
+  color: var(--text-2);
+  font-size: 12px;
+}
+.stage-shape {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: start;
+}

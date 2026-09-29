@@ -16,7 +16,12 @@ export function ListenerLayout() {
   return (
     <RailFrame active={drawer.tab} onNav={drawer.show}>
       <main className="workspace listener">
-        <ListenerStage listener={listener} board={guitar.result} />
+        <ListenerStage
+          listener={listener}
+          board={guitar.result}
+          voicing={(c) => guitar.voicingFor(c.rootPc, c.templateId, c.bassPc)}
+          capo={guitar.capo}
+        />
         <section className="panel listener-circle">
           <CircleOfFifths compact size={340} {...circleProps(app)} />
         </section>

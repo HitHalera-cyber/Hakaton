@@ -59,24 +59,40 @@
   }
 }
 
-/* ---------- Приборная панель ---------- */
+/* ---------- Приборная панель ----------
+   Плитки заполняют экран целиком и стоят вплотную; длинное содержимое прокручивается внутри плитки. */
 .workspace.dashboard {
+  height: 100%;
+  gap: 8px;
+  padding: 8px;
+  align-items: stretch;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: auto minmax(0, 1fr) minmax(0, 1fr);
   grid-template-areas:
     'board board chord'
     'tile0 tile1 tile2'
     'tile0 tile1 tile3';
 }
+.dashboard > .panel {
+  min-height: 0;
+  /* Верхний отступ задаёт тема: у «Нави» там плетёнка. */
+  padding-left: 12px;
+  padding-right: 12px;
+  padding-bottom: 10px;
+  gap: 6px;
+}
 .dashboard .board-panel {
   grid-area: board;
+  justify-content: center;
 }
 .dashboard .chord-panel {
   grid-area: chord;
-  align-self: stretch;
 }
 .tile {
-  min-height: 0;
-  align-self: stretch;
+  overflow: hidden;
+}
+.tile .tool-title {
+  font-size: 16px;
 }
 .tile-0 {
   grid-area: tile0;
@@ -91,13 +107,13 @@
   grid-area: tile3;
 }
 .tile-body {
-  max-height: 560px;
-  overflow: auto;
+  flex: 1;
+  min-height: 0;
   min-width: 0;
+  overflow: auto;
 }
 .tile-select {
   font: inherit;
-  font-size: 18px;
   color: inherit;
   background: transparent;
   border: 0;
@@ -111,6 +127,10 @@
   color: var(--text);
   font-size: 14px;
 }
+/* Круг уже стоит отдельной плиткой — второй, внутри «Слушать», не нужен. */
+.has-circle .tile .listen-main > svg.circle5 {
+  display: none;
+}
 /* В узкой плитке круг и подписи к нему идут друг под другом. */
 .tile :is(.circle-layout, .row) {
   flex-wrap: wrap;
@@ -119,14 +139,27 @@
   max-width: 100%;
   height: auto;
 }
-@media (max-width: 1250px) {
+@media (max-width: 1250px), (max-height: 760px) {
   .workspace.dashboard {
+    height: auto;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: none;
     grid-template-areas:
       'board board'
       'chord tile0'
       'tile1 tile2'
       'tile3 tile3';
+  }
+  .workspace.dashboard {
+    align-content: start;
+  }
+  .dashboard > .panel {
+    min-height: auto;
+    overflow: visible;
+  }
+  .tile-body {
+    flex: none;
+    max-height: 480px;
   }
 }
 
@@ -160,9 +193,10 @@
   grid-area: board;
 }
 .stage-chord {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-content: start;
+  gap: 4px 12px;
   padding: 6px 4px;
 }
 .stage-symbol {
@@ -312,8 +346,4 @@
   z-index: 5;
   display: flex;
   gap: 6px;
-}
-.add-window {
-  font: inherit;
-  font-size: 13px;
 }

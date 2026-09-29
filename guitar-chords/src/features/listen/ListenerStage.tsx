@@ -1,20 +1,27 @@
 import './listen.css';
 import type { DetectionResult } from '../../core/music/chords';
+import type { Frets } from '../../core/music/fretboard';
 import { pcName } from '../../core/music/notes';
+import { ChordDiagram } from '../fretboard/ChordDiagram';
+import type { RecognizedChord } from '../../core/analysis/chordRecognition';
 import type { ChordListener } from './useChordListener';
 
 interface Props {
   listener: ChordListener;
   /** Аккорд на грифе — показывается, пока гитару не слушаем. */
   board: DetectionResult;
+  voicing: (chord: RecognizedChord) => Frets | null;
+  capo: number;
 }
 
 /** Крупная «сцена» раскладки «Слушатель»: что слышно, насколько уверенно, какие ноты звучат. */
-export function ListenerStage({ listener, board }: Props) {
+export function ListenerStage({ listener, board, voicing, capo }: Props) {
   const { active, error, level, result, chroma, hold, settings, patch } = listener;
   const best = result?.best;
   const holdMode = settings.mode === 'hold';
   const fallback = board.kind === 'chord' ? board.primary : undefined;
+  const heard = listener.history[0];
+  const frets = heard ? voicing(heard) : null;
 
   return (
     <section className="panel listener-stage">
@@ -44,6 +51,12 @@ export function ListenerStage({ listener, board }: Props) {
       {error && <p className="error">{error}</p>}
 
       <div className={`stage-chord ${best ? '' : 'idle'}`}>
+        {frets && (
+          <div className="listen-shape stage-shape" title={`Как играть ${heard!.symbol}`}>
+            <small>Как играть {heard!.symbol}</small>
+            <ChordDiagram frets={frets} capo={capo} size={120} />
+          </div>
+        )}
         {(best ?? fallback) && <div className="stage-symbol">{(best ?? fallback)!.symbol}</div>}
         <div className="stage-ru">
           {best

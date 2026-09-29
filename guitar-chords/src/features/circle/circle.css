@@ -185,3 +185,9 @@
 .circle5.compact .ring-minor .cf-label {
   font-size: 19px;
 }
+
+.listening-note {
+  color: var(--accent);
+  font-size: 13px;
+  animation: pulse-badge 1.2s ease-in-out infinite;
+}

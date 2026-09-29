@@ -1,7 +1,9 @@
 import './listen.css';
 import type { ReactNode } from 'react';
 import type { RecognizedChord } from '../../core/analysis/chordRecognition';
+import type { Frets } from '../../core/music/fretboard';
 import { pcName } from '../../core/music/notes';
+import { ChordDiagram } from '../fretboard/ChordDiagram';
 import type { ChordListener } from './useChordListener';
 
 interface Props {
@@ -10,6 +12,9 @@ interface Props {
   onPick: (chord: RecognizedChord) => void;
   /** Квинтовый круг рядом с результатом. */
   circle?: ReactNode;
+  /** Аппликатура аккорда — для схемы «как играть». */
+  voicing: (chord: RecognizedChord) => Frets | null;
+  capo: number;
 }
 
 const HOLD_TEXT = {
@@ -19,11 +24,14 @@ const HOLD_TEXT = {
   short: 'Держите аккорд подольше — звук оборвался слишком рано',
 };
 
-export function ListenPanel({ listener, onPick, circle }: Props) {
+export function ListenPanel({ listener, onPick, circle, voicing, capo }: Props) {
   const { active, error, level, result, chroma, history, hold, settings, patch } = listener;
   const best = result?.best;
   const holdMode = settings.mode === 'hold';
   const pending = holdMode && hold.state === 'listening';
+  // Схема — для последнего распознанного аккорда (он же показан на грифе).
+  const heard = history[0];
+  const frets = heard ? voicing(heard) : null;
 
   return (
     <div className="tab-body">
@@ -99,6 +107,12 @@ export function ListenPanel({ listener, onPick, circle }: Props) {
             </div>
           )}
         </div>
+        {frets && (
+          <div className="listen-shape" title={`Как играть ${heard!.symbol} — этот аккорд показан и на грифе`}>
+            <small>Как играть {heard!.symbol}</small>
+            <ChordDiagram frets={frets} capo={capo} size={110} />
+          </div>
+        )}
         {circle}
       </div>
 

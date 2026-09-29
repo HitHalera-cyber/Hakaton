@@ -8,7 +8,6 @@ import {
   type CircleKey,
   type CirclePos,
 } from '../../core/music/circle';
-import type { ChordListener } from '../listen/useChordListener';
 import { CircleOfFifths } from './CircleOfFifths';
 
 export interface CircleChord {
@@ -25,7 +24,8 @@ interface Props {
   trail: CircleChord[];
   keyChoice: string;
   onKeyChoice: (v: string) => void;
-  listener: ChordListener;
+  /** Идёт ли прослушивание гитары. */
+  listening: boolean;
   onPick: (pos: CirclePos) => void;
   onClear: () => void;
 }
@@ -41,7 +41,7 @@ export function resolveKey(keyChoice: string, trail: CircleChord[]): { key: Circ
   return { key: guessKey(trail.slice(0, 8).map((c) => circlePosition(c.rootPc, c.templateId))), auto: true };
 }
 
-export function CirclePanel({ trail, keyChoice, onKeyChoice, listener, onPick, onClear }: Props) {
+export function CirclePanel({ trail, keyChoice, onKeyChoice, listening, onPick, onClear }: Props) {
   const current = trail[0] ?? null;
   const active = current ? circlePosition(current.rootPc, current.templateId) : null;
   const { key, auto } = resolveKey(keyChoice, trail);
@@ -50,19 +50,12 @@ export function CirclePanel({ trail, keyChoice, onKeyChoice, listener, onPick, o
   return (
     <div className="tab-body circle-tab">
       <div className="row">
-        {listener.active ? (
-          <button className="btn" onClick={listener.stop}>
-            ■ Перестать слушать
-          </button>
+        {listening ? (
+          <span className="listening-note" title="Аккорды с гитары подсвечиваются на круге">
+            ● слушаю гитару
+          </span>
         ) : (
-          <button className="btn primary" onClick={listener.start}>
-            🎤 Слушать гитару
-          </button>
-        )}
-        {listener.active && (
-          <div className="level" title="Уровень сигнала с микрофона">
-            <span style={{ width: `${listener.level * 100}%` }} />
-          </div>
+          <span className="hint">Аккорды с гитары подсвечиваются, когда включено «Слушать гитару»</span>
         )}
         <label className="field inline">
           <span>Тональность</span>
@@ -85,7 +78,6 @@ export function CirclePanel({ trail, keyChoice, onKeyChoice, listener, onPick, o
           </select>
         </label>
       </div>
-      {listener.error && <p className="error">{listener.error}</p>}
 
       <div className="circle-wrap">
         <CircleOfFifths

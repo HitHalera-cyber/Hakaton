@@ -14,20 +14,16 @@ interface Props {
   settings: SoundSettings;
   instrument: Instrument;
   onChange: (patch: Partial<SoundSettings>) => void;
-  onPlay: () => void;
   onStrum: (dir: 'down' | 'up') => void;
   onArpeggio: () => void;
   onStop: () => void;
   canPlay: boolean;
 }
 
-export function SoundPanel({ settings, instrument, onChange, onPlay, onStrum, onArpeggio, onStop, canPlay }: Props) {
+export function SoundPanel({ settings, instrument, onChange, onStrum, onArpeggio, onStop, canPlay }: Props) {
   return (
     <div className="tab-body">
       <div className="row">
-        <button className="btn primary" onClick={onPlay} disabled={!canPlay} title="Пробел">
-          ▶ Играть
-        </button>
         <button className="btn" onClick={() => onStrum('down')} disabled={!canPlay} title="Удар по струнам сверху вниз (от баса)">
           ↓ Бой вниз
         </button>

@@ -25,6 +25,8 @@ interface Props {
   onToast: (text: string) => void;
   /** Сообщает, играет ли песня (чтобы микрофон в это время не менял гриф). */
   onPlayingChange?: (playing: boolean) => void;
+  /** Панель открыта/закрыта: пока она открыта, гриф показывает только аккорды песни. */
+  onOpenChange?: (open: boolean) => void;
 }
 
 type Status = 'idle' | 'decoding' | 'analyzing' | 'ready' | 'error';
@@ -32,7 +34,7 @@ type Status = 'idle' | 'decoding' | 'analyzing' | 'ready' | 'error';
 const fmt = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
 const PX_PER_SEC = 34;
 
-export function SongPanel({ capo, onCapo, onChord, onToSequence, onToast, onPlayingChange }: Props) {
+export function SongPanel({ capo, onCapo, onChord, onToSequence, onToast, onPlayingChange, onOpenChange }: Props) {
   const [status, setStatus] = useState<Status>('idle');
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState('');
@@ -94,6 +96,10 @@ export function SongPanel({ capo, onCapo, onChord, onToSequence, onToast, onPlay
     onPlayingChange?.(playing);
   }, [playing, onPlayingChange]);
   useEffect(() => () => onPlayingChange?.(false), [onPlayingChange]);
+  useEffect(() => {
+    onOpenChange?.(true);
+    return () => onOpenChange?.(false);
+  }, [onOpenChange]);
 
   // Плавное обновление позиции при воспроизведении.
   useEffect(() => {
@@ -407,6 +413,9 @@ export function SongPanel({ capo, onCapo, onChord, onToSequence, onToast, onPlay
               <input type="checkbox" checked={follow} onChange={(e) => setFollow(e.target.checked)} />
               Показывать текущий аккорд на грифе
             </label>
+            <span className="hint" title="Микрофон и «Слушать гитару» не меняют гриф, пока открыт разбор песни">
+              🔇 гриф — только аккорды песни
+            </span>
             <span className="grow" />
             <button
               className="btn small"

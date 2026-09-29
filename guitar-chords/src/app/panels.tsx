@@ -17,7 +17,6 @@ import { ScalesPanel } from '../features/scales/ScalesPanel';
 import { SequencerPanel } from '../features/sequencer/SequencerPanel';
 import { SongPanel } from '../features/song/SongPanel';
 import { SoundPanel } from '../features/sound/SoundPanel';
-import { ThemePanel } from '../features/theme/ThemePanel';
 import { TrainerPanel } from '../features/trainer/TrainerPanel';
 import { TunerPanel } from '../features/tuner/TunerPanel';
 import { useApp, type App } from './AppContext';
@@ -46,7 +45,6 @@ const PANELS: Record<TabId, (app: App) => ReactNode> = {
       settings={settings.sound}
       instrument={guitar.tuning.instrument}
       onChange={settings.patchSound}
-      onPlay={guitar.play}
       onStrum={(dir) => {
         audio.stopAll(0.02);
         audio.strum(guitar.currentNotes(), dir);
@@ -84,6 +82,8 @@ const PANELS: Record<TabId, (app: App) => ReactNode> = {
     <ListenPanel
       listener={app.listener}
       onPick={(c) => app.guitar.showChord(c.rootPc, c.templateId, c.bassPc)}
+      voicing={(c) => app.guitar.voicingFor(c.rootPc, c.templateId, c.bassPc)}
+      capo={app.guitar.capo}
       circle={<CircleOfFifths compact size={230} {...circleProps(app)} />}
     />
   ),
@@ -94,6 +94,7 @@ const PANELS: Record<TabId, (app: App) => ReactNode> = {
       onCapo={app.guitar.setCapo}
       onChord={(c) => app.guitar.showChord(c.rootPc, c.templateId, c.bassPc)}
       onPlayingChange={app.setSongPlaying}
+      onOpenChange={app.setSongOpen}
       onToast={app.showToast}
       onToSequence={(chords) => {
         const items = chords
@@ -111,7 +112,7 @@ const PANELS: Record<TabId, (app: App) => ReactNode> = {
       trail={app.circle.trail}
       keyChoice={app.settings.view.circleKey}
       onKeyChoice={(circleKey) => app.settings.patchView({ circleKey })}
-      listener={app.listener}
+      listening={app.listener.active}
       onPick={(pos) => pickCircle(app, pos)}
       onClear={app.circle.clear}
     />
@@ -198,8 +199,6 @@ const PANELS: Record<TabId, (app: App) => ReactNode> = {
   ),
 
   favorites: ({ collections }) => <FavoritesTab collections={collections} />,
-
-  theme: ({ settings }) => <ThemePanel current={settings.view.theme} onChange={(theme) => settings.patchView({ theme })} />,
 };
 
 export function ToolPanel({ tab }: { tab: TabId }) {

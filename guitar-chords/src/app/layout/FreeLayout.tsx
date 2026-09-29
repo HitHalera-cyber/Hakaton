@@ -1,7 +1,7 @@
 import { useRef, type PointerEvent as ReactPointerEvent } from 'react';
 import { ToolPanel } from '../panels';
 import { DEFAULT_WINDOWS, normalizeWindows, type FreeWindow, type WindowKind } from '../layouts';
-import { ALL_TABS, type TabId } from '../navigation';
+import type { TabId } from '../navigation';
 import { useStored } from '../useStored';
 import { BoardCard } from './BoardCard';
 import { ChordCard, RailFrame, tabInfo } from './common';
@@ -14,6 +14,7 @@ const windowTitle = (id: WindowKind) => (id === 'chord' ? { icon: '🎸', label:
 /**
  * «Свободные окна»: гриф внизу, разделы — в окнах поверх. Окно двигается за заголовок,
  * размер меняется за правый нижний угол; расположение окон сохраняется.
+ * Новое окно открывается кликом по иконке раздела слева.
  */
 export function FreeLayout() {
   const [stored, setWindows] = useStored<FreeWindow[]>('gc.windows', DEFAULT_WINDOWS);
@@ -64,27 +65,15 @@ export function FreeLayout() {
     window.addEventListener('pointerup', onUp);
   };
 
-  const closed: { id: WindowKind; label: string }[] = [{ id: 'chord' as WindowKind, label: 'Аккорд' }, ...ALL_TABS]
-    .filter((t) => !windows.some((w) => w.id === t.id))
-    .map((t) => ({ id: t.id, label: t.label }));
-
   return (
     <RailFrame active={null} onNav={(tab: TabId) => open(tab)}>
       <main className="desktop" ref={desk}>
         <div className="desk-tools">
-          <select
-            className="add-window"
-            value=""
-            onChange={(e) => e.target.value && open(e.target.value as WindowKind)}
-            title="Открыть раздел в новом окне"
-          >
-            <option value="">+ Окно…</option>
-            {closed.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.label}
-              </option>
-            ))}
-          </select>
+          {!windows.some((w) => w.id === 'chord') && (
+            <button className="btn small" onClick={() => open('chord')} title="Открыть окно с текущим аккордом">
+              🎸 Аккорд
+            </button>
+          )}
           <button className="btn small" onClick={() => setWindows(DEFAULT_WINDOWS)} title="Вернуть окна на места по умолчанию">
             ↺ Окна
           </button>

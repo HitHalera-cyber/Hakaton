@@ -1,7 +1,7 @@
 // Контроллер приложения: собирает состояние из хуков и раздаёт его панелям через контекст.
 // Панели в features/ ничего не знают друг о друге — связи между ними живут только здесь.
 
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { audio } from '../core/audio/engine';
 import { boardFromFrets, type Board, type Frets } from '../core/music/fretboard';
 import type { ChordRef } from '../features/library/LibraryPanel';
@@ -60,13 +60,20 @@ function useAppController() {
   };
 
   // ---------- Гитара через микрофон ----------
-  // Пока играет разбираемая песня, микрофон слышит колонки — его аккорды гриф не трогают.
+  // Пока открыт разбор песни (или она играет), гриф и круг показывают только аккорды песни:
+  // микрофон слышит колонки и посторонние звуки, поэтому его аккорды туда не попадают.
   const [songPlaying, setSongPlaying] = useState(false);
-  const songPlayingRef = useRef(false);
-  songPlayingRef.current = songPlaying;
+  const songOpenCount = useRef(0);
+  const [songOpen, setSongOpenState] = useState(false);
+  const setSongOpen = useCallback((open: boolean) => {
+    songOpenCount.current = Math.max(0, songOpenCount.current + (open ? 1 : -1));
+    setSongOpenState(songOpenCount.current > 0);
+  }, []);
+  const songMode = useRef(false);
+  songMode.current = songPlaying || songOpen;
   const showOnBoardRef = useRef(true);
   const listener = useChordListener((c) => {
-    if (songPlayingRef.current) return;
+    if (songMode.current) return;
     circle.push({ rootPc: c.rootPc, templateId: c.templateId, symbol: c.symbol, nameRu: c.nameRu, source: 'guitar' });
     if (showOnBoardRef.current) guitar.showChord(c.rootPc, c.templateId, c.bassPc);
   });
@@ -95,7 +102,7 @@ function useAppController() {
   }, []);
 
   // ---------- Тема и перетаскивание файлов ----------
-  useEffect(() => {
+  useLayoutEffect(() => {
     document.documentElement.dataset.theme = settings.view.theme;
   }, [settings.view.theme]);
   useEffect(() => {
@@ -135,6 +142,8 @@ function useAppController() {
     listener,
     songPlaying,
     setSongPlaying,
+    songOpen,
+    setSongOpen,
   };
 }
 

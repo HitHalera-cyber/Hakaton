@@ -28,6 +28,8 @@ function createWindow() {
     backgroundColor: '#0b0c0e',
     icon: path.join(__dirname, '..', 'build', 'icon.png'),
     autoHideMenuBar: true,
+    // Показываем окно, когда страница уже отрисована, — без вспышки пустого или «чужого» интерфейса.
+    show: false,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -35,6 +37,8 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.cjs'),
     },
   });
+
+  win.once('ready-to-show', () => win.show());
 
   const devUrl = process.env.VITE_DEV_SERVER_URL;
   win.loadURL(devUrl || 'app://bundle/index.html');
