@@ -13,7 +13,7 @@
   color: var(--text-2);
 }
 .chord-symbol {
-  font-family: var(--font-display);
+  font-family: var(--font-symbol, var(--font-display));
   text-shadow: var(--glow);
   font-size: calc(60px * var(--display-scale));
   font-weight: var(--display-weight);

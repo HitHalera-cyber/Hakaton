@@ -439,3 +439,87 @@
   --display-scale: 1.25;
   color-scheme: light;
 }
+
+/* ---------- 11. Русь: лён, резной дуб и обережная вышивка ---------- */
+[data-theme='slavic'] {
+  --bg: #e9dfc8;
+  --app-bg:
+    repeating-linear-gradient(0deg, rgba(120, 90, 50, 0.07) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(90deg, rgba(120, 90, 50, 0.06) 0 1px, transparent 1px 3px), #e9dfc8;
+  --bg-2: #e1d4b6;
+  --panel: #f6efdf;
+  --panel-2: #ece2c9;
+  --border: #b89b72;
+  --text: #1b1411;
+  --text-2: #6b5a45;
+  --accent: #a4161a;
+  --accent-text: #f6efdf;
+  --dot: #1b1411;
+  --dot-text: #f6efdf;
+  --root: #a4161a;
+  --midi: #2f6f4f;
+  --ok: #2f7a3a;
+  --warn: #b7791f;
+  --danger: #a4161a;
+  --scale: #d9b44a;
+  --scale-root: #a4161a;
+  --hover: rgba(164, 22, 26, 0.12);
+  --tt-bg: #2a1a10;
+  --side-bg: #2a1a10;
+  --side-text: #efe2c4;
+  --side-muted: #b59a72;
+  --side-active: rgba(164, 22, 26, 0.45);
+  --wood-1: #3a2413;
+  --wood-2: #553520;
+  --fret: #c9a227;
+  --nut: #efe2c4;
+  --string: #e8dcc0;
+  --inlay: #b3261e;
+  --font-ui: 'Kurale', 'PT Serif', Georgia, serif;
+  --font-display: 'Ruslan Display', 'Kurale', serif;
+  --font-serif: 'Kurale', Georgia, serif;
+  /* Названия аккордов (латиница) — книжным шрифтом, вязь — в заголовках. */
+  --font-symbol: 'Kurale', serif;
+  --display-scale: 1.1;
+  --fs: 15px;
+  --display-weight: 400;
+  --title-case: none;
+  --title-spacing: 0.03em;
+  --radius: 4px;
+  --radius-sm: 3px;
+  --bw: 1.5px;
+  --shadow: 0 2px 0 rgba(27, 20, 17, 0.25), 0 10px 26px rgba(27, 20, 17, 0.18);
+  --ornament: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='14'%3E%3Crect width='28' height='1' fill='%231b1411'/%3E%3Crect y='13' width='28' height='1' fill='%231b1411'/%3E%3Cpath d='M14 1.5 21 7 14 12.5 7 7Z' fill='%23a4161a'/%3E%3Cpath d='M14 4.5 16.5 7 14 9.5 11.5 7Z' fill='%231b1411'/%3E%3Cpath d='M0 7 2.5 4.5 5 7 2.5 9.5ZM23 7 25.5 4.5 28 7 25.5 9.5Z' fill='%231b1411'/%3E%3C/svg%3E");
+  --ornament-v: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='28'%3E%3Crect width='1' height='28' fill='%23c9a227'/%3E%3Crect x='13' width='1' height='28' fill='%23c9a227'/%3E%3Cpath d='M1.5 14 7 7 12.5 14 7 21Z' fill='%23a4161a'/%3E%3Cpath d='M4.5 14 7 11.5 9.5 14 7 16.5Z' fill='%23e9dfc8'/%3E%3Cpath d='M7 0 9.5 2.5 7 5 4.5 2.5ZM7 23 9.5 25.5 7 28 4.5 25.5Z' fill='%23c9a227'/%3E%3C/svg%3E");
+  color-scheme: light;
+}
+/* Вышитая полоса по верху каждой панели и резная кайма бокового меню. */
+[data-theme='slavic'] .panel {
+  position: relative;
+  padding-top: 26px;
+}
+[data-theme='slavic'] .panel::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  left: 10px;
+  right: 10px;
+  height: 14px;
+  background: var(--ornament) repeat-x center / auto 14px;
+  pointer-events: none;
+}
+[data-theme='slavic'] .sidebar {
+  border-right: 14px solid transparent;
+  border-image: var(--ornament-v) 0 14 0 0 / 0 14px 0 0 round;
+}
+[data-theme='slavic'] .brand h1 {
+  color: #e0b84a;
+}
+[data-theme='slavic'] .nav-title {
+  color: #c9a227;
+}
+[data-theme='slavic'] .btn.primary {
+  box-shadow:
+    inset 0 0 0 2px #a4161a,
+    inset 0 0 0 3px #e0b84a;
+}

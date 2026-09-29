@@ -125,7 +125,7 @@
   stroke: var(--border);
 }
 .cf-center-title {
-  font-family: var(--font-display);
+  font-family: var(--font-symbol, var(--font-display));
   text-shadow: var(--glow);
   fill: var(--accent);
   font-size: 26px;
@@ -144,7 +144,7 @@
   gap: 10px;
 }
 .ci-symbol {
-  font-family: var(--font-display);
+  font-family: var(--font-symbol, var(--font-display));
   text-shadow: var(--glow);
   font-size: calc(44px * var(--display-scale));
   font-weight: 800;

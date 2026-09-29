@@ -25,7 +25,7 @@
   gap: 14px;
 }
 .lib-symbol {
-  font-family: var(--font-display);
+  font-family: var(--font-symbol, var(--font-display));
   text-shadow: var(--glow);
   font-size: calc(30px * var(--display-scale));
   font-weight: 800;

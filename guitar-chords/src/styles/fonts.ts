@@ -45,3 +45,7 @@ import '@fontsource/pt-sans/latin-400.css';
 import '@fontsource/pt-sans/cyrillic-400.css';
 import '@fontsource/pt-sans/latin-700.css';
 import '@fontsource/pt-sans/cyrillic-700.css';
+import '@fontsource/ruslan-display/latin-400.css';
+import '@fontsource/ruslan-display/cyrillic-400.css';
+import '@fontsource/kurale/latin-400.css';
+import '@fontsource/kurale/cyrillic-400.css';
