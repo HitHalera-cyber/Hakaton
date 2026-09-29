@@ -1,0 +1,107 @@
+.chord-head {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.chord-main {
+  min-width: 0;
+}
+.chord-source {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-2);
+}
+.chord-symbol {
+  font-family: var(--font-display);
+  text-shadow: var(--glow);
+  font-size: calc(60px * var(--display-scale));
+  font-weight: var(--display-weight);
+  line-height: 1.05;
+  color: var(--accent);
+  letter-spacing: -0.02em;
+  word-break: break-word;
+}
+.chord-symbol.unknown {
+  color: var(--text-2);
+}
+.chord-ru {
+  font-size: 17px;
+  margin-top: 2px;
+}
+.chord-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.chord-actions .big {
+  grid-column: 1 / -1;
+}
+.chord-tones {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  font-size: 18px;
+  font-weight: 600;
+}
+.tone small {
+  font-size: 10px;
+  color: var(--text-2);
+  margin-left: 3px;
+  font-weight: 500;
+}
+.tone.root {
+  color: var(--root);
+}
+.tone .dash {
+  color: var(--text-2);
+  margin: 0 8px;
+  font-weight: 400;
+}
+.chord-sounding {
+  font-size: 13px;
+  font-family: var(--font-mono);
+}
+.chord-alts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+.alt {
+  background: var(--panel-2);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 2px 10px;
+  font-weight: 600;
+  cursor: help;
+}
+.alt.approx {
+  border-style: dashed;
+  color: var(--text-2);
+}
+
+.capo-note {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.warnings {
+  font-size: 13px;
+  color: var(--warn);
+}
+.export-row {
+  border-top: var(--bw) solid var(--border);
+  padding-top: 10px;
+}
+
+.export-row {
+  flex-wrap: wrap;
+}
+.export-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}

@@ -1,0 +1,120 @@
+.listen-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 14px;
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  min-height: 150px;
+  justify-content: center;
+}
+.listen-result.off {
+  opacity: 0.6;
+}
+.listen-symbol {
+  font-family: var(--font-display);
+  text-shadow: var(--glow);
+  font-size: calc(64px * var(--display-scale));
+  font-weight: 800;
+  line-height: 1;
+  color: var(--accent);
+}
+.listen-ru {
+  font-size: 17px;
+}
+.confidence {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 220px;
+  font-size: 13px;
+}
+.confidence span {
+  display: block;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--danger);
+}
+.confidence span.mid {
+  background: var(--warn);
+}
+.confidence span.hi {
+  background: var(--ok);
+}
+.confidence b {
+  margin-left: auto;
+}
+.chroma-bars {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 4px;
+  height: 90px;
+}
+.chroma-bars .cb {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 2px;
+}
+.chroma-bars .cb span {
+  width: 100%;
+  border-radius: 4px 4px 0 0;
+  background: color-mix(in srgb, var(--accent) 75%, transparent);
+  transition: height 0.15s;
+}
+.chroma-bars small {
+  font-size: 11px;
+  color: var(--text-2);
+}
+.listen-history {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.listen-history .alt {
+  cursor: pointer;
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+}
+.listen-result.pending .listen-symbol {
+  opacity: 0.45;
+}
+.hold-bar {
+  position: relative;
+  width: 100%;
+  height: 22px;
+  margin-top: 8px;
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  overflow: hidden;
+}
+.hold-bar span {
+  display: block;
+  height: 100%;
+  background: color-mix(in srgb, var(--accent) 55%, transparent);
+  transition: width 0.1s linear;
+}
+.hold-bar.done span {
+  background: color-mix(in srgb, var(--ok) 60%, transparent);
+}
+.hold-bar small {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+}
+.hold-bar.short small {
+  color: var(--warn);
+}
+.listen-settings {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 16px;
+  align-items: center;
+}

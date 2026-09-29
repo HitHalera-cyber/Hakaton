@@ -1,0 +1,84 @@
+.tuner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.tuner.off {
+  opacity: 0.5;
+}
+.tuner-gauge {
+  width: 280px;
+  max-width: 100%;
+}
+.tuner-gauge .arc {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 6;
+}
+.tuner-gauge .tick {
+  stroke: var(--text-2);
+  stroke-width: 2;
+}
+.tuner-gauge .tick-label {
+  fill: var(--text-2);
+  font-size: 10px;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+.tuner-gauge .needle {
+  stroke: var(--root);
+  stroke-width: 3;
+  stroke-linecap: round;
+  transition: transform 0.12s linear;
+}
+.tuner-gauge .needle.ok {
+  stroke: var(--ok);
+}
+.tuner-gauge .hub {
+  fill: var(--text);
+}
+.tuner-note {
+  font-family: var(--font-display);
+  text-shadow: var(--glow);
+  font-size: calc(46px * var(--display-scale));
+  font-weight: 800;
+  line-height: 1;
+}
+.tuner-note.ok {
+  color: var(--ok);
+}
+.tuner-note sub {
+  font-size: 18px;
+  color: var(--text-2);
+}
+.tuner-info {
+  font-size: 13px;
+  color: var(--text-2);
+}
+.tuner-hint {
+  font-weight: 600;
+  color: var(--warn);
+}
+.tuner-hint.ok {
+  color: var(--ok);
+}
+.level {
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--panel-2);
+  overflow: hidden;
+}
+.level span {
+  display: block;
+  height: 100%;
+  background: var(--ok);
+}
+.big-sym {
+  font-family: var(--font-display);
+  text-shadow: var(--glow);
+  font-size: calc(26px * var(--display-scale));
+  font-weight: 800;
+  color: var(--accent);
+}

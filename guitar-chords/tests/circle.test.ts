@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAJOR_LABELS, MINOR_LABELS, cellChord, circlePosition, guessKey, inKey, keyName, romanInKey } from '../src/music/circle';
+import { MAJOR_LABELS, MINOR_LABELS, cellChord, circlePosition, guessKey, inKey, keyName, romanInKey } from '../src/core/music/circle';
 
 const pos = (rootPc: number, id: string) => circlePosition(rootPc, id);
 
@@ -37,10 +37,56 @@ describe('квинтовый круг', () => {
   });
   it('угадывает тональность по аккордам', () => {
     const song = (list: [number, string][]) => list.map(([pc, id]) => pos(pc, id)).reverse();
-    expect(keyName(guessKey(song([[0, 'maj'], [7, 'maj'], [9, 'min'], [5, 'maj']]))!)).toBe('C мажор');
-    expect(keyName(guessKey(song([[9, 'min'], [5, 'maj'], [0, 'maj'], [7, 'maj'], [9, 'min']]))!)).toBe('A минор');
-    expect(keyName(guessKey(song([[7, 'maj'], [2, 'maj'], [4, 'min'], [0, 'maj']]))!)).toBe('G мажор');
-    expect(keyName(guessKey(song([[4, 'min'], [0, 'maj'], [7, 'maj'], [2, 'maj'], [4, 'min']]))!)).toBe('E минор');
+    expect(
+      keyName(
+        guessKey(
+          song([
+            [0, 'maj'],
+            [7, 'maj'],
+            [9, 'min'],
+            [5, 'maj'],
+          ]),
+        )!,
+      ),
+    ).toBe('C мажор');
+    expect(
+      keyName(
+        guessKey(
+          song([
+            [9, 'min'],
+            [5, 'maj'],
+            [0, 'maj'],
+            [7, 'maj'],
+            [9, 'min'],
+          ]),
+        )!,
+      ),
+    ).toBe('A минор');
+    expect(
+      keyName(
+        guessKey(
+          song([
+            [7, 'maj'],
+            [2, 'maj'],
+            [4, 'min'],
+            [0, 'maj'],
+          ]),
+        )!,
+      ),
+    ).toBe('G мажор');
+    expect(
+      keyName(
+        guessKey(
+          song([
+            [4, 'min'],
+            [0, 'maj'],
+            [7, 'maj'],
+            [2, 'maj'],
+            [4, 'min'],
+          ]),
+        )!,
+      ),
+    ).toBe('E минор');
     expect(guessKey([])).toBeNull();
   });
 });

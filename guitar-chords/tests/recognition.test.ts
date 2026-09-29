@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { LIVE_VOCAB, buildModels, recognizeChord } from '../src/music/chordRecognition';
-import { SpectrumAnalyzer } from '../src/music/dsp';
+import { LIVE_VOCAB, buildModels, recognizeChord } from '../src/core/analysis/chordRecognition';
+import { SpectrumAnalyzer } from '../src/core/analysis/dsp';
 import { SR, strum } from './helpers/strum';
 
 const analyzer = new SpectrumAnalyzer(16384, SR);
@@ -22,9 +22,22 @@ function recognize(tab: string, bright = 1) {
 }
 
 const cases: [string, string][] = [
-  ['x32010', 'C'], ['x02210', 'Am'], ['320003', 'G'], ['022100', 'E'], ['xx0232', 'D'], ['133211', 'F'],
-  ['022030', 'Em7'], ['320001', 'G7'], ['xx0233', 'Dsus4'], ['x32000', 'Cmaj7'], ['xx0231', 'Dm'], ['022000', 'Em'],
-  ['x02020', 'A7'], ['x24432', 'Bm'], ['244222', 'F#m'], ['x35553', 'C'],
+  ['x32010', 'C'],
+  ['x02210', 'Am'],
+  ['320003', 'G'],
+  ['022100', 'E'],
+  ['xx0232', 'D'],
+  ['133211', 'F'],
+  ['022030', 'Em7'],
+  ['320001', 'G7'],
+  ['xx0233', 'Dsus4'],
+  ['x32000', 'Cmaj7'],
+  ['xx0231', 'Dm'],
+  ['022000', 'Em'],
+  ['x02020', 'A7'],
+  ['x24432', 'Bm'],
+  ['244222', 'F#m'],
+  ['x35553', 'C'],
 ];
 
 describe('распознавание живого аккорда (синтез струны)', () => {

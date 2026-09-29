@@ -1,4 +1,4 @@
-import { TUNINGS } from '../../src/music/tunings';
+import { TUNINGS } from '../../src/core/music/tunings';
 
 export const SR = 48000;
 const STD = TUNINGS.standard.strings;

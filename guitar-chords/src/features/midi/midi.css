@@ -1,0 +1,60 @@
+.status {
+  font-size: 11px;
+  text-transform: none;
+  letter-spacing: 0;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  font-weight: 500;
+}
+.status.ok {
+  background: color-mix(in srgb, var(--ok) 20%, transparent);
+  color: var(--ok);
+}
+.status.warn {
+  background: color-mix(in srgb, var(--warn) 18%, transparent);
+  color: var(--warn);
+}
+.midi-notes {
+  font-size: 13px;
+  min-height: 20px;
+}
+.piano {
+  position: relative;
+  height: 64px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: #111;
+}
+.piano button {
+  position: absolute;
+  top: 0;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+.piano .white {
+  height: 100%;
+  background: #f4f4f4;
+  border-right: 1px solid #bbb;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.piano .white span {
+  font-size: 8px;
+  color: #777;
+  margin-bottom: 3px;
+}
+.piano .white.out {
+  background: #d8d8d8;
+}
+.piano .black {
+  height: 60%;
+  background: #1c1c1c;
+  border-radius: 0 0 3px 3px;
+  z-index: 1;
+}
+.piano .white.on,
+.piano .black.on {
+  background: var(--midi);
+}

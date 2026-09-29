@@ -1,0 +1,41 @@
+.seq-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.seq-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+  border-radius: var(--radius-sm);
+  border: var(--bw) solid var(--border);
+  background: var(--panel-2);
+}
+.seq-item.playing {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.seq-main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border: none;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+}
+.seq-main .sym {
+  font-weight: 800;
+  font-size: 16px;
+  color: var(--accent);
+}
+.seq-item select {
+  font-size: 11px;
+  padding: 2px 4px;
+}
+.seq-actions {
+  display: flex;
+}

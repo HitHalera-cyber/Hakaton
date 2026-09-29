@@ -1,13 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { CHORD_TEMPLATES, detectChord } from '../src/music/chords';
-import { parseChordSymbol } from '../src/music/chordParse';
-import { computeFingering, fingerKey } from '../src/music/fingering';
-import { applyCapo, boardFromFrets, boardFromMidi, emptyBoard, soundingNotes, toggleFret, transposeBoard } from '../src/music/fretboard';
-import { detectPitch, freqToMidi } from '../src/music/pitch';
-import { SCALES, keyChords, progressionChords, PROGRESSIONS, scaleNoteNames } from '../src/music/scales';
-import { TUNINGS } from '../src/music/tunings';
-import { fretsToString, generateVoicings } from '../src/music/voicings';
-import { writeMidiFile } from '../src/midi/midiFile';
+import { CHORD_TEMPLATES, detectChord } from '../src/core/music/chords';
+import { parseChordSymbol } from '../src/core/music/chordParse';
+import { computeFingering, fingerKey } from '../src/core/music/fingering';
+import {
+  applyCapo,
+  boardFromFrets,
+  boardFromMidi,
+  emptyBoard,
+  soundingNotes,
+  toggleFret,
+  transposeBoard,
+} from '../src/core/music/fretboard';
+import { detectPitch, freqToMidi } from '../src/core/analysis/pitch';
+import { SCALES, keyChords, progressionChords, PROGRESSIONS, scaleNoteNames } from '../src/core/music/scales';
+import { TUNINGS } from '../src/core/music/tunings';
+import { fretsToString, generateVoicings } from '../src/core/music/voicings';
+import { writeMidiFile } from '../src/core/midi/midiFile';
 
 const STD = TUNINGS.standard.strings;
 const tpl = (id: string) => CHORD_TEMPLATES.find((t) => t.id === id)!;
@@ -15,9 +23,23 @@ const tab = (s: string) => [...s].map((c) => (c === 'x' ? null : parseInt(c, 16)
 
 describe('разбор названий аккордов', () => {
   const cases: [string, string][] = [
-    ['C', 'C'], ['Am', 'Am'], ['Cmaj7', 'Cmaj7'], ['CM7', 'Cmaj7'], ['CΔ', 'Cmaj7'], ['Dm/F', 'Dm/F'],
-    ['F#m7b5', 'F#m7b5'], ['Bø', 'Bm7b5'], ['Bb', 'Bb'], ['Asus', 'Asus4'], ['G°7', 'Gdim7'], ['E+', 'Eaug'],
-    ['c#min7', 'C#m7'], ['D6/9', 'D6/9'], ['Ebadd9', 'Ebadd9'], ['G7sus', 'G7sus4'], ['A♭m', 'Abm'],
+    ['C', 'C'],
+    ['Am', 'Am'],
+    ['Cmaj7', 'Cmaj7'],
+    ['CM7', 'Cmaj7'],
+    ['CΔ', 'Cmaj7'],
+    ['Dm/F', 'Dm/F'],
+    ['F#m7b5', 'F#m7b5'],
+    ['Bø', 'Bm7b5'],
+    ['Bb', 'Bb'],
+    ['Asus', 'Asus4'],
+    ['G°7', 'Gdim7'],
+    ['E+', 'Eaug'],
+    ['c#min7', 'C#m7'],
+    ['D6/9', 'D6/9'],
+    ['Ebadd9', 'Ebadd9'],
+    ['G7sus', 'G7sus4'],
+    ['A♭m', 'Abm'],
   ];
   for (const [input, symbol] of cases) it(`${input} → ${symbol}`, () => expect(parseChordSymbol(input)?.symbol).toBe(symbol));
   it('ерунда не разбирается', () => {
@@ -29,7 +51,9 @@ describe('разбор названий аккордов', () => {
 
 describe('генератор аппликатур', () => {
   const has = (rootPc: number, id: string, shape: string, tuning = STD) =>
-    generateVoicings(rootPc, tpl(id), tuning, { limit: 30 }).map((v) => fretsToString(v.frets)).includes(shape);
+    generateVoicings(rootPc, tpl(id), tuning, { limit: 30 })
+      .map((v) => fretsToString(v.frets))
+      .includes(shape);
   it('C — открытая x32010', () => expect(has(0, 'maj', 'x32010')).toBe(true));
   it('G — открытая 320003 или 320033', () => expect(has(7, 'maj', '320003') || has(7, 'maj', '320033')).toBe(true));
   it('F — баррэ 133211', () => expect(has(5, 'maj', '133211')).toBe(true));
@@ -81,7 +105,7 @@ describe('каподастр и транспонирование', () => {
   it('каподастр: открытая струна звучит на ладу capo, точки под ним убираются', () => {
     let b = boardFromFrets(tab('x32010'));
     const shifted = transposeBoard(b, 2, 0)!;
-    expect(fretsToString(shifted.map((s) => (s.muted ? null : s.frets[0] ?? (s.open ? 0 : null))))).toBe('x54232');
+    expect(fretsToString(shifted.map((s) => (s.muted ? null : (s.frets[0] ?? (s.open ? 0 : null)))))).toBe('x54232');
     b = boardFromFrets([null, 5, 4, 2, 3, 2], 2);
     expect(detectChord(soundingNotes(b, STD, 2).map((n) => n.midi)).primary!.symbol).toBe('D');
     expect(applyCapo(toggleFret(emptyBoard(), 0, 1), 2)[0].frets).toEqual([]);
@@ -102,17 +126,42 @@ describe('гаммы и тональности', () => {
     expect(scaleNoteNames(9, SCALES[1]).join(' ')).toBe('A B C D E F G');
   });
   it('аккорды тональности', () => {
-    expect(keyChords(7, 'major', false).map((c) => c.symbol).join(' ')).toBe('G Am Bm C D Em F#dim');
-    expect(keyChords(0, 'major', true).map((c) => c.symbol).join(' ')).toBe('Cmaj7 Dm7 Em7 Fmaj7 G7 Am7 Bm7b5');
-    expect(keyChords(9, 'minor', false).map((c) => c.roman).join(' ')).toBe('i ii° III iv v VI VII');
+    expect(
+      keyChords(7, 'major', false)
+        .map((c) => c.symbol)
+        .join(' '),
+    ).toBe('G Am Bm C D Em F#dim');
+    expect(
+      keyChords(0, 'major', true)
+        .map((c) => c.symbol)
+        .join(' '),
+    ).toBe('Cmaj7 Dm7 Em7 Fmaj7 G7 Am7 Bm7b5');
+    expect(
+      keyChords(9, 'minor', false)
+        .map((c) => c.roman)
+        .join(' '),
+    ).toBe('i ii° III iv v VI VII');
   });
   it('последовательности', () => {
     const pop = PROGRESSIONS.find((p) => p.id === 'pop')!;
-    expect(progressionChords(0, 'major', pop).map((c) => c.symbol).join(' ')).toBe('C G Am F');
+    expect(
+      progressionChords(0, 'major', pop)
+        .map((c) => c.symbol)
+        .join(' '),
+    ).toBe('C G Am F');
     const and = PROGRESSIONS.find((p) => p.id === 'andalusian')!;
-    expect(progressionChords(9, 'minor', and).map((c) => c.symbol).join(' ')).toBe('Am G F E');
+    expect(
+      progressionChords(9, 'minor', and)
+        .map((c) => c.symbol)
+        .join(' '),
+    ).toBe('Am G F E');
     const blues = PROGRESSIONS.find((p) => p.id === 'blues')!;
-    expect(progressionChords(9, 'major', blues).slice(0, 5).map((c) => c.symbol).join(' ')).toBe('A7 A7 A7 A7 D7');
+    expect(
+      progressionChords(9, 'major', blues)
+        .slice(0, 5)
+        .map((c) => c.symbol)
+        .join(' '),
+    ).toBe('A7 A7 A7 A7 D7');
   });
 });
 

@@ -1,7 +1,7 @@
 {
   "name": "guitar-chords",
   "productName": "GuitarChords",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Интерактивный гриф гитары: определение и проигрывание аккордов, поддержка MIDI-клавиатуры",
   "author": "Hakaton",
   "license": "MIT",
@@ -16,7 +16,9 @@
     "dist:win": "npm run build && electron-builder --win nsis portable --publish never",
     "dist:mac": "npm run build && electron-builder --mac --publish never",
     "dist:linux": "npm run build && electron-builder --linux AppImage --publish never",
-    "harness": "vite --config vite.harness.config.ts"
+    "harness": "vite --config vite.harness.config.ts",
+    "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"tests/**/*.ts\" \"harness/**/*.ts\" electron",
+    "check": "tsc --noEmit && vitest run && prettier --check \"src/**/*.{ts,tsx,css}\" \"tests/**/*.ts\""
   },
   "build": {
     "appId": "com.hakaton.guitarchords",
@@ -71,6 +73,19 @@
     }
   },
   "devDependencies": {
+    "@fontsource/caveat": "^5.3.0",
+    "@fontsource/exo-2": "^5.3.0",
+    "@fontsource/inter": "^5.3.0",
+    "@fontsource/jetbrains-mono": "^5.3.0",
+    "@fontsource/manrope": "^5.3.0",
+    "@fontsource/nunito": "^5.3.0",
+    "@fontsource/oswald": "^5.3.0",
+    "@fontsource/playfair-display": "^5.3.0",
+    "@fontsource/press-start-2p": "^5.3.0",
+    "@fontsource/pt-sans": "^5.3.0",
+    "@fontsource/pt-serif": "^5.3.0",
+    "@fontsource/rubik": "^5.3.0",
+    "@fontsource/unbounded": "^5.3.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
@@ -78,6 +93,7 @@
     "cross-env": "^10.1.0",
     "electron": "^38.8.6",
     "electron-builder": "^26.15.3",
+    "prettier": "^3.9.9",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "typescript": "^7.0.2",

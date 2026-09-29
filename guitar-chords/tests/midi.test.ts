@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { MidiInput } from '../src/midi/midiInput';
+import { MidiInput } from '../src/core/midi/midiInput';
 
 function fakeInput(id: string, name: string) {
   return { id, name, manufacturer: 'Test', state: 'connected', onmidimessage: null as null | ((e: unknown) => void) };
@@ -8,7 +8,13 @@ function fakeInput(id: string, name: string) {
 function setup() {
   const a = fakeInput('a', 'Keys A');
   const b = fakeInput('b', 'Keys B');
-  const access = { inputs: new Map([['a', a], ['b', b]]), onstatechange: null as null | (() => void) };
+  const access = {
+    inputs: new Map([
+      ['a', a],
+      ['b', b],
+    ]),
+    onstatechange: null as null | (() => void),
+  };
   vi.stubGlobal('navigator', { requestMIDIAccess: vi.fn().mockResolvedValue(access) });
   const on: number[] = [];
   const off: number[] = [];

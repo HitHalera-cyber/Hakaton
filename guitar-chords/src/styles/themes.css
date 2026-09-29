@@ -1,0 +1,441 @@
+/*
+ * Темы оформления. Каждая тема — набор переменных: палитра, шрифты, скругления, толщина рамок,
+ * тени, фон и цвета грифа. Компоненты используют только переменные, поэтому тема меняет всё сразу.
+ * Базовые значения (тема «Студия») — в :root.
+ */
+
+/*
+ * Значения по умолчанию (они же — тема «Студия») задаются на каждом элементе с темой,
+ * поэтому карточка-превью темы внутри другой темы ничего не наследует от окружения.
+ */
+:root,
+[data-theme] {
+  --app-bg: var(--bg);
+  --panel-bg: var(--panel);
+  --side-active-text: var(--side-text);
+  --bg: #13151b;
+  --bg-2: #1a1d25;
+  --panel: #1f232d;
+  --panel-2: #262b37;
+  --panel-filter: none;
+  --border: #2f3542;
+  --text: #e8eaf0;
+  --text-2: #9aa2b4;
+  --accent: #f5a524;
+  --accent-text: #1a1204;
+  --dot: #3b82f6;
+  --dot-text: #ffffff;
+  --root: #ef4444;
+  --midi: #22d3ee;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  --scale: #facc15;
+  --scale-root: #fb923c;
+  --hover: rgba(255, 255, 255, 0.14);
+  --tt-bg: #0b0d12;
+
+  --side-bg: #0f1116;
+  --side-text: #c9cfdb;
+  --side-muted: #6b7386;
+  --side-active: color-mix(in srgb, var(--accent) 18%, transparent);
+
+  --wood-1: #3a2416;
+  --wood-2: #4a2f1c;
+  --fret: #b8bec9;
+  --nut: #efe6d2;
+  --string: #d9dde5;
+  --inlay: #e9e1cf;
+
+  --font-ui: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  --font-display: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Mono', Consolas, monospace;
+  --font-serif: Georgia, 'PT Serif', serif;
+  --fs: 14px;
+  --display-weight: 800;
+  --title-case: uppercase;
+  --title-spacing: 0.06em;
+  --radius: 14px;
+  --radius-sm: 9px;
+  --radius-pill: 999px;
+  --bw: 1px;
+  --shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+  --btn-shadow: none;
+  --glow: none;
+  --display-scale: 1;
+  color-scheme: dark;
+}
+
+/* ---------- 2. Минимализм: белый, воздух, тонкие линии ---------- */
+[data-theme='minimal'] {
+  --bg: #f7f7f5;
+  --bg-2: #efefec;
+  --panel: #ffffff;
+  --panel-2: #f4f4f1;
+  --border: #e4e4df;
+  --text: #111111;
+  --text-2: #6b6b66;
+  --accent: #111111;
+  --accent-text: #ffffff;
+  --dot: #111111;
+  --root: #e11d48;
+  --midi: #0ea5e9;
+  --scale: #fde68a;
+  --scale-root: #f59e0b;
+  --hover: rgba(0, 0, 0, 0.08);
+  --tt-bg: #111111;
+  --side-bg: #ffffff;
+  --side-text: #222222;
+  --side-muted: #9a9a94;
+  --side-active: #f1f1ee;
+  --wood-1: #e7cfa6;
+  --wood-2: #f0dfbf;
+  --fret: #9aa0a6;
+  --nut: #ffffff;
+  --string: #7b8088;
+  --inlay: #b8925a;
+  --font-ui: 'Manrope', system-ui, sans-serif;
+  --font-display: 'Manrope', system-ui, sans-serif;
+  --display-weight: 700;
+  --title-case: none;
+  --title-spacing: 0;
+  --radius: 6px;
+  --radius-sm: 4px;
+  --shadow: none;
+  color-scheme: light;
+}
+
+/* ---------- 3. Винтаж: ламповый усилитель, кожа, крем и золото ---------- */
+[data-theme='vintage'] {
+  --bg: #2b1d14;
+  --app-bg: repeating-linear-gradient(45deg, #2b1d14 0 6px, #2f2016 6px 12px);
+  --bg-2: #3a281b;
+  --panel: #f3e6cc;
+  --panel-2: #e9d8b4;
+  --border: #c7a877;
+  --text: #2b1d14;
+  --text-2: #6b5440;
+  --accent: #b8862b;
+  --accent-text: #1a1208;
+  --dot: #7a2e1a;
+  --root: #b8862b;
+  --midi: #2f6f73;
+  --scale: #e0b64a;
+  --scale-root: #a0521d;
+  --hover: rgba(255, 240, 200, 0.25);
+  --tt-bg: #2b1d14;
+  --side-bg: #1e140d;
+  --side-text: #f0dfbd;
+  --side-muted: #a88a63;
+  --side-active: rgba(184, 134, 43, 0.25);
+  --wood-1: #3b2215;
+  --wood-2: #5b3420;
+  --fret: #d9c592;
+  --nut: #f6efe0;
+  --string: #eadcbd;
+  --inlay: #f3e6cc;
+  --font-ui: 'PT Serif', Georgia, serif;
+  --font-display: 'Playfair Display', Georgia, serif;
+  --display-weight: 700;
+  --title-case: none;
+  --title-spacing: 0.02em;
+  --radius: 10px;
+  --radius-sm: 6px;
+  --bw: 1.5px;
+  --shadow: 0 3px 0 rgba(0, 0, 0, 0.25), 0 10px 30px rgba(0, 0, 0, 0.35);
+  color-scheme: light;
+}
+
+/* ---------- 4. Синтвейв: неон 80-х ---------- */
+[data-theme='synthwave'] {
+  --bg: #12051f;
+  --app-bg: linear-gradient(180deg, #12051f 0%, #2a0a45 70%, #4a0f5c 100%);
+  --bg-2: #1a0930;
+  --panel: rgba(29, 11, 51, 0.88);
+  --panel-2: #2a1147;
+  --border: rgba(255, 47, 179, 0.45);
+  --text: #f7e9ff;
+  --text-2: #b99ad8;
+  --accent: #ff2fb3;
+  --accent-text: #12051f;
+  --dot: #19e3ff;
+  --dot-text: #12051f;
+  --root: #ff2fb3;
+  --midi: #19e3ff;
+  --ok: #3dffb0;
+  --scale: #ffe66b;
+  --scale-root: #ff8a3d;
+  --hover: rgba(25, 227, 255, 0.18);
+  --tt-bg: #0b0214;
+  --side-bg: rgba(10, 2, 20, 0.85);
+  --side-text: #f0d9ff;
+  --side-muted: #8d6bb0;
+  --side-active: rgba(255, 47, 179, 0.22);
+  --wood-1: #1c0833;
+  --wood-2: #2d0f52;
+  --fret: #ff79d0;
+  --nut: #19e3ff;
+  --string: #aef6ff;
+  --inlay: #ff2fb3;
+  --font-ui: 'Exo 2', system-ui, sans-serif;
+  --font-display: 'Unbounded', 'Exo 2', sans-serif;
+  --display-weight: 700;
+  --display-scale: 0.8;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 0 0 1px rgba(255, 47, 179, 0.25), 0 0 28px rgba(255, 47, 179, 0.18);
+  --glow: 0 0 10px rgba(255, 47, 179, 0.8), 0 0 24px rgba(255, 47, 179, 0.45);
+}
+
+/* ---------- 5. 8 бит: ретро-игра ---------- */
+[data-theme='pixel'] {
+  --bg: #1b1b3a;
+  --app-bg: conic-gradient(from 90deg at 2px 2px, #1b1b3a 90deg, #202046 0) 0 0 / 16px 16px;
+  --bg-2: #232350;
+  --panel: #2c2c5a;
+  --panel-2: #3a3a74;
+  --border: #000000;
+  --text: #ffffff;
+  --text-2: #b8b8e8;
+  --accent: #ffd23f;
+  --accent-text: #000000;
+  --dot: #3fa7ff;
+  --root: #ff4f4f;
+  --midi: #52ff7a;
+  --scale: #52ff7a;
+  --scale-root: #ff9f1c;
+  --hover: rgba(255, 210, 63, 0.3);
+  --tt-bg: #000000;
+  --side-bg: #12122a;
+  --side-text: #ffffff;
+  --side-muted: #8888c8;
+  --side-active: #3a3a74;
+  --wood-1: #6b3e26;
+  --wood-2: #8b5a3c;
+  --fret: #d8d8d8;
+  --nut: #ffffff;
+  --string: #ffffff;
+  --inlay: #ffd23f;
+  --font-ui: 'Press Start 2P', monospace;
+  --font-display: 'Press Start 2P', monospace;
+  --font-mono: 'Press Start 2P', monospace;
+  --fs: 10px;
+  --display-weight: 400;
+  --radius: 0;
+  --radius-sm: 0;
+  --radius-pill: 0;
+  --bw: 3px;
+  --shadow: 5px 5px 0 #000000;
+  --btn-shadow: 3px 3px 0 #000000;
+  --display-scale: 0.5;
+}
+
+/* ---------- 6. Терминал: зелёный люминофор ---------- */
+[data-theme='terminal'] {
+  --bg: #050805;
+  --app-bg: repeating-linear-gradient(0deg, #050805 0 2px, #070b07 2px 4px);
+  --bg-2: #081008;
+  --panel: #0a110a;
+  --panel-2: #0f1a0f;
+  --border: #1f5f2f;
+  --text: #39ff6a;
+  --text-2: #1fae4a;
+  --accent: #39ff6a;
+  --accent-text: #031203;
+  --dot: #39ff6a;
+  --dot-text: #031203;
+  --root: #ffb000;
+  --midi: #00e5ff;
+  --ok: #39ff6a;
+  --warn: #ffb000;
+  --danger: #ff5555;
+  --scale: #1f8f3f;
+  --scale-root: #ffb000;
+  --hover: rgba(57, 255, 106, 0.15);
+  --tt-bg: #020402;
+  --side-bg: #030603;
+  --side-text: #39ff6a;
+  --side-muted: #1a8a3c;
+  --side-active: rgba(57, 255, 106, 0.14);
+  --wood-1: #07120a;
+  --wood-2: #0c1d10;
+  --fret: #1f7f3f;
+  --nut: #39ff6a;
+  --string: rgba(57, 255, 106, 0.75);
+  --inlay: #1f5f2f;
+  --font-ui: 'JetBrains Mono', monospace;
+  --font-display: 'JetBrains Mono', monospace;
+  --fs: 13px;
+  --display-weight: 700;
+  --title-case: none;
+  --radius: 0;
+  --radius-sm: 0;
+  --radius-pill: 0;
+  --shadow: none;
+  --glow: 0 0 8px rgba(57, 255, 106, 0.7);
+}
+
+/* ---------- 7. Стекло: морской градиент и матовые панели ---------- */
+[data-theme='glass'] {
+  --bg: #0f4c75;
+  --app-bg: linear-gradient(135deg, #0b3d63 0%, #1f78b4 45%, #6a2ff7 100%);
+  --bg-2: rgba(255, 255, 255, 0.12);
+  --panel: rgba(255, 255, 255, 0.13);
+  --panel-2: rgba(255, 255, 255, 0.16);
+  --panel-filter: blur(18px) saturate(140%);
+  --border: rgba(255, 255, 255, 0.28);
+  --text: #ffffff;
+  --text-2: #dbe8ff;
+  --accent: #00e0c6;
+  --accent-text: #062a3a;
+  --dot: #ffffff;
+  --dot-text: #0b3d63;
+  --root: #ff6b9a;
+  --midi: #ffe66b;
+  --scale: #9ef0ff;
+  --scale-root: #ffd166;
+  --hover: rgba(255, 255, 255, 0.22);
+  --tt-bg: rgba(8, 30, 60, 0.9);
+  --side-bg: rgba(255, 255, 255, 0.1);
+  --side-text: #ffffff;
+  --side-muted: #cfe0ff;
+  --side-active: rgba(255, 255, 255, 0.22);
+  --wood-1: rgba(40, 20, 60, 0.75);
+  --wood-2: rgba(70, 40, 100, 0.75);
+  --fret: rgba(255, 255, 255, 0.7);
+  --nut: #ffffff;
+  --string: #ffffff;
+  --inlay: rgba(255, 255, 255, 0.6);
+  --font-ui: 'Nunito', system-ui, sans-serif;
+  --font-display: 'Nunito', system-ui, sans-serif;
+  --display-weight: 800;
+  --title-case: none;
+  --radius: 22px;
+  --radius-sm: 14px;
+  --shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+}
+
+/* ---------- 8. Брутализм: жёлтый, чёрный, жёсткие тени ---------- */
+[data-theme='brutal'] {
+  --bg: #ffe600;
+  --bg-2: #ffef4d;
+  --panel: #ffffff;
+  --panel-2: #fff7b3;
+  --border: #000000;
+  --text: #000000;
+  --text-2: #333333;
+  --accent: #000000;
+  --accent-text: #ffe600;
+  --dot: #0047ff;
+  --root: #ff2d2d;
+  --midi: #00c2a8;
+  --scale: #ffe600;
+  --scale-root: #ff7a00;
+  --hover: rgba(0, 0, 0, 0.1);
+  --tt-bg: #000000;
+  --side-bg: #000000;
+  --side-text: #ffe600;
+  --side-muted: #bfb000;
+  --side-active: #ffe600;
+  --wood-1: #151515;
+  --wood-2: #262626;
+  --fret: #ffffff;
+  --nut: #ffe600;
+  --string: #ffffff;
+  --inlay: #ffe600;
+  --font-ui: 'Rubik', system-ui, sans-serif;
+  --font-display: 'Rubik', system-ui, sans-serif;
+  --display-weight: 900;
+  --radius: 0;
+  --radius-sm: 0;
+  --radius-pill: 0;
+  --bw: 3px;
+  --shadow: 7px 7px 0 #000000;
+  --btn-shadow: 3px 3px 0 #000000;
+  --side-active-text: #000000;
+  color-scheme: light;
+}
+
+/* ---------- 9. Рок: чёрный металл и красный ---------- */
+[data-theme='rock'] {
+  --bg: #0a0a0a;
+  --app-bg: repeating-linear-gradient(115deg, #0a0a0a 0 3px, #0e0e0e 3px 6px);
+  --bg-2: #121212;
+  --panel: #161616;
+  --panel-2: #202020;
+  --border: #2d2d2d;
+  --text: #f1f1f1;
+  --text-2: #9a9a9a;
+  --accent: #e10600;
+  --accent-text: #ffffff;
+  --dot: #e10600;
+  --root: #ffcc00;
+  --midi: #00b3ff;
+  --scale: #ffcc00;
+  --scale-root: #ff6a00;
+  --hover: rgba(225, 6, 0, 0.2);
+  --tt-bg: #000000;
+  --side-bg: #000000;
+  --side-text: #eeeeee;
+  --side-muted: #777777;
+  --side-active: rgba(225, 6, 0, 0.25);
+  --wood-1: #0f0f0f;
+  --wood-2: #1d1d1d;
+  --fret: #c9c9c9;
+  --nut: #e6e6e6;
+  --string: #e0e0e0;
+  --inlay: #f5f5f5;
+  --font-ui: 'Oswald', 'Arial Narrow', sans-serif;
+  --font-display: 'Oswald', 'Arial Narrow', sans-serif;
+  --fs: 15px;
+  --display-weight: 700;
+  --title-spacing: 0.12em;
+  --radius: 3px;
+  --radius-sm: 2px;
+  --radius-pill: 3px;
+  --shadow: 0 8px 30px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --glow: 0 0 18px rgba(225, 6, 0, 0.55);
+  --display-scale: 1.1;
+}
+
+/* ---------- 10. Тетрадь: клетчатая бумага и чернила ---------- */
+[data-theme='notebook'] {
+  --bg: #fbfaf4;
+  --app-bg: linear-gradient(#dbe6f7 1px, transparent 1px) 0 0 / 22px 22px, linear-gradient(90deg, #dbe6f7 1px, #fbfaf4 1px) 0 0 / 22px 22px;
+  --bg-2: #f3f1e6;
+  --panel: rgba(255, 255, 255, 0.92);
+  --panel-2: #f5f7fc;
+  --border: #9db4d8;
+  --text: #1f2a44;
+  --text-2: #5a6a8a;
+  --accent: #1e40af;
+  --accent-text: #ffffff;
+  --dot: #1e40af;
+  --root: #dc2626;
+  --midi: #059669;
+  --scale: #fde047;
+  --scale-root: #f97316;
+  --hover: rgba(30, 64, 175, 0.1);
+  --tt-bg: #1f2a44;
+  --side-bg: #f3f1e6;
+  --side-text: #1f2a44;
+  --side-muted: #8a95ad;
+  --side-active: #dbe6f7;
+  --wood-1: #d8b98c;
+  --wood-2: #e8cfa6;
+  --fret: #6b7280;
+  --nut: #fffdf5;
+  --string: #4b5563;
+  --inlay: #1e40af;
+  --font-ui: 'PT Sans', system-ui, sans-serif;
+  --font-display: 'Caveat', 'PT Sans', cursive;
+  --display-weight: 700;
+  --title-case: none;
+  --title-spacing: 0;
+  --radius: 4px;
+  --radius-sm: 3px;
+  --bw: 1.5px;
+  --shadow: 2px 3px 0 rgba(30, 64, 175, 0.12);
+  --display-scale: 1.25;
+  color-scheme: light;
+}

@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { SONG_VOCAB } from '../src/music/chordRecognition';
-import { decodeChords, detectKey, extractFeatures, shapeName, suggestCapo, type ChordSegment } from '../src/music/songAnalysis';
+import { SONG_VOCAB } from '../src/core/analysis/chordRecognition';
+import {
+  decodeChords,
+  detectKey,
+  extractFeatures,
+  shapeName,
+  smoothSegments,
+  suggestCapo,
+  type ChordSegment,
+} from '../src/core/analysis/songAnalysis';
 import { SR, strum } from './helpers/strum';
 
 /** «Песня»: аккорды по 4 доли, бой на каждую долю, бочка и хай-хэт. */
@@ -41,8 +49,29 @@ describe('разбор песни', () => {
     const k = detectKey(f);
     expect([`0-major`, `9-minor`]).toContain(`${k.tonicPc}-${k.mode}`);
   });
+  it('короткие «вспышки» аккордов поглощаются соседями', () => {
+    const seg = (symbol: string, beats: number, start: number): ChordSegment => ({
+      start,
+      end: start + beats / 2,
+      rootPc: 0,
+      templateId: 'maj',
+      symbol,
+      nameRu: '',
+      beats,
+    });
+    const out = smoothSegments([seg('C', 4, 0), seg('Em', 1, 2), seg('C', 3, 2.5), seg('G', 4, 4), seg('D', 1, 6), seg('Am', 4, 6.5)], 2);
+    expect(out.map((s) => `${s.symbol}${s.beats}`).join(' ')).toBe('C8 G5 Am4');
+  });
   it('каподастр: песню в ля мажоре удобнее играть с каподастром на 2 ладу', () => {
-    const seg = (sym: string, rootPc: number, templateId: string): ChordSegment => ({ start: 0, end: 4, rootPc, templateId, symbol: sym, nameRu: '', beats: 8 });
+    const seg = (sym: string, rootPc: number, templateId: string): ChordSegment => ({
+      start: 0,
+      end: 4,
+      rootPc,
+      templateId,
+      symbol: sym,
+      nameRu: '',
+      beats: 8,
+    });
     const segs = [seg('A', 9, 'maj'), seg('E', 4, 'maj'), seg('F#m', 6, 'min'), seg('D', 2, 'maj')];
     const best = suggestCapo(segs)[0];
     expect(best.capo).toBe(2);

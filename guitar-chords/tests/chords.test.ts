@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { detectChord } from '../src/music/chords';
-import { boardFromMidi, emptyBoard, soundingNotes, toggleFret, cycleNut } from '../src/music/fretboard';
-import { TUNINGS } from '../src/music/tunings';
+import { detectChord } from '../src/core/music/chords';
+import { boardFromMidi, emptyBoard, soundingNotes, toggleFret, cycleNut } from '../src/core/music/fretboard';
+import { TUNINGS } from '../src/core/music/tunings';
 
 const STD = TUNINGS.standard.strings;
 
@@ -110,7 +110,11 @@ describe('модель грифа', () => {
   it('раскладка MIDI-аккорда на гриф сохраняет звучание', () => {
     const notes = [48, 52, 55, 60, 64];
     const b = boardFromMidi(notes, STD);
-    expect(soundingNotes(b, STD).map((n) => n.midi).sort()).toEqual(notes.sort());
+    expect(
+      soundingNotes(b, STD)
+        .map((n) => n.midi)
+        .sort(),
+    ).toEqual(notes.sort());
   });
   it('Drop D меняет басовую струну', () => {
     const r = detectChord(shape('000232', TUNINGS.dropD.strings));

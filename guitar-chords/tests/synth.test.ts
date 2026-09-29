@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { PLUCK_PRESETS as TIMBRES, renderPluck } from '../src/audio/pluck';
-import { midiToFreq } from '../src/music/notes';
+import { PLUCK_PRESETS as TIMBRES, renderPluck } from '../src/core/audio/pluck';
+import { midiToFreq } from '../src/core/music/notes';
 
 /** Оценка частоты основного тона по автокорреляции с параболической интерполяцией. */
 function estimatePitch(x: Float32Array, sr: number, expected: number): number {
@@ -21,7 +21,9 @@ function estimatePitch(x: Float32Array, sr: number, expected: number): number {
       best = lag;
     }
   }
-  const a = ac(best - 1), b = ac(best), c = ac(best + 1);
+  const a = ac(best - 1),
+    b = ac(best),
+    c = ac(best + 1);
   const shift = (0.5 * (a - c)) / (a - 2 * b + c);
   return sr / (best + shift);
 }
