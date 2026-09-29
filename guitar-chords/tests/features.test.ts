@@ -3,7 +3,7 @@ import { CHORD_TEMPLATES, detectChord } from '../src/music/chords';
 import { parseChordSymbol } from '../src/music/chordParse';
 import { computeFingering, fingerKey } from '../src/music/fingering';
 import { applyCapo, boardFromFrets, boardFromMidi, emptyBoard, soundingNotes, toggleFret, transposeBoard } from '../src/music/fretboard';
-import { chromaFromSpectrum, detectPitch, freqToMidi, pickPitchClasses } from '../src/music/pitch';
+import { detectPitch, freqToMidi } from '../src/music/pitch';
 import { SCALES, keyChords, progressionChords, PROGRESSIONS, scaleNoteNames } from '../src/music/scales';
 import { TUNINGS } from '../src/music/tunings';
 import { fretsToString, generateVoicings } from '../src/music/voicings';
@@ -130,16 +130,7 @@ describe('тюнер', () => {
     });
   }
   it('тишина — нет тона', () => expect(detectPitch(new Float32Array(4096), sr)).toBeNull());
-  it('хромаграмма находит ноты аккорда', () => {
-    const fft = 8192;
-    const db = new Float32Array(fft / 2).fill(-120);
-    for (const midi of [48, 52, 55, 60, 64]) {
-      const f = 440 * Math.pow(2, (midi - 69) / 12);
-      db[Math.round(f / (sr / fft))] = -20;
-    }
-    expect(pickPitchClasses(chromaFromSpectrum(db, sr, fft)).sort((a, b) => a - b)).toEqual([0, 4, 7]);
-    expect(Math.round(freqToMidi(440))).toBe(69);
-  });
+  it('частота → MIDI', () => expect(Math.round(freqToMidi(440))).toBe(69));
 });
 
 describe('MIDI-файл', () => {

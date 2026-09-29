@@ -1,7 +1,7 @@
 // Разбор буквенного обозначения аккорда: «Cmaj7», «Dm/F», «F#m7b5», «Bb», «Asus», «G°7»…
 
 import { CHORD_TEMPLATES, parseDegree, type ChordTemplate } from './chords';
-import { LETTER_PC, mod12, spelledName, spelledRu, type Spelled } from './notes';
+import { LETTER_PC, mod12, spellInterval, spelledName, spelledRu, type Spelled } from './notes';
 
 export interface ParsedChord {
   root: Spelled;
@@ -114,4 +114,23 @@ export function parseChordSymbol(input: string): ParsedChord | null {
 export function chordPitchClasses(rootPc: number, t: ChordTemplate) {
   const omit = new Set(t.omit ?? []);
   return t.degrees.map((d) => ({ degree: d, pc: mod12(rootPc + parseDegree(d).semis), optional: omit.has(d) }));
+}
+
+/** Название аккорда по тонике, шаблону и басу: «Am7», «C/E» + русская расшифровка. */
+export function chordName(rootPc: number, t: ChordTemplate, bassPc?: number): { symbol: string; nameRu: string } {
+  const minorLike = t.degrees.includes('b3') && !t.degrees.includes('3');
+  // Написание тоники как в тональностях: F#m, но Bb; Db-мажор, но C#m.
+  const minorSpell: Record<number, Spelled> = { 1: { letter: 0, acc: 1 }, 3: { letter: 2, acc: -1 }, 6: { letter: 3, acc: 1 }, 8: { letter: 4, acc: 1 }, 10: { letter: 6, acc: -1 } };
+  const majorSpell: Record<number, Spelled> = { 1: { letter: 1, acc: -1 }, 3: { letter: 2, acc: -1 }, 6: { letter: 3, acc: 1 }, 8: { letter: 5, acc: -1 }, 10: { letter: 6, acc: -1 } };
+  const root = (minorLike ? minorSpell : majorSpell)[rootPc] ?? { letter: [0, 0, 1, 2, 2, 3, 3, 4, 5, 5, 6, 6][rootPc], acc: 0 };
+  let symbol = spelledName(root) + t.suffix;
+  let nameRu = `${spelledRu(root)} ${t.ru}`;
+  if (bassPc != null && bassPc !== rootPc) {
+    const tone = chordPitchClasses(rootPc, t).find((x) => x.pc === bassPc);
+    const bass = tone ? spellInterval(root, parseDegree(tone.degree).letterSteps, parseDegree(tone.degree).semis) : undefined;
+    const bassName = bass ? spelledName(bass) : ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'][bassPc];
+    symbol += '/' + bassName;
+    nameRu += `, бас ${bass ? spelledRu(bass) : bassName}`;
+  }
+  return { symbol, nameRu };
 }

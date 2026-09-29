@@ -1,7 +1,4 @@
-// Анализ звука с микрофона: высота тона (алгоритм YIN) для тюнера
-// и хромаграмма (энергия по 12 нотам) для распознавания аккорда.
-
-import { mod12 } from './notes';
+// Высота тона с микрофона (алгоритм YIN) — для тюнера.
 
 export interface PitchResult {
   freq: number;
@@ -66,36 +63,4 @@ export function detectPitch(buf: Float32Array, sampleRate: number, minFreq = 30,
 
 export function freqToMidi(freq: number): number {
   return 69 + 12 * Math.log2(freq / 440);
-}
-
-/**
- * Хромаграмма по спектру (магнитуды в дБ из AnalyserNode.getFloatFrequencyData).
- * Каждый бин 60–2000 Гц добавляет энергию своему высотному классу.
- */
-export function chromaFromSpectrum(db: Float32Array, sampleRate: number, fftSize: number): number[] {
-  const chroma = new Array(12).fill(0);
-  const binHz = sampleRate / fftSize;
-  for (let i = 1; i < db.length; i++) {
-    const f = i * binHz;
-    if (f < 60 || f > 2000) continue;
-    const mag = Math.pow(10, db[i] / 20);
-    const midi = freqToMidi(f);
-    const pc = mod12(Math.round(midi));
-    // Ближе к центру ноты — больший вес.
-    const weight = 1 - Math.min(1, Math.abs(midi - Math.round(midi)) * 2);
-    chroma[pc] += mag * mag * weight;
-  }
-  return chroma;
-}
-
-/** Выбрать звучащие ноты по хромаграмме: классы с энергией не меньше доли от максимума. */
-export function pickPitchClasses(chroma: number[], ratio = 0.3, max = 5): number[] {
-  const peak = Math.max(...chroma);
-  if (peak <= 0) return [];
-  return chroma
-    .map((v, pc) => ({ v, pc }))
-    .filter((x) => x.v >= peak * ratio)
-    .sort((a, b) => b.v - a.v)
-    .slice(0, max)
-    .map((x) => x.pc);
 }

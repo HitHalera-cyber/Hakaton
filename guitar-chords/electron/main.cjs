@@ -51,6 +51,11 @@ function createWindow() {
     }
   });
 
+  // Никогда не уходить со страницы программы (например, если бросить файл в окно).
+  win.webContents.on('will-navigate', (event, url) => {
+    if (!url.startsWith('app://') && !(devUrl && url.startsWith(devUrl))) event.preventDefault();
+  });
+
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:/.test(url)) shell.openExternal(url);
     return { action: 'deny' };

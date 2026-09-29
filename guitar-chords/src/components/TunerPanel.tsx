@@ -1,13 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { audio } from '../audio/engine';
-import { detectChord, type DetectionResult } from '../music/chords';
-import { chromaFromSpectrum, detectPitch, freqToMidi, pickPitchClasses } from '../music/pitch';
-import { midiName, mod12, pcName, pcNameRu } from '../music/notes';
+import { detectPitch, freqToMidi } from '../music/pitch';
+import { midiName, pcName, pcNameRu } from '../music/notes';
 
 interface Props {
   tuning: number[];
   capo: number;
-  onChordToBoard: (midis: number[]) => void;
 }
 
 interface Reading {
@@ -16,18 +14,15 @@ interface Reading {
   cents: number;
 }
 
-export function TunerPanel({ tuning, capo, onChordToBoard }: Props) {
+export function TunerPanel({ tuning, capo }: Props) {
   const [active, setActive] = useState(false);
   const [error, setError] = useState('');
   const [reading, setReading] = useState<Reading | null>(null);
   const [level, setLevel] = useState(0);
-  const [listening, setListening] = useState(false);
-  const [chord, setChord] = useState<{ result: DetectionResult; midis: number[] } | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const rafRef = useRef<number | null>(null);
   const history = useRef<number[]>([]);
-  const chromaAcc = useRef<{ chroma: number[]; bass: number[]; until: number } | null>(null);
 
   const stop = () => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -58,7 +53,6 @@ export function TunerPanel({ tuning, capo, onChordToBoard }: Props) {
       analyserRef.current = analyser;
       setActive(true);
       const time = new Float32Array(analyser.fftSize);
-      const freq = new Float32Array(analyser.frequencyBinCount);
 
       const loop = () => {
         const an = analyserRef.current;
@@ -78,17 +72,6 @@ export function TunerPanel({ tuning, capo, onChordToBoard }: Props) {
           setReading({ freq: f, midi, cents: Math.round((m - midi) * 100) });
         }
 
-        const acc = chromaAcc.current;
-        if (acc) {
-          an.getFloatFrequencyData(freq);
-          chromaFromSpectrum(freq, ctx.sampleRate, an.fftSize).forEach((v, i) => (acc.chroma[i] += v));
-          const low = detectPitch(time.subarray(0, 4096), ctx.sampleRate, 60, 400);
-          if (low && low.clarity > 0.6) acc.bass.push(Math.round(freqToMidi(low.freq)));
-          if (performance.now() > acc.until) {
-            chromaAcc.current = null;
-            finishChord(acc.chroma, acc.bass);
-          }
-        }
         rafRef.current = requestAnimationFrame(loop);
       };
       loop();
@@ -100,30 +83,6 @@ export function TunerPanel({ tuning, capo, onChordToBoard }: Props) {
       );
       stop();
     }
-  };
-
-  const finishChord = (chroma: number[], bass: number[]) => {
-    setListening(false);
-    const pcs = pickPitchClasses(chroma, 0.3, 5);
-    if (pcs.length === 0) {
-      setChord(null);
-      setError('Не расслышал аккорд — сыграйте громче и ближе к микрофону.');
-      return;
-    }
-    // Бас — самая частая низкая нота, если она входит в найденные.
-    const counts = new Map<number, number>();
-    for (const b of bass) counts.set(b, (counts.get(b) ?? 0) + 1);
-    const bassMidi = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
-    const bassPc = bassMidi != null && pcs.includes(mod12(bassMidi)) ? mod12(bassMidi) : pcs[0];
-    const midis = [48 + bassPc, ...pcs.filter((pc) => pc !== bassPc).map((pc) => 60 + pc)];
-    setChord({ result: detectChord(midis), midis });
-  };
-
-  const listenChord = () => {
-    setError('');
-    setChord(null);
-    setListening(true);
-    chromaAcc.current = { chroma: new Array(12).fill(0), bass: [], until: performance.now() + 1500 };
   };
 
   // Ближайшая струна текущего строя.
@@ -216,25 +175,7 @@ export function TunerPanel({ tuning, capo, onChordToBoard }: Props) {
         ))}
       </div>
 
-      <div className="subpanel">
-        <div className="row between">
-          <b>Аккорд по звуку</b>
-          <span className="badge">эксперимент</span>
-        </div>
-        <p className="hint">Сыграйте аккорд и держите его звучание около 1,5 секунды. Точность зависит от микрофона и шума.</p>
-        <button className="btn" onClick={listenChord} disabled={!active || listening}>
-          {listening ? 'Слушаю…' : '👂 Распознать аккорд'}
-        </button>
-        {chord && (
-          <div className="row">
-            <span className="big-sym">{chord.result.primary?.symbol ?? chord.result.noteNames.join(' ')}</span>
-            <span>{chord.result.primary?.nameRu ?? 'Неизвестный аккорд'}</span>
-            <button className="btn small" onClick={() => onChordToBoard(chord.midis)}>
-              ⇩ На гриф
-            </button>
-          </div>
-        )}
-      </div>
+      <p className="hint">Чтобы узнать, какой аккорд вы играете, откройте вкладку «👂 Слушать».</p>
     </div>
   );
 }

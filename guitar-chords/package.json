@@ -1,7 +1,7 @@
 {
   "name": "guitar-chords",
   "productName": "GuitarChords",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Интерактивный гриф гитары: определение и проигрывание аккордов, поддержка MIDI-клавиатуры",
   "author": "Hakaton",
   "license": "MIT",
@@ -15,7 +15,8 @@
     "dist": "npm run build && electron-builder --publish never",
     "dist:win": "npm run build && electron-builder --win nsis portable --publish never",
     "dist:mac": "npm run build && electron-builder --mac --publish never",
-    "dist:linux": "npm run build && electron-builder --linux AppImage --publish never"
+    "dist:linux": "npm run build && electron-builder --linux AppImage --publish never",
+    "harness": "vite --config vite.harness.config.ts"
   },
   "build": {
     "appId": "com.hakaton.guitarchords",

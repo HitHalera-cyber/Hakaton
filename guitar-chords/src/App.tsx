@@ -3,12 +3,14 @@ import { TIMBRE_NAMES, TIMBRE_PROGRAM, audio, type ChordNote } from './audio/eng
 import { ChordDisplay } from './components/ChordDisplay';
 import { Fretboard, type CellFlash, type DotLabel } from './components/Fretboard';
 import { KeyPanel, type ProgressionChord } from './components/KeyPanel';
+import { ListenPanel } from './components/ListenPanel';
 import { LibraryPanel, type ChordRef } from './components/LibraryPanel';
 import { MetronomePanel } from './components/MetronomePanel';
 import { MidiPanel, type MidiStatus } from './components/MidiPanel';
 import { ScalesPanel, type ScaleSettings } from './components/ScalesPanel';
 import { SequencerPanel } from './components/SequencerPanel';
 import { HistoryPanel, SavedPanel, type HistoryEntry, type SavedShape } from './components/SidePanels';
+import { SongPanel, type SongChord } from './components/SongPanel';
 import { SoundPanel, type SoundSettings } from './components/SoundPanel';
 import { TrainerPanel } from './components/TrainerPanel';
 import { TunerPanel } from './components/TunerPanel';
@@ -18,7 +20,7 @@ import { copyText, pickFile, safeName, saveFile } from './export/download';
 import { makeTab } from './export/tab';
 import { ALL_DEVICES, MidiInput, type MidiDevice } from './midi/midiInput';
 import { writeMidiFile, type MidiNoteEvent } from './midi/midiFile';
-import { detectChord } from './music/chords';
+import { CHORD_TEMPLATES, detectChord } from './music/chords';
 import { computeFingering } from './music/fingering';
 import {
   applyCapo,
@@ -38,13 +40,16 @@ import {
 import { midiName, pcName } from './music/notes';
 import { SCALES, scaleDegrees } from './music/scales';
 import { MAX_CAPO, TUNINGS, TUNING_LIST, getTuning } from './music/tunings';
+import { generateVoicings } from './music/voicings';
 import { DEFAULT_RHYTHM, useSequencer, type RhythmSettings, type SeqItem } from './state/useSequencer';
 import { useStored } from './state/useStored';
 
-type TabId = 'sound' | 'midi' | 'library' | 'scales' | 'key' | 'sequence' | 'metronome' | 'tuner' | 'trainer';
+type TabId = 'sound' | 'listen' | 'song' | 'midi' | 'library' | 'scales' | 'key' | 'sequence' | 'metronome' | 'tuner' | 'trainer';
 
 const TABS: { id: TabId; label: string }[] = [
   { id: 'sound', label: '🔊 Звук' },
+  { id: 'listen', label: '👂 Слушать' },
+  { id: 'song', label: '🎧 Разбор песни' },
   { id: 'library', label: '📖 Справочник' },
   { id: 'scales', label: '🎼 Гаммы' },
   { id: 'key', label: '🗝 Тональность' },
@@ -288,6 +293,29 @@ export default function App() {
     [applyBoard, capo, clearMidi],
   );
 
+  /** Поставить на гриф удобную аппликатуру аккорда (без звука — например, когда играет песня или гитарист). */
+  const voicingFor = useCallback(
+    (rootPc: number, templateId: string, bassPc?: number): Frets | null => {
+      const t = CHORD_TEMPLATES.find((x) => x.id === templateId);
+      if (!t) return null;
+      return (
+        generateVoicings(rootPc, t, strings, { capo, bassPc, limit: 1 })[0]?.frets ??
+        generateVoicings(rootPc, t, strings, { capo, limit: 1 })[0]?.frets ??
+        null
+      );
+    },
+    [strings, capo],
+  );
+  const showChord = useCallback(
+    (rootPc: number, templateId: string, bassPc?: number) => {
+      const frets = voicingFor(rootPc, templateId, bassPc);
+      if (!frets) return;
+      clearMidi();
+      applyBoard(boardFromFrets(frets, capo), false);
+    },
+    [voicingFor, clearMidi, applyBoard, capo],
+  );
+
   const clearAll = useCallback(() => {
     audio.stopAll();
     clearMidi();
@@ -479,6 +507,17 @@ export default function App() {
     document.documentElement.dataset.theme = view.theme;
   }, [view.theme]);
 
+  // Файл, брошенный мимо зоны разбора песни, не должен открываться вместо программы.
+  useEffect(() => {
+    const prevent = (e: DragEvent) => e.preventDefault();
+    window.addEventListener('dragover', prevent);
+    window.addEventListener('drop', prevent);
+    return () => {
+      window.removeEventListener('dragover', prevent);
+      window.removeEventListener('drop', prevent);
+    };
+  }, []);
+
   const scale = SCALES.find((s) => s.id === scaleSet.scaleId) ?? SCALES[0];
   const scaleOverlay = scaleSet.show ? { rootPc: scaleSet.rootPc, degrees: scaleDegrees(scaleSet.rootPc, scale) } : null;
 
@@ -669,6 +708,26 @@ export default function App() {
               canPlay={activeMidi.length > 0}
             />
           )}
+          {view.tab === 'listen' && <ListenPanel onChord={(c) => showChord(c.rootPc, c.templateId, c.bassPc)} />}
+          {view.tab === 'song' && (
+            <SongPanel
+              capo={capo}
+              onCapo={setCapo}
+              onChord={(c: SongChord) => showChord(c.rootPc, c.templateId, c.bassPc)}
+              onToast={showToast}
+              onToSequence={(chords) => {
+                const items = chords
+                  .map((c) => {
+                    const frets = voicingFor(c.rootPc, c.templateId, c.bassPc);
+                    return frets ? makeItem(c.symbol, boardFromFrets(frets, capo), c.beats) : null;
+                  })
+                  .filter((x): x is SeqItem => x != null);
+                setSequence(items);
+                patchView({ tab: 'sequence' });
+                showToast(`В последовательность добавлено аккордов: ${items.length}`);
+              }}
+            />
+          )}
           {view.tab === 'library' && (
             <LibraryPanel tuning={strings} capo={capo} current={chordRef} request={libRequest} onPick={(frets) => loadFrets(frets)} />
           )}
@@ -706,14 +765,7 @@ export default function App() {
           )}
           {view.tab === 'metronome' && <MetronomePanel rhythm={rhythm} onRhythm={(p) => setRhythm((r) => ({ ...r, ...p }))} />}
           {view.tab === 'tuner' && (
-            <TunerPanel
-              tuning={strings}
-              capo={capo}
-              onChordToBoard={(midis) => {
-                clearMidi();
-                applyBoard(boardFromMidi(midis, strings, capo), true);
-              }}
-            />
+            <TunerPanel tuning={strings} capo={capo} />
           )}
           {view.tab === 'trainer' && (
             <TrainerPanel
