@@ -1,16 +1,19 @@
 import { NAV_GROUPS, type TabId } from '../navigation';
 
 interface Props {
-  tab: TabId;
+  /** Подсвеченный раздел (null — ничего не подсвечивать). */
+  tab: TabId | null;
+  /** Узкая полоса из одних иконок. */
+  compact?: boolean;
   onTab: (t: TabId) => void;
   onAbout: () => void;
   /** Отметки на пунктах меню: «играет», «слушает». */
   badges: Partial<Record<TabId, string>>;
 }
 
-export function Sidebar({ tab, onTab, onAbout, badges }: Props) {
+export function Sidebar({ tab, compact, onTab, onAbout, badges }: Props) {
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${compact ? 'compact' : ''}`}>
       <div className="brand">
         <span className="logo">🎸</span>
         <div>
@@ -23,7 +26,12 @@ export function Sidebar({ tab, onTab, onAbout, badges }: Props) {
           <div key={g.title} className="nav-group">
             <div className="nav-title">{g.title}</div>
             {g.items.map((it) => (
-              <button key={it.id} className={`nav-item ${tab === it.id ? 'on' : ''}`} onClick={() => onTab(it.id)}>
+              <button
+                key={it.id}
+                className={`nav-item ${tab === it.id ? 'on' : ''}`}
+                onClick={() => onTab(it.id)}
+                title={compact ? it.label : undefined}
+              >
                 <span className="nav-icon">{it.icon}</span>
                 <span className="nav-label">{it.label}</span>
                 {badges[it.id] && <span className="nav-badge">{badges[it.id]}</span>}
@@ -32,7 +40,7 @@ export function Sidebar({ tab, onTab, onAbout, badges }: Props) {
           </div>
         ))}
       </nav>
-      <button className="nav-item about" onClick={onAbout}>
+      <button className="nav-item about" onClick={onAbout} title={compact ? 'О программе' : undefined}>
         <span className="nav-icon">ℹ</span>
         <span className="nav-label">О программе</span>
       </button>

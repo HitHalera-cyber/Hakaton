@@ -5,6 +5,7 @@ import './styles/fonts';
 import './styles/themes.css';
 import './styles/base.css';
 import './styles/layout.css';
+import './styles/layouts.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

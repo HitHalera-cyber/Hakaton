@@ -8,11 +8,15 @@ import { DEFAULT_RHYTHM, type RhythmSettings } from '../features/sequencer/useSe
 import { TIMBRE_NAMES } from '../core/audio/engine';
 import { TUNINGS } from '../core/music/tunings';
 import { isTab, type TabId } from './navigation';
+import { DEFAULT_TILES, isLayout, normalizeTiles, type LayoutId } from './layouts';
 import { DEFAULT_THEME, migrateTheme, type ThemeId } from './themes';
 import { useStored } from './useStored';
 
 export interface ViewSettings {
   theme: ThemeId;
+  layout: LayoutId;
+  /** Разделы в плитках приборной панели. */
+  tiles: TabId[];
   showNotes: boolean;
   dotLabel: DotLabel;
   tuning: string;
@@ -25,6 +29,8 @@ export interface ViewSettings {
 
 export const DEFAULT_VIEW: ViewSettings = {
   theme: DEFAULT_THEME,
+  layout: 'classic',
+  tiles: DEFAULT_TILES,
   showNotes: false,
   dotLabel: 'note',
   tuning: 'standard',
@@ -58,6 +64,8 @@ export function useSettings() {
     setView((v) => ({
       ...v,
       theme: migrateTheme(v.theme),
+      layout: isLayout(v.layout) ? v.layout : 'classic',
+      tiles: normalizeTiles(v.tiles),
       tab: isTab(v.tab) ? v.tab : 'sound',
       tuning: TUNINGS[v.tuning] ? v.tuning : 'standard',
       circleKey: v.circleKey ?? 'auto',

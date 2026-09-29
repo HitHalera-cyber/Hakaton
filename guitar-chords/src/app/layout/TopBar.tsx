@@ -2,9 +2,10 @@ import { midiName } from '../../core/music/notes';
 import { MAX_CAPO, TUNINGS, TUNING_LIST } from '../../core/music/tunings';
 import type { DotLabel } from '../../features/fretboard/Fretboard';
 import { useApp } from '../AppContext';
+import { LAYOUTS, type LayoutId } from '../layouts';
 import { THEMES, type ThemeId } from '../themes';
 
-/** Настройки инструмента: строй, каподастр, транспонирование, подписи на грифе. */
+/** Настройки инструмента: строй, каподастр, транспонирование, подписи на грифе; раскладка и тема. */
 export function TopBar() {
   const { settings, guitar } = useApp();
   const { view, patchView } = settings;
@@ -55,6 +56,16 @@ export function TopBar() {
             <option value="note">ноты</option>
             <option value="degree">ступени</option>
             <option value="finger">пальцы</option>
+          </select>
+        </label>
+        <label className="field inline" title="Где стоят гриф, аккорд и разделы">
+          <span>Раскладка</span>
+          <select value={view.layout} onChange={(e) => patchView({ layout: e.target.value as LayoutId })}>
+            {LAYOUTS.map((l) => (
+              <option key={l.id} value={l.id} title={l.description}>
+                {l.name}
+              </option>
+            ))}
           </select>
         </label>
         <label className="field inline" title="Тема оформления (превью всех тем — в разделе «Оформление»)">

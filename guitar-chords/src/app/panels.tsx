@@ -29,7 +29,7 @@ function pickCircle(app: App, pos: CirclePos) {
   if (frets) app.guitar.loadFrets(frets);
 }
 
-function circleProps(app: App) {
+export function circleProps(app: App) {
   const { trail } = app.circle;
   return {
     active: trail[0] ? circlePosition(trail[0].rootPc, trail[0].templateId) : null,

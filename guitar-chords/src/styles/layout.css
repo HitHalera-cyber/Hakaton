@@ -1,4 +1,5 @@
-/* Раскладка окна: боковое меню | (панель инструмента, гриф, аккорд + раздел). */
+/* Раскладка окна «Классика»: боковое меню | (панель инструмента, гриф, аккорд + раздел).
+   Остальные раскладки — в layouts.css. */
 
 .app {
   display: grid;
@@ -125,21 +126,23 @@
   display: grid;
   gap: 14px;
   padding: 14px;
+  align-items: start;
+}
+.workspace.classic {
   grid-template-columns: minmax(330px, 380px) minmax(0, 1fr);
   grid-template-areas:
     'board board'
     'chord tools';
-  align-items: start;
 }
-.board-panel {
+.classic .board-panel {
   grid-area: board;
 }
-.chord-panel {
+.classic .chord-panel {
   grid-area: chord;
   position: sticky;
   top: 0;
 }
-.tools {
+.classic .tools {
   grid-area: tools;
   min-height: 420px;
 }
@@ -161,11 +164,11 @@
   .brand div {
     display: none;
   }
-  .workspace {
+  .workspace.classic {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas: 'board' 'chord' 'tools';
   }
-  .chord-panel {
+  .classic .chord-panel {
     position: static;
   }
 }
