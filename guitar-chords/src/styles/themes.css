@@ -440,60 +440,76 @@
   color-scheme: light;
 }
 
-/* ---------- 11. Русь: лён, резной дуб и обережная вышивка ---------- */
+/* ---------- 11. Навь: славянское тёмное фэнтези ---------- */
 [data-theme='slavic'] {
-  --bg: #e9dfc8;
+  --bg: #0b0c0e;
   --app-bg:
-    repeating-linear-gradient(0deg, rgba(120, 90, 50, 0.07) 0 1px, transparent 1px 3px),
-    repeating-linear-gradient(90deg, rgba(120, 90, 50, 0.06) 0 1px, transparent 1px 3px), #e9dfc8;
-  --bg-2: #e1d4b6;
-  --panel: #f6efdf;
-  --panel-2: #ece2c9;
-  --border: #b89b72;
-  --text: #1b1411;
-  --text-2: #6b5a45;
-  --accent: #a4161a;
-  --accent-text: #f6efdf;
-  --dot: #1b1411;
-  --dot-text: #f6efdf;
-  --root: #a4161a;
-  --midi: #2f6f4f;
-  --ok: #2f7a3a;
-  --warn: #b7791f;
-  --danger: #a4161a;
-  --scale: #d9b44a;
-  --scale-root: #a4161a;
-  --hover: rgba(164, 22, 26, 0.12);
-  --tt-bg: #2a1a10;
-  --side-bg: #2a1a10;
-  --side-text: #efe2c4;
-  --side-muted: #b59a72;
-  --side-active: rgba(164, 22, 26, 0.45);
-  --wood-1: #3a2413;
-  --wood-2: #553520;
-  --fret: #c9a227;
-  --nut: #efe2c4;
-  --string: #e8dcc0;
-  --inlay: #b3261e;
-  --font-ui: 'Kurale', 'PT Serif', Georgia, serif;
-  --font-display: 'Ruslan Display', 'Kurale', serif;
-  --font-serif: 'Kurale', Georgia, serif;
-  /* Названия аккордов (латиница) — книжным шрифтом, вязь — в заголовках. */
-  --font-symbol: 'Kurale', serif;
-  --display-scale: 1.1;
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='140' preserveAspectRatio='none'%3E%3Cpath d='M18.1 54.0 22.6 74.4 20.1 74.4 27.1 94.8 22.1 94.8 31.6 115.3 24.2 115.3 36.1 135.7 26.2 135.7 21.1 140.0 15.1 140.0 9.9 135.7 0.0 135.7 12.0 115.3 4.5 115.3 14.0 94.8 9.0 94.8 16.0 74.4 13.5 74.4ZM38.0 45.0 42.9 67.6 40.2 67.6 47.9 90.1 42.4 90.1 52.9 112.7 44.7 112.7 57.9 135.2 46.9 135.2 41.0 140.0 35.0 140.0 29.0 135.2 18.0 135.2 31.2 112.7 23.0 112.7 33.5 90.1 28.0 90.1 35.7 67.6 33.0 67.6ZM62.7 89.0 65.4 101.1 63.9 101.1 68.1 113.2 65.1 113.2 70.7 125.3 66.3 125.3 73.4 137.4 67.5 137.4 65.7 140.0 59.7 140.0 57.9 137.4 52.0 137.4 59.1 125.3 54.7 125.3 60.3 113.2 57.4 113.2 61.5 101.1 60.0 101.1ZM80.0 83.0 83.0 96.5 81.3 96.5 86.0 110.1 82.7 110.1 88.9 123.6 84.0 123.6 91.9 137.2 85.4 137.2 83.0 140.0 77.0 140.0 74.6 137.2 68.0 137.2 75.9 123.6 71.0 123.6 77.3 110.1 74.0 110.1 78.6 96.5 77.0 96.5ZM103.9 88.0 106.7 100.3 105.1 100.3 109.4 112.7 106.4 112.7 112.1 125.0 107.6 125.0 114.8 137.4 108.8 137.4 106.9 140.0 100.9 140.0 99.0 137.4 93.0 137.4 100.2 125.0 95.7 125.0 101.5 112.7 98.5 112.7 102.7 100.3 101.2 100.3ZM138.1 68.0 141.9 85.1 139.8 85.1 145.7 102.2 141.5 102.2 149.5 119.3 143.2 119.3 153.2 136.4 144.9 136.4 141.1 140.0 135.1 140.0 131.3 136.4 123.0 136.4 133.0 119.3 126.8 119.3 134.7 102.2 130.6 102.2 136.4 85.1 134.3 85.1ZM149.8 84.0 152.7 97.3 151.1 97.3 155.6 110.6 152.4 110.6 158.6 123.9 153.7 123.9 161.5 137.2 155.1 137.2 152.8 140.0 146.8 140.0 144.5 137.2 138.0 137.2 145.8 123.9 140.9 123.9 147.1 110.6 143.9 110.6 148.4 97.3 146.8 97.3ZM185.6 42.0 190.7 65.3 187.9 65.3 195.9 88.5 190.2 88.5 201.0 111.8 192.5 111.8 206.2 135.1 194.8 135.1 188.6 140.0 182.6 140.0 176.3 135.1 165.0 135.1 178.6 111.8 170.1 111.8 180.9 88.5 175.3 88.5 183.3 65.3 180.4 65.3ZM196.8 65.0 200.7 82.8 198.5 82.8 204.6 100.6 200.3 100.6 208.6 118.4 202.1 118.4 212.5 136.2 203.8 136.2 199.8 140.0 193.8 140.0 189.7 136.2 181.0 136.2 191.4 118.4 184.9 118.4 193.2 100.6 188.9 100.6 195.0 82.8 192.8 82.8ZM217.8 41.0 223.0 64.5 220.1 64.5 228.2 88.0 222.5 88.0 233.4 111.5 224.8 111.5 238.6 135.1 227.1 135.1 220.8 140.0 214.8 140.0 208.4 135.1 197.0 135.1 210.8 111.5 202.2 111.5 213.1 88.0 207.4 88.0 215.5 64.5 212.6 64.5ZM224.6 80.0 227.8 94.2 226.0 94.2 230.9 108.5 227.4 108.5 234.0 122.8 228.9 122.8 237.2 137.0 230.3 137.0 227.6 140.0 221.6 140.0 218.9 137.0 212.0 137.0 220.3 122.8 215.2 122.8 221.8 108.5 218.3 108.5 223.2 94.2 221.4 94.2ZM243.9 88.0 246.6 100.3 245.1 100.3 249.4 112.7 246.4 112.7 252.1 125.0 247.6 125.0 254.8 137.4 248.8 137.4 246.9 140.0 240.9 140.0 239.0 137.4 233.0 137.4 240.2 125.0 235.7 125.0 241.5 112.7 238.5 112.7 242.7 100.3 241.2 100.3ZM284.9 45.0 289.9 67.6 287.2 67.6 294.9 90.1 289.4 90.1 299.9 112.7 291.7 112.7 304.9 135.2 293.9 135.2 287.9 140.0 281.9 140.0 276.0 135.2 265.0 135.2 278.2 112.7 270.0 112.7 280.5 90.1 275.0 90.1 282.7 67.6 280.0 67.6ZM295.3 67.0 299.2 84.3 297.1 84.3 303.0 101.7 298.8 101.7 306.8 119.0 300.5 119.0 310.7 136.3 302.2 136.3 298.3 140.0 292.3 140.0 288.4 136.3 280.0 136.3 290.2 119.0 283.8 119.0 291.9 101.7 287.7 101.7 293.6 84.3 291.5 84.3ZM308.0 78.0 311.3 92.7 309.5 92.7 314.5 107.5 310.9 107.5 317.8 122.2 312.4 122.2 321.0 136.9 313.9 136.9 311.0 140.0 305.0 140.0 302.2 136.9 295.0 136.9 303.6 122.2 298.3 122.2 305.1 107.5 301.5 107.5 306.6 92.7 304.8 92.7ZM338.6 42.0 343.7 65.3 340.9 65.3 348.9 88.5 343.2 88.5 354.0 111.8 345.5 111.8 359.2 135.1 347.8 135.1 341.6 140.0 335.6 140.0 329.3 135.1 318.0 135.1 331.6 111.8 323.1 111.8 333.9 88.5 328.3 88.5 336.3 65.3 333.4 65.3ZM348.6 80.0 351.8 94.2 350.0 94.2 354.9 108.5 351.4 108.5 358.1 122.8 352.9 122.8 361.2 137.0 354.3 137.0 351.6 140.0 345.6 140.0 342.9 137.0 336.0 137.0 344.3 122.8 339.2 122.8 345.8 108.5 342.3 108.5 347.2 94.2 345.5 94.2ZM385.6 56.0 390.1 76.0 387.6 76.0 394.5 95.9 389.6 95.9 398.9 115.8 391.6 115.8 403.3 135.8 393.6 135.8 388.6 140.0 382.6 140.0 377.7 135.8 368.0 135.8 379.7 115.8 372.4 115.8 381.7 95.9 376.8 95.9 383.7 76.0 381.2 76.0ZM413.3 72.0 416.8 88.2 414.9 88.2 420.4 104.3 416.5 104.3 424.0 120.4 418.1 120.4 427.6 136.6 419.7 136.6 416.3 140.0 410.3 140.0 406.9 136.6 399.0 136.6 408.5 120.4 402.6 120.4 410.1 104.3 406.1 104.3 411.7 88.2 409.7 88.2ZM430.5 71.0 434.1 87.4 432.1 87.4 437.7 103.8 433.8 103.8 441.4 120.2 435.4 120.2 445.0 136.6 437.0 136.6 433.5 140.0 427.5 140.0 424.0 136.6 416.0 136.6 425.6 120.2 419.6 120.2 427.2 103.8 423.2 103.8 428.9 87.4 426.9 87.4ZM453.0 83.0 456.0 96.5 454.3 96.5 459.0 110.1 455.7 110.1 461.9 123.6 457.0 123.6 464.9 137.2 458.4 137.2 456.0 140.0 450.0 140.0 447.6 137.2 441.0 137.2 448.9 123.6 444.0 123.6 450.3 110.1 447.0 110.1 451.6 96.5 450.0 96.5ZM483.1 87.0 485.9 99.6 484.4 99.6 488.7 112.2 485.6 112.2 491.5 124.8 486.9 124.8 494.3 137.3 488.1 137.3 486.1 140.0 480.1 140.0 478.1 137.3 472.0 137.3 479.4 124.8 474.8 124.8 480.6 112.2 477.6 112.2 481.9 99.6 480.3 99.6ZM514.9 88.0 517.6 100.3 516.1 100.3 520.4 112.7 517.4 112.7 523.1 125.0 518.6 125.0 525.8 137.4 519.8 137.4 517.9 140.0 511.9 140.0 510.0 137.4 504.0 137.4 511.2 125.0 506.7 125.0 512.5 112.7 509.5 112.7 513.7 100.3 512.2 100.3ZM551.9 69.0 555.6 85.9 553.6 85.9 559.4 102.7 555.3 102.7 563.1 119.6 556.9 119.6 566.8 136.4 558.6 136.4 554.9 140.0 548.9 140.0 545.2 136.4 537.0 136.4 546.9 119.6 540.7 119.6 548.6 102.7 544.5 102.7 550.2 85.9 548.2 85.9ZM586.8 41.0 592.0 64.5 589.1 64.5 597.2 88.0 591.5 88.0 602.4 111.5 593.8 111.5 607.6 135.1 596.1 135.1 589.8 140.0 583.8 140.0 577.4 135.1 566.0 135.1 579.8 111.5 571.2 111.5 582.1 88.0 576.4 88.0 584.5 64.5 581.6 64.5ZM611.8 36.0 617.3 60.7 614.3 60.7 622.8 85.4 616.8 85.4 628.2 110.1 619.2 110.1 633.7 134.8 621.7 134.8 614.8 140.0 608.8 140.0 602.0 134.8 590.0 134.8 604.5 110.1 595.5 110.1 606.9 85.4 600.9 85.4 609.4 60.7 606.4 60.7Z' fill='%23050607'/%3E%3C/svg%3E")
+      bottom left / 600px 140px repeat-x fixed,
+    linear-gradient(0deg, transparent 0, rgba(110, 130, 140, 0.22) 90px, rgba(110, 130, 140, 0.1) 150px, transparent 230px) bottom / 100%
+      240px no-repeat fixed,
+    radial-gradient(ellipse 60% 45% at 85% 0%, rgba(160, 20, 26, 0.5), transparent 70%),
+    radial-gradient(ellipse 80% 60% at 10% 100%, rgba(70, 90, 95, 0.18), transparent 70%),
+    linear-gradient(180deg, #0d0f12 0%, #0a0b0d 60%, #111418 100%);
+  --bg-2: #101114;
+  --panel: #141517;
+  --panel-bg: linear-gradient(180deg, rgba(26, 27, 30, 0.96), rgba(16, 17, 19, 0.96));
+  --panel-2: #1d1e22;
+  --border: #4a3d28;
+  --text: #ddd2bd;
+  --text-2: #8f8775;
+  --accent: #b3121b;
+  --accent-text: #f3e7cf;
+  --dot: #7d0d12;
+  --dot-text: #f3e7cf;
+  --root: #ff4b2b;
+  --midi: #6fb7c9;
+  --ok: #6f9e5a;
+  --warn: #c9923a;
+  --danger: #e0352b;
+  --scale: #a88b52;
+  --scale-root: #d43b22;
+  --hover: rgba(179, 18, 27, 0.18);
+  --tt-bg: #060607;
+  --side-bg: linear-gradient(180deg, #08090b, #0d0e10);
+  --side-text: #d3c8b2;
+  --side-muted: #6f6757;
+  --side-active: rgba(179, 18, 27, 0.22);
+  --side-active-text: #f3e7cf;
+  --wood-1: #0c0908;
+  --wood-2: #1a1311;
+  --fret: #8a6a3a;
+  --nut: #b9ab8e;
+  --string: #c6ccd3;
+  --inlay: #7d0d12;
+  --font-ui: 'Alegreya', 'PT Serif', Georgia, serif;
+  --font-display: 'Cormorant SC', 'Alegreya', serif;
+  --font-serif: 'Alegreya', Georgia, serif;
+  --font-symbol: 'Alegreya', Georgia, serif;
   --fs: 15px;
-  --display-weight: 400;
+  --display-weight: 700;
+  --display-scale: 1.05;
   --title-case: none;
-  --title-spacing: 0.03em;
-  --radius: 4px;
-  --radius-sm: 3px;
-  --bw: 1.5px;
-  --shadow: 0 2px 0 rgba(27, 20, 17, 0.25), 0 10px 26px rgba(27, 20, 17, 0.18);
-  --ornament: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='14'%3E%3Crect width='28' height='1' fill='%231b1411'/%3E%3Crect y='13' width='28' height='1' fill='%231b1411'/%3E%3Cpath d='M14 1.5 21 7 14 12.5 7 7Z' fill='%23a4161a'/%3E%3Cpath d='M14 4.5 16.5 7 14 9.5 11.5 7Z' fill='%231b1411'/%3E%3Cpath d='M0 7 2.5 4.5 5 7 2.5 9.5ZM23 7 25.5 4.5 28 7 25.5 9.5Z' fill='%231b1411'/%3E%3C/svg%3E");
-  --ornament-v: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='28'%3E%3Crect width='1' height='28' fill='%23c9a227'/%3E%3Crect x='13' width='1' height='28' fill='%23c9a227'/%3E%3Cpath d='M1.5 14 7 7 12.5 14 7 21Z' fill='%23a4161a'/%3E%3Cpath d='M4.5 14 7 11.5 9.5 14 7 16.5Z' fill='%23e9dfc8'/%3E%3Cpath d='M7 0 9.5 2.5 7 5 4.5 2.5ZM7 23 9.5 25.5 7 28 4.5 25.5Z' fill='%23c9a227'/%3E%3C/svg%3E");
-  color-scheme: light;
+  --title-spacing: 0.14em;
+  --radius: 2px;
+  --radius-sm: 2px;
+  --radius-pill: 2px;
+  --bw: 1px;
+  --shadow: 0 0 0 1px rgba(0, 0, 0, 0.6), 0 14px 40px rgba(0, 0, 0, 0.65);
+  --glow: 0 0 14px rgba(255, 60, 40, 0.55), 0 0 32px rgba(179, 18, 27, 0.35);
+  --plait: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='12'%3E%3Cpath d='M0 6C4 0 12 0 16 6S28 12 32 6' fill='none' stroke='%238a6a3a' stroke-width='1.4'/%3E%3Cpath d='M0 6C4 12 12 12 16 6S28 0 32 6' fill='none' stroke='%235c4526' stroke-width='1.4'/%3E%3Cpath d='M16 3.2 18.8 6 16 8.8 13.2 6Z' fill='%23b3121b'/%3E%3Cpath d='M0 3.2 2.8 6 0 8.8ZM32 3.2 29.2 6 32 8.8Z' fill='%238a6a3a'/%3E%3C/svg%3E");
+  --corners:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20'%3E%3Cg transform='rotate%280 10 10%29'%3E%3Cpath d='M2 18V2H18' fill='none' stroke='%238a6a3a' stroke-width='2'/%3E%3Cpath d='M5 14V5H14' fill='none' stroke='%235c4526' stroke-width='1'/%3E%3Ccircle cx='5' cy='5' r='1.6' fill='%23b08850'/%3E%3C/g%3E%3C/svg%3E")
+      top left no-repeat,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20'%3E%3Cg transform='rotate%2890 10 10%29'%3E%3Cpath d='M2 18V2H18' fill='none' stroke='%238a6a3a' stroke-width='2'/%3E%3Cpath d='M5 14V5H14' fill='none' stroke='%235c4526' stroke-width='1'/%3E%3Ccircle cx='5' cy='5' r='1.6' fill='%23b08850'/%3E%3C/g%3E%3C/svg%3E")
+      top right no-repeat,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20'%3E%3Cg transform='rotate%28270 10 10%29'%3E%3Cpath d='M2 18V2H18' fill='none' stroke='%238a6a3a' stroke-width='2'/%3E%3Cpath d='M5 14V5H14' fill='none' stroke='%235c4526' stroke-width='1'/%3E%3Ccircle cx='5' cy='5' r='1.6' fill='%23b08850'/%3E%3C/g%3E%3C/svg%3E")
+      bottom left no-repeat,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20'%3E%3Cg transform='rotate%28180 10 10%29'%3E%3Cpath d='M2 18V2H18' fill='none' stroke='%238a6a3a' stroke-width='2'/%3E%3Cpath d='M5 14V5H14' fill='none' stroke='%235c4526' stroke-width='1'/%3E%3Ccircle cx='5' cy='5' r='1.6' fill='%23b08850'/%3E%3C/g%3E%3C/svg%3E")
+      bottom right no-repeat;
+  color-scheme: dark;
 }
-/* Вышитая полоса по верху каждой панели и резная кайма бокового меню. */
+/* Бронзовая плетёнка по верху панелей и накладки в углах. */
 [data-theme='slavic'] .panel {
   position: relative;
   padding-top: 26px;
@@ -501,25 +517,68 @@
 [data-theme='slavic'] .panel::before {
   content: '';
   position: absolute;
-  top: 6px;
-  left: 10px;
-  right: 10px;
-  height: 14px;
-  background: var(--ornament) repeat-x center / auto 14px;
+  top: 7px;
+  left: 26px;
+  right: 26px;
+  height: 12px;
+  background: var(--plait) repeat-x center / auto 12px;
+  opacity: 0.9;
+  pointer-events: none;
+}
+[data-theme='slavic'] .panel::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  background: var(--corners);
   pointer-events: none;
 }
 [data-theme='slavic'] .sidebar {
-  border-right: 14px solid transparent;
-  border-image: var(--ornament-v) 0 14 0 0 / 0 14px 0 0 round;
+  border-right: 10px solid transparent;
+  border-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='36'%3E%3Crect x='0' width='1' height='36' fill='%235c4526'/%3E%3Crect x='9' width='1' height='36' fill='%235c4526'/%3E%3Cpath d='M5 4 8 9 5 14 2 9Z' fill='none' stroke='%238a6a3a' stroke-width='1'/%3E%3Cpath d='M5 7.5 6.5 9 5 10.5 3.5 9Z' fill='%23b3121b'/%3E%3Cpath d='M3 20 7 24M7 20 3 24M5 27v6' stroke='%236e5530' stroke-width='1'/%3E%3C/svg%3E")
+    0 10 0 0 / 0 10px 0 0 round;
+}
+[data-theme='slavic'] .brand h1,
+[data-theme='slavic'] .tool-title,
+[data-theme='slavic'] .panel h3 {
+  color: #c9a86a;
 }
 [data-theme='slavic'] .brand h1 {
-  color: #e0b84a;
+  letter-spacing: 0.08em;
+  text-shadow: 0 0 12px rgba(201, 168, 106, 0.25);
 }
 [data-theme='slavic'] .nav-title {
-  color: #c9a227;
+  font-family: var(--font-display);
+  font-size: 13px;
+  letter-spacing: 0.2em;
+  text-transform: none;
+  color: #8a6a3a;
+}
+[data-theme='slavic'] .btn {
+  background: linear-gradient(180deg, #1f2024, #151619);
 }
 [data-theme='slavic'] .btn.primary {
+  background: linear-gradient(180deg, #a3121a, #6d0a10);
+  border-color: #8a6a3a;
   box-shadow:
-    inset 0 0 0 2px #a4161a,
-    inset 0 0 0 3px #e0b84a;
+    0 0 16px rgba(179, 18, 27, 0.45),
+    inset 0 1px 0 rgba(255, 180, 150, 0.2);
+}
+/* Тлеющие угли на грифе и в круге. */
+[data-theme='slavic'] .fretboard .dot circle {
+  stroke: #d9a14a;
+  stroke-width: 1.5;
+  filter: drop-shadow(0 0 5px rgba(255, 70, 40, 0.9)) drop-shadow(0 0 12px rgba(179, 18, 27, 0.6));
+}
+[data-theme='slavic'] .fretboard .inlay {
+  filter: drop-shadow(0 0 4px rgba(179, 18, 27, 0.8));
+}
+[data-theme='slavic'] .chord-symbol {
+  animation: ember 3.2s ease-in-out infinite;
+}
+@keyframes ember {
+  50% {
+    text-shadow:
+      0 0 8px rgba(255, 60, 40, 0.35),
+      0 0 20px rgba(179, 18, 27, 0.2);
+  }
 }

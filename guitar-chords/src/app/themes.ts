@@ -1,7 +1,8 @@
 // Темы оформления. Цвета, шрифты, скругления и фактуры задаются в src/styles/themes.css
 // через [data-theme="…"]; здесь — только список для выбора.
 
-export type ThemeId = 'studio' | 'minimal' | 'vintage' | 'synthwave' | 'pixel' | 'terminal' | 'glass' | 'brutal' | 'rock' | 'notebook';
+export type ThemeId =
+  'studio' | 'minimal' | 'vintage' | 'synthwave' | 'pixel' | 'terminal' | 'glass' | 'brutal' | 'rock' | 'notebook' | 'slavic';
 
 export interface ThemeInfo {
   id: ThemeId;
@@ -71,6 +72,12 @@ export const THEMES: ThemeInfo[] = [
     name: 'Тетрадь',
     description: 'Клетчатая бумага, синие чернила и рукописные заголовки',
     swatch: ['#fbfaf4', '#ffffff', '#1e40af', '#d9b98c'],
+  },
+  {
+    id: 'slavic',
+    name: 'Навь',
+    description: 'Славянское тёмное фэнтези: ночной ельник, бронза, угли и кровь',
+    swatch: ['#0b0c0e', '#141517', '#b3121b', '#8a6a3a'],
   },
 ];
 
