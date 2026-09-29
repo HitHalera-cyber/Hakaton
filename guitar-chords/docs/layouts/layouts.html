@@ -1,0 +1,625 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Раскладки виджетов</title>
+    <style>
+      :root {
+        --bg: #0b0c0e;
+        --frame: #111215;
+        --w: #191a1e;
+        --w2: #22242a;
+        --line: #4a3d28;
+        --text: #ddd2bd;
+        --muted: #8f8775;
+        --gold: #c9a86a;
+        --red: #b3121b;
+        --ember: #ff4b2b;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 28px;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          14px/1.4 Georgia,
+          'PT Serif',
+          serif;
+      }
+      h1 {
+        color: var(--gold);
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        margin: 0 0 6px;
+      }
+      .lead {
+        color: var(--muted);
+        margin: 0 0 24px;
+        max-width: 900px;
+      }
+      .list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(min(100%, 980px), 1fr));
+        gap: 36px;
+      }
+      .demo {
+        width: 980px;
+        max-width: 100%;
+      }
+      .demo h2 {
+        margin: 0 0 4px;
+        color: var(--gold);
+        font-size: 20px;
+        font-weight: 600;
+      }
+      .demo p {
+        margin: 0 0 12px;
+        color: var(--muted);
+        max-width: 940px;
+      }
+      .demo p b {
+        color: var(--text);
+        font-weight: 600;
+      }
+      .frame {
+        width: 980px;
+        height: 612px;
+        background: var(--frame);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 8px;
+        display: grid;
+        gap: 8px;
+        position: relative;
+        overflow: hidden;
+      }
+      .w {
+        background: var(--w);
+        border: 1px solid #2c2a26;
+        border-radius: 4px;
+        padding: 8px 10px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        min-width: 0;
+        min-height: 0;
+        position: relative;
+      }
+      .w > .t {
+        font-size: 11px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--gold);
+        white-space: nowrap;
+      }
+      .w.accent {
+        border-color: var(--line);
+        box-shadow: inset 0 0 0 1px rgba(201, 168, 106, 0.15);
+      }
+      .grow {
+        flex: 1;
+        min-height: 0;
+      }
+      .row {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .pill {
+        background: var(--w2);
+        border: 1px solid #34312b;
+        border-radius: 3px;
+        padding: 2px 8px;
+        font-size: 11px;
+        color: var(--muted);
+        white-space: nowrap;
+      }
+      .pill.on {
+        border-color: var(--red);
+        color: var(--text);
+        background: #3a1114;
+      }
+      .btn {
+        background: var(--red);
+        color: #fff;
+        border-radius: 3px;
+        padding: 3px 10px;
+        font-size: 11px;
+        white-space: nowrap;
+      }
+      .big {
+        font-size: 46px;
+        line-height: 1;
+        color: var(--ember);
+        font-weight: 700;
+      }
+      .huge {
+        font-size: 110px;
+        line-height: 1;
+        color: var(--ember);
+        font-weight: 700;
+      }
+      .sub {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      svg {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+      .menu div {
+        font-size: 12px;
+        padding: 3px 4px;
+        color: var(--muted);
+        white-space: nowrap;
+      }
+      .menu div.on {
+        color: var(--text);
+        background: #2a1316;
+        border-left: 2px solid var(--red);
+      }
+      .menu .g {
+        color: var(--gold);
+        font-size: 10px;
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+        padding-top: 6px;
+      }
+      .rail {
+        align-items: center;
+        padding: 8px 4px;
+      }
+      .rail span {
+        width: 28px;
+        height: 28px;
+        border-radius: 4px;
+        background: var(--w2);
+        display: grid;
+        place-items: center;
+        font-size: 14px;
+      }
+      .rail span.on {
+        background: #3a1114;
+        outline: 1px solid var(--red);
+      }
+      .bars {
+        display: flex;
+        align-items: flex-end;
+        gap: 3px;
+        height: 100%;
+      }
+      .bars i {
+        flex: 1;
+        background: linear-gradient(0deg, var(--red), var(--ember));
+        border-radius: 2px 2px 0 0;
+      }
+      .lvl {
+        height: 6px;
+        background: var(--w2);
+        border-radius: 3px;
+        overflow: hidden;
+      }
+      .lvl i {
+        display: block;
+        height: 100%;
+        width: 62%;
+        background: linear-gradient(90deg, #6f9e5a, var(--gold), var(--ember));
+      }
+      .tl {
+        display: flex;
+        gap: 3px;
+        height: 100%;
+      }
+      .tl span {
+        background: var(--w2);
+        border: 1px solid #34312b;
+        border-radius: 3px;
+        display: grid;
+        place-items: center;
+        font-size: 12px;
+      }
+      .tl span.on {
+        border-color: var(--ember);
+        color: var(--ember);
+      }
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(54px, 1fr));
+        gap: 6px;
+      }
+      .cards span {
+        background: var(--w2);
+        border-radius: 3px;
+        height: 62px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-end;
+        font-size: 11px;
+        padding: 3px;
+        position: relative;
+      }
+      .cards span::before {
+        content: '';
+        position: absolute;
+        inset: 6px 8px 18px;
+        background:
+          repeating-linear-gradient(90deg, #5a5347 0 1px, transparent 1px 9px),
+          repeating-linear-gradient(0deg, #5a5347 0 1px, transparent 1px 10px);
+        opacity: 0.8;
+      }
+      .tag {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        font-size: 10px;
+        letter-spacing: 0.1em;
+        color: var(--bg);
+        background: var(--gold);
+        padding: 2px 6px;
+        border-radius: 2px;
+      }
+      .note {
+        position: absolute;
+        font-size: 11px;
+        color: var(--gold);
+        border: 1px dashed var(--gold);
+        border-radius: 3px;
+        padding: 3px 8px;
+        background: rgba(11, 12, 14, 0.85);
+      }
+      .float {
+        position: absolute;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+      }
+      .dim {
+        opacity: 0.35;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Раскладки: что где стоит на экране</h1>
+    <p class="lead">
+      Десять вариантов расположения виджетов. Цвета условные, важны только места, размеры и порядок блоков. Везде есть одно и то же: гриф,
+      текущий аккорд, меню разделов, настройки строя и сам выбранный инструмент (звук, слушать, круг, справочник…).
+    </p>
+    <div class="list" id="list"></div>
+
+    <script>
+      // ---------- Мини-виджеты ----------
+      const fret = (frets = 12, strings = 6) => {
+        const W = 600,
+          H = 150,
+          x0 = 26,
+          dx = (W - x0 - 6) / frets,
+          y0 = 14,
+          dy = (H - 2 * y0) / (strings - 1);
+        let s = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><rect x="0" y="0" width="${W}" height="${H}" fill="#120d0c"/>`;
+        s += `<rect x="${x0 - 4}" y="${y0 - 4}" width="4" height="${H - 2 * y0 + 8}" fill="#b9ab8e"/>`;
+        for (let f = 1; f <= frets; f++)
+          s += `<line x1="${x0 + f * dx}" x2="${x0 + f * dx}" y1="${y0 - 4}" y2="${H - y0 + 4}" stroke="#8a6a3a" stroke-width="2"/>`;
+        for (let i = 0; i < strings; i++)
+          s += `<line x1="${x0}" x2="${W}" y1="${y0 + i * dy}" y2="${y0 + i * dy}" stroke="#c6ccd3" stroke-width="${1 + i * 0.35}"/>`;
+        [3, 5, 7, 9]
+          .filter((f) => f <= frets)
+          .forEach((f) => (s += `<circle cx="${x0 + (f - 0.5) * dx}" cy="${H / 2}" r="4" fill="#7d0d12"/>`));
+        const dots = [
+          [0, 1, 1],
+          [1, 1, 0],
+          [2, 2, 0],
+          [3, 3, 1],
+          [4, 3, 0],
+          [5, 1, 1],
+        ];
+        dots.forEach(([st, f, root]) => {
+          if (f > frets) return;
+          s += `<circle cx="${x0 + (f - 0.5) * dx}" cy="${y0 + st * dy}" r="${Math.min(10, dy * 0.42)}" fill="${root ? '#ff4b2b' : '#7d0d12'}" stroke="#8a6a3a"/>`;
+        });
+        return s + '</svg>';
+      };
+      const circle = () => {
+        const keys = ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'Db', 'Ab', 'Eb', 'Bb', 'F'];
+        const mins = ['Am', 'Em', 'Bm', 'F#m', 'C#m', 'G#m', 'D#m', 'Bbm', 'Fm', 'Cm', 'Gm', 'Dm'];
+        let s = '<svg viewBox="-100 -100 200 200">';
+        const arc = (r1, r2, i, fill) => {
+          const a1 = (((i - 0.5) * 30 - 90) * Math.PI) / 180,
+            a2 = (((i + 0.5) * 30 - 90) * Math.PI) / 180;
+          const p = (r, a) => `${(r * Math.cos(a)).toFixed(1)} ${(r * Math.sin(a)).toFixed(1)}`;
+          return `<path d="M${p(r2, a1)}A${r2} ${r2} 0 0 1 ${p(r2, a2)}L${p(r1, a2)}A${r1} ${r1} 0 0 0 ${p(r1, a1)}Z" fill="${fill}" stroke="#0b0c0e" stroke-width="1.5"/>`;
+        };
+        keys.forEach((k, i) => {
+          const lit = i === 11 ? '#b3121b' : i < 2 ? '#3a2a1c' : '#22242a';
+          s += arc(62, 96, i, lit) + arc(34, 62, i, i === 0 ? '#3a2a1c' : '#1c1d21');
+          const a = ((i * 30 - 90) * Math.PI) / 180;
+          s += `<text x="${(79 * Math.cos(a)).toFixed(1)}" y="${(79 * Math.sin(a) + 4).toFixed(1)}" fill="#ddd2bd" font-size="11" text-anchor="middle">${k}</text>`;
+          s += `<text x="${(48 * Math.cos(a)).toFixed(1)}" y="${(48 * Math.sin(a) + 3).toFixed(1)}" fill="#8f8775" font-size="8" text-anchor="middle">${mins[i]}</text>`;
+        });
+        return s + '<circle r="32" fill="#141517"/><text y="7" fill="#ff4b2b" font-size="20" text-anchor="middle">F</text></svg>';
+      };
+      const bars = (n = 12) =>
+        `<div class="bars">${Array.from({ length: n }, (_, i) => `<i style="height:${[20, 8, 15, 12, 70, 30, 10, 18, 9, 90, 12, 60][i % 12]}%"></i>`).join('')}</div>`;
+      const W = (title, body = '', cls = '') => `<div class="w ${cls}"><div class="t">${title}</div>${body}</div>`;
+
+      const MENU_ITEMS = [
+        ['Играть', ['Звук', 'Последовательность', 'Метроном']],
+        ['Распознать', ['Слушать гитару', 'Разбор песни', 'Квинтовый круг']],
+        ['Учить', ['Справочник', 'Гаммы', 'Тональность', 'Тренажёр']],
+        ['Инструменты', ['Тюнер', 'MIDI', 'Избранное', 'Оформление']],
+      ];
+      const ICONS = ['🔊', '🎵', '⏱', '👂', '🎧', '⭕', '📖', '🎼', '🗝', '🎯', '🎤', '🎹', '⭐', '🎨'];
+
+      const w = {
+        menu: (on = 'Звук') =>
+          W(
+            'Меню',
+            `<div class="menu">${MENU_ITEMS.map(([g, it]) => `<div class="g">${g}</div>` + it.map((x) => `<div class="${x === on ? 'on' : ''}">${x}</div>`).join('')).join('')}</div>`,
+          ),
+        rail: (on = 0) => `<div class="w rail">${ICONS.map((x, i) => `<span class="${i === on ? 'on' : ''}">${x}</span>`).join('')}</div>`,
+        top: (extra = '') =>
+          `<div class="w" style="flex-direction:row;align-items:center;gap:8px;padding:6px 10px"><span class="pill">Строй: Standard</span><span class="pill">Каподастр: нет</span><span class="pill">Тон −½ +½</span>${extra}<span class="grow"></span><span class="pill">Ноты на грифе</span><span class="pill">Тема: Навь</span></div>`,
+        tabs: (items, on = 0) =>
+          `<div class="w" style="flex-direction:row;align-items:center;gap:6px;padding:6px 10px">${items.map((x, i) => `<span class="pill ${i === on ? 'on' : ''}">${x}</span>`).join('')}</div>`,
+        board: (frets = 12, title = 'Гриф') => W(title, `<div class="grow">${fret(frets)}</div>`, 'accent'),
+        chord: (size = 'big') =>
+          W(
+            'Аккорд',
+            `<div class="${size}">F</div><div class="sub">Фа мажор · F A C</div><div class="row"><span class="btn">▶ Играть</span><span class="pill">★</span><span class="pill">+ в последовательность</span></div>`,
+            'accent',
+          ),
+        chordSmall: () =>
+          W(
+            'Аккорд',
+            `<div class="row"><span class="big" style="font-size:32px">F</span><span class="sub">Фа мажор<br>F A C</span></div>`,
+            'accent',
+          ),
+        tool: (name = 'Выбранный раздел', hint = 'содержимое раздела: звук, слушать, справочник, гаммы…') =>
+          W(
+            name,
+            `<div class="sub">${hint}</div><div class="grow" style="background:repeating-linear-gradient(0deg,#1f2024 0 14px,transparent 14px 22px);opacity:.6"></div>`,
+          ),
+        circle: () => W('Квинтовый круг', `<div class="grow">${circle()}</div>`),
+        listen: () =>
+          W(
+            'Слушать',
+            `<div class="row"><span class="btn">👂 Слушать</span><span class="pill on">По удару</span><span class="pill">Держите аккорд</span></div><div class="lvl"><i></i></div><div class="grow">${bars()}</div>`,
+          ),
+        sound: () =>
+          W(
+            'Звук',
+            `<div class="row"><span class="btn">▶</span><span class="pill">↓ бой</span><span class="pill">↑ бой</span><span class="pill">перебор</span><span class="pill">■</span></div><div class="row"><span class="pill">Тембр: сталь</span><span class="pill">Громкость ▮▮▮▮▯</span></div>`,
+          ),
+        history: () =>
+          W(
+            'История',
+            `<div class="row">${['F', 'Am', 'G', 'C', 'Dm', 'Em'].map((x, i) => `<span class="pill ${i ? '' : 'on'}">${x}</span>`).join('')}</div>`,
+          ),
+        library: (n = 16) =>
+          W(
+            'Справочник аккордов',
+            `<div class="pill" style="align-self:stretch">🔍 Поиск: «Am7», «ля минор»…</div><div class="cards">${[
+              'C',
+              'Cm',
+              'D',
+              'Dm',
+              'E',
+              'Em',
+              'F',
+              'Fm',
+              'G',
+              'Gm',
+              'A',
+              'Am',
+              'B',
+              'Bm',
+              'C7',
+              'G7',
+              'Am7',
+              'Dsus4',
+              'E7',
+              'Fmaj7',
+            ]
+              .slice(0, n)
+              .map((x) => `<span>${x}</span>`)
+              .join('')}</div>`,
+          ),
+        timeline: (title = 'Лента: последовательность / разбор песни') =>
+          W(
+            title,
+            `<div class="tl grow">${['Am', 'F', 'C', 'G', 'Am', 'F', 'C', 'G', 'Dm', 'E'].map((x, i) => `<span class="${i === 1 ? 'on' : ''}" style="flex:${[2, 2, 1, 1, 2, 2, 1, 1, 2, 2][i]}">${x}</span>`).join('')}</div>`,
+          ),
+        transport: () =>
+          `<div class="w" style="flex-direction:row;align-items:center;gap:8px;padding:6px 10px"><span class="btn">▶ Играть</span><span class="pill">■</span><span class="pill">⟲ по кругу</span><span class="pill">♩ = 96</span><span class="pill on">Метроном</span><span class="pill">👂 Слушать</span><span class="grow"></span><span class="pill">Строй: Standard</span><span class="pill">Капо: нет</span><span class="pill">Тема ▾</span></div>`,
+        brand: () =>
+          `<div class="w" style="flex-direction:row;align-items:center;gap:10px;padding:6px 10px"><span style="color:var(--gold);font-size:15px">🎸 Гитарные аккорды</span></div>`,
+      };
+
+      // ---------- Раскладки ----------
+      const LAYOUTS = [
+        {
+          name: '0. Сейчас (для сравнения)',
+          desc: 'Меню слева со всеми разделами, сверху настройки строя, гриф на всю ширину, под ним аккорд и выбранный раздел.',
+          grid: '"menu top top" 40px "menu board board" 1.1fr "menu chord tool" 1.4fr / 180px 300px 1fr',
+          areas: { menu: w.menu('Квинтовый круг'), top: w.top(), board: w.board(), chord: w.chord(), tool: w.tool('Квинтовый круг') },
+        },
+        {
+          name: '1. Сцена',
+          desc: '<b>Главное — гриф и аккорд, крупно.</b> Название аккорда огромное над грифом, гриф почти на весь экран. Разделы — вкладки внизу, как док; открытый раздел выезжает снизу. Меню слева убрано.',
+          grid: '"top top" 40px "chord chord" 150px "board board" 1fr "tool tool" 150px "tabs tabs" 40px / 1fr 1fr',
+          areas: {
+            top: w.top(),
+            chord: W(
+              'Аккорд',
+              '<div class="row" style="gap:24px"><span class="huge">F</span><div><div style="font-size:22px">Фа мажор</div><div class="sub">F · A · C — тоника, терция, квинта</div><div class="row" style="margin-top:8px"><span class="btn">▶ Играть</span><span class="pill">★ В избранное</span></div></div></div>',
+              'accent',
+            ),
+            board: w.board(15),
+            tool: w.tool('Звук (открытая вкладка)', 'раздел открыт в нижней полке; повторный клик по вкладке — спрятать'),
+            tabs: w.tabs([
+              '🔊 Звук',
+              '🎵 Последовательность',
+              '👂 Слушать',
+              '🎧 Разбор песни',
+              '⭕ Круг',
+              '📖 Справочник',
+              '🎼 Гаммы',
+              '🎯 Тренажёр',
+              '🎤 Тюнер',
+              '⋯ Ещё',
+            ]),
+          },
+        },
+        {
+          name: '2. Приборная панель',
+          desc: '<b>Всё видно сразу, без переключений.</b> Экран — сетка плиток: гриф, аккорд, круг, звук, слушать, история. Плитки можно менять местами и скрывать; редкие разделы открываются поверх.',
+          grid: '"top top top" 40px "board board chord" 1fr "circle listen sound" 1fr "circle listen history" 90px / 1fr 1fr 1fr',
+          areas: {
+            top: w.top(),
+            board: w.board(),
+            chord: w.chord(),
+            circle: w.circle(),
+            listen: w.listen(),
+            sound: w.sound(),
+            history: w.history(),
+          },
+        },
+        {
+          name: '3. Инспектор (как в графических редакторах)',
+          desc: '<b>Узкая полоса иконок слева, постоянная колонка аккорда справа.</b> В центре — гриф и выбранный раздел. Справа всегда: аккорд, состав, играть, избранное, история. Больше места под сам раздел.',
+          grid: '"rail top inspector" 40px "rail board inspector" 1fr "rail tool inspector" 1.3fr / 48px 1fr 250px',
+          areas: {
+            rail: w.rail(6),
+            top: w.top(),
+            board: w.board(),
+            tool: w.library(14),
+            inspector: `<div class="w accent"><div class="t">Аккорд</div><div class="big">F</div><div class="sub">Фа мажор</div><div class="sub">Состав: F A C<br>Звучат: F2 C3 F3 A3 C4 F4</div><div class="row"><span class="btn">▶ Играть</span><span class="pill">★</span></div><div class="t" style="margin-top:8px">Аппликатуры</div><div class="cards"><span>1</span><span>2</span><span>3</span></div><div class="t" style="margin-top:8px">История</div><div class="row"><span class="pill on">F</span><span class="pill">Am</span><span class="pill">G</span><span class="pill">C</span></div><div class="t" style="margin-top:8px">Экспорт</div><div class="row"><span class="pill">PNG</span><span class="pill">MIDI</span><span class="pill">Таб</span></div></div>`,
+          },
+        },
+        {
+          name: '4. Верхнее меню',
+          desc: '<b>Меню разделов — горизонтальной строкой сверху</b>, группами с выпадающими списками (Играть ▾, Распознать ▾, Учить ▾, Инструменты ▾). Вся ширина экрана — грифу и двум колонкам под ним.',
+          grid: '"brand nav nav" 40px "top top top" 40px "board board board" 1fr "chord tool tool" 1.3fr / 280px 1fr 1fr',
+          areas: {
+            brand: w.brand(),
+            nav: `<div class="w" style="flex-direction:row;align-items:center;gap:6px;padding:6px 10px"><span class="pill on">Играть ▾</span><span class="pill">Распознать ▾</span><span class="pill">Учить ▾</span><span class="pill">Инструменты ▾</span><span class="grow"></span><span class="pill">★ Избранное</span><span class="pill">⚙</span></div>`,
+            top: w.top(),
+            board: w.board(15),
+            chord: w.chord(),
+            tool: w.sound(),
+          },
+        },
+        {
+          name: '5. Фокус',
+          desc: '<b>Минимум на экране: только гриф и аккорд.</b> Всё остальное — в выдвижной панели справа (кнопка ☰) и в быстром поиске по Ctrl+K: набрал «круг», «Am7», «тюнер» — и сразу туда.',
+          grid: '". search ." 44px "chord chord chord" 1fr "board board board" 1.2fr ". hint ." 30px / 1fr 420px 1fr',
+          areas: {
+            search: `<div class="w" style="flex-direction:row;align-items:center;gap:8px;padding:6px 12px;border-color:var(--line)"><span class="sub">🔍 Ctrl+K — раздел, аккорд или команда…</span><span class="grow"></span><span class="pill">☰</span></div>`,
+            chord: `<div class="w" style="align-items:center;justify-content:center;background:transparent;border:0"><div class="huge" style="font-size:150px">F</div><div style="font-size:22px">Фа мажор</div><div class="row"><span class="btn">▶ Играть</span></div></div>`,
+            board: w.board(15),
+            hint: `<div class="sub" style="text-align:center">пробел — играть · ← → транспонировать · Ctrl+K — всё остальное</div>`,
+          },
+          extra: `<div class="w float" style="right:8px;top:60px;width:260px;height:300px"><div class="t">Выдвижная панель ☰</div><div class="menu">${['Звук', 'Слушать гитару', 'Разбор песни', 'Квинтовый круг', 'Справочник', 'Тюнер', 'Оформление'].map((x, i) => `<div class="${i === 0 ? 'on' : ''}">${x}</div>`).join('')}</div></div>`,
+        },
+        {
+          name: '6. Студия (как программы для записи музыки)',
+          desc: '<b>Сверху — транспорт</b>: играть, темп, метроном, слушать. В центре гриф, справа — браузер аккордов (перетаскиваешь аккорд на ленту). <b>Внизу — лента времени</b>: последовательность или разобранная песня.',
+          grid: '"transport transport" 40px "board library" 1fr "chord library" 0.9fr "timeline timeline" 110px / 1fr 290px',
+          areas: {
+            transport: w.transport(),
+            board: w.board(),
+            chord: w.tool('Разделы: звук · гаммы · круг · тюнер', 'вкладки над этой областью'),
+            library: w.library(20),
+            timeline: w.timeline(),
+          },
+        },
+        {
+          name: '7. Слушатель',
+          desc: '<b>Для игры на живой гитаре.</b> Слева огромное название услышанного аккорда и уровень микрофона, в центре квинтовый круг подсвечивает аккорд, снизу гриф повторяет его, справа — история сыгранного.',
+          grid: '"top top top" 40px "big circle hist" 1.4fr "board board board" 1fr / 1fr 1fr 180px',
+          areas: {
+            top: w.transport(),
+            big: W(
+              'Слышу',
+              '<div class="huge" style="font-size:130px">F</div><div style="font-size:20px">Фа мажор · 92%</div><div class="lvl"><i></i></div><div class="grow">' +
+                bars() +
+                '</div>',
+              'accent',
+            ),
+            circle: w.circle(),
+            hist: W(
+              'Сыграно',
+              '<div class="menu">' +
+                ['F', 'C', 'G', 'Am', 'F', 'C', 'G', 'Am']
+                  .map((x, i) => `<div class="${i ? '' : 'on'}" style="font-size:16px">${x}</div>`)
+                  .join('') +
+                '</div>',
+            ),
+            board: w.board(12, 'Гриф повторяет услышанный аккорд'),
+          },
+        },
+        {
+          name: '8. Книга (разворот)',
+          desc: '<b>Как песенник или старинная книга.</b> Две страницы: слева — аккорд с диаграммой и составом, справа — выбранный раздел. Разделы — закладки-ленточки по краю. Гриф — внизу, во всю ширину.',
+          grid: '"left right bm" 1.5fr "board board board" 1fr / 1fr 1fr 44px',
+          areas: {
+            left: W(
+              'Страница аккорда',
+              '<div class="row" style="gap:18px;align-items:flex-start"><div class="cards" style="width:110px;grid-template-columns:1fr"><span style="height:130px">F</span></div><div><div class="big">F</div><div style="font-size:18px">Фа мажор</div><div class="sub" style="margin-top:6px">Состав: F — A — C<br>Пальцы: баррэ на 1 ладу<br>Ступень IV в до мажоре</div><div class="row" style="margin-top:8px"><span class="btn">▶ Играть</span><span class="pill">★</span></div></div></div>',
+              'accent',
+            ),
+            right: w.tool('Страница раздела: Гаммы', 'содержимое выбранного раздела'),
+            bm: `<div class="w rail" style="gap:4px">${['Звук', 'Слух', 'Круг', 'Спр.', 'Гам.', 'Тюн.', 'Изб.'].map((x, i) => `<span class="${i === 4 ? 'on' : ''}" style="width:32px;height:44px;font-size:10px;writing-mode:vertical-rl">${x}</span>`).join('')}</div>`,
+            board: w.board(15),
+          },
+        },
+        {
+          name: '9. Два раздела рядом',
+          desc: '<b>Экран делится пополам: слева и справа — любые два раздела.</b> Например, «Слушать» + «Круг», «Справочник» + «Последовательность», «Разбор песни» + «Гаммы». У каждой половины свой выпадающий список разделов.',
+          grid: '"menu top top" 40px "menu board board" 1fr "menu a b" 1.4fr / 150px 1fr 1fr',
+          areas: {
+            menu: `<div class="w">${w.chordSmall().replace('class="w accent"', 'class="w accent" style="padding:0;border:0"')}<div class="t" style="margin-top:6px">Избранное</div><div class="row"><span class="pill">Am</span><span class="pill">F</span><span class="pill">C</span><span class="pill">G</span></div><div class="t" style="margin-top:6px">История</div><div class="row"><span class="pill">Dm</span><span class="pill">E</span></div></div>`,
+            top: w.top(),
+            board: w.board(),
+            a: w.listen().replace('<div class="t">Слушать</div>', '<div class="t">Слушать ▾</div>'),
+            b: w.circle().replace('<div class="t">Квинтовый круг</div>', '<div class="t">Квинтовый круг ▾</div>'),
+          },
+        },
+        {
+          name: '10. Свободные окна',
+          desc: '<b>Собери сам.</b> Гриф — фоновая «сцена», остальные виджеты — плавающие окна: перетаскиваешь, меняешь размер, закрываешь, раскладка сохраняется. Можно сохранить несколько раскладок («Игра», «Учёба», «Разбор»).',
+          grid: '"top" 40px "board" 1fr / 1fr',
+          areas: {
+            top: w.top('<span class="pill on">Раскладка: Игра ▾</span><span class="pill">+ виджет</span>'),
+            board: `<div class="w accent" style="padding:0"><div style="position:absolute;inset:auto 0 0 0;height:210px">${fret(15)}</div></div>`,
+          },
+          extra: `
+        <div class="w float accent" style="left:24px;top:64px;width:220px;height:170px"><div class="t">Аккорд ✕</div><div class="big">F</div><div class="sub">Фа мажор</div><div class="row"><span class="btn">▶</span><span class="pill">★</span></div></div>
+        <div class="w float" style="left:262px;top:64px;width:250px;height:250px"><div class="t">Квинтовый круг ✕</div><div class="grow">${circle()}</div></div>
+        <div class="w float" style="left:530px;top:64px;width:250px;height:180px"><div class="t">Слушать ✕</div><div class="row"><span class="btn">👂</span><span class="pill on">По удару</span></div><div class="lvl"><i></i></div><div class="grow">${bars()}</div></div>
+        <div class="w float" style="left:798px;top:64px;width:160px;height:130px"><div class="t">Метроном ✕</div><div class="big" style="font-size:34px">96</div><div class="sub">4/4 · ● ○ ○ ○</div></div>
+        <div class="w float" style="left:530px;top:262px;width:428px;height:90px"><div class="t">История ✕</div><div class="row">${['F', 'Am', 'G', 'C', 'Dm', 'Em', 'F', 'C'].map((x) => `<span class="pill">${x}</span>`).join('')}</div></div>
+        <div class="note" style="left:40px;top:258px">↔ перетащить за заголовок · ⤡ изменить размер</div>`,
+        },
+      ];
+
+      const list = document.getElementById('list');
+      LAYOUTS.forEach((l, i) => {
+        const el = document.createElement('section');
+        el.className = 'demo';
+        el.id = `layout-${i}`;
+        const names = Object.keys(l.areas);
+        el.innerHTML = `<h2>${l.name}</h2><p>${l.desc}</p><div class="frame">${names.map((n) => l.areas[n]).join('')}${l.extra || ''}</div>`;
+        // Каждый виджет занимает свою область сетки; плавающие окна (extra) идут после них.
+        el.querySelector('.frame').style.gridTemplate = l.grid;
+        [...el.querySelector('.frame').children].slice(0, names.length).forEach((node, k) => (node.style.gridArea = names[k]));
+        list.appendChild(el);
+      });
+    </script>
+  </body>
+</html>
