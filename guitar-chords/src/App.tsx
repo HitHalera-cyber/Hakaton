@@ -3,6 +3,8 @@ import { TIMBRE_NAMES, TIMBRE_PROGRAM, audio, type ChordNote } from './audio/eng
 import { ChordDisplay } from './components/ChordDisplay';
 import { Fretboard, type CellFlash, type DotLabel } from './components/Fretboard';
 import { KeyPanel, type ProgressionChord } from './components/KeyPanel';
+import { CircleOfFifths } from './components/CircleOfFifths';
+import { CirclePanel, resolveKey, type CircleChord } from './components/CirclePanel';
 import { ListenPanel } from './components/ListenPanel';
 import { LibraryPanel, type ChordRef } from './components/LibraryPanel';
 import { MetronomePanel } from './components/MetronomePanel';
@@ -21,6 +23,7 @@ import { makeTab } from './export/tab';
 import { ALL_DEVICES, MidiInput, type MidiDevice } from './midi/midiInput';
 import { writeMidiFile, type MidiNoteEvent } from './midi/midiFile';
 import { CHORD_TEMPLATES, detectChord } from './music/chords';
+import { cellChord, circlePosition } from './music/circle';
 import { computeFingering } from './music/fingering';
 import {
   applyCapo,
@@ -42,14 +45,16 @@ import { SCALES, scaleDegrees } from './music/scales';
 import { MAX_CAPO, TUNINGS, TUNING_LIST, getTuning } from './music/tunings';
 import { generateVoicings } from './music/voicings';
 import { DEFAULT_RHYTHM, useSequencer, type RhythmSettings, type SeqItem } from './state/useSequencer';
+import { useChordListener } from './state/useChordListener';
 import { useStored } from './state/useStored';
 
-type TabId = 'sound' | 'listen' | 'song' | 'midi' | 'library' | 'scales' | 'key' | 'sequence' | 'metronome' | 'tuner' | 'trainer';
+type TabId = 'sound' | 'listen' | 'song' | 'circle' | 'midi' | 'library' | 'scales' | 'key' | 'sequence' | 'metronome' | 'tuner' | 'trainer';
 
 const TABS: { id: TabId; label: string }[] = [
   { id: 'sound', label: '🔊 Звук' },
   { id: 'listen', label: '👂 Слушать' },
   { id: 'song', label: '🎧 Разбор песни' },
+  { id: 'circle', label: '⭕ Квинтовый круг' },
   { id: 'library', label: '📖 Справочник' },
   { id: 'scales', label: '🎼 Гаммы' },
   { id: 'key', label: '🗝 Тональность' },
@@ -68,6 +73,8 @@ interface ViewSettings {
   customStrings: number[];
   capo: number;
   tab: TabId;
+  /** Тональность для квинтового круга: 'auto' или «позиция-лад». */
+  circleKey: string;
 }
 
 const DEFAULT_VIEW: ViewSettings = {
@@ -78,6 +85,7 @@ const DEFAULT_VIEW: ViewSettings = {
   customStrings: [...TUNINGS.standard.strings],
   capo: 0,
   tab: 'sound',
+  circleKey: 'auto',
 };
 
 const DEFAULT_SOUND: SoundSettings = { volume: 0.8, reverb: 0.25, mode: 'strum', arpStepMs: 180, timbre: 'steel', autoPlay: true };
@@ -315,6 +323,32 @@ export default function App() {
     },
     [voicingFor, clearMidi, applyBoard, capo],
   );
+
+  // ---------- Квинтовый круг: что звучит сейчас и что звучало перед этим ----------
+  const [circleTrail, setCircleTrail] = useState<CircleChord[]>([]);
+  const circleId = useRef(0);
+  const pushCircle = useCallback((c: Omit<CircleChord, 'id'>) => {
+    setCircleTrail((t) => (t[0]?.symbol === c.symbol ? t : [{ ...c, id: ++circleId.current }, ...t].slice(0, 12)));
+  }, []);
+  useEffect(() => {
+    if (result.kind !== 'chord' || !result.primary) return;
+    const p = result.primary;
+    pushCircle({ rootPc: p.rootPc, templateId: p.template.id, symbol: p.symbol, nameRu: p.nameRu, source: source === 'midi' ? 'midi' : 'board' });
+  }, [result, source, pushCircle]);
+
+  // Прослушивание гитары работает на любой вкладке.
+  const showOnBoardRef = useRef(true);
+  const listener = useChordListener((c) => {
+    pushCircle({ rootPc: c.rootPc, templateId: c.templateId, symbol: c.symbol, nameRu: c.nameRu, source: 'guitar' });
+    if (showOnBoardRef.current) showChord(c.rootPc, c.templateId, c.bassPc);
+  });
+  showOnBoardRef.current = listener.showOnBoard;
+  const circleKey = resolveKey(view.circleKey ?? 'auto', circleTrail).key;
+  const pickCircle = (pos: Parameters<typeof cellChord>[0]) => {
+    const c = cellChord(pos);
+    const frets = voicingFor(c.rootPc, c.templateId);
+    if (frets) loadFrets(frets);
+  };
 
   const clearAll = useCallback(() => {
     audio.stopAll();
@@ -708,7 +742,33 @@ export default function App() {
               canPlay={activeMidi.length > 0}
             />
           )}
-          {view.tab === 'listen' && <ListenPanel onChord={(c) => showChord(c.rootPc, c.templateId, c.bassPc)} />}
+          {view.tab === 'listen' && (
+            <ListenPanel
+              listener={listener}
+              onPick={(c) => showChord(c.rootPc, c.templateId, c.bassPc)}
+              circle={
+                <CircleOfFifths
+                  compact
+                  size={230}
+                  active={circleTrail[0] ? circlePosition(circleTrail[0].rootPc, circleTrail[0].templateId) : null}
+                  pulseKey={circleTrail[0]?.id}
+                  trail={circleTrail.slice(1, 4).map((c) => circlePosition(c.rootPc, c.templateId))}
+                  keySel={circleKey}
+                  onPick={pickCircle}
+                />
+              }
+            />
+          )}
+          {view.tab === 'circle' && (
+            <CirclePanel
+              trail={circleTrail}
+              keyChoice={view.circleKey ?? 'auto'}
+              onKeyChoice={(circleKey) => patchView({ circleKey })}
+              listener={listener}
+              onPick={pickCircle}
+              onClear={() => setCircleTrail([])}
+            />
+          )}
           {view.tab === 'song' && (
             <SongPanel
               capo={capo}

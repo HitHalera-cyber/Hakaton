@@ -1592,3 +1592,186 @@ kbd {
   font: inherit;
   font-weight: 700;
 }
+
+/* ---------- Квинтовый круг ---------- */
+.circle-wrap {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.circle5 {
+  max-width: 100%;
+  height: auto;
+  flex-shrink: 0;
+}
+.circle5 text {
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+}
+.cf-cell path {
+  stroke: var(--bg);
+  stroke-width: 1.5;
+  transition: fill 0.35s, opacity 0.35s;
+}
+.cf-cell.ring-major path {
+  fill: color-mix(in srgb, var(--panel-2) 80%, var(--text) 8%);
+}
+.cf-cell.ring-minor path {
+  fill: var(--panel-2);
+}
+.cf-cell.ring-dim path {
+  fill: color-mix(in srgb, var(--panel-2) 85%, var(--bg));
+}
+.cf-cell.in-key path {
+  fill: color-mix(in srgb, var(--dot) 30%, var(--panel-2));
+}
+.cf-cell.tonic path {
+  fill: color-mix(in srgb, var(--dot) 55%, var(--panel-2));
+}
+.cf-cell.clickable {
+  cursor: pointer;
+}
+.cf-cell.clickable:hover path {
+  fill: color-mix(in srgb, var(--accent) 30%, var(--panel-2));
+}
+.cf-label {
+  fill: var(--text);
+  font-weight: 700;
+  font-size: 19px;
+}
+.ring-minor .cf-label {
+  font-size: 16px;
+}
+.ring-dim .cf-label {
+  font-size: 13px;
+  fill: var(--text-2);
+}
+.cf-roman {
+  fill: var(--text-2);
+  font-size: 11px;
+  font-family: Georgia, serif;
+}
+.cf-sig {
+  fill: var(--text-2);
+  font-size: 11px;
+}
+/* След: предыдущие аккорды затухают */
+.cf-cell.trail path {
+  fill: color-mix(in srgb, var(--accent) 45%, var(--panel-2));
+}
+.cf-cell.trail.t1 path {
+  fill: color-mix(in srgb, var(--accent) 28%, var(--panel-2));
+}
+.cf-cell.trail.t2 path {
+  fill: color-mix(in srgb, var(--accent) 15%, var(--panel-2));
+}
+/* Текущий аккорд светится */
+.cf-cell.active path {
+  fill: var(--accent);
+  stroke: #fff;
+  stroke-width: 2.5;
+  filter: drop-shadow(0 0 10px var(--accent)) drop-shadow(0 0 22px var(--accent));
+  animation: cf-glow 1.6s ease-in-out infinite;
+}
+.cf-cell.active .cf-label,
+.cf-cell.active .cf-roman {
+  fill: var(--accent-text);
+}
+@keyframes cf-glow {
+  50% {
+    filter: drop-shadow(0 0 4px var(--accent)) drop-shadow(0 0 12px var(--accent));
+  }
+}
+.cf-burst {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 4;
+  pointer-events: none;
+  animation: cf-burst 0.9s ease-out forwards;
+}
+@keyframes cf-burst {
+  from {
+    r: 20;
+    stroke-opacity: 1;
+  }
+  to {
+    r: 70;
+    stroke-opacity: 0;
+  }
+}
+.cf-path {
+  stroke: var(--accent);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 2 6;
+  pointer-events: none;
+}
+.cf-path.p1 {
+  opacity: 0.5;
+}
+.cf-path.p2 {
+  opacity: 0.25;
+}
+.cf-center {
+  fill: var(--panel);
+  stroke: var(--border);
+}
+.cf-center-title {
+  fill: var(--accent);
+  font-size: 26px;
+  font-weight: 800;
+}
+.cf-center-sub {
+  fill: var(--text-2);
+  font-size: 14px;
+  font-family: Georgia, serif;
+}
+.circle-info {
+  flex: 1;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ci-symbol {
+  font-size: 44px;
+  font-weight: 800;
+  color: var(--accent);
+  line-height: 1;
+}
+.ci-trail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+}
+.ci-trail .alt.now {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.ci-help summary {
+  cursor: pointer;
+  color: var(--text-2);
+  font-size: 13px;
+}
+.ci-help p {
+  font-size: 13px;
+  color: var(--text-2);
+  margin: 6px 0;
+}
+.listen-main {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.listen-main .listen-result {
+  flex: 1;
+}
+.circle5.compact .cf-label {
+  font-size: 22px;
+}
+.circle5.compact .ring-minor .cf-label {
+  font-size: 19px;
+}
