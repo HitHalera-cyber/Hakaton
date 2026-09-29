@@ -8,7 +8,7 @@ import { DEFAULT_RHYTHM, type RhythmSettings } from '../features/sequencer/useSe
 import { TIMBRE_NAMES } from '../core/audio/engine';
 import { TUNINGS } from '../core/music/tunings';
 import { isTab, type TabId } from './navigation';
-import { migrateTheme, type ThemeId } from './themes';
+import { DEFAULT_THEME, migrateTheme, type ThemeId } from './themes';
 import { useStored } from './useStored';
 
 export interface ViewSettings {
@@ -24,7 +24,7 @@ export interface ViewSettings {
 }
 
 export const DEFAULT_VIEW: ViewSettings = {
-  theme: 'studio',
+  theme: DEFAULT_THEME,
   showNotes: false,
   dotLabel: 'note',
   tuning: 'standard',

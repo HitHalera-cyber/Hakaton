@@ -25,7 +25,7 @@ function createWindow() {
     minWidth: 1080,
     minHeight: 680,
     title: 'Гитарные аккорды',
-    backgroundColor: '#14161c',
+    backgroundColor: '#0b0c0e',
     icon: path.join(__dirname, '..', 'build', 'icon.png'),
     autoHideMenuBar: true,
     webPreferences: {

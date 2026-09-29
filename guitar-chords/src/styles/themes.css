@@ -1,11 +1,11 @@
 /*
  * Темы оформления. Каждая тема — набор переменных: палитра, шрифты, скругления, толщина рамок,
  * тени, фон и цвета грифа. Компоненты используют только переменные, поэтому тема меняет всё сразу.
- * Базовые значения (тема «Студия») — в :root.
+ * Общие базовые значения — в :root; каждая тема переопределяет их.
  */
 
 /*
- * Значения по умолчанию (они же — тема «Студия») задаются на каждом элементе с темой,
+ * Значения по умолчанию задаются на каждом элементе с темой,
  * поэтому карточка-превью темы внутри другой темы ничего не наследует от окружения.
  */
 :root,
@@ -66,46 +66,7 @@
   color-scheme: dark;
 }
 
-/* ---------- 2. Минимализм: белый, воздух, тонкие линии ---------- */
-[data-theme='minimal'] {
-  --bg: #f7f7f5;
-  --bg-2: #efefec;
-  --panel: #ffffff;
-  --panel-2: #f4f4f1;
-  --border: #e4e4df;
-  --text: #111111;
-  --text-2: #6b6b66;
-  --accent: #111111;
-  --accent-text: #ffffff;
-  --dot: #111111;
-  --root: #e11d48;
-  --midi: #0ea5e9;
-  --scale: #fde68a;
-  --scale-root: #f59e0b;
-  --hover: rgba(0, 0, 0, 0.08);
-  --tt-bg: #111111;
-  --side-bg: #ffffff;
-  --side-text: #222222;
-  --side-muted: #9a9a94;
-  --side-active: #f1f1ee;
-  --wood-1: #e7cfa6;
-  --wood-2: #f0dfbf;
-  --fret: #9aa0a6;
-  --nut: #ffffff;
-  --string: #7b8088;
-  --inlay: #b8925a;
-  --font-ui: 'Manrope', system-ui, sans-serif;
-  --font-display: 'Manrope', system-ui, sans-serif;
-  --display-weight: 700;
-  --title-case: none;
-  --title-spacing: 0;
-  --radius: 6px;
-  --radius-sm: 4px;
-  --shadow: none;
-  color-scheme: light;
-}
-
-/* ---------- 3. Винтаж: ламповый усилитель, кожа, крем и золото ---------- */
+/* ---------- Винтаж: ламповый усилитель, кожа, крем и золото ---------- */
 [data-theme='vintage'] {
   --bg: #2b1d14;
   --app-bg: repeating-linear-gradient(45deg, #2b1d14 0 6px, #2f2016 6px 12px);
@@ -146,48 +107,7 @@
   color-scheme: light;
 }
 
-/* ---------- 4. Синтвейв: неон 80-х ---------- */
-[data-theme='synthwave'] {
-  --bg: #12051f;
-  --app-bg: linear-gradient(180deg, #12051f 0%, #2a0a45 70%, #4a0f5c 100%);
-  --bg-2: #1a0930;
-  --panel: rgba(29, 11, 51, 0.88);
-  --panel-2: #2a1147;
-  --border: rgba(255, 47, 179, 0.45);
-  --text: #f7e9ff;
-  --text-2: #b99ad8;
-  --accent: #ff2fb3;
-  --accent-text: #12051f;
-  --dot: #19e3ff;
-  --dot-text: #12051f;
-  --root: #ff2fb3;
-  --midi: #19e3ff;
-  --ok: #3dffb0;
-  --scale: #ffe66b;
-  --scale-root: #ff8a3d;
-  --hover: rgba(25, 227, 255, 0.18);
-  --tt-bg: #0b0214;
-  --side-bg: rgba(10, 2, 20, 0.85);
-  --side-text: #f0d9ff;
-  --side-muted: #8d6bb0;
-  --side-active: rgba(255, 47, 179, 0.22);
-  --wood-1: #1c0833;
-  --wood-2: #2d0f52;
-  --fret: #ff79d0;
-  --nut: #19e3ff;
-  --string: #aef6ff;
-  --inlay: #ff2fb3;
-  --font-ui: 'Exo 2', system-ui, sans-serif;
-  --font-display: 'Unbounded', 'Exo 2', sans-serif;
-  --display-weight: 700;
-  --display-scale: 0.8;
-  --radius: 12px;
-  --radius-sm: 8px;
-  --shadow: 0 0 0 1px rgba(255, 47, 179, 0.25), 0 0 28px rgba(255, 47, 179, 0.18);
-  --glow: 0 0 10px rgba(255, 47, 179, 0.8), 0 0 24px rgba(255, 47, 179, 0.45);
-}
-
-/* ---------- 5. 8 бит: ретро-игра ---------- */
+/* ---------- 8 бит: ретро-игра ---------- */
 [data-theme='pixel'] {
   --bg: #1b1b3a;
   --app-bg: conic-gradient(from 90deg at 2px 2px, #1b1b3a 90deg, #202046 0) 0 0 / 16px 16px;
@@ -230,7 +150,7 @@
   --display-scale: 0.5;
 }
 
-/* ---------- 6. Терминал: зелёный люминофор ---------- */
+/* ---------- Терминал: зелёный люминофор ---------- */
 [data-theme='terminal'] {
   --bg: #050805;
   --app-bg: repeating-linear-gradient(0deg, #050805 0 2px, #070b07 2px 4px);
@@ -275,7 +195,7 @@
   --glow: 0 0 8px rgba(57, 255, 106, 0.7);
 }
 
-/* ---------- 7. Стекло: морской градиент и матовые панели ---------- */
+/* ---------- Стекло: морской градиент и матовые панели ---------- */
 [data-theme='glass'] {
   --bg: #0f4c75;
   --app-bg: linear-gradient(135deg, #0b3d63 0%, #1f78b4 45%, #6a2ff7 100%);
@@ -315,132 +235,7 @@
   --shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
 }
 
-/* ---------- 8. Брутализм: жёлтый, чёрный, жёсткие тени ---------- */
-[data-theme='brutal'] {
-  --bg: #ffe600;
-  --bg-2: #ffef4d;
-  --panel: #ffffff;
-  --panel-2: #fff7b3;
-  --border: #000000;
-  --text: #000000;
-  --text-2: #333333;
-  --accent: #000000;
-  --accent-text: #ffe600;
-  --dot: #0047ff;
-  --root: #ff2d2d;
-  --midi: #00c2a8;
-  --scale: #ffe600;
-  --scale-root: #ff7a00;
-  --hover: rgba(0, 0, 0, 0.1);
-  --tt-bg: #000000;
-  --side-bg: #000000;
-  --side-text: #ffe600;
-  --side-muted: #bfb000;
-  --side-active: #ffe600;
-  --wood-1: #151515;
-  --wood-2: #262626;
-  --fret: #ffffff;
-  --nut: #ffe600;
-  --string: #ffffff;
-  --inlay: #ffe600;
-  --font-ui: 'Rubik', system-ui, sans-serif;
-  --font-display: 'Rubik', system-ui, sans-serif;
-  --display-weight: 900;
-  --radius: 0;
-  --radius-sm: 0;
-  --radius-pill: 0;
-  --bw: 3px;
-  --shadow: 7px 7px 0 #000000;
-  --btn-shadow: 3px 3px 0 #000000;
-  --side-active-text: #000000;
-  color-scheme: light;
-}
-
-/* ---------- 9. Рок: чёрный металл и красный ---------- */
-[data-theme='rock'] {
-  --bg: #0a0a0a;
-  --app-bg: repeating-linear-gradient(115deg, #0a0a0a 0 3px, #0e0e0e 3px 6px);
-  --bg-2: #121212;
-  --panel: #161616;
-  --panel-2: #202020;
-  --border: #2d2d2d;
-  --text: #f1f1f1;
-  --text-2: #9a9a9a;
-  --accent: #e10600;
-  --accent-text: #ffffff;
-  --dot: #e10600;
-  --root: #ffcc00;
-  --midi: #00b3ff;
-  --scale: #ffcc00;
-  --scale-root: #ff6a00;
-  --hover: rgba(225, 6, 0, 0.2);
-  --tt-bg: #000000;
-  --side-bg: #000000;
-  --side-text: #eeeeee;
-  --side-muted: #777777;
-  --side-active: rgba(225, 6, 0, 0.25);
-  --wood-1: #0f0f0f;
-  --wood-2: #1d1d1d;
-  --fret: #c9c9c9;
-  --nut: #e6e6e6;
-  --string: #e0e0e0;
-  --inlay: #f5f5f5;
-  --font-ui: 'Oswald', 'Arial Narrow', sans-serif;
-  --font-display: 'Oswald', 'Arial Narrow', sans-serif;
-  --fs: 15px;
-  --display-weight: 700;
-  --title-spacing: 0.12em;
-  --radius: 3px;
-  --radius-sm: 2px;
-  --radius-pill: 3px;
-  --shadow: 0 8px 30px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  --glow: 0 0 18px rgba(225, 6, 0, 0.55);
-  --display-scale: 1.1;
-}
-
-/* ---------- 10. Тетрадь: клетчатая бумага и чернила ---------- */
-[data-theme='notebook'] {
-  --bg: #fbfaf4;
-  --app-bg: linear-gradient(#dbe6f7 1px, transparent 1px) 0 0 / 22px 22px, linear-gradient(90deg, #dbe6f7 1px, #fbfaf4 1px) 0 0 / 22px 22px;
-  --bg-2: #f3f1e6;
-  --panel: rgba(255, 255, 255, 0.92);
-  --panel-2: #f5f7fc;
-  --border: #9db4d8;
-  --text: #1f2a44;
-  --text-2: #5a6a8a;
-  --accent: #1e40af;
-  --accent-text: #ffffff;
-  --dot: #1e40af;
-  --root: #dc2626;
-  --midi: #059669;
-  --scale: #fde047;
-  --scale-root: #f97316;
-  --hover: rgba(30, 64, 175, 0.1);
-  --tt-bg: #1f2a44;
-  --side-bg: #f3f1e6;
-  --side-text: #1f2a44;
-  --side-muted: #8a95ad;
-  --side-active: #dbe6f7;
-  --wood-1: #d8b98c;
-  --wood-2: #e8cfa6;
-  --fret: #6b7280;
-  --nut: #fffdf5;
-  --string: #4b5563;
-  --inlay: #1e40af;
-  --font-ui: 'PT Sans', system-ui, sans-serif;
-  --font-display: 'Caveat', 'PT Sans', cursive;
-  --display-weight: 700;
-  --title-case: none;
-  --title-spacing: 0;
-  --radius: 4px;
-  --radius-sm: 3px;
-  --bw: 1.5px;
-  --shadow: 2px 3px 0 rgba(30, 64, 175, 0.12);
-  --display-scale: 1.25;
-  color-scheme: light;
-}
-
-/* ---------- 11. Навь: кровь и бронза — ночной ельник, тлеющие угли ---------- */
+/* ---------- Навь: кровь и бронза — ночной ельник, тлеющие угли ---------- */
 [data-theme='slavic'] {
   --bg: #0b0c0e;
   --app-bg:
@@ -497,7 +292,7 @@
       bottom right no-repeat;
 }
 
-/* ---------- 12. Навь · Болото — трясина, камыш и блуждающие огоньки ---------- */
+/* ---------- Навь · Болото — трясина, камыш и блуждающие огоньки ---------- */
 [data-theme='nav-swamp'] {
   --bg: #060d0a;
   --app-bg:
@@ -554,7 +349,7 @@
       bottom right no-repeat;
 }
 
-/* ---------- 13. Навь · Мара — ледяная ночь, серебро и заснеженный ельник ---------- */
+/* ---------- Навь · Мара — ледяная ночь, серебро и заснеженный ельник ---------- */
 [data-theme='nav-winter'] {
   --bg: #070b14;
   --app-bg:
@@ -611,7 +406,7 @@
       bottom right no-repeat;
 }
 
-/* ---------- 14. Навь · Купала — зарево костра за чёрным лесом, золото и искры ---------- */
+/* ---------- Навь · Купала — зарево костра за чёрным лесом, золото и искры ---------- */
 [data-theme='nav-fire'] {
   --bg: #0c0705;
   --app-bg:
@@ -668,7 +463,7 @@
       bottom right no-repeat;
 }
 
-/* ---------- 15. Навь · Кощей — чёрно-фиолетовая тьма, старое золото и аметисты ---------- */
+/* ---------- Навь · Кощей — чёрно-фиолетовая тьма, старое золото и аметисты ---------- */
 [data-theme='nav-koschei'] {
   --bg: #09070d;
   --app-bg:

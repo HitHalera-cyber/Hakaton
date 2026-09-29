@@ -10,7 +10,7 @@ import urllib.parse
 from pathlib import Path
 
 CSS = Path(__file__).resolve().parent.parent / 'src/styles/themes.css'
-MARK = '/* ---------- 11. Навь'
+MARK = '/* ---------- Навь: кровь и бронза'
 
 
 def enc(svg: str) -> str:
@@ -102,7 +102,7 @@ def dead_forest(fill, seed=11):
 
 # ---------- Варианты ----------
 VARIANTS = [
-    dict(id='slavic', head='11. Навь: кровь и бронза — ночной ельник, тлеющие угли',
+    dict(id='slavic', head='Навь: кровь и бронза — ночной ельник, тлеющие угли',
          bg='#0b0c0e', grad=('#0d0f12', '#0a0b0d', '#111418'), sky='rgba(160, 20, 26, 0.5)', fog='110, 130, 140',
          landscape=spruce_forest('#050607'),
          panel='#141517', panel_grad=('rgba(26, 27, 30, 0.96)', 'rgba(16, 17, 19, 0.96)'), panel2='#1d1e22', border='#4a3d28',
@@ -111,7 +111,7 @@ VARIANTS = [
          side_active='rgba(179, 18, 27, 0.22)', wood=('#0c0908', '#1a1311'), fret='#8a6a3a', nut='#b9ab8e', string='#c6ccd3',
          inlay='#7d0d12', orn=('#8a6a3a', '#5c4526', '#b3121b', '#b08850'), title='#c9a86a', ember='255, 70, 40', ember2='179, 18, 27',
          btn=('#a3121a', '#6d0a10')),
-    dict(id='nav-swamp', head='12. Навь · Болото — трясина, камыш и блуждающие огоньки',
+    dict(id='nav-swamp', head='Навь · Болото — трясина, камыш и блуждающие огоньки',
          bg='#060d0a', grad=('#07110d', '#050b08', '#0b1511'), sky='rgba(40, 150, 110, 0.35)', fog='90, 150, 120',
          landscape=swamp('#020604'),
          panel='#0f1712', panel_grad=('rgba(18, 29, 23, 0.95)', 'rgba(11, 19, 15, 0.95)'), panel2='#15211a', border='#2f4a3a',
@@ -120,7 +120,7 @@ VARIANTS = [
          side_active='rgba(79, 227, 160, 0.16)', wood=('#080c08', '#121a12'), fret='#4f7a63', nut='#9fb49a', string='#b8c9bd',
          inlay='#1f7a5a', orn=('#4f7a63', '#2f4a3a', '#4fe3a0', '#6f9a80'), title='#8fc4a0', ember='90, 255, 180', ember2='30, 160, 110',
          btn=('#1d6b4d', '#0e3a2a')),
-    dict(id='nav-winter', head='13. Навь · Мара — ледяная ночь, серебро и заснеженный ельник',
+    dict(id='nav-winter', head='Навь · Мара — ледяная ночь, серебро и заснеженный ельник',
          bg='#070b14', grad=('#0a1220', '#070b14', '#0e1726'), sky='rgba(90, 170, 200, 0.28)', fog='190, 215, 240',
          landscape=spruce_forest('#03060c', snow='#dfe9f5', seed=5),
          panel='#0e1522', panel_grad=('rgba(18, 27, 42, 0.95)', 'rgba(11, 17, 28, 0.95)'), panel2='#152035', border='#34465e',
@@ -129,7 +129,7 @@ VARIANTS = [
          side_active='rgba(143, 211, 255, 0.16)', wood=('#090d15', '#131a26'), fret='#a8b6c8', nut='#e6eef8', string='#eef4fb',
          inlay='#3a6e9a', orn=('#a8b6c8', '#5f6e82', '#8fd3ff', '#cfd9e6'), title='#c5d7ec', ember='150, 220, 255', ember2='60, 130, 200',
          btn=('#2e6fa3', '#16395c')),
-    dict(id='nav-fire', head='14. Навь · Купала — зарево костра за чёрным лесом, золото и искры',
+    dict(id='nav-fire', head='Навь · Купала — зарево костра за чёрным лесом, золото и искры',
          bg='#0c0705', grad=('#0d0806', '#0a0604', '#1a0d06'), sky='rgba(120, 40, 10, 0.3)', fog='255, 120, 40',
          landscape=spruce_forest('#060302', seed=9),
          panel='#150e0a', panel_grad=('rgba(30, 20, 14, 0.95)', 'rgba(19, 12, 8, 0.95)'), panel2='#22160f', border='#5a3a1c',
@@ -138,7 +138,7 @@ VARIANTS = [
          side_active='rgba(255, 138, 31, 0.18)', wood=('#120a06', '#1f130b'), fret='#c98a2a', nut='#e8cf9e', string='#f3e2c8',
          inlay='#b34a0e', orn=('#c98a2a', '#7a4f1c', '#ff5a1f', '#e0a64a'), title='#e8aa4a', ember='255, 140, 30', ember2='220, 60, 10',
          btn=('#d0600e', '#7a2c05'), fog_strength=(0.45, 0.2)),
-    dict(id='nav-koschei', head='15. Навь · Кощей — чёрно-фиолетовая тьма, старое золото и аметисты',
+    dict(id='nav-koschei', head='Навь · Кощей — чёрно-фиолетовая тьма, старое золото и аметисты',
          bg='#09070d', grad=('#0d0a13', '#08060c', '#120d1a'), sky='rgba(110, 40, 170, 0.35)', fog='140, 100, 190',
          landscape=dead_forest('#040306'),
          panel='#120f18', panel_grad=('rgba(24, 19, 32, 0.95)', 'rgba(15, 12, 21, 0.95)'), panel2='#1b1624', border='#4a3d24',

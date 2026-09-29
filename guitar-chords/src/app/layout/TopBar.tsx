@@ -2,6 +2,7 @@ import { midiName } from '../../core/music/notes';
 import { MAX_CAPO, TUNINGS, TUNING_LIST } from '../../core/music/tunings';
 import type { DotLabel } from '../../features/fretboard/Fretboard';
 import { useApp } from '../AppContext';
+import { THEMES, type ThemeId } from '../themes';
 
 /** Настройки инструмента: строй, каподастр, транспонирование, подписи на грифе. */
 export function TopBar() {
@@ -54,6 +55,16 @@ export function TopBar() {
             <option value="note">ноты</option>
             <option value="degree">ступени</option>
             <option value="finger">пальцы</option>
+          </select>
+        </label>
+        <label className="field inline" title="Тема оформления (превью всех тем — в разделе «Оформление»)">
+          <span>Тема</span>
+          <select value={view.theme} onChange={(e) => patchView({ theme: e.target.value as ThemeId })}>
+            {THEMES.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
           </select>
         </label>
       </header>
