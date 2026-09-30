@@ -1,0 +1,229 @@
+/* Общие элементы разделов практики: крупные числа, цели, шкалы. */
+.pr-big {
+  font-family: var(--font-symbol, var(--font-display));
+  font-size: calc(54px * var(--display-scale));
+  font-weight: 800;
+  line-height: 1;
+  color: var(--accent);
+  text-shadow: var(--glow);
+  font-variant-numeric: tabular-nums;
+}
+.pr-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.pr-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 130px;
+  padding: 10px 12px;
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+}
+.pr-card small {
+  color: var(--text-2);
+  font-size: 12px;
+}
+.pr-card b {
+  font-size: 24px;
+  font-variant-numeric: tabular-nums;
+}
+.pr-target {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+}
+.pr-target.now {
+  border-color: var(--accent);
+  box-shadow:
+    0 0 0 1px var(--accent),
+    var(--glow);
+}
+.pr-target .sym {
+  font-family: var(--font-symbol, var(--font-display));
+  font-size: 34px;
+  font-weight: 800;
+}
+.pr-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.pr-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pr-chips button,
+.pr-chip {
+  padding: 3px 10px;
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--panel-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.pr-chips button.on {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.pr-meter {
+  position: relative;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  background: var(--panel-2);
+  border: var(--bw) solid var(--border);
+}
+.pr-meter::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--ok);
+  opacity: 0.8;
+}
+.pr-meter span {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.pr-meter span.old {
+  opacity: 0.35;
+}
+.pr-meter .lbl {
+  position: absolute;
+  bottom: -18px;
+  font-size: 11px;
+  color: var(--text-2);
+}
+.pr-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--panel);
+  overflow: hidden;
+}
+.pr-bar span {
+  display: block;
+  height: 100%;
+  background: var(--ok);
+}
+.pr-bar span.warn {
+  background: var(--warn);
+}
+.pr-bar span.bad {
+  background: var(--danger);
+}
+.pr-steps {
+  display: flex;
+  gap: 4px;
+}
+.pr-steps span {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--panel-2);
+}
+.pr-steps span.done {
+  background: var(--ok);
+}
+.pr-steps span.now {
+  background: var(--accent);
+}
+.pr-pre {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.35;
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  background: var(--panel-2);
+  overflow-x: auto;
+  white-space: pre;
+  margin: 0;
+}
+.fc-strings {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+}
+.fc-string {
+  display: grid;
+  grid-template-columns: 22px 64px 20px 1fr 120px;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--panel-2);
+  font-size: 14px;
+}
+.fc-string.warn .fc-icon {
+  color: var(--warn);
+}
+.fc-string.bad .fc-icon {
+  color: var(--danger);
+}
+.fc-string .fc-icon {
+  color: var(--ok);
+  font-weight: 700;
+}
+.fc-note {
+  font-family: var(--font-mono);
+}
+.fc-text {
+  color: var(--text-2);
+  font-size: 13px;
+}
+.ok-text {
+  color: var(--ok);
+  font-weight: 700;
+}
+.listening-note {
+  color: var(--accent);
+  font-size: 13px;
+  animation: pulse-badge 1.2s ease-in-out infinite;
+}
+.st-chart {
+  display: grid;
+  grid-template-columns: repeat(14, 1fr);
+  gap: 4px;
+  height: 140px;
+  align-items: end;
+}
+.st-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+  gap: 2px;
+}
+.st-bar {
+  width: 70%;
+  min-height: 2px;
+  border-radius: 3px 3px 0 0;
+  background: var(--accent);
+}
+.st-val {
+  font-size: 11px;
+  color: var(--text-2);
+}
+.st-day small {
+  font-size: 10px;
+  color: var(--text-2);
+}

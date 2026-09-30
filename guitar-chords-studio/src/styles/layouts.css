@@ -1,0 +1,349 @@
+/* Раскладки «Приборная панель», «Слушатель», «Свободные окна»: узкая полоса иконок вместо меню. */
+
+.app:not(.layout-classic) {
+  grid-template-columns: 64px minmax(0, 1fr);
+}
+.sidebar.compact {
+  padding: 12px 6px;
+  align-items: center;
+}
+.sidebar.compact :is(.nav-label, .nav-title, .brand div) {
+  display: none;
+}
+.sidebar.compact .brand {
+  padding: 0 0 8px;
+}
+.sidebar.compact .nav {
+  gap: 8px;
+  width: 100%;
+}
+.sidebar.compact .nav-item {
+  justify-content: center;
+  padding: 7px 0;
+  position: relative;
+}
+.sidebar.compact .nav-badge {
+  position: absolute;
+  top: 1px;
+  right: 3px;
+}
+.tool-title .close {
+  margin-left: auto;
+}
+
+/* ---------- Выдвижная панель ---------- */
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(0, 0, 0, 0.35);
+}
+.drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 41;
+  width: min(720px, calc(100vw - 80px));
+  padding: 12px;
+  overflow-y: auto;
+  animation: drawer-in 0.18s ease-out;
+}
+.drawer .tools {
+  min-height: calc(100% - 2px);
+}
+@keyframes drawer-in {
+  from {
+    transform: translateX(40px);
+    opacity: 0;
+  }
+}
+
+/* ---------- Приборная панель ----------
+   Плитки заполняют экран целиком и стоят вплотную; длинное содержимое прокручивается внутри плитки. */
+.workspace.dashboard {
+  height: 100%;
+  gap: 8px;
+  padding: 8px;
+  align-items: stretch;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: auto minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas:
+    'board board chord'
+    'tile0 tile1 tile2'
+    'tile0 tile1 tile3';
+}
+.dashboard > .panel {
+  min-height: 0;
+  /* Верхний отступ задаёт тема: у «Нави» там плетёнка. */
+  padding-left: 12px;
+  padding-right: 12px;
+  padding-bottom: 10px;
+  gap: 6px;
+}
+.dashboard .board-panel {
+  grid-area: board;
+  justify-content: center;
+}
+.dashboard .chord-panel {
+  grid-area: chord;
+}
+.tile {
+  overflow: hidden;
+}
+.tile .tool-title {
+  font-size: 16px;
+}
+.tile-0 {
+  grid-area: tile0;
+}
+.tile-1 {
+  grid-area: tile1;
+}
+.tile-2 {
+  grid-area: tile2;
+}
+.tile-3 {
+  grid-area: tile3;
+}
+.tile-body {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
+}
+.tile-select {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px dashed var(--border);
+  padding: 0 2px;
+  cursor: pointer;
+  max-width: 100%;
+}
+.tile-select option {
+  background: var(--panel);
+  color: var(--text);
+  font-size: 14px;
+}
+/* Круг уже стоит отдельной плиткой — второй, внутри «Слушать», не нужен. */
+.has-circle .tile .listen-main > svg.circle5 {
+  display: none;
+}
+/* В узкой плитке круг и подписи к нему идут друг под другом. */
+.tile :is(.circle-layout, .row) {
+  flex-wrap: wrap;
+}
+.tile svg.circle5 {
+  max-width: 100%;
+  height: auto;
+}
+@media (max-width: 1250px), (max-height: 760px) {
+  .workspace.dashboard {
+    height: auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: none;
+    grid-template-areas:
+      'board board'
+      'chord tile0'
+      'tile1 tile2'
+      'tile3 tile3';
+  }
+  .workspace.dashboard {
+    align-content: start;
+  }
+  .dashboard > .panel {
+    min-height: auto;
+    overflow: visible;
+  }
+  .tile-body {
+    flex: none;
+    max-height: 480px;
+  }
+}
+
+/* ---------- Слушатель ---------- */
+.workspace.listener {
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) 190px;
+  grid-template-areas:
+    'stage circle history'
+    'board board board';
+}
+.listener-stage {
+  grid-area: stage;
+  align-self: stretch;
+}
+.listener-circle {
+  grid-area: circle;
+  align-self: stretch;
+  align-items: center;
+  justify-content: center;
+}
+.listener-circle svg {
+  max-width: 100%;
+  height: auto;
+}
+.listener-history {
+  grid-area: history;
+  align-self: stretch;
+  min-height: 0;
+}
+.listener .board-panel {
+  grid-area: board;
+}
+.stage-chord {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-content: start;
+  gap: 4px 12px;
+  padding: 6px 4px;
+}
+.stage-symbol {
+  font-family: var(--font-symbol, var(--font-display));
+  font-size: calc(120px * var(--display-scale));
+  font-weight: 800;
+  line-height: 1;
+  color: var(--accent);
+  text-shadow: var(--glow);
+}
+.stage-chord.idle .stage-symbol {
+  opacity: 0.45;
+}
+.stage-ru {
+  font-size: 20px;
+}
+.stage-level {
+  flex: none;
+  width: 100%;
+}
+.stage-bars {
+  height: 110px;
+  margin-top: auto;
+}
+.slider.compact {
+  min-width: 150px;
+}
+.heard-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+  max-height: 330px;
+}
+.heard-list button {
+  font: inherit;
+  font-family: var(--font-symbol, var(--font-display));
+  font-size: 22px;
+  text-align: left;
+  padding: 3px 10px;
+  border: var(--bw) solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.heard-list button:hover {
+  background: var(--hover);
+}
+.heard-list button.on {
+  color: var(--text);
+  border-color: var(--accent);
+  background: var(--panel-2);
+}
+@media (max-width: 1150px) {
+  .workspace.listener {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      'stage stage'
+      'circle history'
+      'board board';
+  }
+}
+
+/* ---------- Свободные окна ---------- */
+.desktop {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+.desk-board {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+}
+/* Селектор сильнее правил тем для .panel (например, «Навь» задаёт панелям position: relative). */
+.desktop > .panel.free-win {
+  position: absolute;
+  /* Верхний отступ оставляем от темы: у «Нави» там плетёнка. */
+  padding-left: 0;
+  padding-right: 0;
+  padding-bottom: 0;
+  gap: 0;
+  overflow: hidden;
+}
+.free-win-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px 6px 14px;
+  cursor: grab;
+  user-select: none;
+  font-family: var(--font-display);
+  border-bottom: var(--bw) solid var(--border);
+  touch-action: none;
+}
+.dragging,
+.dragging * {
+  cursor: grabbing !important;
+  user-select: none;
+}
+.free-win-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 14px;
+}
+/* Карточка аккорда внутри окна — без второй рамки. */
+.free-win-body > .panel {
+  background: none;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  backdrop-filter: none;
+}
+.free-win-body > .panel::before,
+.free-win-body > .panel::after {
+  display: none;
+}
+.free-win-resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 18px;
+  height: 18px;
+  cursor: nwse-resize;
+  touch-action: none;
+  background: linear-gradient(
+    135deg,
+    transparent 50%,
+    var(--border) 50%,
+    var(--border) 60%,
+    transparent 60%,
+    transparent 72%,
+    var(--border) 72%,
+    var(--border) 82%,
+    transparent 82%
+  );
+  z-index: 2;
+}
+.desk-tools {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  z-index: 5;
+  display: flex;
+  gap: 6px;
+}

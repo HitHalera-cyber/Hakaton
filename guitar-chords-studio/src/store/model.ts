@@ -1,0 +1,198 @@
+// Модель данных приложения: типы и значения по умолчанию. Здесь нет React и побочных эффектов.
+
+import type { PlayMode, Timbre } from '../core/audio/engine';
+import type { Board, Frets } from '../core/music/fretboard';
+import { TUNINGS } from '../core/music/tunings';
+import type { ModuleId } from '../modules/ids';
+
+export type DotLabel = 'note' | 'degree' | 'finger';
+export type LayoutId = 'classic' | 'dashboard' | 'listener' | 'free';
+
+export interface ViewSettings {
+  theme: string;
+  layout: LayoutId;
+  /** Разделы в плитках приборной панели. */
+  tiles: ModuleId[];
+  showNotes: boolean;
+  dotLabel: DotLabel;
+  tuning: string;
+  customStrings: number[];
+  capo: number;
+  tab: ModuleId;
+  /** Тональность для квинтового круга: 'auto' или «позиция-лад». */
+  circleKey: string;
+}
+
+export interface SoundSettings {
+  volume: number;
+  reverb: number;
+  mode: PlayMode;
+  arpStepMs: number;
+  timbre: Timbre;
+  autoPlay: boolean;
+}
+
+export interface RhythmSettings {
+  bpm: number;
+  patternId: string;
+  loop: boolean;
+  click: boolean;
+  /** Метроном: долей в такте. */
+  meter: number;
+  accent: boolean;
+}
+
+export interface ScaleSettings {
+  show: boolean;
+  rootPc: number;
+  scaleId: string;
+}
+
+export interface MidiOptions {
+  latch: boolean;
+  sound: boolean;
+  device: string;
+  output: string;
+  muteInternal: boolean;
+}
+
+export type ListenMode = 'strum' | 'hold';
+
+export interface ListenSettings {
+  mode: ListenMode;
+  /** Усиление микрофона (×). */
+  gain: number;
+  /** Сколько держать аккорд в режиме «Держите аккорд», секунды. */
+  holdSeconds: number;
+  sensitivity: number;
+  showOnBoard: boolean;
+}
+
+export interface Settings {
+  view: ViewSettings;
+  sound: SoundSettings;
+  rhythm: RhythmSettings;
+  scale: ScaleSettings;
+  midi: MidiOptions;
+  listen: ListenSettings;
+}
+
+export const DEFAULT_TILES: ModuleId[] = ['circle', 'listen', 'sound', 'songbook'];
+
+export const DEFAULT_SETTINGS: Settings = {
+  view: {
+    theme: 'slavic',
+    layout: 'classic',
+    tiles: DEFAULT_TILES,
+    showNotes: false,
+    dotLabel: 'note',
+    tuning: 'standard',
+    customStrings: [...TUNINGS.standard.strings],
+    capo: 0,
+    tab: 'songbook',
+    circleKey: 'auto',
+  },
+  sound: { volume: 0.8, reverb: 0.25, mode: 'strum', arpStepMs: 180, timbre: 'steel', autoPlay: true },
+  rhythm: { bpm: 90, patternId: 'six', loop: true, click: false, meter: 4, accent: true },
+  scale: { show: false, rootPc: 9, scaleId: 'pentMinor' },
+  midi: { latch: true, sound: true, device: 'all', output: '', muteInternal: false },
+  listen: { mode: 'strum', gain: 3, holdSeconds: 2.5, sensitivity: 0.5, showOnBoard: true },
+};
+
+/** Аккорд с определённым строем и каподастром: элемент избранного, истории, последовательности. */
+export interface ShapeBase {
+  tuning: string;
+  strings: number[];
+  capo: number;
+}
+
+export interface SavedShape extends ShapeBase {
+  id: string;
+  name: string;
+  symbol: string;
+  nameRu: string;
+  board: Board;
+  created: number;
+}
+
+export interface HistoryEntry extends ShapeBase {
+  id: string;
+  symbol: string;
+  nameRu: string;
+  notes: string[];
+  time: number;
+  source: 'board' | 'midi';
+  board?: Board;
+  midi?: number[];
+}
+
+export interface SeqItem {
+  id: string;
+  symbol: string;
+  board: Board;
+  strings: number[];
+  capo: number;
+  /** Длительность в долях (четвертях). */
+  beats: number;
+}
+
+/** Песня в песеннике. Текст хранится в формате ChordPro: «[Am]Вот новый [F]поворот». */
+export interface Song {
+  id: string;
+  title: string;
+  artist: string;
+  body: string;
+  capo: number;
+  bpm: number;
+  /** Сдвиг аккордов песни в полутонах. */
+  transpose: number;
+  /** Выбранные аппликатуры: символ аккорда → лады. */
+  shapes: Record<string, Frets>;
+  created: number;
+  updated: number;
+}
+
+export interface PracticeDay {
+  /** Сколько секунд занимались (приложение активно, идёт игра или упражнение). */
+  seconds: number;
+  /** Аккорды, которые сыграли на гитаре (распознаны микрофоном). */
+  chords: string[];
+}
+
+export interface Practice {
+  days: Record<string, PracticeDay>;
+  /** Аккорды, уверенно сыгранные на гитаре хотя бы несколько раз, — «выученные». */
+  learned: string[];
+  /** Счётчик: сколько раз аккорд был распознан с гитары. */
+  heardCount: Record<string, number>;
+  lessons: Record<string, { step: number; done: boolean }>;
+  /** Лучший результат в «Сменах аккордов» для пары: смен в минуту. */
+  changesBest: Record<string, number>;
+  /** Лучшая точность в «Ритме», средняя ошибка в мс. */
+  rhythmBest: number | null;
+}
+
+export const EMPTY_PRACTICE: Practice = { days: {}, learned: [], heardCount: {}, lessons: {}, changesBest: {}, rhythmBest: null };
+
+/** Окно в раскладке «Свободные окна». */
+export type WindowKind = ModuleId | 'chord';
+
+export interface FreeWindow {
+  id: WindowKind;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  z: number;
+}
+
+export const DEFAULT_WINDOWS: FreeWindow[] = [
+  { id: 'chord', x: 12, y: 12, w: 340, h: 420, z: 1 },
+  { id: 'circle', x: 364, y: 12, w: 560, h: 470, z: 2 },
+  { id: 'metronome', x: 936, y: 52, w: 360, h: 330, z: 3 },
+];
+
+export const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+
+export const todayKey = (d = new Date()) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;

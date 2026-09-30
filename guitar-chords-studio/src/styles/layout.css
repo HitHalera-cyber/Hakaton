@@ -1,0 +1,202 @@
+/* Раскладка окна «Классика»: боковое меню | (панель инструмента, гриф, аккорд + раздел).
+   Остальные раскладки — в layouts.css. */
+
+.app {
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  height: 100%;
+}
+
+/* ---------- Боковое меню ---------- */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px 10px 12px;
+  background: var(--side-bg);
+  color: var(--side-text);
+  border-right: var(--bw) solid var(--border);
+  backdrop-filter: var(--panel-filter);
+  overflow-y: auto;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 8px 10px;
+}
+.brand .logo {
+  font-size: 28px;
+}
+.brand h1 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: var(--display-weight);
+  line-height: 1.1;
+  text-shadow: var(--glow);
+}
+.brand p {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: var(--side-muted);
+}
+.nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.nav-title {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--side-muted);
+  padding: 4px 10px;
+}
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 10px;
+  border: var(--bw) solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--side-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.nav-item:hover {
+  background: var(--side-active);
+}
+.nav-item.on {
+  background: var(--side-active);
+  color: var(--side-active-text);
+  border-color: var(--accent);
+  font-weight: 700;
+}
+.nav-icon {
+  width: 20px;
+  text-align: center;
+}
+.nav-label {
+  flex: 1;
+}
+.nav-badge {
+  color: var(--accent);
+  font-size: 11px;
+  animation: pulse-badge 1.2s ease-in-out infinite;
+}
+@keyframes pulse-badge {
+  50% {
+    opacity: 0.35;
+  }
+}
+.nav-item.about {
+  color: var(--side-muted);
+}
+
+/* ---------- Основная область ---------- */
+.main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  flex-wrap: wrap;
+  background: var(--panel-bg);
+  backdrop-filter: var(--panel-filter);
+  border-bottom: var(--bw) solid var(--border);
+}
+.workspace {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+  align-items: start;
+}
+.workspace.classic {
+  grid-template-columns: minmax(330px, 380px) minmax(0, 1fr);
+  grid-template-areas:
+    'board board'
+    'chord tools';
+}
+.classic .board-panel {
+  grid-area: board;
+}
+.classic .chord-panel {
+  grid-area: chord;
+  position: sticky;
+  top: 0;
+}
+.classic .tools {
+  grid-area: tools;
+  min-height: 420px;
+}
+.tool-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: var(--display-weight);
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  text-shadow: var(--glow);
+}
+@media (max-width: 1150px) {
+  .app {
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
+  .nav-label,
+  .nav-title,
+  .brand div {
+    display: none;
+  }
+  .workspace.classic {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'board' 'chord' 'tools';
+  }
+  .classic .chord-panel {
+    position: static;
+  }
+}
+
+.transpose {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.custom-tuning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--bg-2);
+  border-bottom: var(--bw) solid var(--border);
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+.update-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 8px 16px;
+  background: color-mix(in srgb, var(--ok) 22%, var(--bg-2));
+  border-bottom: var(--bw) solid var(--ok);
+  font-size: 14px;
+}

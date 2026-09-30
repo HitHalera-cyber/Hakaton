@@ -1,0 +1,179 @@
+.board-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.fretboard {
+  width: 100%;
+  height: auto;
+  max-height: 360px;
+  display: block;
+}
+.fretboard text {
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+}
+.fretboard .nut {
+  stroke: var(--nut);
+  stroke-width: 8;
+}
+.fretboard .fret-wire {
+  stroke: var(--fret);
+  stroke-width: 3;
+}
+.fretboard .inlay {
+  fill: var(--inlay);
+  opacity: 0.85;
+}
+.fretboard .string {
+  stroke: var(--string);
+  filter: drop-shadow(0 1px 0.5px rgba(0, 0, 0, 0.5));
+}
+.fretboard .string.muted {
+  opacity: 0.35;
+  stroke-dasharray: 6 5;
+}
+.fretboard .string-label {
+  fill: var(--text);
+  font-size: 16px;
+  font-weight: 700;
+}
+.fretboard .fret-num {
+  fill: var(--text-2);
+  font-size: 13px;
+}
+.fretboard .fret-num.marked {
+  fill: var(--text);
+  font-weight: 700;
+}
+.fretboard .hit {
+  fill: transparent;
+  cursor: pointer;
+}
+.fretboard .hover-cell {
+  fill: var(--hover);
+  pointer-events: none;
+}
+.fretboard .capo-shade {
+  fill: rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+.fretboard .capo rect {
+  fill: #2b2b2b;
+  stroke: #9ca3af;
+  stroke-width: 1.5;
+}
+.fretboard .capo text {
+  fill: var(--text-2);
+  font-size: 10px;
+  font-weight: 700;
+}
+/* Подписи нот: контрастные «таблетки», хорошо читаются на тёмном дереве */
+.fretboard .note-pill circle {
+  fill: rgba(10, 12, 18, 0.72);
+  stroke: rgba(255, 255, 255, 0.35);
+  stroke-width: 1;
+}
+.fretboard .note-pill text {
+  fill: #ffffff;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.fretboard .scale-mark circle {
+  fill: var(--scale);
+  stroke: rgba(0, 0, 0, 0.35);
+  stroke-width: 1.5;
+}
+.fretboard .scale-mark.root circle {
+  fill: var(--scale-root);
+}
+.fretboard .scale-mark text {
+  fill: #1a1204;
+  font-size: 12px;
+  font-weight: 800;
+}
+.fretboard .dot circle {
+  fill: var(--dot);
+  stroke: #fff;
+  stroke-width: 2;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5));
+}
+.fretboard .dot.root circle {
+  fill: var(--root);
+}
+.fretboard .dot text {
+  fill: var(--dot-text);
+  font-size: 13px;
+  font-weight: 800;
+}
+.fretboard .barre {
+  fill: var(--dot);
+  opacity: 0.55;
+  pointer-events: none;
+}
+.fretboard .open-mark {
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 3;
+}
+.fretboard .open-mark.root {
+  stroke: var(--root);
+}
+.fretboard .open-label {
+  fill: var(--text);
+  font-size: 10px;
+  font-weight: 700;
+}
+.fretboard .mute-mark {
+  fill: var(--danger);
+  font-size: 22px;
+  font-weight: 700;
+}
+.fretboard .midi-ghost {
+  fill: color-mix(in srgb, var(--midi) 25%, transparent);
+  stroke: var(--midi);
+  stroke-width: 3;
+  pointer-events: none;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+@keyframes pulse {
+  50% {
+    stroke-opacity: 0.45;
+  }
+}
+.fretboard .flash {
+  fill: none;
+  stroke-width: 5;
+  pointer-events: none;
+  animation: flash 0.9s ease-out forwards;
+}
+.fretboard .flash.ok {
+  stroke: var(--ok);
+}
+.fretboard .flash.bad {
+  stroke: var(--danger);
+}
+@keyframes flash {
+  from {
+    stroke-opacity: 1;
+  }
+  to {
+    stroke-opacity: 0;
+  }
+}
+.fretboard .tooltip rect {
+  fill: var(--tt-bg);
+  opacity: 0.94;
+}
+.fretboard .tooltip .tt-title {
+  fill: #fff;
+  font-size: 13px;
+  font-weight: 700;
+}
+.fretboard .tooltip .tt-sub {
+  fill: #b9c0cf;
+  font-size: 11px;
+}

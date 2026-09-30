@@ -1,0 +1,36 @@
+import { audio } from '../../core/audio/engine';
+import { store, useGuitar, usePick } from '../../store';
+import type { ModuleDef } from '../types';
+import { SoundPanel } from './SoundPanel';
+
+function SoundView() {
+  const { settings, patch } = usePick((s) => ({ settings: s.settings.sound, patch: s.patchSound }));
+  const g = useGuitar();
+  return (
+    <SoundPanel
+      settings={settings}
+      instrument={g.tuning.instrument}
+      onChange={patch}
+      onStrum={(dir) => {
+        audio.stopAll(0.02);
+        audio.strum(store.getState().currentNotes(), dir);
+      }}
+      onArpeggio={() => {
+        audio.stopAll(0.02);
+        audio.arpeggio(store.getState().currentNotes(), settings.arpStepMs);
+      }}
+      onStop={() => audio.stopAll()}
+      canPlay={g.activeMidi.length > 0}
+    />
+  );
+}
+
+export const soundModule: ModuleDef = {
+  id: 'sound',
+  title: 'Звук',
+  icon: '🔊',
+  group: 'play',
+  description: 'Бой, перебор, тембр гитары и громкость',
+  keywords: ['тембр', 'громкость', 'бой', 'перебор', 'нейлон', 'электро'],
+  View: SoundView,
+};

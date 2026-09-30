@@ -1,0 +1,184 @@
+.root-picker {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 4px;
+}
+.root-picker button {
+  border: var(--bw) solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 6px 0;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  font-size: 13px;
+}
+.root-picker button.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+.lib-head {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+.lib-symbol {
+  font-family: var(--font-symbol, var(--font-display));
+  text-shadow: var(--glow);
+  font-size: calc(30px * var(--display-scale));
+  font-weight: 800;
+  color: var(--accent);
+}
+.lib-notes {
+  display: flex;
+  gap: 8px;
+  font-weight: 600;
+}
+.lib-notes .opt {
+  color: var(--text-2);
+  font-weight: 400;
+}
+.voicing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 8px;
+}
+.voicing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: var(--panel-2);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 4px 6px;
+  cursor: pointer;
+  color: var(--text);
+  font: inherit;
+}
+.voicing:hover,
+.voicing.on {
+  border-color: var(--accent);
+}
+.voicing.on {
+  background: color-mix(in srgb, var(--accent) 14%, var(--panel-2));
+}
+.v-pos {
+  font-size: 12px;
+  font-weight: 600;
+}
+.v-tab {
+  font-size: 11px;
+  color: var(--text-2);
+  font-family: var(--font-mono);
+}
+.mini-diagram .md-line {
+  stroke: var(--text-2);
+  stroke-width: 0.8;
+}
+.mini-diagram .md-nut {
+  stroke: var(--text);
+  stroke-width: 3;
+}
+.mini-diagram .md-dot {
+  fill: var(--text);
+}
+.mini-diagram .md-open {
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 1;
+}
+.mini-diagram text {
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+.mini-diagram .md-mark {
+  fill: var(--text-2);
+  font-size: 9px;
+}
+.mini-diagram .md-fret {
+  fill: var(--text-2);
+  font-size: 8px;
+}
+.mini-diagram .md-finger {
+  fill: var(--panel);
+  font-size: 7px;
+  font-weight: 700;
+}
+.scale-notes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.scale-notes span {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 40px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--scale) 22%, var(--panel-2));
+}
+.scale-notes span.root {
+  background: color-mix(in srgb, var(--scale-root) 35%, var(--panel-2));
+}
+.scale-notes b {
+  font-size: 17px;
+}
+.scale-notes small {
+  color: var(--text-2);
+  font-size: 11px;
+}
+.key-chords {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+.key-chord {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 2px;
+  border-radius: var(--radius-sm);
+  border: var(--bw) solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+}
+.key-chord:hover {
+  border-color: var(--accent);
+}
+.key-chord.f-T {
+  border-top: 3px solid var(--ok);
+}
+.key-chord.f-S {
+  border-top: 3px solid var(--dot);
+}
+.key-chord.f-D {
+  border-top: 3px solid var(--root);
+}
+.key-chord .roman {
+  font-size: 12px;
+  color: var(--text-2);
+  font-family: var(--font-serif);
+}
+.key-chord .sym {
+  font-weight: 800;
+  font-size: 15px;
+}
+.prog-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.prog-preview span {
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--panel-2);
+  border: var(--bw) solid var(--border);
+  font-weight: 700;
+}

@@ -1,0 +1,47 @@
+.score {
+  font-size: 13px;
+  color: var(--text-2);
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.score b {
+  color: var(--text);
+}
+.question {
+  font-size: 19px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--panel-2);
+}
+.question b {
+  color: var(--accent);
+}
+.question small {
+  display: block;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.answers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.btn.correct {
+  border-color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 25%, var(--panel-2));
+  opacity: 1;
+}
+.feedback {
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+}
+.feedback.ok {
+  background: color-mix(in srgb, var(--ok) 18%, transparent);
+  color: var(--ok);
+}
+.feedback.bad {
+  background: color-mix(in srgb, var(--danger) 15%, transparent);
+  color: var(--danger);
+}

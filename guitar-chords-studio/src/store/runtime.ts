@@ -1,0 +1,129 @@
+// Состояние сеанса (не сохраняется, кроме окон): уведомления, выдвижная панель, след на круге,
+// прослушивание гитары, проигрывание последовательности, MIDI-устройства, режим разбора песни.
+
+import type { Recognition, RecognizedChord } from '../core/analysis/chordRecognition';
+import type { MidiDevice } from '../core/midi/midiInput';
+import type { ModuleId } from '../modules/ids';
+import { DEFAULT_WINDOWS, type FreeWindow } from './model';
+import type { Slice } from './types';
+
+export interface TrailChord {
+  rootPc: number;
+  templateId: string;
+  symbol: string;
+  nameRu: string;
+  source: 'board' | 'midi' | 'guitar' | 'song';
+  id: number;
+}
+
+export type HoldState = 'idle' | 'listening' | 'done' | 'short';
+export type MidiStatus = 'init' | 'ready' | 'denied' | 'unavailable' | 'unsupported';
+
+export interface ListenRuntime {
+  active: boolean;
+  error: string;
+  level: number;
+  result: Recognition | null;
+  chroma: number[];
+  history: RecognizedChord[];
+  hold: { state: HoldState; progress: number };
+}
+
+export interface RuntimeSlice {
+  toastText: string | null;
+  toast: (text: string) => void;
+  aboutOpen: boolean;
+  setAboutOpen: (v: boolean) => void;
+  paletteOpen: boolean;
+  setPaletteOpen: (v: boolean) => void;
+  drawerOpen: boolean;
+  /** Открыть раздел: в «Классике» — справа от аккорда, в других раскладках — в выдвижной панели. */
+  openModule: (id: ModuleId) => void;
+  closeDrawer: () => void;
+  windows: FreeWindow[];
+  setWindows: (w: FreeWindow[] | ((w: FreeWindow[]) => FreeWindow[])) => void;
+
+  trail: TrailChord[];
+  pushTrail: (c: Omit<TrailChord, 'id'>) => void;
+  clearTrail: () => void;
+
+  libRequest: { rootPc: number; templateId: string; bassPc?: number; nonce: number } | null;
+  showVoicings: (ref: { rootPc: number; templateId: string; bassPc?: number }) => void;
+
+  /** Сколько панелей разбора песни открыто сейчас; пока > 0, гриф показывает только аккорды песни. */
+  songOpen: number;
+  songPlaying: boolean;
+  setSongOpen: (open: boolean) => void;
+  setSongPlaying: (v: boolean) => void;
+
+  listen: ListenRuntime;
+  setListen: (p: Partial<ListenRuntime>) => void;
+
+  metro: { running: boolean; beat: number };
+  setMetro: (p: Partial<{ running: boolean; beat: number }>) => void;
+
+  seq: { playing: boolean; current: number | null };
+  setSeq: (p: Partial<{ playing: boolean; current: number | null }>) => void;
+
+  midiIO: { status: MidiStatus; error?: string; devices: MidiDevice[]; outputs: MidiDevice[] };
+  setMidiIO: (p: Partial<RuntimeSlice['midiIO']>) => void;
+}
+
+let trailId = 0;
+let toastTimer = 0;
+
+export const createRuntimeSlice: Slice<RuntimeSlice> = (set, get) => ({
+  toastText: null,
+  toast: (text) => {
+    set({ toastText: text });
+    window.clearTimeout(toastTimer);
+    toastTimer = window.setTimeout(() => set({ toastText: null }), 2600);
+  },
+  aboutOpen: false,
+  setAboutOpen: (aboutOpen) => set({ aboutOpen }),
+  paletteOpen: false,
+  setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
+  drawerOpen: false,
+  openModule: (tab) => {
+    get().patchView({ tab });
+    if (get().settings.view.layout !== 'classic') set({ drawerOpen: true });
+  },
+  closeDrawer: () => set({ drawerOpen: false }),
+  windows: DEFAULT_WINDOWS,
+  setWindows: (w) => set((s) => ({ windows: typeof w === 'function' ? w(s.windows) : w })),
+
+  trail: [],
+  pushTrail: (c) => set((s) => (s.trail[0]?.symbol === c.symbol ? {} : { trail: [{ ...c, id: ++trailId }, ...s.trail].slice(0, 12) })),
+  clearTrail: () => set({ trail: [] }),
+
+  libRequest: null,
+  showVoicings: (ref) => {
+    set({ libRequest: { ...ref, nonce: Date.now() } });
+    get().openModule('library');
+  },
+
+  songOpen: 0,
+  songPlaying: false,
+  setSongOpen: (open) => set((s) => ({ songOpen: Math.max(0, s.songOpen + (open ? 1 : -1)) })),
+  setSongPlaying: (songPlaying) => set({ songPlaying }),
+
+  listen: {
+    active: false,
+    error: '',
+    level: 0,
+    result: null,
+    chroma: new Array(12).fill(0),
+    history: [],
+    hold: { state: 'idle', progress: 0 },
+  },
+  setListen: (p) => set((s) => ({ listen: { ...s.listen, ...p } })),
+
+  metro: { running: false, beat: -1 },
+  setMetro: (p) => set((s) => ({ metro: { ...s.metro, ...p } })),
+
+  seq: { playing: false, current: null },
+  setSeq: (p) => set((s) => ({ seq: { ...s.seq, ...p } })),
+
+  midiIO: { status: 'init', devices: [], outputs: [] },
+  setMidiIO: (p) => set((s) => ({ midiIO: { ...s.midiIO, ...p } })),
+});

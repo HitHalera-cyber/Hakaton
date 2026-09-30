@@ -1,0 +1,82 @@
+/* Элементы оболочки Studio: поиск в меню, отметка «новое», панель команд. */
+
+.nav-item.search {
+  margin: 0 0 4px;
+  border: var(--bw) dashed var(--border);
+  color: var(--side-muted);
+}
+.nav-item.search kbd {
+  flex: none;
+  font-size: 10px;
+  padding: 1px 5px;
+  border: var(--bw) solid var(--border);
+  border-radius: 4px;
+  color: var(--side-muted);
+}
+.nav-new {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+}
+.sidebar.compact .nav-new {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+}
+
+.palette-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 12vh;
+  background: rgba(0, 0, 0, 0.45);
+}
+.palette {
+  width: min(620px, calc(100vw - 32px));
+  max-height: 70vh;
+  overflow: hidden;
+}
+.palette input {
+  font: inherit;
+  font-size: 17px;
+  padding: 10px 12px;
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--panel-2);
+  color: var(--text);
+}
+.palette-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+}
+.palette-list button {
+  display: grid;
+  grid-template-columns: 28px auto 1fr;
+  align-items: baseline;
+  gap: 10px;
+  padding: 7px 10px;
+  border: var(--bw) solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.palette-list button.on {
+  background: var(--side-active);
+  border-color: var(--accent);
+}
+.palette-list small {
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

@@ -1,0 +1,242 @@
+.songbook {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr);
+  gap: 14px;
+  min-height: 0;
+}
+.songbook-wrap {
+  container-type: inline-size;
+}
+/* В узкой области (плитка, окно, «Классика» на небольшом экране) список песен — над песней. */
+@container (max-width: 760px) {
+  .songbook {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sb-list {
+    max-height: 150px;
+  }
+}
+.sb-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 640px;
+  overflow-y: auto;
+}
+.sb-search,
+.sb-import input,
+.sb-edit input {
+  font: inherit;
+  padding: 6px 8px;
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--panel-2);
+  color: var(--text);
+}
+.sb-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 6px 8px;
+  border: var(--bw) solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.sb-item:hover {
+  background: var(--hover);
+}
+.sb-item.on {
+  border-color: var(--accent);
+  background: var(--panel-2);
+}
+.sb-item small {
+  color: var(--text-2);
+  font-size: 12px;
+}
+.sb-main {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.sb-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.sb-toolbar .btn.on {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.sb-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.sb-group b {
+  min-width: 22px;
+  text-align: center;
+  color: var(--text);
+}
+.sb-group input[type='range'] {
+  width: 90px;
+}
+.sb-import,
+.sb-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sb-import textarea,
+.sb-edit textarea {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 8px;
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--panel-2);
+  color: var(--text);
+  resize: vertical;
+}
+.sb-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+}
+.sb-head .sb-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 22px;
+  color: var(--text);
+  letter-spacing: normal;
+  text-transform: none;
+}
+.sb-head span {
+  color: var(--text-2);
+}
+.sb-capo {
+  font-size: 13px;
+  color: var(--accent) !important;
+}
+.sb-scroll {
+  max-height: 460px;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+.song-sheet {
+  font-size: 16px;
+  line-height: 1.3;
+}
+.sb-section {
+  margin: 12px 0 4px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-2);
+}
+.sb-gap {
+  height: 10px;
+}
+.sb-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  margin-bottom: 4px;
+}
+.sb-part {
+  display: inline-flex;
+  flex-direction: column;
+  white-space: pre;
+}
+.sb-part.has-chord .sb-text {
+  min-width: 2.2em;
+}
+.sb-chord {
+  align-self: flex-start;
+  padding: 0 3px 0 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--accent);
+  cursor: pointer;
+  font-family: var(--font-symbol, var(--font-display));
+}
+.sb-chord:hover,
+.sb-chord.on {
+  text-decoration: underline;
+  text-shadow: var(--glow);
+}
+.shape-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.shape-cell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.shape-main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--panel-2);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.shape-main b {
+  font-family: var(--font-symbol, var(--font-display));
+}
+.shape-options {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 20;
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+.shape-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px;
+  border: var(--bw) solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.shape-option.on {
+  border-color: var(--accent);
+}
+.shape-option small {
+  font-size: 11px;
+  color: var(--text-2);
+}
+.link.small {
+  font-size: 11px;
+}

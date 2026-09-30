@@ -1,0 +1,67 @@
+name: Guitar Chords Studio — сборка
+
+on:
+  push:
+    branches:
+      - '**'
+    paths:
+      - 'guitar-chords-studio/**'
+      - '.github/workflows/guitar-chords-studio.yml'
+  pull_request:
+    paths:
+      - 'guitar-chords-studio/**'
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: guitar-chords-studio
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: guitar-chords-studio/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+
+  package:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            script: dist:win
+            files: |
+              guitar-chords-studio/release/*.exe
+          - os: macos-latest
+            script: dist:mac
+            files: |
+              guitar-chords-studio/release/*.dmg
+          - os: ubuntu-latest
+            script: dist:linux
+            files: |
+              guitar-chords-studio/release/*.AppImage
+    runs-on: ${{ matrix.os }}
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: guitar-chords-studio/package-lock.json
+      - run: npm ci
+      - run: npm run ${{ matrix.script }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GuitarChordsStudio-${{ runner.os }}
+          path: ${{ matrix.files }}
+          if-no-files-found: error

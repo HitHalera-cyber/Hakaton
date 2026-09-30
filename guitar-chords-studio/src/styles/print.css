@@ -1,0 +1,78 @@
+/* Печать и PDF: только печатная версия песни (.print-root), чёрным по белому. */
+@media print {
+  @page {
+    margin: 14mm;
+  }
+  /* Всё, что не песня и не её предки, — не печатаем; предки превращаются в простые блоки без рамок. */
+  body *:not(:has(.print-root)):not(.print-root):not(.print-root *) {
+    display: none !important;
+  }
+  :has(> * .print-root),
+  :has(> .print-root) {
+    display: block !important;
+    position: static !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: none !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+  }
+  :has(> * .print-root)::before,
+  :has(> * .print-root)::after,
+  :has(> .print-root)::before,
+  :has(> .print-root)::after {
+    display: none !important;
+  }
+  /* Белая бумага: сильнее правил выше и тёмной цветовой схемы темы. */
+  html:root,
+  html:root > body {
+    background: #fff !important;
+    color-scheme: light !important;
+  }
+  .print-root .no-print,
+  .print-root .no-print * {
+    display: none !important;
+  }
+  .print-root {
+    width: 100%;
+    color: #000 !important;
+    font-family: Georgia, 'PT Serif', serif;
+    /* Цвета темы на бумаге: схемы аккордов и текст — чёрные. */
+    --text: #000;
+    --text-2: #333;
+    --panel: #fff;
+    --panel-2: #fff;
+    --accent: #b00;
+    --glow: none;
+  }
+  .print-root .sb-scroll {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  .print-root .sb-head .sb-title,
+  .print-root .sb-head span,
+  .print-root .sb-text,
+  .print-root .sb-section,
+  .print-root .shape-main b {
+    color: #000 !important;
+    text-shadow: none !important;
+  }
+  .print-root .sb-chord {
+    color: #b00 !important;
+    text-shadow: none !important;
+  }
+  .print-root .shape-main {
+    background: #fff !important;
+    border-color: #999 !important;
+  }
+  .print-root .shape-cell .link {
+    display: none;
+  }
+  .print-root .sb-line {
+    break-inside: avoid;
+  }
+}
