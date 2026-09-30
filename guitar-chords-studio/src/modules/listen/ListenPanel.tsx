@@ -4,6 +4,7 @@ import type { RecognizedChord } from '../../core/analysis/chordRecognition';
 import type { Frets } from '../../core/music/fretboard';
 import { pcName } from '../../core/music/notes';
 import { ChordDiagram } from '../../ui/ChordDiagram';
+import { MicSettings } from './MicSettings';
 import type { ChordListener } from './useListener';
 
 interface Props {
@@ -27,6 +28,7 @@ const HOLD_TEXT = {
 export function ListenPanel({ listener, onPick, circle, voicing, capo }: Props) {
   const { active, error, level, result, chroma, history, hold, settings, patch } = listener;
   const best = result?.best;
+  const notes = result?.notes;
   const holdMode = settings.mode === 'hold';
   const pending = holdMode && hold.state === 'listening';
   // Схема — для последнего распознанного аккорда (он же показан на грифе).
@@ -67,7 +69,12 @@ export function ListenPanel({ listener, onPick, circle, voicing, capo }: Props) 
 
       <div className="listen-main">
         <div className={`listen-result ${active ? '' : 'off'} ${pending ? 'pending' : ''}`}>
-          {best ? (
+          {notes ? (
+            <>
+              <div className="listen-symbol">{notes.label}</div>
+              <div className="listen-ru">{notes.nameRu}</div>
+            </>
+          ) : best ? (
             <>
               <div className="listen-symbol">{best.symbol}</div>
               <div className="listen-ru">{best.nameRu}</div>
@@ -97,7 +104,7 @@ export function ListenPanel({ listener, onPick, circle, voicing, capo }: Props) 
                 ? holdMode
                   ? HOLD_TEXT.idle
                   : 'Сыграйте аккорд — один удар по всем струнам'
-                : 'Нажмите «Начать слушать» и сыграйте аккорд на гитаре'}
+                : 'Нажмите «Начать слушать» и сыграйте аккорд или ноту на гитаре'}
             </div>
           )}
           {holdMode && active && (
@@ -126,10 +133,7 @@ export function ListenPanel({ listener, onPick, circle, voicing, capo }: Props) 
       </div>
 
       <div className="listen-settings">
-        <label className="slider">
-          <span>Усиление микрофона ×{settings.gain}</span>
-          <input type="range" min={1} max={12} step={0.5} value={settings.gain} onChange={(e) => patch({ gain: Number(e.target.value) })} />
-        </label>
+        <MicSettings listener={listener} />
         {holdMode ? (
           <label className="slider">
             <span>Сколько держать аккорд: {settings.holdSeconds.toFixed(1)} с</span>
@@ -157,7 +161,7 @@ export function ListenPanel({ listener, onPick, circle, voicing, capo }: Props) 
         )}
         <label className="check">
           <input type="checkbox" checked={settings.showOnBoard} onChange={(e) => patch({ showOnBoard: e.target.checked })} />
-          Повторять аккорд на грифе
+          Повторять аккорд или ноту на грифе
         </label>
       </div>
 
@@ -175,8 +179,8 @@ export function ListenPanel({ listener, onPick, circle, voicing, capo }: Props) 
         </div>
       )}
       <p className="hint">
-        Микрофон в 30–50 см от гитары, тихая комната. Если программа «не слышит» — прибавьте усиление, чтобы полоска уровня доходила хотя бы
-        до трети. «Держите аккорд» точнее «По удару», особенно при тихой игре.
+        Одна струна — покажется нота, две — интервал, три и больше — аккорд. Микрофон в 30–50 см от гитары. Шум комнаты программа запоминает
+        сама, пока гитара молчит, — после включения дайте ей 2 секунды тишины. «Держите аккорд» точнее «По удару», особенно при тихой игре.
       </p>
     </div>
   );

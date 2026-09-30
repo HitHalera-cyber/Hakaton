@@ -7,7 +7,7 @@
 }
 .nav-item.search kbd {
   flex: none;
-  font-size: 10px;
+  font-size: 12px;
   padding: 1px 5px;
   border: var(--bw) solid var(--border);
   border-radius: 4px;

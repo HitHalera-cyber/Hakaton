@@ -21,8 +21,6 @@ import '@fontsource/exo-2/latin-400.css';
 import '@fontsource/exo-2/cyrillic-400.css';
 import '@fontsource/exo-2/latin-700.css';
 import '@fontsource/exo-2/cyrillic-700.css';
-import '@fontsource/press-start-2p/latin-400.css';
-import '@fontsource/press-start-2p/cyrillic-400.css';
 import '@fontsource/jetbrains-mono/latin-400.css';
 import '@fontsource/jetbrains-mono/cyrillic-400.css';
 import '@fontsource/jetbrains-mono/latin-700.css';

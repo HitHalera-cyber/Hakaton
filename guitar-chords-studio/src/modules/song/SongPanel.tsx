@@ -299,6 +299,15 @@ export function SongPanel({ capo, onCapo, onChord, onToSequence, onToSongbook, o
             <span>
               Длительность: <b>{fmt(features.duration)}</b>
             </span>
+            {Math.abs(features.tuningCents ?? 0) >= 5 && (
+              <span title="Запись настроена не точно на A = 440 Гц — программа это учитывает">
+                Строй записи:{' '}
+                <b>
+                  {features.tuningCents > 0 ? '+' : ''}
+                  {features.tuningCents} ц
+                </b>
+              </span>
+            )}
           </div>
 
           <div className="row">

@@ -43,7 +43,7 @@
 }
 .fretboard .fret-num {
   fill: var(--text-2);
-  font-size: 13px;
+  font-size: 16px;
 }
 .fretboard .fret-num.marked {
   fill: var(--text);
@@ -68,7 +68,7 @@
 }
 .fretboard .capo text {
   fill: var(--text-2);
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 700;
 }
 /* Подписи нот: контрастные «таблетки», хорошо читаются на тёмном дереве */
@@ -79,7 +79,7 @@
 }
 .fretboard .note-pill text {
   fill: #ffffff;
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-weight: 700;
 }
 .fretboard .scale-mark circle {
@@ -92,7 +92,7 @@
 }
 .fretboard .scale-mark text {
   fill: #1a1204;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
 }
 .fretboard .dot circle {
@@ -124,7 +124,7 @@
 }
 .fretboard .open-label {
   fill: var(--text);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
 }
 .fretboard .mute-mark {
@@ -170,10 +170,10 @@
 }
 .fretboard .tooltip .tt-title {
   fill: #fff;
-  font-size: 13px;
+  font-size: 26px;
   font-weight: 700;
 }
 .fretboard .tooltip .tt-sub {
-  fill: #b9c0cf;
-  font-size: 11px;
+  fill: #d5dbe6;
+  font-size: 21px;
 }

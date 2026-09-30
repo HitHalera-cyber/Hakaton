@@ -51,7 +51,7 @@
   --font-display: 'Inter', 'Segoe UI', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'Cascadia Mono', Consolas, monospace;
   --font-serif: Georgia, 'PT Serif', serif;
-  --fs: 14px;
+  --fs: 15px;
   --display-weight: 800;
   --title-case: uppercase;
   --title-spacing: 0.06em;
@@ -107,49 +107,6 @@
   color-scheme: light;
 }
 
-/* ---------- 8 бит: ретро-игра ---------- */
-[data-theme='pixel'] {
-  --bg: #1b1b3a;
-  --app-bg: conic-gradient(from 90deg at 2px 2px, #1b1b3a 90deg, #202046 0) 0 0 / 16px 16px;
-  --bg-2: #232350;
-  --panel: #2c2c5a;
-  --panel-2: #3a3a74;
-  --border: #000000;
-  --text: #ffffff;
-  --text-2: #b8b8e8;
-  --accent: #ffd23f;
-  --accent-text: #000000;
-  --dot: #3fa7ff;
-  --root: #ff4f4f;
-  --midi: #52ff7a;
-  --scale: #52ff7a;
-  --scale-root: #ff9f1c;
-  --hover: rgba(255, 210, 63, 0.3);
-  --tt-bg: #000000;
-  --side-bg: #12122a;
-  --side-text: #ffffff;
-  --side-muted: #8888c8;
-  --side-active: #3a3a74;
-  --wood-1: #6b3e26;
-  --wood-2: #8b5a3c;
-  --fret: #d8d8d8;
-  --nut: #ffffff;
-  --string: #ffffff;
-  --inlay: #ffd23f;
-  --font-ui: 'Press Start 2P', monospace;
-  --font-display: 'Press Start 2P', monospace;
-  --font-mono: 'Press Start 2P', monospace;
-  --fs: 10px;
-  --display-weight: 400;
-  --radius: 0;
-  --radius-sm: 0;
-  --radius-pill: 0;
-  --bw: 3px;
-  --shadow: 5px 5px 0 #000000;
-  --btn-shadow: 3px 3px 0 #000000;
-  --display-scale: 0.5;
-}
-
 /* ---------- Терминал: зелёный люминофор ---------- */
 [data-theme='terminal'] {
   --bg: #050805;
@@ -185,7 +142,7 @@
   --inlay: #1f5f2f;
   --font-ui: 'JetBrains Mono', monospace;
   --font-display: 'JetBrains Mono', monospace;
-  --fs: 13px;
+  --fs: 14px;
   --display-weight: 700;
   --title-case: none;
   --radius: 0;
@@ -193,46 +150,6 @@
   --radius-pill: 0;
   --shadow: none;
   --glow: 0 0 8px rgba(57, 255, 106, 0.7);
-}
-
-/* ---------- Стекло: морской градиент и матовые панели ---------- */
-[data-theme='glass'] {
-  --bg: #0f4c75;
-  --app-bg: linear-gradient(135deg, #0b3d63 0%, #1f78b4 45%, #6a2ff7 100%);
-  --bg-2: rgba(255, 255, 255, 0.12);
-  --panel: rgba(255, 255, 255, 0.13);
-  --panel-2: rgba(255, 255, 255, 0.16);
-  --panel-filter: blur(18px) saturate(140%);
-  --border: rgba(255, 255, 255, 0.28);
-  --text: #ffffff;
-  --text-2: #dbe8ff;
-  --accent: #00e0c6;
-  --accent-text: #062a3a;
-  --dot: #ffffff;
-  --dot-text: #0b3d63;
-  --root: #ff6b9a;
-  --midi: #ffe66b;
-  --scale: #9ef0ff;
-  --scale-root: #ffd166;
-  --hover: rgba(255, 255, 255, 0.22);
-  --tt-bg: rgba(8, 30, 60, 0.9);
-  --side-bg: rgba(255, 255, 255, 0.1);
-  --side-text: #ffffff;
-  --side-muted: #cfe0ff;
-  --side-active: rgba(255, 255, 255, 0.22);
-  --wood-1: rgba(40, 20, 60, 0.75);
-  --wood-2: rgba(70, 40, 100, 0.75);
-  --fret: rgba(255, 255, 255, 0.7);
-  --nut: #ffffff;
-  --string: #ffffff;
-  --inlay: rgba(255, 255, 255, 0.6);
-  --font-ui: 'Nunito', system-ui, sans-serif;
-  --font-display: 'Nunito', system-ui, sans-serif;
-  --display-weight: 800;
-  --title-case: none;
-  --radius: 22px;
-  --radius-sm: 14px;
-  --shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
 }
 
 /* ---------- Навь: кровь и бронза — ночной ельник, тлеющие угли ---------- */

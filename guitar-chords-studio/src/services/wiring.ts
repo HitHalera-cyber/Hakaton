@@ -2,7 +2,7 @@
 // услышанный аккорд — на гриф, на круг и в статистику; аккорд с грифа — в историю и на круг и т. д.
 
 import { audio } from '../core/audio/engine';
-import { emptyBoard } from '../core/music/fretboard';
+import { boardFromMidi, emptyBoard } from '../core/music/fretboard';
 import { store } from '../store';
 import { bus } from './bus';
 import { chordListener } from './chordListener';
@@ -27,9 +27,16 @@ export function startServices() {
     audio.setInstrument(s.guitar().tuning.instrument);
   };
   syncAudio();
+  mic.setGain(store.getState().settings.listen.gain);
+  mic.setAutoGain(store.getState().settings.listen.autoGain);
+  void mic.setDevice(store.getState().settings.listen.deviceId);
   store.subscribe((s, prev) => {
     if (s.settings.sound !== prev.settings.sound || s.settings.view.tuning !== prev.settings.view.tuning) syncAudio();
-    if (s.settings.listen.gain !== prev.settings.listen.gain) mic.setGain(s.settings.listen.gain);
+    const l = s.settings.listen;
+    if (l.gain !== prev.settings.listen.gain) mic.setGain(l.gain);
+    if (l.autoGain !== prev.settings.listen.autoGain) mic.setAutoGain(l.autoGain);
+    if (l.deviceId !== prev.settings.listen.deviceId)
+      mic.setDevice(l.deviceId).catch((e) => s.setListen({ error: e instanceof Error ? e.message : String(e) }));
     if (s.settings.view.theme !== prev.settings.view.theme) document.documentElement.dataset.theme = s.settings.view.theme;
     // Число струн доски = число струн инструмента.
     const strings = s.guitar().strings.length;
@@ -59,6 +66,13 @@ export function startServices() {
     if (s.songOpen > 0 || s.songPlaying) return;
     s.pushTrail({ rootPc: c.rootPc, templateId: c.templateId, symbol: c.symbol, nameRu: c.nameRu, source: 'guitar' });
     if (s.settings.listen.showOnBoard) s.showChord(c.rootPc, c.templateId, c.bassPc);
+  });
+
+  bus.on('notes:heard', (n) => {
+    const s = store.getState();
+    if (s.songOpen > 0 || s.songPlaying || !s.settings.listen.showOnBoard) return;
+    const g = s.guitar();
+    s.apply(boardFromMidi(n.midis, g.strings, g.capo), false);
   });
 
   // ---------- Время занятий ----------

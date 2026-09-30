@@ -25,7 +25,7 @@
 }
 .pr-card small {
   color: var(--text-2);
-  font-size: 12px;
+  font-size: 14px;
 }
 .pr-card b {
   font-size: 24px;
@@ -70,7 +70,7 @@
   background: var(--panel-2);
   color: var(--text);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   cursor: pointer;
 }
 .pr-chips button.on {
@@ -109,7 +109,7 @@
 .pr-meter .lbl {
   position: absolute;
   bottom: -18px;
-  font-size: 11px;
+  font-size: 14px;
   color: var(--text-2);
 }
 .pr-bar {
@@ -147,7 +147,7 @@
 }
 .pr-pre {
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.35;
   padding: 10px;
   border-radius: var(--radius-sm);
@@ -187,7 +187,7 @@
 }
 .fc-text {
   color: var(--text-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 .ok-text {
   color: var(--ok);
@@ -195,7 +195,7 @@
 }
 .listening-note {
   color: var(--accent);
-  font-size: 13px;
+  font-size: 14px;
   animation: pulse-badge 1.2s ease-in-out infinite;
 }
 .st-chart {
@@ -220,10 +220,10 @@
   background: var(--accent);
 }
 .st-val {
-  font-size: 11px;
+  font-size: 14px;
   color: var(--text-2);
 }
 .st-day small {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--text-2);
 }

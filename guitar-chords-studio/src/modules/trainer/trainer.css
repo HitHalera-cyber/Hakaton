@@ -1,5 +1,5 @@
 .score {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text-2);
   display: flex;
   gap: 4px;
@@ -19,7 +19,7 @@
 }
 .question small {
   display: block;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text-2);
 }
 .answers {

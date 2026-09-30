@@ -32,13 +32,13 @@ export function toggleFret(board: Board, string: number, fret: number): Board {
   });
 }
 
-/** Цикл по отметке у порожка: пусто → O (открытая) → X (заглушена) → пусто. */
+/** Отметка у порожка: пусто ↔ O (открытая). */
 export function cycleNut(board: Board, string: number): Board {
   return board.map((s, i) => {
     if (i !== string) return s;
-    if (!s.open && !s.muted) return { ...s, open: true };
-    if (s.open) return { open: false, muted: true, frets: [] };
-    return { ...s, muted: false };
+    // Клик у порожка: открытая ↔ пусто. Заглушить струну — правым кликом (setNut).
+    if (s.open) return { ...s, open: false };
+    return { ...s, open: true, muted: false };
   });
 }
 

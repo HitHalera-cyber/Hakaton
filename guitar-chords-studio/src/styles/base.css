@@ -44,7 +44,7 @@ h3,
 .panel h3 {
   margin: 0;
   font-family: var(--font-display);
-  font-size: 13px;
+  font-size: 14px;
   text-transform: var(--title-case);
   letter-spacing: var(--title-spacing);
   color: var(--text-2);
@@ -60,7 +60,7 @@ h3,
 }
 .hint {
   color: var(--text-2);
-  font-size: 12px;
+  font-size: 14px;
 }
 .muted-label {
   color: var(--text-2);
@@ -117,7 +117,7 @@ h3,
   color: var(--accent);
   cursor: pointer;
   font: inherit;
-  font-size: 12px;
+  font-size: 14px;
   text-transform: none;
   letter-spacing: 0;
 }
@@ -149,7 +149,7 @@ h3,
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: 12px;
+  font-size: 14px;
   color: var(--text-2);
 }
 .field.inline {
@@ -165,13 +165,13 @@ input.rename {
   border-radius: var(--radius-sm);
   padding: 6px 8px;
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
 }
 .slider {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  font-size: 12px;
+  font-size: 14px;
   color: var(--text-2);
 }
 input[type='range'] {
@@ -182,7 +182,7 @@ input[type='range'] {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: 14px;
   cursor: pointer;
 }
 input[type='checkbox'] {
@@ -250,7 +250,7 @@ input[type='checkbox'] {
   margin: 16px 0 6px;
   color: var(--text-2);
   text-transform: uppercase;
-  font-size: 12px;
+  font-size: 14px;
   letter-spacing: 0.06em;
 }
 .keys {
@@ -263,7 +263,7 @@ kbd {
   border-radius: var(--radius-sm);
   padding: 1px 6px;
   font-family: inherit;
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .row.between {
@@ -283,7 +283,7 @@ kbd {
 }
 .btn.small {
   padding: 4px 9px;
-  font-size: 12px;
+  font-size: 14px;
   border-radius: var(--radius-sm);
 }
 .btn.round {
@@ -308,7 +308,7 @@ kbd {
 }
 .error {
   color: var(--danger);
-  font-size: 13px;
+  font-size: 14px;
   margin: 0;
 }
 .check.big {
@@ -319,7 +319,7 @@ kbd {
   text-align: center;
 }
 .badge {
-  font-size: 11px;
+  font-size: 14px;
   padding: 1px 8px;
   border-radius: var(--radius-pill);
   background: color-mix(in srgb, var(--warn) 20%, transparent);

@@ -1,5 +1,5 @@
 .status {
-  font-size: 11px;
+  font-size: 14px;
   text-transform: none;
   letter-spacing: 0;
   padding: 2px 8px;
@@ -15,7 +15,7 @@
   color: var(--warn);
 }
 .midi-notes {
-  font-size: 13px;
+  font-size: 14px;
   min-height: 20px;
 }
 .piano {

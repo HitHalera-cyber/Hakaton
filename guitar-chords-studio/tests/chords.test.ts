@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { detectChord } from '../src/core/music/chords';
-import { boardFromMidi, emptyBoard, soundingNotes, toggleFret, cycleNut } from '../src/core/music/fretboard';
+import { boardFromMidi, emptyBoard, soundingNotes, toggleFret, cycleNut, setNut } from '../src/core/music/fretboard';
 import { TUNINGS } from '../src/core/music/tunings';
 
 const STD = TUNINGS.standard.strings;
@@ -103,8 +103,9 @@ describe('модель грифа', () => {
     b = cycleNut(b, 3); // G открыта
     b = toggleFret(b, 4, 1);
     b = cycleNut(b, 5); // e открыта
-    b = cycleNut(b, 0);
-    b = cycleNut(b, 0); // 6-я заглушена
+    b = setNut(b, 0, 'muted'); // 6-я заглушена
+    b = cycleNut(b, 1);
+    b = cycleNut(b, 1); // открыли и снова убрали — A не звучит открытой
     expect(detectChord(soundingNotes(b, STD).map((n) => n.midi)).primary!.symbol).toBe('C');
   });
   it('раскладка MIDI-аккорда на гриф сохраняет звучание', () => {

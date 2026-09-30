@@ -304,7 +304,7 @@ export function Fretboard(props: Props) {
               props.onMuteString(s);
             }}
           >
-            <title>Клик: пусто → O (открытая) → X (не играет). Правый клик: заглушить.</title>
+            <title>Клик: пусто ↔ O (открытая). Правый клик: заглушить струну (X).</title>
           </rect>
           {frets
             .filter((f) => f > capo)
@@ -332,18 +332,18 @@ export function Fretboard(props: Props) {
         hoverInfo &&
         (() => {
           const cx = cellX(hover.f);
-          const w = 170;
-          const h = 40;
+          const w = 350;
+          const h = 78;
           let ty = y(hover.s) - GAP / 2 - h - 4;
           if (ty < 0) ty = y(hover.s) + GAP / 2 + 4;
           const tx = Math.max(2, Math.min(VIEW_W - w - 2, cx - w / 2));
           return (
             <g className="tooltip" pointerEvents="none">
-              <rect x={tx} y={ty} width={w} height={h} rx={7} />
-              <text x={tx + w / 2} y={ty + 15} className="tt-title">
+              <rect x={tx} y={ty} width={w} height={h} rx={12} />
+              <text x={tx + w / 2} y={ty + 30} className="tt-title">
                 {hoverInfo.title}
               </text>
-              <text x={tx + w / 2} y={ty + 30} className="tt-sub">
+              <text x={tx + w / 2} y={ty + 60} className="tt-sub">
                 {hoverInfo.sub}
               </text>
             </g>

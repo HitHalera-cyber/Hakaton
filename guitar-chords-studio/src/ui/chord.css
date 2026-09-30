@@ -7,7 +7,7 @@
   min-width: 0;
 }
 .chord-source {
-  font-size: 11px;
+  font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-2);
@@ -45,7 +45,7 @@
   font-weight: 600;
 }
 .tone small {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-2);
   margin-left: 3px;
   font-weight: 500;

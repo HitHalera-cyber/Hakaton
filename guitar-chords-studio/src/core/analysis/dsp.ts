@@ -63,9 +63,14 @@ export class SpectrumAnalyzer {
   private binSemi: Int16Array;
   private binWeight: Float32Array;
 
+  /**
+   * tuning — строй записи в полутонах относительно A = 440 Гц (например, +0,4 — выше на 40 центов):
+   * сетка нот сдвигается, чтобы расстроенная запись попадала точно в свои ноты.
+   */
   constructor(
     size: number,
     readonly sampleRate: number,
+    readonly tuning = 0,
   ) {
     this.size = size;
     this.window = new Float64Array(size);
@@ -77,7 +82,7 @@ export class SpectrumAnalyzer {
     this.binWeight = new Float32Array(bins);
     for (let k = 1; k < bins; k++) {
       const f = (k * sampleRate) / size;
-      const midi = 69 + 12 * Math.log2(f / 440);
+      const midi = 69 + 12 * Math.log2(f / 440) - tuning;
       const semi = Math.round(midi);
       if (semi < SEMI_LO || semi > SEMI_HI) continue;
       // Ближе к центру ноты — больше вес; бины «между нотами» почти не учитываются.
@@ -108,6 +113,44 @@ export class SpectrumAnalyzer {
       if (v > semi[s]) semi[s] = v;
     }
     return { semi, rms: Math.sqrt(sum / size) };
+  }
+
+  /**
+   * Вклад кадра в оценку строя: по пикам спектра (с уточнением положения пика) — насколько они
+   * отклоняются от ближайших нот. Возвращает вектор на круге отклонений; сумма по кадрам → строй.
+   */
+  tuningVector(frame: ArrayLike<number>, offset = 0): [number, number] {
+    const { re, im, window, size, sampleRate } = this;
+    for (let i = 0; i < size; i++) {
+      re[i] = (frame[offset + i] ?? 0) * window[i];
+      im[i] = 0;
+    }
+    fft(re, im);
+    const bins = size / 2;
+    const mag = new Float32Array(bins);
+    for (let k = 1; k < bins; k++) mag[k] = Math.hypot(re[k], im[k]);
+    const lo = Math.ceil((180 * size) / sampleRate);
+    const hi = Math.min(bins - 2, Math.floor((2000 * size) / sampleRate));
+    let peak = 0;
+    for (let k = lo; k <= hi; k++) peak = Math.max(peak, mag[k]);
+    let x = 0;
+    let y = 0;
+    for (let k = lo; k <= hi; k++) {
+      const m = mag[k];
+      if (m < peak * 0.1 || m < mag[k - 1] || m < mag[k + 1]) continue;
+      // Параболическое уточнение пика (по логарифму амплитуды).
+      const a = Math.log(mag[k - 1] + 1e-12);
+      const b = Math.log(m + 1e-12);
+      const c = Math.log(mag[k + 1] + 1e-12);
+      const den = a - 2 * b + c;
+      const kk = den !== 0 ? k + (0.5 * (a - c)) / den : k;
+      const midi = 69 + 12 * Math.log2((kk * sampleRate) / size / 440);
+      const dev = midi - Math.round(midi);
+      const w = m * m;
+      x += w * Math.cos(2 * Math.PI * dev);
+      y += w * Math.sin(2 * Math.PI * dev);
+    }
+    return [x, y];
   }
 
   frame(samples: ArrayLike<number>, offset = 0): ChromaFrame {
@@ -230,4 +273,10 @@ export function chromaFromNotes(notes: DetectedNote[]): { chroma: Float32Array; 
     if (n.midi <= 57) bass[n.midi % 12] += v * (n.midi === low ? 1 : 0.35) * (1 + (57 - n.midi) / 24);
   }
   return { chroma, bass };
+}
+
+/** Строй по сумме векторов tuningVector: смещение в полутонах в диапазоне −0,5…+0,5. */
+export function tuningFromVector(x: number, y: number): number {
+  if (!x && !y) return 0;
+  return Math.atan2(y, x) / (2 * Math.PI);
 }

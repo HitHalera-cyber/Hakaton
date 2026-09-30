@@ -47,13 +47,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: 14px;
 }
 .song-info {
   display: flex;
   flex-wrap: wrap;
   gap: 18px;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text-2);
 }
 .song-info b {
@@ -66,7 +66,7 @@
 }
 .player .time {
   font-variant-numeric: tabular-nums;
-  font-size: 13px;
+  font-size: 14px;
   white-space: nowrap;
 }
 .player .vol {
@@ -92,7 +92,7 @@
 }
 .np-next {
   margin-left: auto;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text-2);
 }
 .np-next b {
@@ -180,7 +180,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: 14px;
   color: var(--text-2);
 }
 .practice-tools .btn.on {

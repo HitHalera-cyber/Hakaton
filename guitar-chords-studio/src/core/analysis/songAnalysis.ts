@@ -12,7 +12,7 @@
 import { buildModels, scoreModels } from './chordRecognition';
 import { chordName } from '../music/chordParse';
 import { CHORD_TEMPLATES } from '../music/chords';
-import { SpectrumAnalyzer, bassSalience, chromaFromNotes, detectNotes } from './dsp';
+import { SpectrumAnalyzer, bassSalience, chromaFromNotes, detectNotes, tuningFromVector } from './dsp';
 import { mod12 } from '../music/notes';
 
 export interface SongFeatures {
@@ -25,6 +25,8 @@ export interface SongFeatures {
   bass: number[][];
   /** Громкость доли 0..1 (относительно самой громкой). */
   energy: number[];
+  /** Строй записи относительно A = 440 Гц, центы. */
+  tuningCents: number;
 }
 
 export interface ChordSegment {
@@ -152,18 +154,45 @@ export function extractFeatures(input: Float32Array, inputRate: number, onProgre
   const bpm = Math.round((60 * framesPerSec) / period);
   onProgress?.(0.15);
 
-  // --- Хромаграммы кадров ---
+  // --- Строй записи: многие песни записаны не точно в A = 440 Гц ---
   const size = 8192;
   const hop = 2048;
-  const an = new SpectrumAnalyzer(size, sampleRate);
-  const frames: { t: number; chroma: Float32Array; bass: Float32Array; rms: number }[] = [];
+  const probe = new SpectrumAnalyzer(size, sampleRate);
+  let tx = 0;
+  let ty = 0;
+  const probes = Math.max(1, Math.floor((data.length - size) / hop));
+  const step = Math.max(1, Math.floor(probes / 150));
+  for (let k = 0; k < probes; k += step) {
+    const [x, y] = probe.tuningVector(data, k * hop);
+    tx += x;
+    ty += y;
+  }
+  const tuning = tuningFromVector(tx, ty);
+
+  // --- Хромаграммы кадров ---
+  const an = new SpectrumAnalyzer(size, sampleRate, tuning);
+  const raw: { t: number; semi: Float32Array; rms: number }[] = [];
   const total = Math.max(1, Math.floor((data.length - size) / hop));
   for (let i = 0, k = 0; i + size <= data.length; i += hop, k++) {
     const { semi, rms } = an.semitones(data, i);
-    const { chroma } = chromaFromNotes(detectNotes(semi, 8, 76));
-    frames.push({ t: (i + size / 2) / sampleRate, chroma, bass: bassSalience(semi), rms });
-    if (k % 50 === 0) onProgress?.(0.15 + 0.8 * (k / total));
+    raw.push({ t: (i + size / 2) / sampleRate, semi, rms });
+    if (k % 50 === 0) onProgress?.(0.15 + 0.6 * (k / total));
   }
+
+  // --- Гармоника отдельно от ударных (медианные фильтры, HPSS) ---
+  // Гармоническое звучит долго на одной ноте (медиана по времени), удар — широкополосный
+  // и короткий (медиана по частоте). Маска оставляет в спектре гармоническую часть.
+  const harmonic = hpssMask(
+    raw.map((r) => r.semi),
+    5,
+    9,
+  );
+  const frames: { t: number; chroma: Float32Array; bass: Float32Array; rms: number }[] = raw.map((r, k) => {
+    const semi = harmonic[k];
+    const { chroma } = chromaFromNotes(detectNotes(semi, 8, 76));
+    if (k % 50 === 0) onProgress?.(0.75 + 0.2 * (k / raw.length));
+    return { t: r.t, chroma, bass: bassSalience(semi), rms: r.rms };
+  });
 
   // --- Усреднение по долям ---
   const chroma: number[][] = [];
@@ -201,7 +230,35 @@ export function extractFeatures(input: Float32Array, inputRate: number, onProgre
   }
   const maxE = Math.max(1e-9, ...energy);
   onProgress?.(1);
-  return { duration, bpm, beats, chroma, bass, energy: energy.map((e) => e / maxE) };
+  return { duration, bpm, beats, chroma, bass, energy: energy.map((e) => e / maxE), tuningCents: Math.round(tuning * 100) };
+}
+
+function median(values: number[]): number {
+  const v = [...values].sort((a, b) => a - b);
+  return v[v.length >> 1];
+}
+
+/** Мягкая маска HPSS: спектр × H² / (H² + P²), H — медиана по времени, P — по частоте. */
+export function hpssMask(spec: Float32Array[], timeWin = 9, freqWin = 9): Float32Array[] {
+  const T = spec.length;
+  if (!T) return [];
+  const F = spec[0].length;
+  const ht = timeWin >> 1;
+  const hf = freqWin >> 1;
+  return spec.map((frame, t) => {
+    const out = new Float32Array(F);
+    for (let f = 0; f < F; f++) {
+      const col: number[] = [];
+      for (let k = Math.max(0, t - ht); k <= Math.min(T - 1, t + ht); k++) col.push(spec[k][f]);
+      const row: number[] = [];
+      for (let k = Math.max(0, f - hf); k <= Math.min(F - 1, f + hf); k++) row.push(frame[k]);
+      const h = median(col);
+      const p = median(row);
+      const h2 = h * h;
+      out[f] = frame[f] * (h2 / (h2 + p * p + 1e-12));
+    }
+    return out;
+  });
 }
 
 /**
@@ -210,7 +267,26 @@ export function extractFeatures(input: Float32Array, inputRate: number, onProgre
  * вокал) поглощаются соседями, чтобы аккорд на грифе не дёргался.
  */
 export function decodeChords(f: SongFeatures, vocab: readonly string[], minBeats = 2): ChordSegment[] {
-  return smoothSegments(viterbi(f, vocab, minBeats), minBeats);
+  // Темп иногда находится вдвое быстрее настоящего — тогда «доля» вдвое короче, и та же
+  // стабильность в долях сглаживала бы вдвое меньше. Считаем её по времени (доля при ~110 уд/мин).
+  const beats = Math.max(1, Math.round(minBeats * Math.max(1, f.bpm / 110)));
+  return smoothSegments(viterbi(f, vocab, beats), beats);
+}
+
+export let KEY_BONUS = 0.02;
+export const setKeyBonus = (v: number) => (KEY_BONUS = v);
+
+const isMinor = (templateId: string) => {
+  const t = CHORD_TEMPLATES.find((x) => x.id === templateId);
+  return Boolean(t && t.degrees.includes('b3') && !t.degrees.includes('3'));
+};
+
+/** Аккорды тональности (трезвучия + доминанта в миноре): «тоника:M|m». */
+function diatonicChords(tonicPc: number, mode: 'major' | 'minor'): Set<string> {
+  const major = mode === 'major' ? tonicPc : mod12(tonicPc + 3);
+  const set = new Set([0, 5, 7].map((d) => `${mod12(major + d)}:M`).concat([2, 4, 9].map((d) => `${mod12(major + d)}:m`)));
+  if (mode === 'minor') set.add(`${mod12(tonicPc + 7)}:M`); // гармонический минор: E в ля миноре
+  return set;
 }
 
 function viterbi(f: SongFeatures, vocab: readonly string[], minBeats: number): ChordSegment[] {
@@ -218,11 +294,15 @@ function viterbi(f: SongFeatures, vocab: readonly string[], minBeats: number): C
   const S = models.length + 1; // последний — «без аккорда»
   const N = f.beats.length;
   if (N === 0) return [];
+  // Аккорды тональности песни встречаются чаще — небольшой бонус (второй «проход» после тональности).
+  const key = detectKey(f);
+  const diatonic = diatonicChords(key.tonicPc, key.mode);
+  const keyBonus = models.map((m) => (diatonic.has(`${m.rootPc}:${isMinor(m.template.id) ? 'm' : 'M'}`) ? KEY_BONUS : 0));
   const emit = (b: number): Float32Array => {
     const sc = scoreModels(f.chroma[b], f.bass[b], models);
     const out = new Float32Array(S);
     const sharp = 18;
-    for (let k = 0; k < models.length; k++) out[k] = sharp * sc[k];
+    for (let k = 0; k < models.length; k++) out[k] = sharp * (sc[k] + keyBonus[k]);
     // «Без аккорда» — когда тихо или хромаграмма «плоская».
     const quiet = f.energy[b] < 0.04 || f.chroma[b].every((v) => v === 0);
     out[S - 1] = sharp * (quiet ? 1.2 : 0.55);

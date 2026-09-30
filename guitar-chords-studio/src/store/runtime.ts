@@ -1,7 +1,8 @@
 // Состояние сеанса (не сохраняется, кроме окон): уведомления, выдвижная панель, след на круге,
 // прослушивание гитары, проигрывание последовательности, MIDI-устройства, режим разбора песни.
 
-import type { Recognition, RecognizedChord } from '../core/analysis/chordRecognition';
+import type { RecognizedChord } from '../core/analysis/chordRecognition';
+import type { HeardNotes, SoundResult } from '../core/analysis/liveSound';
 import type { MidiDevice } from '../core/midi/midiInput';
 import type { ModuleId } from '../modules/ids';
 import { DEFAULT_WINDOWS, type FreeWindow } from './model';
@@ -23,9 +24,17 @@ export interface ListenRuntime {
   active: boolean;
   error: string;
   level: number;
-  result: Recognition | null;
+  result: SoundResult | null;
+  /** Строй гитары относительно A = 440 Гц, центы (оценка по звуку). */
+  tuningCents: number;
+  /** Шум комнаты уже измерен (пока гитара молчала). */
+  noiseReady: boolean;
+  /** Итоговое усиление микрофона (с учётом автоусиления). */
+  gainNow: number;
   chroma: number[];
   history: RecognizedChord[];
+  /** Последняя услышанная нота или интервал (когда звучит не аккорд). */
+  heardNotes: HeardNotes | null;
   hold: { state: HoldState; progress: number };
 }
 
@@ -112,8 +121,12 @@ export const createRuntimeSlice: Slice<RuntimeSlice> = (set, get) => ({
     error: '',
     level: 0,
     result: null,
+    tuningCents: 0,
+    noiseReady: false,
+    gainNow: 1,
     chroma: new Array(12).fill(0),
     history: [],
+    heardNotes: null,
     hold: { state: 'idle', progress: 0 },
   },
   setListen: (p) => set((s) => ({ listen: { ...s.listen, ...p } })),

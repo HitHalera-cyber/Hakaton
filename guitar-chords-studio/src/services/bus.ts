@@ -1,10 +1,13 @@
 // Шина событий между модулями: модули не импортируют друг друга, а публикуют и слушают события.
 
 import type { RecognizedChord } from '../core/analysis/chordRecognition';
+import type { HeardNotes } from '../core/analysis/liveSound';
 
 export interface BusEvents {
   /** Аккорд услышан с гитары (микрофон). */
   'chord:heard': RecognizedChord;
+  /** С гитары слышна одна нота или интервал (две ноты). */
+  'notes:heard': HeardNotes;
   /** Удар по струнам (резкий рост громкости) — время по часам AudioContext. */
   'mic:onset': { time: number; level: number };
   /** Щелчок метронома прозвучал (время по часам AudioContext). */

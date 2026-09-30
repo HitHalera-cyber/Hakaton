@@ -66,6 +66,12 @@ export interface ListenSettings {
   holdSeconds: number;
   sensitivity: number;
   showOnBoard: boolean;
+  /** Автоусиление: программа сама подстраивает громкость микрофона под игру. */
+  autoGain: boolean;
+  /** Вычитать постоянный шум (гул, вентилятор) — он запоминается, пока гитара молчит. */
+  denoise: boolean;
+  /** Выбранный микрофон ('' — системный по умолчанию). */
+  deviceId: string;
 }
 
 export interface Settings {
@@ -96,7 +102,7 @@ export const DEFAULT_SETTINGS: Settings = {
   rhythm: { bpm: 90, patternId: 'six', loop: true, click: false, meter: 4, accent: true },
   scale: { show: false, rootPc: 9, scaleId: 'pentMinor' },
   midi: { latch: true, sound: true, device: 'all', output: '', muteInternal: false },
-  listen: { mode: 'strum', gain: 3, holdSeconds: 2.5, sensitivity: 0.5, showOnBoard: true },
+  listen: { mode: 'strum', gain: 3, holdSeconds: 2.5, sensitivity: 0.5, showOnBoard: true, autoGain: true, denoise: true, deviceId: '' },
 };
 
 /** Аккорд с определённым строем и каподастром: элемент избранного, истории, последовательности. */

@@ -1,7 +1,7 @@
 // Темы оформления. Цвета, шрифты, скругления и фактуры задаются в src/styles/themes.css
 // через [data-theme="…"]; здесь — только список для выбора.
 
-export type ThemeId = 'vintage' | 'glass' | 'pixel' | 'terminal' | 'slavic' | 'nav-swamp' | 'nav-winter' | 'nav-fire' | 'nav-koschei';
+export type ThemeId = 'vintage' | 'terminal' | 'slavic' | 'nav-swamp' | 'nav-winter' | 'nav-fire' | 'nav-koschei';
 
 export interface ThemeInfo {
   id: ThemeId;
@@ -17,18 +17,6 @@ export const THEMES: ThemeInfo[] = [
     name: 'Винтаж',
     description: 'Ламповый усилитель: кремовый, коричневая кожа и золото',
     swatch: ['#2b1d14', '#f3e6cc', '#b8862b', '#5b3420'],
-  },
-  {
-    id: 'glass',
-    name: 'Стекло',
-    description: 'Морской градиент и полупрозрачные «матовые» панели',
-    swatch: ['#0f4c75', '#ffffff55', '#00e0c6', '#3a2a4a'],
-  },
-  {
-    id: 'pixel',
-    name: '8 бит',
-    description: 'Ретро-игра: пиксельный шрифт, толстые рамки, яркая палитра',
-    swatch: ['#1b1b3a', '#2c2c5a', '#ffd23f', '#6b3e26'],
   },
   {
     id: 'terminal',

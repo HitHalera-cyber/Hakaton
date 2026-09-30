@@ -18,6 +18,7 @@ interface Props {
 export function ListenerStage({ listener, board, voicing, capo }: Props) {
   const { active, error, level, result, chroma, hold, settings, patch } = listener;
   const best = result?.best;
+  const notes = result?.notes;
   const holdMode = settings.mode === 'hold';
   const fallback = board.kind === 'chord' ? board.primary : undefined;
   const heard = listener.history[0];
@@ -44,7 +45,7 @@ export function ListenerStage({ listener, board, voicing, capo }: Props) {
           </button>
         </div>
         <label className="slider compact" title="Если программа плохо слышит гитару — прибавьте">
-          <span>Усиление ×{settings.gain}</span>
+          <span>Усиление ×{settings.autoGain ? listener.gainNow : settings.gain}</span>
           <input type="range" min={1} max={12} step={0.5} value={settings.gain} onChange={(e) => patch({ gain: Number(e.target.value) })} />
         </label>
       </div>
@@ -57,15 +58,21 @@ export function ListenerStage({ listener, board, voicing, capo }: Props) {
             <ChordDiagram frets={frets} capo={capo} size={120} />
           </div>
         )}
-        {(best ?? fallback) && <div className="stage-symbol">{(best ?? fallback)!.symbol}</div>}
+        {notes ? (
+          <div className="stage-symbol">{notes.label}</div>
+        ) : (
+          (best ?? fallback) && <div className="stage-symbol">{(best ?? fallback)!.symbol}</div>
+        )}
         <div className="stage-ru">
-          {best
-            ? `${best.nameRu} · ${Math.round(best.confidence * 100)}%`
-            : fallback
-              ? `${fallback.nameRu} — на грифе`
-              : active
-                ? 'Сыграйте аккорд'
-                : 'Нажмите «Начать слушать» и сыграйте аккорд'}
+          {notes
+            ? notes.nameRu
+            : best
+              ? `${best.nameRu} · ${Math.round(best.confidence * 100)}%`
+              : fallback
+                ? `${fallback.nameRu} — на грифе`
+                : active
+                  ? 'Сыграйте аккорд'
+                  : 'Нажмите «Начать слушать» и сыграйте аккорд'}
         </div>
       </div>
 

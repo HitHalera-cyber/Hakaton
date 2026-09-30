@@ -56,12 +56,12 @@
 }
 .cf-roman {
   fill: var(--text-2);
-  font-size: 11px;
+  font-size: 12px;
   font-family: var(--font-serif);
 }
 .cf-sig {
   fill: var(--text-2);
-  font-size: 11px;
+  font-size: 12px;
 }
 /* След: предыдущие аккорды затухают */
 .cf-cell.trail path {

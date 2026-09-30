@@ -13,6 +13,14 @@ class MicService {
   private users = 0;
   private starting: Promise<void> | null = null;
   private gainValue = 3;
+  private deviceId = '';
+  /** Автоусиление: множитель к ручному усилению, подстраивается под громкость игры. */
+  private autoGain = false;
+  private autoFactor = 1;
+  private peak = 0;
+  private lastAuto = 0;
+  /** Уровень шума без игры (пики тишины, до усиления). */
+  private noiseRaw = 0;
 
   get active() {
     return this.analyserNode != null;
@@ -27,9 +35,73 @@ class MicService {
     return audio.context.currentTime;
   }
 
+  /** Итоговое усиление (ручное × автоматическое). */
+  get gain() {
+    return this.gainValue * (this.autoGain ? this.autoFactor : 1);
+  }
+
   setGain(g: number) {
     this.gainValue = g;
-    if (this.gainNode) this.gainNode.gain.value = g;
+    this.applyGain();
+  }
+
+  setAutoGain(on: boolean) {
+    if (on === this.autoGain) return;
+    this.autoGain = on;
+    this.autoFactor = 1;
+    this.peak = 0;
+    this.noiseRaw = 0;
+    this.applyGain();
+  }
+
+  private applyGain() {
+    if (this.gainNode) this.gainNode.gain.value = this.gain;
+  }
+
+  /** Выбрать микрофон ('' — системный). Если он уже открыт — переоткрывается с новым устройством. */
+  async setDevice(id: string) {
+    if (id === this.deviceId) return;
+    this.deviceId = id;
+    if (!this.analyserNode) return;
+    this.close();
+    await this.open();
+  }
+
+  /** Доступные микрофоны (названия видны после того, как доступ к микрофону разрешён). */
+  async devices(): Promise<{ id: string; label: string }[]> {
+    if (!navigator.mediaDevices?.enumerateDevices) return [];
+    const list = await navigator.mediaDevices.enumerateDevices();
+    return list
+      .filter((d) => d.kind === 'audioinput' && d.deviceId !== 'default' && d.deviceId !== 'communications')
+      .map((d, i) => ({ id: d.deviceId, label: d.label || `Микрофон ${i + 1}` }));
+  }
+
+  /**
+   * Автоусиление: следим за пиками игры (быстро вниз при перегрузе, медленно вверх, когда тихо)
+   * и держим пики около 0,25. В тишине усиление не растёт — иначе раздуется шум.
+   */
+  private trackAutoGain(buf: Float32Array) {
+    // Не чаще 20 раз в секунду, сколько бы модулей ни читали звук.
+    if (this.now - this.lastAuto < 0.05) return;
+    this.lastAuto = this.now;
+    let p = 0;
+    for (let i = Math.max(0, buf.length - 2048); i < buf.length; i++) p = Math.max(p, Math.abs(buf[i]));
+    const raw = p / this.gain;
+    // Шум: быстро вниз, медленно вверх (~×1,2 в секунду) — игра его почти не поднимает.
+    this.noiseRaw = !this.noiseRaw || raw < this.noiseRaw ? raw : this.noiseRaw * 1.01;
+    const playing = raw > this.noiseRaw * 4;
+    if (playing) this.peak = Math.max(raw, this.peak * 0.995);
+    const target = 0.25;
+    if (p > 0.9) this.autoFactor *= 0.7;
+    // Подстраиваемся только пока звучит игра, а не тишина.
+    else if (playing && raw >= this.peak * 0.5) {
+      // Но шум не раздуваем выше 0,02.
+      const noiseCap = 0.02 / (this.noiseRaw * this.gainValue);
+      const want = Math.min(30 / this.gainValue, noiseCap, Math.max(1 / this.gainValue, target / (this.peak * this.gainValue)));
+      // Вверх — медленно, вниз — быстрее.
+      this.autoFactor += (want - this.autoFactor) * (want > this.autoFactor ? 0.01 : 0.08);
+    }
+    this.applyGain();
   }
 
   /** Взять микрофон. Бросает понятную ошибку, если доступа нет. */
@@ -61,19 +133,25 @@ class MicService {
       this.analyserNode.getFloatTimeDomainData(full);
       buf.set(full.subarray(MIC_FRAME - buf.length));
     }
+    if (this.autoGain) this.trackAutoGain(buf);
     return true;
   }
   private scratch: Float32Array<ArrayBuffer> | null = null;
 
   private async open() {
     try {
-      const s = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
-      });
+      const base = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
+      const s = await navigator.mediaDevices
+        .getUserMedia({ audio: this.deviceId ? { ...base, deviceId: { exact: this.deviceId } } : base })
+        // Выбранный микрофон отключён — берём системный.
+        .catch((e) => {
+          if (!this.deviceId || (e as Error).name === 'NotAllowedError') throw e;
+          return navigator.mediaDevices.getUserMedia({ audio: base });
+        });
       const ctx = audio.context;
       const src = ctx.createMediaStreamSource(s);
       const gain = ctx.createGain();
-      gain.gain.value = this.gainValue;
+      gain.gain.value = this.gain;
       const analyser = ctx.createAnalyser();
       analyser.fftSize = MIC_FRAME;
       analyser.smoothingTimeConstant = 0;
@@ -116,6 +194,10 @@ export class OnsetDetector {
   private floor = 0.001;
   private lastOnset = -10;
   private recent: { t: number; rms: number }[] = [];
+  /** Громкость за последние секунды — по ней считается фон (шум комнаты и микрофона). */
+  private long: { t: number; rms: number }[] = [];
+  private floorAt = -1;
+  private startedAt = -1;
   constructor(
     public sensitivity = 0.5,
     public refractory = 0.25,
@@ -124,9 +206,21 @@ export class OnsetDetector {
   get noiseFloor() {
     return this.floor;
   }
+  /** Фон уже измерен (прошли первые полсекунды). */
+  get ready() {
+    return this.startedAt >= 0 && this.long.length > 0 && this.long[this.long.length - 1].t - this.startedAt >= 0.6;
+  }
 
   /** Возвращает true, если в момент now случился удар. */
   feed(rms: number, now: number): boolean {
+    // Первые полсекунды только слушаем фон: без истории любой шум выглядел бы ударом.
+    if (this.startedAt < 0) this.startedAt = now;
+    if (now - this.startedAt < 0.6) {
+      this.recent.push({ t: now, rms });
+      this.floorAt = -1;
+      this.trackFloor(rms, now);
+      return false;
+    }
     const threshold = 3.5 - this.sensitivity * 2.2;
     const jump = 2.2 - this.sensitivity * 0.8;
     while (this.recent.length && this.recent[0].t < now - 0.25) this.recent.shift();
@@ -135,7 +229,21 @@ export class OnsetDetector {
     this.recent.push({ t: now, rms });
     const onset = rms > Math.max(0.002, this.floor * threshold) && rms > recentMin * jump && now - this.lastOnset > this.refractory;
     if (onset) this.lastOnset = now;
-    else if (rms < this.floor * 2) this.floor = this.floor * 0.97 + rms * 0.03;
+    this.trackFloor(rms, now);
     return onset;
+  }
+
+  /**
+   * Фон — 5-й процентиль громкости за 15 секунд: тихие моменты между ударами. Раньше фон мог
+   * только опускаться, и у шумного микрофона шум считался игрой.
+   */
+  private trackFloor(rms: number, now: number) {
+    this.long.push({ t: now, rms });
+    while (this.long.length && this.long[0].t < now - 15) this.long.shift();
+    if (now - this.floorAt < 0.25) return;
+    this.floorAt = now;
+    const sorted = this.long.map((r) => r.rms).sort((a, b) => a - b);
+    const p5 = sorted[Math.floor(sorted.length * 0.05)] ?? rms;
+    this.floor = Math.max(0.0002, p5);
   }
 }

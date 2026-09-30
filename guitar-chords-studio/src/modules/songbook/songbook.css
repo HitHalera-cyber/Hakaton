@@ -56,7 +56,7 @@
 }
 .sb-item small {
   color: var(--text-2);
-  font-size: 12px;
+  font-size: 14px;
 }
 .sb-main {
   display: flex;
@@ -78,7 +78,7 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 12px;
+  font-size: 14px;
   color: var(--text-2);
 }
 .sb-group b {
@@ -98,7 +98,7 @@
 .sb-import textarea,
 .sb-edit textarea {
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14px;
   padding: 8px;
   border: var(--bw) solid var(--border);
   border-radius: var(--radius-sm);
@@ -124,7 +124,7 @@
   color: var(--text-2);
 }
 .sb-capo {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--accent) !important;
 }
 .sb-scroll {
@@ -138,7 +138,7 @@
 }
 .sb-section {
   margin: 12px 0 4px;
-  font-size: 13px;
+  font-size: 14px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-2);
@@ -234,9 +234,9 @@
   border-color: var(--accent);
 }
 .shape-option small {
-  font-size: 11px;
+  font-size: 14px;
   color: var(--text-2);
 }
 .link.small {
-  font-size: 11px;
+  font-size: 14px;
 }
