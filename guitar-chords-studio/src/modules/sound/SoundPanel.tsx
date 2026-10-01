@@ -10,29 +10,42 @@ export interface SoundSettings {
   autoPlay: boolean;
 }
 
+const PLAY_MODES: [PlayMode, string, string][] = [
+  ['strum', '↓ Бой вниз', 'Удар по струнам сверху вниз (от баса)'],
+  ['strumUp', '↑ Бой вверх', 'Удар снизу вверх (от тонких струн)'],
+  ['arpeggio', '♪ Перебор', 'Струны по одной'],
+];
+
 interface Props {
   settings: SoundSettings;
   instrument: Instrument;
   onChange: (patch: Partial<SoundSettings>) => void;
-  onStrum: (dir: 'down' | 'up') => void;
-  onArpeggio: () => void;
+  /** Сыграть аккорд выбранным способом (для пробы). */
+  onPlay: (mode: PlayMode) => void;
   onStop: () => void;
   canPlay: boolean;
 }
 
-export function SoundPanel({ settings, instrument, onChange, onStrum, onArpeggio, onStop, canPlay }: Props) {
+export function SoundPanel({ settings, instrument, onChange, onPlay, onStop, canPlay }: Props) {
   return (
     <div className="tab-body">
+      <p className="hint">Выберите, как звучит аккорд — выбор запоминается для кнопки «Играть» и для автоигры, пока вы его не смените.</p>
       <div className="row">
-        <button className="btn" onClick={() => onStrum('down')} disabled={!canPlay} title="Удар по струнам сверху вниз (от баса)">
-          ↓ Бой вниз
-        </button>
-        <button className="btn" onClick={() => onStrum('up')} disabled={!canPlay} title="Удар снизу вверх (от тонких струн)">
-          ↑ Бой вверх
-        </button>
-        <button className="btn" onClick={onArpeggio} disabled={!canPlay}>
-          ♪ Перебор
-        </button>
+        <div className="segmented" role="radiogroup" aria-label="Как играть аккорд">
+          {PLAY_MODES.map(([mode, label, title]) => (
+            <button
+              key={mode}
+              className={settings.mode === mode ? 'on' : ''}
+              title={title}
+              onClick={() => {
+                onChange({ mode });
+                if (canPlay) onPlay(mode);
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <button className="btn" onClick={onStop} title="Esc">
           ■ Стоп
         </button>
@@ -52,13 +65,6 @@ export function SoundPanel({ settings, instrument, onChange, onStrum, onArpeggio
                 {TIMBRE_NAMES[t]}
               </option>
             ))}
-          </select>
-        </label>
-        <label className="field">
-          <span>Кнопка «Играть» и автоигра</span>
-          <select value={settings.mode} onChange={(e) => onChange({ mode: e.target.value as PlayMode })}>
-            <option value="strum">Бой (все струны сразу)</option>
-            <option value="arpeggio">Перебор (по одной струне)</option>
           </select>
         </label>
       </div>

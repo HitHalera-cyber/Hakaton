@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Гитарные аккорды</string>
+    <string name="title_activity_main">Гитарные аккорды</string>
+    <string name="package_name">com.hakaton.guitarchords.studio</string>
+    <string name="custom_url_scheme">com.hakaton.guitarchords.studio</string>
+</resources>

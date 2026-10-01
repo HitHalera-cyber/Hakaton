@@ -60,7 +60,7 @@ export function CirclePanel({ trail, keyChoice, onKeyChoice, listening, onPick, 
             ● слушаю гитару
           </span>
         ) : (
-          <span className="hint">Аккорды с гитары подсвечиваются, когда включено «Слушать гитару»</span>
+          <span className="hint">Аккорды с гитары подсвечиваются, когда включено «Слушать аккорд»</span>
         )}
         <label className="field inline">
           <span>Тональность</span>
@@ -103,7 +103,7 @@ export function CirclePanel({ trail, keyChoice, onKeyChoice, listening, onPick, 
             </>
           ) : (
             <div className="hint">
-              Нажмите «Слушать гитару» и играйте — аккорд засветится на круге. Можно и ставить точки на грифе, играть на MIDI-клавиатуре или
+              Нажмите «Слушать аккорд» и играйте — аккорд засветится на круге. Можно и ставить точки на грифе, играть на MIDI-клавиатуре или
               включить песню на вкладке «Разбор песни».
             </div>
           )}

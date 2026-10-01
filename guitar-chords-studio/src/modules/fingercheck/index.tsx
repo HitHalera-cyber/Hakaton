@@ -163,5 +163,4 @@ export const fingercheckModule: ModuleDef = {
   description: 'Какая струна глушится или звенит в сыгранном аккорде',
   keywords: ['чисто', 'глушится', 'дребезг', 'баррэ', 'звенит'],
   View: FingerCheckView,
-  isNew: true,
 };

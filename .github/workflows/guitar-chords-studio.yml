@@ -65,3 +65,32 @@ jobs:
           name: GuitarChordsStudio-${{ runner.os }}
           path: ${{ matrix.files }}
           if-no-files-found: error
+
+  android:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: guitar-chords-studio/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: android-actions/setup-android@v3
+      - run: npm ci
+      - run: npm run android:sync
+      - name: Сборка APK
+        working-directory: guitar-chords-studio/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+          cp app/build/outputs/apk/debug/app-debug.apk ../GuitarChordsStudio-Android.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GuitarChordsStudio-Android
+          path: guitar-chords-studio/GuitarChordsStudio-Android.apk
+          if-no-files-found: error

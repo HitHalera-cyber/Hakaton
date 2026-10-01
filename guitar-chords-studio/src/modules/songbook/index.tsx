@@ -234,11 +234,10 @@ function SongbookView() {
 
 export const songbookModule: ModuleDef = {
   id: 'songbook',
-  title: 'Песенник',
+  title: 'Песенник (прототип)',
   icon: '📒',
-  group: 'songs',
+  group: 'modes',
   description: 'Песни с аккордами над текстом, прокрутка, транспонирование, печать и PDF',
   keywords: ['песня', 'текст', 'аккорды над текстом', 'печать', 'pdf', 'прокрутка', 'транспонировать'],
   View: SongbookView,
-  isNew: true,
 };

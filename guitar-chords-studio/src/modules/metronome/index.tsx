@@ -97,7 +97,7 @@ export const metronomeModule: ModuleDef = {
   id: 'metronome',
   title: 'Метроном',
   icon: '⏱',
-  group: 'play',
+  group: 'practice',
   description: 'Метроном 40–240 ударов в минуту с акцентом и заданием темпа касанием',
   keywords: ['темп', 'bpm', 'ритм', 'клик'],
   View: MetronomeView,

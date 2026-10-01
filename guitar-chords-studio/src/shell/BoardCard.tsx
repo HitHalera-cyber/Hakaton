@@ -1,3 +1,4 @@
+import { usePhone } from './usePhone';
 import { useSyncExternalStore } from 'react';
 import { cycleNut, isBoardEmpty, setNut, toggleFret } from '../core/music/fretboard';
 import { pcName } from '../core/music/notes';
@@ -11,6 +12,7 @@ export function BoardCard() {
   const s = usePick((s) => ({ view: s.settings.view, scale: s.settings.scale, board: s.board, flash: s.flash, patchScale: s.patchScale }));
   const g = useGuitar();
   const intercepted = useSyncExternalStore(boardInput.subscribe, () => boardInput.handler != null);
+  const phone = usePhone();
   const scaleDef = SCALES.find((x) => x.id === s.scale.scaleId) ?? SCALES[0];
   const st = store.getState();
 
@@ -20,7 +22,9 @@ export function BoardCard() {
         <span className="hint">
           {intercepted
             ? 'Сейчас клики по грифу проверяет упражнение'
-            : 'Клик — поставить/убрать точку · у порожка: O ↔ пусто · правый клик — заглушить струну'}
+            : phone
+              ? 'Тап — точка · у порожка: O ↔ пусто · долгое нажатие — заглушить · гриф листается пальцем'
+              : 'Клик — поставить/убрать точку · у порожка: O ↔ пусто · правый клик — заглушить струну'}
         </span>
         <div className="row">
           {s.scale.show && (
@@ -38,31 +42,33 @@ export function BoardCard() {
           </button>
         </div>
       </div>
-      <Fretboard
-        board={s.board}
-        tuning={g.strings}
-        capo={g.capo}
-        showNotes={s.view.showNotes}
-        dotLabel={s.view.dotLabel}
-        midiNotes={new Set(g.source === 'midi' ? g.activeMidi : [])}
-        degreeByPc={g.result.primary?.degreeByPc}
-        rootPc={g.result.kind === 'chord' ? g.result.primary?.rootPc : undefined}
-        fingering={g.fingering}
-        scale={s.scale.show ? { rootPc: s.scale.rootPc, degrees: scaleDegrees(s.scale.rootPc, scaleDef) } : null}
-        flash={s.flash}
-        onToggleFret={(str, f) => {
-          if (boardInput.handler?.(str, f)) return;
-          st.edit(toggleFret(store.getState().board, str, f));
-        }}
-        onCycleNut={(str) => {
-          if (boardInput.handler?.(str, g.capo)) return;
-          st.edit(cycleNut(store.getState().board, str));
-        }}
-        onMuteString={(str) => {
-          const b = store.getState().board;
-          st.edit(setNut(b, str, b[str].muted ? 'none' : 'muted'));
-        }}
-      />
+      <div className="board-scroll">
+        <Fretboard
+          board={s.board}
+          tuning={g.strings}
+          capo={g.capo}
+          showNotes={s.view.showNotes}
+          dotLabel={s.view.dotLabel}
+          midiNotes={new Set(g.source === 'midi' ? g.activeMidi : [])}
+          degreeByPc={g.result.primary?.degreeByPc}
+          rootPc={g.result.kind === 'chord' ? g.result.primary?.rootPc : undefined}
+          fingering={g.fingering}
+          scale={s.scale.show ? { rootPc: s.scale.rootPc, degrees: scaleDegrees(s.scale.rootPc, scaleDef) } : null}
+          flash={s.flash}
+          onToggleFret={(str, f) => {
+            if (boardInput.handler?.(str, f)) return;
+            st.edit(toggleFret(store.getState().board, str, f));
+          }}
+          onCycleNut={(str) => {
+            if (boardInput.handler?.(str, g.capo)) return;
+            st.edit(cycleNut(store.getState().board, str));
+          }}
+          onMuteString={(str) => {
+            const b = store.getState().board;
+            st.edit(setNut(b, str, b[str].muted ? 'none' : 'muted'));
+          }}
+        />
+      </div>
     </section>
   );
 }

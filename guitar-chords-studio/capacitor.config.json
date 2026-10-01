@@ -1,0 +1,8 @@
+{
+  "appId": "com.hakaton.guitarchords.studio",
+  "appName": "Гитарные аккорды",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": false
+  }
+}

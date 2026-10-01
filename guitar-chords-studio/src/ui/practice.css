@@ -108,7 +108,14 @@
 }
 .pr-meter .lbl {
   position: absolute;
-  bottom: -18px;
+  top: auto;
+  width: auto;
+  height: auto;
+  margin: 0;
+  border-radius: 0;
+  background: none;
+  white-space: nowrap;
+  bottom: -24px;
   font-size: 14px;
   color: var(--text-2);
 }
@@ -226,4 +233,141 @@
 .st-day small {
   font-size: 12px;
   color: var(--text-2);
+}
+
+/* ---------- Ритм: понятная оценка каждого удара ---------- */
+.rh-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0 6px;
+}
+.rh-beats {
+  display: flex;
+  gap: 14px;
+}
+.rh-beats span {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  color: var(--text-2);
+  font-weight: 700;
+  transition:
+    background 0.06s,
+    transform 0.06s;
+}
+.rh-beats span.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  transform: scale(1.18);
+  box-shadow: 0 0 14px var(--accent);
+}
+.rh-beats span.first.on {
+  background: var(--ok);
+  border-color: var(--ok);
+  box-shadow: 0 0 14px var(--ok);
+}
+.rh-hit {
+  font-size: 30px;
+  font-weight: 800;
+  padding: 6px 22px;
+  border-radius: var(--radius);
+  animation: rh-pop 0.35s ease-out;
+}
+.rh-hit.idle {
+  font-size: 18px;
+  font-weight: 400;
+  color: var(--text-2);
+  animation: none;
+}
+.rh-hit.ok {
+  color: #fff;
+  background: color-mix(in srgb, var(--ok) 75%, transparent);
+}
+.rh-hit.near {
+  color: #1a1204;
+  background: color-mix(in srgb, var(--warn) 85%, transparent);
+}
+.rh-hit.off {
+  color: #fff;
+  background: color-mix(in srgb, var(--danger) 80%, transparent);
+}
+@keyframes rh-pop {
+  from {
+    transform: scale(1.25);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+.rh-streak {
+  min-height: 22px;
+  font-weight: 700;
+  color: var(--ok);
+}
+.rh-meter {
+  height: 56px;
+  margin-bottom: 26px;
+  overflow: visible;
+}
+.rh-meter .zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+}
+.rh-meter .zone.near {
+  background: color-mix(in srgb, var(--warn) 22%, transparent);
+}
+.rh-meter .zone.ok {
+  background: color-mix(in srgb, var(--ok) 35%, transparent);
+}
+.rh-meter span.old {
+  width: 9px;
+  height: 9px;
+  margin: -4.5px 0 0 -4.5px;
+  background: var(--text-2);
+  opacity: 0.45;
+}
+.rh-meter span.now {
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  border: 3px solid #fff;
+  z-index: 2;
+  animation: rh-pop 0.35s ease-out;
+}
+.rh-meter span.now.ok {
+  background: var(--ok);
+  box-shadow: 0 0 14px var(--ok);
+}
+.rh-meter span.now.near {
+  background: var(--warn);
+  box-shadow: 0 0 14px var(--warn);
+}
+.rh-meter span.now.off {
+  background: var(--danger);
+  box-shadow: 0 0 14px var(--danger);
+}
+.rh-advice {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  border-left: 5px solid var(--ok);
+  background: var(--panel-2);
+}
+.rh-advice.near {
+  border-left-color: var(--warn);
+}
+.rh-advice.off {
+  border-left-color: var(--danger);
+}
+.rh-advice b {
+  font-size: 17px;
 }

@@ -3,6 +3,7 @@
 import { audio } from '../core/audio/engine';
 import { MidiInput } from '../core/midi/midiInput';
 import { store } from '../store';
+import { bus } from './bus';
 
 let input: MidiInput | null = null;
 
@@ -37,6 +38,7 @@ export const midiService = {
     input = new MidiInput({
       onNoteOn: (note, velocity) => {
         store.getState().midiNoteOn(note);
+        bus.emit('midi:noteOn', { note });
         if (store.getState().settings.midi.sound) audio.playNote(note, velocity);
       },
       onNoteOff: (note) => store.getState().midiNoteOff(note),

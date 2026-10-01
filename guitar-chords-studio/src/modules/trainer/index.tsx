@@ -27,7 +27,7 @@ export const trainerModule: ModuleDef = {
   title: 'Тренажёр',
   icon: '🎯',
   group: 'practice',
-  description: 'Найди ноту на грифе, построй аккорд, угадай аккорд на слух',
+  description: 'Найди ноту на грифе, построй аккорд, угадай аккорд или ноту на слух',
   keywords: ['ноты', 'слух', 'упражнения'],
   View: TrainerView,
 };

@@ -1,12 +1,10 @@
 import type { ComponentType } from 'react';
 import type { ModuleId } from './ids';
 
-export type GroupId = 'play' | 'songs' | 'recognize' | 'practice' | 'learn' | 'tools';
+export type GroupId = 'modes' | 'practice' | 'learn' | 'tools';
 
 export const GROUPS: { id: GroupId; title: string }[] = [
-  { id: 'play', title: 'Играть' },
-  { id: 'songs', title: 'Песни' },
-  { id: 'recognize', title: 'Распознать' },
+  { id: 'modes', title: 'Режимы' },
   { id: 'practice', title: 'Практика' },
   { id: 'learn', title: 'Учить' },
   { id: 'tools', title: 'Инструменты' },
@@ -26,6 +24,4 @@ export interface ModuleDef {
   /** Дополнительные слова для поиска в панели команд. */
   keywords?: string[];
   View: ComponentType;
-  /** Модуль новый в Studio — в меню помечается точкой. */
-  isNew?: boolean;
 }

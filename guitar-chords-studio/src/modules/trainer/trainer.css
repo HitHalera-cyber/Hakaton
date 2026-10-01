@@ -45,3 +45,11 @@
   background: color-mix(in srgb, var(--danger) 15%, transparent);
   color: var(--danger);
 }
+.answers .btn.on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+  color: var(--text);
+}
+.tab-body .piano {
+  margin-top: 6px;
+}

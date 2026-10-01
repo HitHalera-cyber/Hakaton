@@ -46,11 +46,7 @@ export function Sidebar({ active, compact, onOpen }: Props) {
               >
                 <span className="nav-icon">{m.icon}</span>
                 <span className="nav-label">{m.title}</span>
-                {badges[m.id] ? (
-                  <span className="nav-badge">{badges[m.id]}</span>
-                ) : (
-                  m.isNew && <span className="nav-new" title="Новое в Studio" />
-                )}
+                {badges[m.id] && <span className="nav-badge">{badges[m.id]}</span>}
               </button>
             ))}
           </div>

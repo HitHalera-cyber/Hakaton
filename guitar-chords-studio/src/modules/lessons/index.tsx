@@ -12,7 +12,7 @@ import { sequencer } from '../../services/sequencer';
 import { store, useGuitar, usePick } from '../../store';
 import { ChordDiagram } from '../../ui/ChordDiagram';
 import type { ModuleDef } from '../types';
-import { LESSONS, type Lesson, type LessonStep } from './lessons';
+import { LESSONS, LEVELS, type Lesson, type LessonStep } from './lessons';
 
 const st = () => store.getState();
 
@@ -226,7 +226,7 @@ function LessonRunner({ lesson, onBack }: { lesson: Lesson; onBack: () => void }
     <div className="tab-body">
       <div className="pr-row">
         <button className="btn small" onClick={() => (chordListener.stop(), onBack())}>
-          ← Все уроки
+          ← Всё обучение
         </button>
         <b>
           {lesson.icon} {lesson.title}
@@ -252,37 +252,44 @@ function LessonsView() {
   if (lesson) return <LessonRunner lesson={lesson} onBack={() => setOpen(null)} />;
   return (
     <div className="tab-body">
-      <p className="hint">Уроки проверяют игру через микрофон: сыграли аккорд чисто — шаг засчитан.</p>
-      <div className="lesson-list">
-        {LESSONS.map((l) => {
-          const p = progress[l.id];
-          const share = p ? (p.done ? 1 : p.step / l.steps.length) : 0;
-          return (
-            <button key={l.id} className="lesson-card" onClick={() => setOpen(l.id)}>
-              <span className="lesson-icon">{l.icon}</span>
-              <b>{l.title}</b>
-              <small>{l.description}</small>
-              <div className="pr-bar">
-                <span style={{ width: `${Math.round(share * 100)}%` }} />
-              </div>
-              <small>
-                {p?.done ? '✓ пройден — можно повторить' : p ? `шаг ${p.step + 1} из ${l.steps.length}` : `${l.steps.length} шагов`}
-              </small>
-            </button>
-          );
-        })}
-      </div>
+      <p className="hint">
+        {LESSONS.length} уроков от первого дня с гитарой до джаза. Уроки с гитарой проверяют игру через микрофон: сыграли аккорд чисто — шаг
+        засчитан. Теория — просто читать и слушать примеры.
+      </p>
+      {LEVELS.map((lv) => (
+        <section key={lv.id} className="lesson-level">
+          <h4>{lv.title}</h4>
+          <div className="lesson-list">
+            {LESSONS.filter((l) => l.level === lv.id).map((l) => {
+              const p = progress[l.id];
+              const share = p ? (p.done ? 1 : p.step / l.steps.length) : 0;
+              return (
+                <button key={l.id} className="lesson-card" onClick={() => setOpen(l.id)}>
+                  <span className="lesson-icon">{l.icon}</span>
+                  <b>{l.title}</b>
+                  <small>{l.description}</small>
+                  <div className="pr-bar">
+                    <span style={{ width: `${Math.round(share * 100)}%` }} />
+                  </div>
+                  <small>
+                    {p?.done ? '✓ пройден — можно повторить' : p ? `шаг ${p.step + 1} из ${l.steps.length}` : `${l.steps.length} шагов`}
+                  </small>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      ))}
     </div>
   );
 }
 
 export const lessonsModule: ModuleDef = {
   id: 'lessons',
-  title: 'Уроки',
+  title: 'Обучение',
   icon: '🎓',
   group: 'practice',
-  description: 'Пошаговые уроки с проверкой по микрофону: первые аккорды, баррэ, бой',
+  description: 'Уроки от первого дня до джаза: аккорды, бои, перебор, баррэ, теория — с проверкой по микрофону',
   keywords: ['учиться', 'курс', 'начинающим', 'баррэ', 'шестёрка'],
   View: LessonsView,
-  isNew: true,
 };

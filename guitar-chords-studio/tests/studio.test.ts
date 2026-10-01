@@ -224,3 +224,14 @@ describe('совпадение аккорда в упражнениях', () => 
     expect(matchesChord('G', { rootPc: 0, templateId: 'maj' })).toBe(false);
   });
 });
+
+describe('ритм: оценка удара', () => {
+  it('в долю, чуть, мимо и серия', async () => {
+    const { classifyHit, hitStreak, timingAdvice, timingSummary } = await import('../src/core/practice/timing');
+    expect(classifyHit(0.01).zone).toBe('ok');
+    expect(classifyHit(-0.05)).toEqual({ zone: 'near', text: 'Чуть рано (−50 мс)' });
+    expect(classifyHit(0.1).text).toBe('Поздно! (+100 мс)');
+    expect(hitStreak([0.2, 0.01, -0.02, 0.005])).toBe(3);
+    expect(timingAdvice(timingSummary([-0.05, -0.04, -0.06, -0.05])!).tip).toContain('спешите');
+  });
+});

@@ -22,9 +22,9 @@ function ListenView() {
 
 export const listenModule: ModuleDef = {
   id: 'listen',
-  title: 'Слушать гитару',
+  title: 'Слушать аккорд (прототип)',
   icon: '👂',
-  group: 'recognize',
+  group: 'modes',
   description: 'Сыграйте аккорд — программа назовёт его и покажет на грифе',
   keywords: ['микрофон', 'распознать', 'аккорд на слух'],
   View: ListenView,

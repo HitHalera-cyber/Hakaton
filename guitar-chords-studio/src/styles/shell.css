@@ -13,18 +13,6 @@
   border-radius: 4px;
   color: var(--side-muted);
 }
-.nav-new {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 6px var(--accent);
-}
-.sidebar.compact .nav-new {
-  position: absolute;
-  top: 4px;
-  right: 6px;
-}
 
 .palette-backdrop {
   position: fixed;

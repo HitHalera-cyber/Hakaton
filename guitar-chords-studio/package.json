@@ -18,7 +18,8 @@
     "dist:linux": "npm run build && electron-builder --linux AppImage --publish never",
     "harness": "vite --config vite.harness.config.ts",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"tests/**/*.ts\" \"harness/**/*.ts\" electron",
-    "check": "tsc --noEmit && vitest run && prettier --check \"src/**/*.{ts,tsx,css}\" \"tests/**/*.ts\""
+    "check": "tsc --noEmit && vitest run && prettier --check \"src/**/*.{ts,tsx,css}\" \"tests/**/*.ts\"",
+    "android:sync": "npm run build && cap sync android"
   },
   "build": {
     "appId": "com.hakaton.guitarchords.studio",
@@ -67,6 +68,7 @@
     }
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.2",
     "@fontsource/alegreya": "^5.3.0",
     "@fontsource/caveat": "^5.3.0",
     "@fontsource/cormorant-sc": "^5.3.0",
@@ -97,6 +99,8 @@
     "wait-on": "^9.1.0"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/core": "^8.5.2",
     "electron-updater": "^6.8.9",
     "zustand": "^5.0.15"
   },

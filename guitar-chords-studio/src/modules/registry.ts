@@ -24,14 +24,14 @@ import { tunerModule } from './tuner';
 import { GROUPS, type ModuleDef } from './types';
 
 export const MODULES: ModuleDef[] = [
-  soundModule,
-  sequenceModule,
-  metronomeModule,
+  listenModule,
   songbookModule,
   songModule,
-  listenModule,
-  circleModule,
   melodyModule,
+  circleModule,
+  sequenceModule,
+  soundModule,
+  metronomeModule,
   lessonsModule,
   changesModule,
   rhythmModule,

@@ -6,7 +6,7 @@ import { TUNINGS } from '../core/music/tunings';
 import type { ModuleId } from '../modules/ids';
 
 export type DotLabel = 'note' | 'degree' | 'finger';
-export type LayoutId = 'classic' | 'dashboard' | 'listener' | 'free';
+export type LayoutId = 'classic' | 'dashboard' | 'listener';
 
 export interface ViewSettings {
   theme: string;
@@ -179,24 +179,6 @@ export interface Practice {
 }
 
 export const EMPTY_PRACTICE: Practice = { days: {}, learned: [], heardCount: {}, lessons: {}, changesBest: {}, rhythmBest: null };
-
-/** Окно в раскладке «Свободные окна». */
-export type WindowKind = ModuleId | 'chord';
-
-export interface FreeWindow {
-  id: WindowKind;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  z: number;
-}
-
-export const DEFAULT_WINDOWS: FreeWindow[] = [
-  { id: 'chord', x: 12, y: 12, w: 340, h: 420, z: 1 },
-  { id: 'circle', x: 364, y: 12, w: 560, h: 470, z: 2 },
-  { id: 'metronome', x: 936, y: 52, w: 360, h: 330, z: 3 },
-];
 
 export const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 

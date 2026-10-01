@@ -177,5 +177,4 @@ export const changesModule: ModuleDef = {
   description: 'Сколько чистых смен двух аккордов вы успеете за минуту — считает микрофон',
   keywords: ['смена', 'переход', 'минута', 'скорость', 'рекорд'],
   View: ChangesView,
-  isNew: true,
 };

@@ -108,7 +108,7 @@ export function TunerPanel({ tuning, capo }: Props) {
         ))}
       </div>
 
-      <p className="hint">Чтобы узнать, какой аккорд вы играете, откройте «👂 Слушать гитару».</p>
+      <p className="hint">Чтобы узнать, какой аккорд вы играете, откройте «👂 Слушать аккорд».</p>
     </div>
   );
 }

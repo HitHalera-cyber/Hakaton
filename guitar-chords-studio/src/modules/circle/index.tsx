@@ -27,7 +27,7 @@ export const circleModule: ModuleDef = {
   id: 'circle',
   title: 'Квинтовый круг',
   icon: '⭕',
-  group: 'recognize',
+  group: 'modes',
   description: 'Круг квинт: светится аккорд, который звучит, и тональность',
   keywords: ['кварто-квинтовый', 'тональность', 'ступени'],
   View: CircleView,

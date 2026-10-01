@@ -15,7 +15,7 @@ import type { AppState } from './types';
 
 export type { AppState } from './types';
 
-const PERSISTED = ['settings', 'board', 'saved', 'history', 'sequence', 'songs', 'currentSongId', 'practice', 'windows'] as const;
+const PERSISTED = ['settings', 'board', 'saved', 'history', 'sequence', 'songs', 'currentSongId', 'practice'] as const;
 
 /** Сохранённые настройки дополняются полями, появившимися в новых версиях. */
 function mergeSettings(saved: Partial<Settings> | undefined): Settings {
@@ -23,6 +23,8 @@ function mergeSettings(saved: Partial<Settings> | undefined): Settings {
   const merged = Object.fromEntries(
     (Object.keys(DEFAULT_SETTINGS) as (keyof Settings)[]).map((k) => [k, { ...DEFAULT_SETTINGS[k], ...(s[k] ?? {}) }]),
   ) as unknown as Settings;
+  // Раскладка «Свободные окна» убрана.
+  if (!['classic', 'dashboard', 'listener'].includes(merged.view.layout)) merged.view.layout = 'dashboard';
   if (!isModuleId(merged.view.tab)) merged.view.tab = DEFAULT_SETTINGS.view.tab;
   if (!Array.isArray(merged.view.tiles) || merged.view.tiles.length !== 4 || !merged.view.tiles.every(isModuleId))
     merged.view.tiles = DEFAULT_TILES;

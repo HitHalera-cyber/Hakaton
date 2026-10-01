@@ -9,7 +9,8 @@ import type { Instrument } from '../music/tunings';
 import { PLUCK_PRESETS, renderPluck } from './pluck';
 
 export type Timbre = 'steel' | 'nylon' | 'electric' | 'overdrive';
-export type PlayMode = 'strum' | 'arpeggio';
+/** Как звучит аккорд по кнопке «Играть»: бой вниз, бой вверх или перебор. */
+export type PlayMode = 'strum' | 'strumUp' | 'arpeggio';
 export type StrumDirection = 'down' | 'up';
 
 export const TIMBRE_NAMES: Record<Timbre, string> = {
@@ -352,7 +353,7 @@ export class AudioEngine {
     if (!notes.length) return;
     this.stopAll(0.03);
     if (mode === 'arpeggio') this.arpeggio(notes, stepMs);
-    else this.strum(notes, 'down');
+    else this.strum(notes, mode === 'strumUp' ? 'up' : 'down');
   }
 
   /** Щелчок метронома. */

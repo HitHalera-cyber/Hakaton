@@ -495,7 +495,7 @@ export function SongPanel({ capo, onCapo, onChord, onToSequence, onToSongbook, o
               <input type="checkbox" checked={follow} onChange={(e) => setFollow(e.target.checked)} />
               Показывать текущий аккорд на грифе
             </label>
-            <span className="hint" title="Микрофон и «Слушать гитару» не меняют гриф, пока открыт разбор песни">
+            <span className="hint" title="Микрофон и «Слушать аккорд» не меняют гриф, пока открыт разбор песни">
               🔇 гриф — только аккорды песни
             </span>
             <span className="grow" />

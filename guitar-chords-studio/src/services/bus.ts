@@ -8,6 +8,8 @@ export interface BusEvents {
   'chord:heard': RecognizedChord;
   /** С гитары слышна одна нота или интервал (две ноты). */
   'notes:heard': HeardNotes;
+  /** Нажата клавиша MIDI-клавиатуры. */
+  'midi:noteOn': { note: number };
   /** Удар по струнам (резкий рост громкости) — время по часам AudioContext. */
   'mic:onset': { time: number; level: number };
   /** Щелчок метронома прозвучал (время по часам AudioContext). */

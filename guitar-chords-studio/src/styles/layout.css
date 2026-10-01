@@ -159,9 +159,7 @@
   .app {
     grid-template-columns: 64px minmax(0, 1fr);
   }
-  .nav-label,
-  .nav-title,
-  .brand div {
+  .app:not(.layout-phone) :is(.nav-label, .nav-title, .brand div) {
     display: none;
   }
   .workspace.classic {

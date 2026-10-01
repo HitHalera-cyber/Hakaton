@@ -51,9 +51,9 @@ function SongView() {
 
 export const songModule: ModuleDef = {
   id: 'song',
-  title: 'Разбор песни',
+  title: 'Разбор песни (прототип)',
   icon: '🎧',
-  group: 'songs',
+  group: 'modes',
   description: 'Аккорды из аудиофайла, замедление, повтор A–B, без вокала, в песенник',
   keywords: ['mp3', 'аудио', 'подобрать', 'замедлить', 'вокал', 'бас', 'повтор'],
   View: SongView,

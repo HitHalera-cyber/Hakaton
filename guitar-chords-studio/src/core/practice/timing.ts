@@ -35,3 +35,43 @@ export function timingVerdict(s: TimingSummary): string {
   const level = s.accuracy < 20 ? 'отлично' : s.accuracy < 35 ? 'хорошо' : s.accuracy < 60 ? 'неплохо' : 'нужно потренироваться';
   return `${level}: в среднем ${tendency}, разброс ±${s.spread} мс`;
 }
+
+export type HitZone = 'ok' | 'near' | 'off';
+
+/** Пороги оценки удара, мс: до OK — «в долю», до NEAR — «чуть», дальше — промах. */
+export const HIT_OK_MS = 30;
+export const HIT_NEAR_MS = 70;
+
+/** Оценка одного удара словами — то, что видно крупно сразу после удара. */
+export function classifyHit(errSec: number): { zone: HitZone; text: string } {
+  const ms = Math.round(errSec * 1000);
+  const a = Math.abs(ms);
+  if (a <= HIT_OK_MS) return { zone: 'ok', text: 'В долю ✓' };
+  const side = ms < 0 ? 'рано' : 'поздно';
+  if (a <= HIT_NEAR_MS) return { zone: 'near', text: `Чуть ${side} (${ms > 0 ? '+' : '−'}${a} мс)` };
+  return { zone: 'off', text: `${side[0].toUpperCase()}${side.slice(1)}! (${ms > 0 ? '+' : '−'}${a} мс)` };
+}
+
+/** Сколько последних ударов подряд попали в долю. */
+export function hitStreak(errorsSec: number[]): number {
+  let n = 0;
+  for (let i = errorsSec.length - 1; i >= 0 && Math.abs(errorsSec[i] * 1000) <= HIT_OK_MS; i--) n++;
+  return n;
+}
+
+/** Общий итог простыми словами и совет. */
+export function timingAdvice(s: TimingSummary): { zone: HitZone; title: string; tip: string } {
+  const zone: HitZone = s.accuracy <= HIT_OK_MS ? 'ok' : s.accuracy <= HIT_NEAR_MS ? 'near' : 'off';
+  const title = zone === 'ok' ? 'Вы держите ритм ровно' : zone === 'near' ? 'Ритм почти ровный' : 'Ритм пока плавает';
+  const tip =
+    Math.abs(s.mean) >= 15
+      ? s.mean < 0
+        ? 'Вы чаще спешите — дождитесь щелчка, бейте чуть позже.'
+        : 'Вы чаще отстаёте — бейте чуть раньше, вместе со щелчком.'
+      : s.spread > HIT_NEAR_MS
+        ? 'В среднем в долю, но удары скачут — снизьте темп и считайте вслух «раз-и-два-и».'
+        : zone === 'ok'
+          ? 'Отлично! Попробуйте темп побыстрее.'
+          : 'Держите руку в постоянном движении, как маятник.';
+  return { zone, title, tip };
+}

@@ -6,22 +6,24 @@ import { AboutDialog } from './About';
 import { CommandPalette } from './CommandPalette';
 import { ClassicLayout } from './layouts/Classic';
 import { DashboardLayout } from './layouts/Dashboard';
-import { FreeLayout } from './layouts/Free';
 import { ListenerLayout } from './layouts/Listener';
+import { PhoneLayout } from './layouts/Phone';
+import { usePhone } from './usePhone';
 
 const LAYOUT_VIEWS: Record<LayoutId, () => React.JSX.Element> = {
   classic: ClassicLayout,
   dashboard: DashboardLayout,
   listener: ListenerLayout,
-  free: FreeLayout,
 };
 
 export default function App() {
   const { layout, toastText } = usePick((s) => ({ layout: s.settings.view.layout, toastText: s.toastText }));
   useEffect(startServices, []);
-  const View = LAYOUT_VIEWS[layout] ?? ClassicLayout;
+  // На телефоне — всегда своя раскладка, выбранная на компьютере не меняется.
+  const phone = usePhone();
+  const View = phone ? PhoneLayout : (LAYOUT_VIEWS[layout] ?? ClassicLayout);
   return (
-    <div className={`app layout-${layout}`}>
+    <div className={`app layout-${phone ? 'phone' : layout}`}>
       <View />
       {toastText && <div className="toast">{toastText}</div>}
       <CommandPalette />

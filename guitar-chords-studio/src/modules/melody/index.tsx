@@ -115,11 +115,10 @@ function MelodyView() {
 
 export const melodyModule: ModuleDef = {
   id: 'melody',
-  title: 'Подбор мелодии',
+  title: 'Подбор мелодии (прототип)',
   icon: '🎶',
-  group: 'recognize',
+  group: 'modes',
   description: 'Напойте или сыграйте мелодию — программа запишет ноты и табулатуру',
   keywords: ['мелодия', 'ноты', 'табулатура', 'напеть', 'соло', 'рифф'],
   View: MelodyView,
-  isNew: true,
 };

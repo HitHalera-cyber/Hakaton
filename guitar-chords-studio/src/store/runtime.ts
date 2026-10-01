@@ -5,7 +5,6 @@ import type { RecognizedChord } from '../core/analysis/chordRecognition';
 import type { HeardNotes, SoundResult } from '../core/analysis/liveSound';
 import type { MidiDevice } from '../core/midi/midiInput';
 import type { ModuleId } from '../modules/ids';
-import { DEFAULT_WINDOWS, type FreeWindow } from './model';
 import type { Slice } from './types';
 
 export interface TrailChord {
@@ -49,8 +48,6 @@ export interface RuntimeSlice {
   /** Открыть раздел: в «Классике» — справа от аккорда, в других раскладках — в выдвижной панели. */
   openModule: (id: ModuleId) => void;
   closeDrawer: () => void;
-  windows: FreeWindow[];
-  setWindows: (w: FreeWindow[] | ((w: FreeWindow[]) => FreeWindow[])) => void;
 
   trail: TrailChord[];
   pushTrail: (c: Omit<TrailChord, 'id'>) => void;
@@ -98,8 +95,6 @@ export const createRuntimeSlice: Slice<RuntimeSlice> = (set, get) => ({
     if (get().settings.view.layout !== 'classic') set({ drawerOpen: true });
   },
   closeDrawer: () => set({ drawerOpen: false }),
-  windows: DEFAULT_WINDOWS,
-  setWindows: (w) => set((s) => ({ windows: typeof w === 'function' ? w(s.windows) : w })),
 
   trail: [],
   pushTrail: (c) => set((s) => (s.trail[0]?.symbol === c.symbol ? {} : { trail: [{ ...c, id: ++trailId }, ...s.trail].slice(0, 12) })),

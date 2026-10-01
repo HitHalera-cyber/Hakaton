@@ -39,7 +39,7 @@ export const sequenceModule: ModuleDef = {
   id: 'sequence',
   title: 'Последовательность',
   icon: '🎵',
-  group: 'play',
+  group: 'modes',
   description: 'Цепочка аккордов с боем, темпом и экспортом в MIDI и табулатуру',
   keywords: ['прогрессия', 'бой', 'шестёрка', 'midi', 'табулатура'],
   View: SequenceView,

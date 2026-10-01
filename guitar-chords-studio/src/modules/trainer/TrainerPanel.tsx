@@ -4,14 +4,17 @@ import { audio } from '../../core/audio/engine';
 import { CHORD_TEMPLATES, type ChordTemplate } from '../../core/music/chords';
 import { chordPitchClasses } from '../../core/music/chordParse';
 import type { Frets } from '../../core/music/fretboard';
-import { mod12, pcName, pcNameRu, spelledName, spelledRu } from '../../core/music/notes';
+import { midiName, mod12, pcName, pcNameRu, spelledName, spelledRu } from '../../core/music/notes';
 import { keyRootSpelling } from '../../core/music/scales';
 import { FRET_COUNT } from '../../core/music/tunings';
 import { boardFromFrets, soundingNotes } from '../../core/music/fretboard';
 import { generateVoicings } from '../../core/music/voicings';
+import { bus } from '../../services/bus';
 import type { CellFlash } from '../../store/guitar';
+import { Piano } from '../../ui/Piano';
+import '../midi/midi.css';
 
-type Mode = 'notes' | 'build' | 'ear';
+type Mode = 'notes' | 'build' | 'ear' | 'earNote';
 
 interface Props {
   tuning: number[];
@@ -24,10 +27,17 @@ interface Props {
 }
 
 const tpl = (id: string) => CHORD_TEMPLATES.find((t) => t.id === id)!;
-const EAR_LEVELS: { name: string; ids: string[] }[] = [
+const EAR_LEVELS: { name: string; ids: string[]; full?: boolean }[] = [
   { name: 'Мажор / минор', ids: ['maj', 'min'] },
   { name: '+ септаккорды', ids: ['maj', 'min', '7', 'maj7', 'm7'] },
   { name: 'Все основные', ids: ['maj', 'min', '7', 'maj7', 'm7', 'dim', 'aug', 'sus2', 'sus4'] },
+  { name: 'Аккорд целиком: мажор/минор (тоника + лад)', ids: ['maj', 'min'], full: true },
+  { name: 'Аккорд целиком: + септаккорды', ids: ['maj', 'min', '7', 'maj7', 'm7'], full: true },
+];
+const NOTE_LEVELS: { name: string; lo: number; hi: number; octave: boolean }[] = [
+  { name: 'Одна октава (E3–E4), любая октава засчитывается', lo: 52, hi: 64, octave: false },
+  { name: 'Весь гриф, любая октава засчитывается', lo: 40, hi: 76, octave: false },
+  { name: 'Весь гриф, точная октава', lo: 40, hi: 76, octave: true },
 ];
 const BUILD_LEVELS: { name: string; ids: string[] }[] = [
   { name: 'Трезвучия', ids: ['maj', 'min'] },
@@ -52,6 +62,11 @@ export function TrainerPanel(p: Props) {
   const [buildQ, setBuildQ] = useState<{ rootPc: number; id: string } | null>(null);
   const [earLevel, setEarLevel] = useState(0);
   const [earQ, setEarQ] = useState<{ rootPc: number; id: string; answered: boolean } | null>(null);
+  // Для «аккорда целиком»: выбранная тоника, пока не выбран лад.
+  const [earRoot, setEarRoot] = useState<number | null>(null);
+  const [noteLevel, setNoteLevel] = useState(0);
+  const [earNoteQ, setEarNoteQ] = useState<{ midi: number; answered: boolean; tries: number } | null>(null);
+  const [pianoOn, setPianoOn] = useState<Set<number>>(new Set());
 
   const answer = (ok: boolean, text: string) => {
     setFeedback({ ok, text });
@@ -72,7 +87,7 @@ export function TrainerPanel(p: Props) {
 
   useEffect(() => {
     if (mode !== 'notes') {
-      p.registerCellHandler(null);
+      if (mode !== 'earNote') p.registerCellHandler(null);
       return;
     }
     if (!noteRef.current) nextNote();
@@ -147,17 +162,80 @@ export function TrainerPanel(p: Props) {
     const ids = EAR_LEVELS[earLevel].ids;
     const q = { rootPc: rand(12), id: ids[rand(ids.length)], answered: false };
     setEarQ(q);
+    setEarRoot(null);
     setFeedback(null);
     playEar(q);
   };
   const answerEar = (id: string) => {
     if (!earQ || earQ.answered) return;
+    const full = EAR_LEVELS[earLevel].full;
+    if (full && earRoot == null) {
+      setFeedback({ ok: false, text: 'Сначала выберите тонику (ноту, от которой строится аккорд)' });
+      return;
+    }
     const t = tpl(earQ.id);
     const name = chordName(earQ.rootPc, t);
-    const ok = id === earQ.id;
-    answer(ok, ok ? `Верно! Это ${name.symbol} — ${name.ru}` : `Нет, это был ${t.suffix || 'мажор'} (${name.symbol} — ${name.ru})`);
+    const ok = id === earQ.id && (!full || earRoot === earQ.rootPc);
+    const mine = full ? chordName(earRoot!, tpl(id)).symbol : tpl(id).ru;
+    answer(ok, ok ? `Верно! Это ${name.symbol} — ${name.ru}` : `Нет, вы ответили ${mine}, а это был ${name.symbol} — ${name.ru}`);
     setEarQ({ ...earQ, answered: true });
   };
+
+  // ---------- Нота на слух ----------
+  const earNoteRef = useRef(earNoteQ);
+  earNoteRef.current = earNoteQ;
+  const noteLevelRef = useRef(noteLevel);
+  noteLevelRef.current = noteLevel;
+  const playNote = (midi: number) => {
+    audio.stopAll(0.03);
+    audio.playNote(midi, 0.9);
+  };
+  const nextEarNote = () => {
+    const l = NOTE_LEVELS[noteLevelRef.current];
+    const midi = l.lo + rand(l.hi - l.lo + 1);
+    setEarNoteQ({ midi, answered: false, tries: 0 });
+    setFeedback(null);
+    playNote(midi);
+  };
+  /** Ответ нотой (лад на грифе или клавиша MIDI). */
+  const answerNote = (midi: number, where: string) => {
+    const q = earNoteRef.current;
+    if (!q || q.answered) return false;
+    const exact = NOTE_LEVELS[noteLevelRef.current].octave;
+    const ok = exact ? midi === q.midi : mod12(midi) === mod12(q.midi);
+    if (ok) {
+      answer(true, `Верно! Это ${pcNameRu(q.midi)} (${midiName(q.midi)})${where}`);
+      setEarNoteQ({ ...q, answered: true });
+      setTimeout(nextEarNote, 1100);
+    } else if (q.tries >= 2) {
+      answer(false, `Это была ${pcNameRu(q.midi)} (${midiName(q.midi)}), а вы нажали ${midiName(midi)}`);
+      setEarNoteQ({ ...q, answered: true });
+    } else {
+      const hint = mod12(midi) === mod12(q.midi) ? 'нота та, но октава другая' : midi < q.midi ? 'нужно выше' : 'нужно ниже';
+      setFeedback({ ok: false, text: `${midiName(midi)} — нет, ${hint}. Попыток осталось: ${2 - q.tries}` });
+      setEarNoteQ({ ...q, tries: q.tries + 1 });
+    }
+    return true;
+  };
+  useEffect(() => {
+    if (mode !== 'earNote') return;
+    p.registerCellHandler((s, f) => {
+      const midi = p.tuning[s] + f;
+      audio.playNote(midi, 0.8);
+      const q = earNoteRef.current;
+      if (q && !q.answered) {
+        const exact = NOTE_LEVELS[noteLevelRef.current].octave;
+        p.setFlash({ s, f, ok: exact ? midi === q.midi : mod12(midi) === mod12(q.midi) });
+      }
+      answerNote(midi, ` — ${p.tuning.length - s}-я струна, ${f ? `${f} лад` : 'открытая'}`);
+      return true;
+    });
+    const off = bus.on('midi:noteOn', ({ note }) => answerNote(note, ' — на клавиатуре'));
+    return () => {
+      off();
+      p.registerCellHandler(null);
+    };
+  }, [mode, p.tuning, p.capo]);
 
   const q = noteQ;
   return (
@@ -170,7 +248,10 @@ export function TrainerPanel(p: Props) {
           Построй аккорд
         </button>
         <button className={mode === 'ear' ? 'on' : ''} onClick={() => setMode('ear')}>
-          Угадай на слух
+          Угадай аккорд на слух
+        </button>
+        <button className={mode === 'earNote' ? 'on' : ''} onClick={() => setMode('earNote')}>
+          Нота на слух
         </button>
       </div>
 
@@ -265,6 +346,28 @@ export function TrainerPanel(p: Props) {
               </button>
             )}
           </div>
+          {earQ && EAR_LEVELS[earLevel].full && (
+            <>
+              <small className="muted-label">1. Тоника — от какой ноты аккорд:</small>
+              <div className="answers">
+                {Array.from({ length: 12 }, (_, pc) => (
+                  <button
+                    key={pc}
+                    className={`btn small ${earRoot === pc ? 'on' : ''} ${earQ.answered && pc === earQ.rootPc ? 'correct' : ''}`}
+                    onClick={() => {
+                      setEarRoot(pc);
+                      audio.playNote(48 + pc, 0.6);
+                    }}
+                    disabled={earQ.answered}
+                    title={`${pcNameRu(pc)} — нажмите, чтобы услышать`}
+                  >
+                    {pcName(pc)}
+                  </button>
+                ))}
+              </div>
+              <small className="muted-label">2. Тип аккорда:</small>
+            </>
+          )}
           {earQ && (
             <div className="answers">
               {EAR_LEVELS[earLevel].ids.map((id) => (
@@ -279,6 +382,57 @@ export function TrainerPanel(p: Props) {
               ))}
             </div>
           )}
+        </>
+      )}
+
+      {mode === 'earNote' && (
+        <>
+          <p className="hint">
+            Программа играет случайную ноту — найдите её на грифе (клик по ладу), на MIDI-клавиатуре или на клавишах ниже. Три попытки,
+            после ошибки подскажет «выше» или «ниже».
+          </p>
+          <div className="row">
+            <label className="field inline">
+              <span>Уровень</span>
+              <select value={noteLevel} onChange={(e) => setNoteLevel(Number(e.target.value))}>
+                {NOTE_LEVELS.map((l, i) => (
+                  <option key={i} value={i}>
+                    {l.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button className="btn primary" onClick={nextEarNote}>
+              {earNoteQ ? '▶ Следующая нота' : '▶ Начать'}
+            </button>
+            {earNoteQ && (
+              <button className="btn" onClick={() => playNote(earNoteQ.midi)}>
+                🔁 Повторить
+              </button>
+            )}
+            {earNoteQ && (
+              <button className="btn" onClick={() => playNote(57)} title="Эталон: ля первой октавы (A3)">
+                🎯 Эталон A
+              </button>
+            )}
+          </div>
+          {earNoteQ && (
+            <div className="question">
+              {earNoteQ.answered ? `Это была ${midiName(earNoteQ.midi)}` : 'Какая это нота? Нажмите её на грифе или клавиатуре'}
+            </div>
+          )}
+          <Piano
+            from={NOTE_LEVELS[noteLevel].lo - (NOTE_LEVELS[noteLevel].lo % 12)}
+            to={NOTE_LEVELS[noteLevel].hi + 11 - (NOTE_LEVELS[noteLevel].hi % 12)}
+            active={pianoOn}
+            range={[NOTE_LEVELS[noteLevel].lo, NOTE_LEVELS[noteLevel].hi]}
+            onKey={(m) => {
+              audio.playNote(m, 0.7);
+              setPianoOn(new Set([m]));
+              setTimeout(() => setPianoOn(new Set()), 300);
+              answerNote(m, ' — на клавишах');
+            }}
+          />
         </>
       )}
 
