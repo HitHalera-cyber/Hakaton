@@ -80,12 +80,14 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
-      - uses: android-actions/setup-android@v3
       - run: npm ci
       - run: npm run android:sync
       - name: Сборка APK
         working-directory: guitar-chords-studio/android
         run: |
+          # Android SDK уже установлен на раннере (ANDROID_HOME); недостающие платформы Gradle докачает сам.
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
           cp app/build/outputs/apk/debug/app-debug.apk ../GuitarChordsStudio-Android.apk
