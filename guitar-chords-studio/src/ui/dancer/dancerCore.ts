@@ -88,35 +88,62 @@ function legTo(ax: number, ay: number, foot: number): [number, number, number] {
 
 const easeOut = (t: number) => 1 - (1 - t) ** 3;
 
+/** Рука по положению кисти (относительно плеча): плечо и локоть для skeleton(), локоть — вперёд-вниз. */
+function armTo(tx: number, ty: number): [number, number] {
+  const d = Math.min(UP + LOW - 0.01, Math.hypot(tx, ty));
+  const toHand = angTo(0, 0, tx, ty);
+  const alpha = (Math.acos((UP * UP + d * d - LOW * LOW) / (2 * UP * d)) * 180) / Math.PI;
+  const sh = toHand - alpha;
+  const ex = Math.sin(sh * R) * UP;
+  const ey = Math.cos(sh * R) * UP;
+  return [sh, angTo(ex, ey, tx, ty) - sh];
+}
+
+/** Доля скольжения внутри полушага u (0..1): щелчок — без движения, дальше — ровно. */
+const POP = 0.12;
+const glideOf = (u: number) => (u < POP ? 0 : (u - POP) / (1 - POP));
+/** Длина скольжения за полушаг, «единиц» тела. */
+export const SLIDE = 19;
+/** Сколько тело проехало назад от начала цикла до фазы phase (0..1). */
+const travelAt = (phase: number) => {
+  const half = phase < 0.5 ? 0 : 1;
+  return half * SLIDE + SLIDE * glideOf((phase % 0.5) / 0.5);
+};
+
 /**
- * Лунная походка, как у Майкла: одна нога стоит на носке с согнутым коленом, другая — плоско
- * скользит назад; затем резкий «щелчок»: пятка опорной ноги падает, а скользившая встаёт на носок.
- * Щелчок короткий (15 % шага), скольжение — длинное и ровное. Корпус чуть вперёд, руки
- * полусогнуты, на щелчке — толчок плечами.
+ * Лунная походка, как у Майкла: опорная нога стоит на носке и НЕ двигается по полу (тело уезжает
+ * назад от неё), другая плоско и плавно скользит назад, не отрываясь от пола. Затем короткий
+ * щелчок: пятка опорной падает, скользившая встаёт на носок. Корпус прямой и спокойный, одна рука
+ * держит поля шляпы, другая свободно опущена. На щелчке — лёгкий кивок и подъём плеч.
  */
 function moonwalk(phase: number): Pose {
   const half = phase < 0.5 ? 0 : 1;
   const u = (phase % 0.5) / 0.5;
-  const POP = 0.15;
-  const glide = u < POP ? 0 : (u - POP) / (1 - POP);
+  const glide = glideOf(u);
   const pop = u < POP ? easeOut(u / POP) : 1;
-  // Корпус: на щелчке резко «проседает» (колени, плечи вниз, наклон вперёд, кивок головой),
-  // за первую треть скольжения выпрямляется — это и есть «драйв» движения.
-  const dip = u < 0.35 ? Math.sin((Math.PI * u) / 0.35) : 0;
-  const FLOOR = TH + SH - 0.6 - 2.2 * dip;
-  // Вес над опорной ногой: таз чуть сдвигается назад по ходу скольжения.
-  const shift = -2 * glide;
-  // Скользящая уезжает назад (+7 → −12), опорная (на носке, колено вперёд) — навстречу (−12 → +7).
-  const slideX = 7 - 19 * glide + shift;
-  const toeX = -12 + 19 * glide + shift;
-  // На щелчке: прежняя опорная опускает пятку, прежняя скользящая встаёт на носок.
+  const dip = u < 0.3 ? Math.sin((Math.PI * u) / 0.3) : 0;
+  const FLOOR = TH + SH - 0.6 - 1.2 * dip;
+  // Скользящая: от +7 до −12 (назад по полу, плоско). Опорная на носке: от −12 до +7 относительно
+  // таза — то есть на месте относительно пола, потому что тело на столько же уезжает назад.
+  const slideX = 7 - SLIDE * glide;
+  const toeX = -12 + SLIDE * glide;
   const slider = legTo(slideX, FLOOR - 1 - 7 * (1 - pop), -65 * (1 - pop));
   const toe = legTo(toeX, FLOOR - 1 - 7 * pop, -65 * pop);
   const [a, b] = half === 0 ? [slider, toe] : [toe, slider];
-  // Руки полусогнуты у пояса и резко меняются местами на щелчке (против ног).
-  const side = (half === 0 ? 1 : -1) * (2 * pop - 1);
-  const lean = 8 + 7 * dip;
-  return P(lean, -10 - 10 * dip, -6 - 4 * dip, [30 + 22 * side, 70 - 15 * dip], [-20 - 22 * side, 65 - 15 * dip], a, b, 6 * dip);
+  const lean = 4 + 3 * dip;
+  const headA = -6 - 8 * dip;
+  // Кисть — у полей шляпы спереди. Считаем, где голова, и тянем туда руку.
+  const neckX = Math.sin(lean * R) * TORSO;
+  const neckY = -Math.cos(lean * R) * TORSO;
+  const shX = neckX + Math.sin(lean * R) * 3;
+  const shY = neckY + Math.cos(lean * R) * 3;
+  const hd = lean + headA * 0.5;
+  const headX = neckX + Math.sin(hd * R) * 8;
+  const headY = neckY - Math.cos(hd * R) * 8;
+  const hatHand = armTo(headX + 5 - shX, headY - 3.5 - shY);
+  // Свободная рука: чуть согнута, мягко покачивается.
+  const free: [number, number] = [-8 + 6 * Math.sin(2 * Math.PI * phase), 22 + 6 * dip];
+  return P(lean, headA, -4 - 4 * dip, hatHand, free, a, b, 3 * dip);
 }
 
 /** Поза для вращения: колено поднято, руки прижаты. */
@@ -194,8 +221,9 @@ export class DancerAnimator {
    * Следующий кадр. rate — шагов лунной походки в секунду (чтобы ноги скользили со скоростью
    * полосы загрузки).
    */
-  step(dt: number, moving: boolean, rate = 1.1): { pose: Pose; scaleX: number; view: View } {
+  step(dt: number, moving: boolean, rate = 1.1): { pose: Pose; scaleX: number; view: View; travel: number } {
     let pose: Pose;
+    let travel = 0;
     let scaleX = 1;
     let view: View = 'side';
     if (moving) {
@@ -204,7 +232,11 @@ export class DancerAnimator {
         this.from = this.current;
         this.idleT = 0;
       }
-      this.walkPhase = (this.walkPhase + dt * rate) % 1;
+      const before = this.walkPhase;
+      const next = before + Math.max(0, dt) * rate;
+      // Сколько тело проехало назад за кадр — столько же должен сдвинуться танцор на экране.
+      travel = travelAt(next % 1) - travelAt(before) + (next >= 1 ? 2 * SLIDE : 0);
+      this.walkPhase = next % 1;
       this.idleT = Math.min(1, this.idleT + dt / 0.25);
       pose = lerpPose(this.from, moonwalk(this.walkPhase), ease(this.idleT));
       // Лицом назад (влево), а скользит вперёд (вправо).
@@ -238,6 +270,6 @@ export class DancerAnimator {
       }
     }
     this.current = pose;
-    return { pose, scaleX, view };
+    return { pose, scaleX, view, travel };
   }
 }

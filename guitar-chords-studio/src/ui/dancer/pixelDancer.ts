@@ -1,7 +1,7 @@
 // Пиксельный танцор в разных рисовках: те же движения (DancerAnimator), но разные пропорции,
 // «кисть» и фон — классический спрайт, чиби, блоки, 1-бит с растром, палочник, ЖК-игрушка, силуэт на луне.
 
-import { DancerAnimator, NORMAL, skeleton, type Dims, type Pose, type View } from './dancerCore';
+import { DancerAnimator, NORMAL, SLIDE, skeleton, type Dims, type Pose, type View } from './dancerCore';
 
 type Ink = 'suit' | 'suitBack' | 'shade' | 'skin' | 'hat' | 'band' | 'glove' | 'socks' | 'shoes' | 'eye' | 'outline' | 'hair';
 const INKS: Ink[] = ['suit', 'suitBack', 'shade', 'skin', 'hat', 'band', 'glove', 'socks', 'shoes', 'eye', 'outline', 'hair'];
@@ -297,31 +297,52 @@ export function paint(ctx: CanvasRenderingContext2D, R: Raster, style: PixelStyl
     }
 }
 
+/**
+ * Танцор с собственным положением: при лунной походке он сдвигается ровно настолько, насколько
+ * тело уехало от опорной ноги (нога стоит на полу, а не «буксует»), а темп шагов подстраивается,
+ * чтобы он держался у цели (конца полосы загрузки).
+ */
+export function createDancer(style: PixelStyle) {
+  const anim = new DancerAnimator();
+  let cur: number | null = null;
+  /** Нарисовать кадр. st.x — цель в пикселях холста, st.speed — скорость цели, пикс/с. */
+  return (ctx: CanvasRenderingContext2D, cw: number, ch: number, dt: number, st: { moving: boolean; x?: number; speed?: number }) => {
+    const px = Math.max(1, Math.floor(ch / (style.height + 6)));
+    const w = Math.floor(cw / px);
+    const h = Math.floor(ch / px);
+    // Единица тела в «пикселях» растра.
+    const k = style.height / 74;
+    const target = st.x != null ? st.x / px : w / 2;
+    cur ??= target;
+    let rate = 1.1;
+    if (st.moving) {
+      const base = (st.speed ?? 0) / px / (2 * SLIDE * k);
+      const lag = target - cur;
+      rate = Math.max(0.3, Math.min(2.6, Math.max(0.5, base) * (1 + lag / 12)));
+      if (lag < -6) rate = 0.3;
+    }
+    const r = anim.step(dt, st.moving, rate);
+    if (st.moving) cur += r.travel * k;
+    else cur += (target - cur) * Math.min(1, dt * 1.5);
+    ctx.clearRect(0, 0, cw, ch);
+    paint(ctx, rasterize(r.pose, r.scaleX, w, h, style, cur, r.view), style, px);
+  };
+}
+
 /** Запустить пиксельного танцора на холсте. */
 export function startPixelDancer(
   canvas: HTMLCanvasElement,
   style: PixelStyle,
   getState: () => { moving: boolean; x?: number; speed?: number },
 ): () => void {
-  const anim = new DancerAnimator();
+  const draw = createDancer(style);
   let last = performance.now();
   let raf = 0;
   const frame = (now: number) => {
     // Метки времени кадров могут идти раньше performance.now() на старте — шаг не бывает отрицательным.
     const dt = Math.max(0, Math.min(0.05, (now - last) / 1000));
     last = now;
-    const st = getState();
-    const ctx = canvas.getContext('2d')!;
-    const px = Math.max(1, Math.floor(canvas.height / (style.height + 6)));
-    // Шагов в секунду — так, чтобы ступни скользили со скоростью полосы (шаг ≈ 26 «единиц» тела).
-    const unit = (style.height / 74) * px;
-    const rate = st.speed != null ? Math.max(0.55, Math.min(2.2, st.speed / (26 * unit))) : 1.1;
-    const { pose, scaleX, view } = anim.step(dt, st.moving, rate);
-    const w = Math.floor(canvas.width / px);
-    const h = Math.floor(canvas.height / px);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const x = st.x != null ? (st.x * w) / canvas.width : w / 2;
-    paint(ctx, rasterize(pose, scaleX, w, h, style, x, view), style, px);
+    draw(canvas.getContext('2d')!, canvas.width, canvas.height, dt, getState());
     raf = requestAnimationFrame(frame);
   };
   raf = requestAnimationFrame(frame);
