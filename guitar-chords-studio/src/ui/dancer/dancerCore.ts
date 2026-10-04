@@ -87,25 +87,38 @@ const TORSO = 24;
 const UP = 12;
 const LOW = 12;
 
+/** Пропорции фигуры (длины частей тела). */
+export interface Dims {
+  thigh: number;
+  shin: number;
+  torso: number;
+  upper: number;
+  lower: number;
+  /** От шеи до центра головы. */
+  neck: number;
+  foot: number;
+}
+export const NORMAL: Dims = { thigh: TH, shin: SH, torso: TORSO, upper: UP, lower: LOW, neck: 8, foot: 7 };
+
 /** Точки скелета для позы: таз в (0,0), y вниз. */
-export function skeleton(p: Pose) {
+export function skeleton(p: Pose, d: Dims = NORMAL) {
   const dir = (deg: number, len: number, from: [number, number]): [number, number] => [
     from[0] + Math.sin(deg * R) * len,
     from[1] + Math.cos(deg * R) * len,
   ];
   const hip: [number, number] = [0, 0];
-  const neck = dir(180 - p.lean, TORSO, hip); // корпус вверх
+  const neck = dir(180 - p.lean, d.torso, hip); // корпус вверх
   const shoulder = dir(p.lean, 3, neck);
-  const head = dir(180 - p.lean - p.head * 0.5, 8, neck);
+  const head = dir(180 - p.lean - p.head * 0.5, d.neck, neck);
   const arm = ([s, e]: [number, number]) => {
-    const elbow = dir(s, UP, shoulder);
-    return [shoulder, elbow, dir(s + e, LOW, elbow)] as [number, number][];
+    const elbow = dir(s, d.upper, shoulder);
+    return [shoulder, elbow, dir(s + e, d.lower, elbow)] as [number, number][];
   };
   const leg = ([h, k, f]: [number, number, number]) => {
-    const knee = dir(h, TH, hip);
-    const ankle = dir(h - k, SH, knee);
+    const knee = dir(h, d.thigh, hip);
+    const ankle = dir(h - k, d.shin, knee);
     // Стопа: ровно вперёд (90°) при f = 0, вниз (носок) при −80.
-    const toe = dir(90 + f + (h - k) * 0, 7, ankle);
+    const toe = dir(90 + f + (h - k) * 0, d.foot, ankle);
     return [hip, knee, ankle, toe] as [number, number][];
   };
   return { hip, neck, head, armF: arm(p.armF), armB: arm(p.armB), legF: leg(p.legF), legB: leg(p.legB) };
