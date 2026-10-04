@@ -4,6 +4,7 @@ import type { Frets } from '../../core/music/fretboard';
 import { pcName } from '../../core/music/notes';
 import { ChordDiagram } from '../../ui/ChordDiagram';
 import type { RecognizedChord } from '../../core/analysis/chordRecognition';
+import { StringsView } from './StringsView';
 import type { ChordListener } from './useListener';
 
 interface Props {
@@ -37,11 +38,18 @@ export function ListenerStage({ listener, board, voicing, capo }: Props) {
           </button>
         )}
         <div className="segmented" role="radiogroup" aria-label="Режим">
-          <button className={!holdMode ? 'on' : ''} onClick={() => patch({ mode: 'strum' })}>
+          <button className={settings.mode === 'strum' ? 'on' : ''} onClick={() => patch({ mode: 'strum' })}>
             По удару
           </button>
           <button className={holdMode ? 'on' : ''} onClick={() => patch({ mode: 'hold' })}>
             Держите аккорд
+          </button>
+          <button
+            className={settings.mode === 'strings' ? 'on' : ''}
+            onClick={() => patch({ mode: 'strings' })}
+            title="Струны по одной — точная аппликатура"
+          >
+            По струнам
           </button>
         </div>
         <label className="slider compact" title="Если программа плохо слышит гитару — прибавьте">
@@ -51,30 +59,36 @@ export function ListenerStage({ listener, board, voicing, capo }: Props) {
       </div>
       {error && <p className="error">{error}</p>}
 
-      <div className={`stage-chord ${best ? '' : 'idle'}`}>
-        {frets && (
-          <div className="listen-shape stage-shape" title={`Как играть ${heard!.symbol}`}>
-            <small>Как играть {heard!.symbol}</small>
-            <ChordDiagram frets={frets} capo={capo} size={120} />
-          </div>
-        )}
-        {notes ? (
-          <div className="stage-symbol">{notes.label}</div>
-        ) : (
-          (best ?? fallback) && <div className="stage-symbol">{(best ?? fallback)!.symbol}</div>
-        )}
-        <div className="stage-ru">
-          {notes
-            ? notes.nameRu
-            : best
-              ? `${best.nameRu} · ${Math.round(best.confidence * 100)}%`
-              : fallback
-                ? `${fallback.nameRu} — на грифе`
-                : active
-                  ? 'Сыграйте аккорд'
-                  : 'Нажмите «Начать слушать» и сыграйте аккорд'}
+      {settings.mode === 'strings' ? (
+        <div className="stage-chord">
+          <StringsView listener={listener} />
         </div>
-      </div>
+      ) : (
+        <div className={`stage-chord ${best ? '' : 'idle'}`}>
+          {frets && (
+            <div className="listen-shape stage-shape" title={`Как играть ${heard!.symbol}`}>
+              <small>Как играть {heard!.symbol}</small>
+              <ChordDiagram frets={frets} capo={capo} size={120} />
+            </div>
+          )}
+          {notes ? (
+            <div className="stage-symbol">{notes.label}</div>
+          ) : (
+            (best ?? fallback) && <div className="stage-symbol">{(best ?? fallback)!.symbol}</div>
+          )}
+          <div className="stage-ru">
+            {notes
+              ? notes.nameRu
+              : best
+                ? `${best.nameRu} · ${Math.round(best.confidence * 100)}%`
+                : fallback
+                  ? `${fallback.nameRu} — на грифе`
+                  : active
+                    ? 'Сыграйте аккорд'
+                    : 'Нажмите «Начать слушать» и сыграйте аккорд'}
+          </div>
+        </div>
+      )}
 
       <div className="level stage-level" title="Уровень сигнала">
         <span style={{ width: `${level * 100}%` }} />

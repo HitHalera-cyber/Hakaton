@@ -3,8 +3,9 @@
 // это нота или интервал, иначе — сравнение хромаграммы с шаблонами аккордов.
 
 import { INTERVAL_RU, midiName, pcName, pcNameRu } from '../music/notes';
-import { recognizeChord, type ChordModel, type Recognition } from './chordRecognition';
-import { bassSalience, chromaFromNotes, detectNotes } from './dsp';
+import { detectChord } from '../music/chords';
+import { recognizeChord, type ChordModel, type Recognition, type RecognizedChord } from './chordRecognition';
+import { bassSalience, chromaFromNotes, detectNotes, type DetectedNote } from './dsp';
 
 export interface HeardNotes {
   kind: 'note' | 'interval';
@@ -49,24 +50,62 @@ export function significantNotes(semi: Float32Array, share = 0.1): number[] {
   return notes;
 }
 
-export function recognizeSound(semi: Float32Array, models: ChordModel[]): SoundResult {
-  // По одной ноте на название (самая низкая октава): E3 + E4 — это одна нота ми.
-  const midis: number[] = [];
-  for (const m of significantNotes(semi)) if (!midis.some((x) => x % 12 === m % 12)) midis.push(m);
+/** Одна нота / интервал по списку нот снизу вверх (по одной на название). */
+function notesResult(midis: number[]): HeardNotes | null {
   if (midis.length === 1) {
     const m = midis[0];
-    return {
-      best: null,
-      alternatives: [],
-      notes: { kind: 'note', midis, label: midiName(m), nameRu: `Нота ${pcNameRu(m % 12).toLowerCase()}` },
-    };
+    return { kind: 'note', midis, label: midiName(m), nameRu: `Нота ${pcNameRu(m % 12).toLowerCase()}` };
   }
   if (midis.length === 2) {
     const semis = (midis[1] - midis[0]) % 12;
     const label = midis.map((m) => pcName(m % 12)).join(' + ');
     const power = semis === 7 ? ` (пауэр-аккорд ${pcName(midis[0] % 12)}5)` : '';
-    return { best: null, alternatives: [], notes: { kind: 'interval', midis, label, nameRu: `Интервал: ${INTERVAL_RU[semis]}${power}` } };
+    return { kind: 'interval', midis, label, nameRu: `Интервал: ${INTERVAL_RU[semis]}${power}` };
   }
+  return null;
+}
+
+/** По одной ноте на название — самую низкую октаву (E3 + E4 — одна нота ми). */
+const lowestPerPc = (midis: number[]) => {
+  const out: number[] = [];
+  for (const m of [...midis].sort((a, b) => a - b)) if (!out.some((x) => x % 12 === m % 12)) out.push(m);
+  return out;
+};
+
+/** Аккорд по точному набору нот (как для точек на грифе); null — это не аккорд. */
+export function exactChord(midis: number[], confidence = 0.9): Recognition | null {
+  const d = detectChord(midis);
+  if (d.kind !== 'chord' || !d.primary) return null;
+  const toRec = (m: NonNullable<typeof d.primary>, c: number): RecognizedChord => ({
+    rootPc: m.rootPc,
+    templateId: m.template.id,
+    bassPc: m.bassPc !== m.rootPc ? m.bassPc : undefined,
+    symbol: m.symbol,
+    nameRu: m.nameRu,
+    confidence: c,
+  });
+  return { best: toRec(d.primary, confidence), alternatives: d.alternatives.slice(0, 3).map((a) => toRec(a, 0.3)) };
+}
+
+/**
+ * То же, что recognizeSound, но по готовому списку нот (например, от нейросети): ноты уже без
+ * обертонов, поэтому их не нужно «вычитать» из спектра.
+ */
+export function recognizeNotes(notes: DetectedNote[], models: ChordModel[]): SoundResult {
+  const midis = lowestPerPc(notes.map((n) => n.midi));
+  const single = notesResult(midis);
+  if (single) return { best: null, alternatives: [], notes: single };
+  if (!notes.length) return { best: null, alternatives: [], notes: null };
+  // Ноты точные — сначала называем аккорд по теории, как для точек на грифе.
+  const exact = exactChord(notes.map((n) => n.midi));
+  if (exact) return { ...exact, notes: null };
+  const { chroma, bass } = chromaFromNotes(notes);
+  return { ...recognizeChord(chroma, bass, models), notes: null };
+}
+
+export function recognizeSound(semi: Float32Array, models: ChordModel[]): SoundResult {
+  const single = notesResult(lowestPerPc(significantNotes(semi)));
+  if (single) return { best: null, alternatives: [], notes: single };
   const { chroma } = chromaFromNotes(detectNotes(semi));
   return { ...recognizeChord(chroma, bassSalience(semi), models), notes: null };
 }

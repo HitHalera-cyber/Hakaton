@@ -5,6 +5,7 @@ import type { Frets } from '../../core/music/fretboard';
 import { pcName } from '../../core/music/notes';
 import { ChordDiagram } from '../../ui/ChordDiagram';
 import { MicSettings } from './MicSettings';
+import { StringsView } from './StringsView';
 import type { ChordListener } from './useListener';
 
 interface Props {
@@ -30,6 +31,7 @@ export function ListenPanel({ listener, onPick, circle, voicing, capo }: Props) 
   const best = result?.best;
   const notes = result?.notes;
   const holdMode = settings.mode === 'hold';
+  const stringsMode = settings.mode === 'strings';
   const pending = holdMode && hold.state === 'listening';
   // Схема — для последнего распознанного аккорда (он же показан на грифе).
   const heard = history[0];
@@ -48,7 +50,11 @@ export function ListenPanel({ listener, onPick, circle, voicing, capo }: Props) 
           </button>
         )}
         <div className="segmented" role="radiogroup" aria-label="Режим">
-          <button className={!holdMode ? 'on' : ''} onClick={() => patch({ mode: 'strum' })} title="Аккорд определяется сразу после удара">
+          <button
+            className={settings.mode === 'strum' ? 'on' : ''}
+            onClick={() => patch({ mode: 'strum' })}
+            title="Аккорд определяется сразу после удара"
+          >
             По удару
           </button>
           <button
@@ -57,6 +63,13 @@ export function ListenPanel({ listener, onPick, circle, voicing, capo }: Props) 
             title="Держите аккорд несколько секунд — результат точнее"
           >
             Держите аккорд
+          </button>
+          <button
+            className={stringsMode ? 'on' : ''}
+            onClick={() => patch({ mode: 'strings' })}
+            title="Щипайте струны по одной от 6-й к 1-й — программа поймёт, какие именно лады зажаты"
+          >
+            По струнам
           </button>
         </div>
         {active && (
@@ -69,7 +82,9 @@ export function ListenPanel({ listener, onPick, circle, voicing, capo }: Props) 
 
       <div className="listen-main">
         <div className={`listen-result ${active ? '' : 'off'} ${pending ? 'pending' : ''}`}>
-          {notes ? (
+          {stringsMode ? (
+            <StringsView listener={listener} />
+          ) : notes ? (
             <>
               <div className="listen-symbol">{notes.label}</div>
               <div className="listen-ru">{notes.nameRu}</div>
@@ -114,7 +129,7 @@ export function ListenPanel({ listener, onPick, circle, voicing, capo }: Props) 
             </div>
           )}
         </div>
-        {frets && (
+        {frets && !stringsMode && (
           <div className="listen-shape" title={`Как играть ${heard!.symbol} — этот аккорд показан и на грифе`}>
             <small>Как играть {heard!.symbol}</small>
             <ChordDiagram frets={frets} capo={capo} size={110} />

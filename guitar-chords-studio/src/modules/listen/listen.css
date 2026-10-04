@@ -141,3 +141,110 @@
   grid-row: 1 / span 2;
   align-self: start;
 }
+
+/* ---------- По струнам ---------- */
+.strings-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+.strings-result {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.strings-tab {
+  margin-top: 6px;
+  font-family: var(--font-mono);
+  font-size: 22px;
+  letter-spacing: 0.15em;
+}
+.strings-plucks {
+  display: flex;
+  gap: 6px;
+}
+.strings-plucks span {
+  min-width: 42px;
+  padding: 4px 6px;
+  text-align: center;
+  border-radius: var(--radius-sm);
+  border: var(--bw) solid var(--border);
+  color: var(--text-2);
+  font-family: var(--font-mono);
+}
+.strings-plucks span.ok {
+  border-color: var(--ok);
+  color: var(--text);
+}
+.strings-plucks span.dead {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.strings-plucks span.next {
+  border-color: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+}
+
+/* ---------- Движок и калибровка ---------- */
+.engine-field,
+.calib-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.calib {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border: var(--bw) solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+}
+.calib-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 17px;
+}
+.calib-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.calib-steps span {
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  border: var(--bw) solid var(--border);
+  color: var(--text-2);
+}
+.calib-steps span.done {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+.calib-steps span.now {
+  border-color: var(--accent);
+  color: var(--text);
+  font-weight: 700;
+}
+.calib-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+.calib-table :is(th, td) {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+.calib-table td.ok {
+  color: var(--ok);
+}
+.calib-table td.warn {
+  color: var(--warn);
+}
+.calib-table td.bad {
+  color: var(--danger);
+}

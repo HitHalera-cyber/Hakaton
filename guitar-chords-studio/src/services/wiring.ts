@@ -2,7 +2,7 @@
 // услышанный аккорд — на гриф, на круг и в статистику; аккорд с грифа — в историю и на круг и т. д.
 
 import { audio } from '../core/audio/engine';
-import { boardFromMidi, emptyBoard } from '../core/music/fretboard';
+import { boardFromFrets, boardFromMidi, emptyBoard } from '../core/music/fretboard';
 import { store } from '../store';
 import { bus } from './bus';
 import { chordListener } from './chordListener';
@@ -35,6 +35,10 @@ export function startServices() {
     const l = s.settings.listen;
     if (l.gain !== prev.settings.listen.gain) mic.setGain(l.gain);
     if (l.autoGain !== prev.settings.listen.autoGain) mic.setAutoGain(l.autoGain);
+    if (l.engine !== prev.settings.listen.engine && chordListener.active) {
+      mic.keepHistory(l.engine === 'neural' ? 2.6 : 0);
+      if (l.engine === 'neural') void chordListener.loadNeural();
+    }
     if (l.deviceId !== prev.settings.listen.deviceId)
       mic.setDevice(l.deviceId).catch((e) => s.setListen({ error: e instanceof Error ? e.message : String(e) }));
     if (s.settings.view.theme !== prev.settings.view.theme) document.documentElement.dataset.theme = s.settings.view.theme;
@@ -65,7 +69,9 @@ export function startServices() {
     // Пока открыт разбор песни, гриф и круг показывают только аккорды песни.
     if (s.songOpen > 0 || s.songPlaying) return;
     s.pushTrail({ rootPc: c.rootPc, templateId: c.templateId, symbol: c.symbol, nameRu: c.nameRu, source: 'guitar' });
-    if (s.settings.listen.showOnBoard) s.showChord(c.rootPc, c.templateId, c.bassPc);
+    if (!s.settings.listen.showOnBoard) return;
+    if (c.frets) s.apply(boardFromFrets(c.frets, s.guitar().capo), false);
+    else s.showChord(c.rootPc, c.templateId, c.bassPc);
   });
 
   bus.on('notes:heard', (n) => {

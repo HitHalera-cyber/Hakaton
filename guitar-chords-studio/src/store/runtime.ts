@@ -3,6 +3,7 @@
 
 import type { RecognizedChord } from '../core/analysis/chordRecognition';
 import type { HeardNotes, SoundResult } from '../core/analysis/liveSound';
+import type { Frets } from '../core/music/fretboard';
 import type { MidiDevice } from '../core/midi/midiInput';
 import type { ModuleId } from '../modules/ids';
 import type { Slice } from './types';
@@ -19,6 +20,12 @@ export interface TrailChord {
 export type HoldState = 'idle' | 'listening' | 'done' | 'short';
 export type MidiStatus = 'init' | 'ready' | 'denied' | 'unavailable' | 'unsupported';
 
+export interface StringsRuntime {
+  /** Щипки по порядку: нота или null (глухой). */
+  plucks: (number | null)[];
+  result: { frets: Frets; tab: string; symbol: string; nameRu: string; confidence: number } | null;
+}
+
 export interface ListenRuntime {
   active: boolean;
   error: string;
@@ -32,6 +39,13 @@ export interface ListenRuntime {
   gainNow: number;
   chroma: number[];
   history: RecognizedChord[];
+  /** Режим «По струнам»: услышанные щипки и итоговая аппликатура. */
+  strings: StringsRuntime;
+  /** Нейросеть: не нужна / загружается / готова / считает / ошибка. */
+  neural: 'off' | 'loading' | 'ready' | 'busy' | 'error';
+  /** Сколько миллисекунд нейросеть думала над последним ударом и на чём считает. */
+  neuralMs: number;
+  neuralBackend: string;
   /** Последняя услышанная нота или интервал (когда звучит не аккорд). */
   heardNotes: HeardNotes | null;
   hold: { state: HoldState; progress: number };
@@ -122,6 +136,10 @@ export const createRuntimeSlice: Slice<RuntimeSlice> = (set, get) => ({
     chroma: new Array(12).fill(0),
     history: [],
     heardNotes: null,
+    strings: { plucks: [], result: null },
+    neural: 'off',
+    neuralMs: 0,
+    neuralBackend: '',
     hold: { state: 'idle', progress: 0 },
   },
   setListen: (p) => set((s) => ({ listen: { ...s.listen, ...p } })),

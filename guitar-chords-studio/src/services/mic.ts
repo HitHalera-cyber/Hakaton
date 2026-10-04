@@ -13,6 +13,13 @@ class MicService {
   private users = 0;
   private starting: Promise<void> | null = null;
   private gainValue = 3;
+  /** Запись последних секунд звука (для нейросети нужно больше, чем окно анализатора). */
+  private historySeconds = 0;
+  private ring: Float32Array | null = null;
+  private ringPos = 0;
+  private ringFilled = 0;
+  private ringAt = 0;
+  private proc: ScriptProcessorNode | null = null;
   private deviceId = '';
   /** Автоусиление: множитель к ручному усилению, подстраивается под громкость игры. */
   private autoGain = false;
@@ -56,6 +63,53 @@ class MicService {
 
   private applyGain() {
     if (this.gainNode) this.gainNode.gain.value = this.gain;
+  }
+
+  /** Хранить последние seconds секунд звука (0 — не хранить). */
+  keepHistory(seconds: number) {
+    this.historySeconds = seconds;
+    if (this.gainNode) this.attachHistory();
+  }
+
+  /**
+   * Последние seconds секунд звука (после усиления) и момент (по часам AudioContext),
+   * на который приходится последний отсчёт. Пусто, если запись не включена.
+   */
+  recent(seconds: number): { audio: Float32Array; endTime: number } {
+    const ring = this.ring;
+    if (!ring) return { audio: new Float32Array(0), endTime: this.now };
+    const n = Math.min(this.ringFilled, Math.floor(seconds * this.sampleRate));
+    const out = new Float32Array(n);
+    for (let i = 0; i < n; i++) out[i] = ring[(this.ringPos - n + i + ring.length) % ring.length];
+    return { audio: out, endTime: this.ringAt };
+  }
+
+  private attachHistory() {
+    this.proc?.disconnect();
+    this.proc = null;
+    this.ring = null;
+    if (!this.historySeconds || !this.gainNode) return;
+    const ctx = audio.context;
+    const ring = new Float32Array(Math.ceil(this.historySeconds * ctx.sampleRate));
+    this.ring = ring;
+    this.ringPos = 0;
+    this.ringFilled = 0;
+    // ScriptProcessor устарел, но работает везде (Electron, Android) и не требует отдельного файла.
+    const proc = ctx.createScriptProcessor(2048, 1, 1);
+    proc.onaudioprocess = (e) => {
+      const x = e.inputBuffer.getChannelData(0);
+      for (let i = 0; i < x.length; i++) {
+        ring[this.ringPos] = x[i];
+        this.ringPos = (this.ringPos + 1) % ring.length;
+      }
+      this.ringFilled = Math.min(ring.length, this.ringFilled + x.length);
+      // Последний отсчёт буфера записан «только что» — по часам контекста это примерно сейчас.
+      this.ringAt = ctx.currentTime;
+    };
+    // Выход молчит (буфер не заполняем), но подключение к выходу нужно, чтобы обработчик вызывался.
+    this.gainNode.connect(proc);
+    proc.connect(ctx.destination);
+    this.proc = proc;
   }
 
   /** Выбрать микрофон ('' — системный). Если он уже открыт — переоткрывается с новым устройством. */
@@ -159,6 +213,7 @@ class MicService {
       this.stream = s;
       this.gainNode = gain;
       this.analyserNode = analyser;
+      this.attachHistory();
     } catch (e) {
       throw new Error(
         e instanceof Error && e.name === 'NotAllowedError'
@@ -169,6 +224,9 @@ class MicService {
   }
 
   private close() {
+    this.proc?.disconnect();
+    this.proc = null;
+    this.ring = null;
     this.stream?.getTracks().forEach((t) => t.stop());
     this.stream = null;
     this.gainNode = null;
@@ -183,6 +241,21 @@ export function rmsOf(buf: Float32Array, n = 2048): number {
   let sum = 0;
   const from = Math.max(0, buf.length - n);
   for (let i = from; i < buf.length; i++) sum += buf[i] * buf[i];
+  return Math.sqrt(sum / (buf.length - from));
+}
+
+/**
+ * «Атака» последних n отсчётов: громкость разностного сигнала (подчёркивает высокие частоты).
+ * У нового щипка верха свежие, а у уже звенящих струн они быстро затухают — поэтому так видно
+ * щипок даже поверх звучащего аккорда (а общая громкость при этом почти не растёт).
+ */
+export function attackOf(buf: Float32Array, n = 1024): number {
+  let sum = 0;
+  const from = Math.max(1, buf.length - n);
+  for (let i = from; i < buf.length; i++) {
+    const d = buf[i] - buf[i - 1];
+    sum += d * d;
+  }
   return Math.sqrt(sum / (buf.length - from));
 }
 

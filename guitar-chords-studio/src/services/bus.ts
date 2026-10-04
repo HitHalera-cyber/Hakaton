@@ -2,10 +2,14 @@
 
 import type { RecognizedChord } from '../core/analysis/chordRecognition';
 import type { HeardNotes } from '../core/analysis/liveSound';
+import type { Frets } from '../core/music/fretboard';
 
 export interface BusEvents {
   /** Аккорд услышан с гитары (микрофон). */
-  'chord:heard': RecognizedChord;
+  'chord:heard': RecognizedChord & {
+    /** Точная аппликатура (режим «По струнам») — тогда на гриф ставится она, а не типичная форма. */
+    frets?: Frets;
+  };
   /** С гитары слышна одна нота или интервал (две ноты). */
   'notes:heard': HeardNotes;
   /** Нажата клавиша MIDI-клавиатуры. */

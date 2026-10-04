@@ -1,5 +1,6 @@
 // Модель данных приложения: типы и значения по умолчанию. Здесь нет React и побочных эффектов.
 
+import type { Calibration } from '../core/analysis/calibration';
 import type { PlayMode, Timbre } from '../core/audio/engine';
 import type { Board, Frets } from '../core/music/fretboard';
 import { TUNINGS } from '../core/music/tunings';
@@ -56,7 +57,10 @@ export interface MidiOptions {
   muteInternal: boolean;
 }
 
-export type ListenMode = 'strum' | 'hold';
+/** По удару / держите аккорд / по струнам (щипки по одной — точная аппликатура). */
+export type ListenMode = 'strum' | 'hold' | 'strings';
+/** Чем распознавать: формулы (спектр) или нейросеть Basic Pitch. */
+export type ListenEngine = 'dsp' | 'neural';
 
 export interface ListenSettings {
   mode: ListenMode;
@@ -72,6 +76,9 @@ export interface ListenSettings {
   denoise: boolean;
   /** Выбранный микрофон ('' — системный по умолчанию). */
   deviceId: string;
+  engine: ListenEngine;
+  /** Калибровка под гитару и микрофон (null — не проводилась). */
+  calibration: Calibration | null;
 }
 
 export interface Settings {
@@ -102,7 +109,18 @@ export const DEFAULT_SETTINGS: Settings = {
   rhythm: { bpm: 90, patternId: 'six', loop: true, click: false, meter: 4, accent: true },
   scale: { show: false, rootPc: 9, scaleId: 'pentMinor' },
   midi: { latch: true, sound: true, device: 'all', output: '', muteInternal: false },
-  listen: { mode: 'strum', gain: 3, holdSeconds: 2.5, sensitivity: 0.5, showOnBoard: true, autoGain: true, denoise: true, deviceId: '' },
+  listen: {
+    mode: 'strum',
+    gain: 3,
+    holdSeconds: 2.5,
+    sensitivity: 0.5,
+    showOnBoard: true,
+    autoGain: true,
+    denoise: true,
+    deviceId: '',
+    engine: 'dsp',
+    calibration: null,
+  },
 };
 
 /** Аккорд с определённым строем и каподастром: элемент избранного, истории, последовательности. */
