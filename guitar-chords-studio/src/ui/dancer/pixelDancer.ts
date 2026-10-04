@@ -3,8 +3,8 @@
 
 import { DancerAnimator, NORMAL, skeleton, type Dims, type Pose } from './dancerCore';
 
-type Ink = 'suit' | 'suitBack' | 'shade' | 'skin' | 'hat' | 'band' | 'glove' | 'socks' | 'shoes' | 'eye' | 'outline';
-const INKS: Ink[] = ['suit', 'suitBack', 'shade', 'skin', 'hat', 'band', 'glove', 'socks', 'shoes', 'eye', 'outline'];
+type Ink = 'suit' | 'suitBack' | 'shade' | 'skin' | 'hat' | 'band' | 'glove' | 'socks' | 'shoes' | 'eye' | 'outline' | 'hair';
+const INKS: Ink[] = ['suit', 'suitBack', 'shade', 'skin', 'hat', 'band', 'glove', 'socks', 'shoes', 'eye', 'outline', 'hair'];
 
 export type PixelKind = 'sprite' | 'chibi' | 'blocky' | 'dither' | 'stick' | 'lcd' | 'moon';
 
@@ -141,6 +141,20 @@ export function rasterize(pose: Pose, scaleX: number, w: number, h: number, styl
     head[0] + (dx * Math.cos(tilt) - dy * Math.sin(tilt)) * hk * sx,
     head[1] + (dx * Math.sin(tilt) + dy * Math.cos(tilt)) * hk,
   ];
+  if (style.colors.hair) {
+    // Длинные волосы до плеч из-под шляпы, локонами по затылку и вдоль щеки.
+    const hair = ink('hair');
+    const w = Math.max(0.6, 1.0 * hk);
+    for (const [x0, len] of [
+      [-1.6, 10],
+      [-3, 12.5],
+      [-4.4, 13.5],
+      [-5.8, 13],
+      [-7, 11],
+    ])
+      for (let t = 0; t < 1; t += 0.25)
+        R.line(rot(x0 - 0.8 * Math.sin(t * 6), -4 + len * t), rot(x0 - 0.8 * Math.sin((t + 0.25) * 6), -4 + len * (t + 0.25)), w, hair);
+  }
   R.line(rot(-8.5, -3.8), rot(8.5, -4.4), Math.max(0.5, 1.1 * hk), ink('hat'));
   if (!thin) for (let dy = -10.5; dy <= -4; dy += 0.8) R.line(rot(-4.4, dy), rot(4.4, dy), Math.max(0.5, 0.8 * hk), ink('hat'));
   else R.line(rot(-4.4, -10), rot(4.4, -10), 0.5, ink('hat'));
@@ -228,6 +242,13 @@ export function startPixelDancer(
   return () => cancelAnimationFrame(raf);
 }
 
+/** Размер холста — по его размеру на экране (с учётом плотности пикселей). */
+export function fitCanvas(canvas: HTMLCanvasElement) {
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.max(1, Math.round(canvas.clientWidth * dpr));
+  canvas.height = Math.max(1, Math.round(canvas.clientHeight * dpr));
+}
+
 /** Варианты рисовки пиксельного танцора. */
 export const PIXEL_STYLES: PixelStyle[] = [
   {
@@ -248,6 +269,7 @@ export const PIXEL_STYLES: PixelStyle[] = [
       shoes: '#0b0b0b',
       eye: '#2a1a10',
       outline: '#cfc6b0',
+      hair: '#1c120c',
     },
   },
   {
@@ -340,3 +362,6 @@ export const PIXEL_STYLES: PixelStyle[] = [
     colors: { suit: '#0b0b0f', suitBack: '#1c1a22', skin: '#0b0b0f', hat: '#0b0b0f', glove: '#0b0b0f', socks: '#0b0b0f', shoes: '#0b0b0f' },
   },
 ];
+
+/** Рисовка, выбранная для экранов загрузки: спрайт с длинными волосами. */
+export const DANCER_STYLE = PIXEL_STYLES[0];

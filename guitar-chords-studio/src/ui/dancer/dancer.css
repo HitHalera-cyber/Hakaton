@@ -4,31 +4,10 @@
   gap: 4px;
   width: 100%;
 }
-.dancer-svg {
+.dancer-canvas {
   width: 100%;
-  height: 90px;
-  overflow: visible;
-  color: var(--text, #ddd);
-}
-.dancer-limb {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2.6;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.dancer-limb.back {
-  opacity: 0.55;
-}
-.dancer-head {
-  fill: currentColor;
-}
-.dancer-hat {
-  fill: none;
-  stroke: var(--accent, #c33);
-  stroke-width: 2.4;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+  height: 100px;
+  image-rendering: pixelated;
 }
 .dancer-track {
   height: 8px;
@@ -70,7 +49,7 @@
   color: var(--text, #ddd);
   transition: opacity 0.3s ease;
 }
-#splash .dancer-svg {
+#splash .dancer-canvas {
   width: 260px;
   height: 150px;
 }

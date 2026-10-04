@@ -1,6 +1,6 @@
-// Танцор для экранов загрузки: 2D-человечек в шляпе. Пока полоса прогресса стоит — крутится
+// Движения танцора для экранов загрузки (рисует pixelDancer): 2D-человечек в шляпе. Пока полоса прогресса стоит — крутится
 // и встаёт в узнаваемые позы; когда полоса движется — идёт «лунной походкой» (лицом назад,
-// а сам скользит вперёд). Без React — чтобы работать и на заставке до загрузки программы.
+// а сам скользит вперёд).
 
 /** Углы в градусах: 0 — вниз, плюс — вперёд (по направлению взгляда). */
 export interface Pose {
@@ -124,15 +124,6 @@ export function skeleton(p: Pose, d: Dims = NORMAL) {
   return { hip, neck, head, armF: arm(p.armF), armB: arm(p.armB), legF: leg(p.legF), legB: leg(p.legB) };
 }
 
-export interface DancerState {
-  /** Полоса движется — лунная походка; стоит — повороты и позы. */
-  moving: boolean;
-}
-
-/**
- * Нарисовать танцора в svg (viewBox 0 0 W H) и запустить анимацию. Возвращает функцию остановки.
- * getState вызывается каждый кадр — так снаружи меняют «идёт / стоит» и положение.
- */
 /**
  * Движения танцора (без рисования): каждый кадр — поза и «поворот» (scaleX: 1 — лицом вправо,
  * −1 — влево, между ними — оборот вокруг себя).
@@ -193,64 +184,4 @@ export class DancerAnimator {
     this.current = pose;
     return { pose, scaleX };
   }
-}
-
-export function startDancer(svg: SVGSVGElement, getState: () => DancerState & { x?: number }): () => void {
-  const NS = 'http://www.w3.org/2000/svg';
-  svg.innerHTML = '';
-  const g = document.createElementNS(NS, 'g');
-  g.setAttribute('class', 'dancer-body');
-  svg.appendChild(g);
-  const path = (cls: string) => {
-    const e = document.createElementNS(NS, 'path');
-    e.setAttribute('class', cls);
-    g.appendChild(e);
-    return e;
-  };
-  const back = path('dancer-limb back');
-  const torso = path('dancer-limb');
-  const front = path('dancer-limb');
-  const head = document.createElementNS(NS, 'circle');
-  head.setAttribute('r', '5.2');
-  head.setAttribute('class', 'dancer-head');
-  g.appendChild(head);
-  const hat = path('dancer-hat');
-
-  let raf = 0;
-  let last = performance.now();
-  const anim = new DancerAnimator();
-  const pts = (list: [number, number][]) => list.map((q, i) => `${i ? 'L' : 'M'}${q[0].toFixed(2)} ${q[1].toFixed(2)}`).join('');
-
-  const frame = (now: number) => {
-    const dt = Math.min(0.05, (now - last) / 1000);
-    last = now;
-    const st = getState();
-    const { pose, scaleX } = anim.step(dt, st.moving);
-    const sk = skeleton(pose);
-    // Опора: ниже всех — стопа, она стоит на «полу».
-    const feet = [...sk.legF, ...sk.legB].map((q) => q[1]);
-    const floor = Math.max(...feet);
-    const W = svg.viewBox.baseVal.width || 60;
-    const H = svg.viewBox.baseVal.height || 86;
-    const x = st.x ?? W / 2;
-    g.setAttribute(
-      'transform',
-      `translate(${x.toFixed(2)} ${(H - 2 - floor).toFixed(2)}) scale(${(Math.abs(scaleX) < 0.08 ? 0.08 * Math.sign(scaleX || 1) : scaleX).toFixed(3)} 1)`,
-    );
-    back.setAttribute('d', pts(sk.armB) + pts(sk.legB));
-    torso.setAttribute('d', pts([sk.hip, sk.neck]));
-    front.setAttribute('d', pts(sk.armF) + pts(sk.legF));
-    head.setAttribute('cx', sk.head[0].toFixed(2));
-    head.setAttribute('cy', sk.head[1].toFixed(2));
-    // Федора: поля и тулья, наклонены вместе с головой.
-    const [hx, hy] = sk.head;
-    hat.setAttribute(
-      'd',
-      `M${hx - 8} ${hy - 3.6} L${hx + 8} ${hy - 4.4} M${hx - 4.6} ${hy - 4} L${hx - 3.8} ${hy - 10} L${hx + 4.2} ${hy - 10.4} L${hx + 4.6} ${hy - 4.3}`,
-    );
-    hat.setAttribute('transform', `rotate(${(pose.hat - pose.lean * 0.6).toFixed(1)} ${hx} ${hy})`);
-    raf = requestAnimationFrame(frame);
-  };
-  raf = requestAnimationFrame(frame);
-  return () => cancelAnimationFrame(raf);
 }
