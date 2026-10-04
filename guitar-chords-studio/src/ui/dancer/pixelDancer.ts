@@ -230,7 +230,7 @@ export function startPixelDancer(
     const st = getState();
     const { pose, scaleX } = anim.step(dt, st.moving);
     const ctx = canvas.getContext('2d')!;
-    const px = Math.max(2, Math.floor(canvas.height / (style.height + 6)));
+    const px = Math.max(1, Math.floor(canvas.height / (style.height + 6)));
     const w = Math.floor(canvas.width / px);
     const h = Math.floor(canvas.height / px);
     ctx.clearRect(0, 0, canvas.width, canvas.height);

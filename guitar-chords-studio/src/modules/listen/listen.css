@@ -152,24 +152,38 @@
   align-items: center;
   gap: 10px;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
 }
+/* Длинное название, табулатура и схема переносятся, а не вылезают за рамку. */
 .strings-result {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   align-items: center;
-  gap: 18px;
+  gap: 8px 18px;
+  max-width: 100%;
+}
+.strings-result > div {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 .strings-tab {
   margin-top: 6px;
   font-family: var(--font-mono);
-  font-size: 22px;
-  letter-spacing: 0.15em;
+  font-size: 20px;
+  letter-spacing: 0.1em;
 }
 .strings-plucks {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 6px;
+  max-width: 100%;
 }
 .strings-plucks span {
-  min-width: 42px;
+  min-width: 36px;
   padding: 4px 6px;
   text-align: center;
   border-radius: var(--radius-sm);

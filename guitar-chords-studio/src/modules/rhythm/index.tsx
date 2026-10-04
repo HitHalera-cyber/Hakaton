@@ -1,27 +1,15 @@
 import '../../ui/practice.css';
 import { useEffect, useRef, useState } from 'react';
 import { audio } from '../../core/audio/engine';
-import {
-  HIT_NEAR_MS,
-  HIT_OK_MS,
-  attackIndex,
-  beatError,
-  classifyHit,
-  hitStreak,
-  lowShare,
-  median,
-  timingAdvice,
-  timingSummary,
-} from '../../core/practice/timing';
+import { HIT_NEAR_MS, HIT_OK_MS, beatError, classifyHit, hitStreak, median, timingAdvice, timingSummary } from '../../core/practice/timing';
 import { bus } from '../../services/bus';
 import { metronome } from '../../services/metronome';
-import { mic, OnsetDetector, rmsOf } from '../../services/mic';
+import { StrumHitDetector } from '../../services/hitDetector';
+import { mic } from '../../services/mic';
 import { store, usePick } from '../../store';
 import type { ModuleDef } from '../types';
 
 const RANGE_MS = 120;
-/** Меньше такой доли низких частот — это щелчок метронома, а не струны. */
-const CLICK_LOW_SHARE = 0.55;
 /** Сколько ударов собрать для подстройки задержки. */
 const TUNE_HITS = 8;
 
@@ -58,8 +46,8 @@ function RhythmView() {
   const [hitAt, setHitAt] = useState(0);
   const beats = useRef<number[]>([]);
   const raf = useRef<number | null>(null);
-  const opts = useRef({ sub, latency });
-  opts.current = { sub, latency };
+  const opts = useRef({ sub, latency, filter: rhythm.clickFilter });
+  opts.current = { sub, latency, filter: rhythm.clickFilter };
 
   useEffect(
     () =>
@@ -84,32 +72,17 @@ function RhythmView() {
       return;
     }
     setErrors([]);
+    // Автоусиление на время ритма выключаем: скачки громкости мешают ловить удары.
+    mic.setAutoGain(false);
     if (!metronome.running) metronome.start();
     setActive(true);
-    const onsets = new OnsetDetector(0.6, 0.1);
+    const hits = new StrumHitDetector(opts.current.filter);
     const buf = new Float32Array(2048);
-    // Кандидат в удары ждёт ~70 мс: щелчок метронома (если микрофон слышит колонки) за это время
-    // затихает, а струна звучит дальше — так щелчки не принимаются за удары.
-    let candidate: { t: number; peak: number; at: number } | null = null;
     const tick = () => {
       if (!mic.read(buf)) return;
-      const now = mic.now;
-      const rms = rmsOf(buf, 512);
-      if (candidate) {
-        candidate.peak = Math.max(candidate.peak, rms);
-        if (now - candidate.at >= 0.07) {
-          const c = candidate;
-          candidate = null;
-          if (rms >= c.peak * 0.35) onHit(c.t);
-        }
-      }
-      if (onsets.feed(rms, now) && !candidate) {
-        // Точный момент удара — по отсчётам внутри буфера, а не по кадру экрана.
-        const idx = attackIndex(buf);
-        // Щелчок метронома из колонок (высокий писк) — не удар; забываем его, чтобы не мешал поймать удар сразу за ним.
-        if (lowShare(buf, idx, mic.sampleRate) < CLICK_LOW_SHARE) onsets.forget();
-        else candidate = { t: now - (buf.length - idx) / mic.sampleRate, peak: rms, at: now };
-      }
+      hits.filter = opts.current.filter;
+      const t = hits.feed(buf, mic.now, mic.sampleRate);
+      if (t != null) onHit(t);
       raf.current = requestAnimationFrame(tick);
     };
     raf.current = requestAnimationFrame(tick);
@@ -144,6 +117,7 @@ function RhythmView() {
     cancelAnimationFrame(raf.current);
     raf.current = null;
     mic.release();
+    mic.setAutoGain(store.getState().settings.listen.autoGain);
     metronome.stop();
     setActive(false);
     setErrors((list) => {
@@ -206,6 +180,13 @@ function RhythmView() {
         >
           🎯 Подстроить задержку
         </button>
+        <label
+          className="field inline"
+          title="Включите, если микрофон слышит щелчки метронома из колонок и засчитывает их как удары. Если удары не ловятся — выключите"
+        >
+          <input type="checkbox" checked={rhythm.clickFilter} onChange={(e) => patchRhythm({ clickFilter: e.target.checked })} />
+          <span>Шумодав (отсеивать щелчки)</span>
+        </label>
         {running && !active && <span className="hint">метроном играет</span>}
       </div>
       {error && <p className="error">{error}</p>}

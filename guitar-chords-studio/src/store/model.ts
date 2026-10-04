@@ -43,6 +43,8 @@ export interface RhythmSettings {
   accent: boolean;
   /** «Ритм»: задержка звука (колонки + микрофон), мс; null — ещё не подстраивалась. */
   latencyMs: number | null;
+  /** «Ритм»: отсеивать щелчки метронома и короткие стуки (шумодав). Выкл — засчитывается любой удар. */
+  clickFilter: boolean;
 }
 
 export interface ScaleSettings {
@@ -108,7 +110,7 @@ export const DEFAULT_SETTINGS: Settings = {
     circleKey: 'auto',
   },
   sound: { volume: 0.8, reverb: 0.25, mode: 'strum', arpStepMs: 180, timbre: 'steel', autoPlay: true },
-  rhythm: { bpm: 90, patternId: 'six', loop: true, click: false, meter: 4, accent: true, latencyMs: null },
+  rhythm: { bpm: 90, patternId: 'six', loop: true, click: false, meter: 4, accent: true, latencyMs: null, clickFilter: false },
   scale: { show: false, rootPc: 9, scaleId: 'pentMinor' },
   midi: { latch: true, sound: true, device: 'all', output: '', muteInternal: false },
   listen: {

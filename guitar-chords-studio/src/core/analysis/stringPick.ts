@@ -14,6 +14,12 @@ export interface Pluck {
   clarity: number;
   /** Громкость ноты (прирост энергии на ноте и её обертонах). */
   energy?: number;
+  /**
+   * Другие возможные ноты щипка с относительной силой (1 — как у главной). Обертон или эхо
+   * соседней струны иногда сильнее самой ноты — тогда раскладка по струнам выберет вариант,
+   * который лучше сходится с остальными струнами.
+   */
+  alts?: { midi: number; rel: number }[];
 }
 
 /** Сдвиги обертонов (полутона) для оценки «чистоты» ноты. */
@@ -35,6 +41,19 @@ export function pluckFromSpectra(pre: Float32Array, post: Float32Array, lo: numb
   const found = detectNotes(d, 3, Math.min(hi, SEMI_LO + n - 1)).filter((x) => x.midi >= lo && x.midi <= hi);
   if (!found.length) return { midi: null, clarity: 0 };
   const midi = found[0].midi;
+  // Запасные варианты: другие ноты прироста (кроме соседних полутонов — это размытие той же ноты)
+  // и октава ниже главной: если такая нота уже звучала (обертон басовой струны), прирост на ней
+  // теряется — новая нота и старый обертон на одной частоте гасят друг друга, — и главным
+  // кажется её собственный обертон. Поэтому октава ниже — запасной вариант, если она вообще слышна.
+  const alts: { midi: number; rel: number }[] = found
+    .slice(1)
+    .filter((x) => Math.abs(x.midi - midi) > 1)
+    .map((x) => ({ midi: x.midi, rel: x.strength / found[0].strength }))
+    .filter((a) => a.rel >= 0.25);
+  const below = midi - 12;
+  const bi = below - SEMI_LO;
+  if (below >= lo && bi >= 0 && !alts.some((a) => a.midi === below) && post[bi] > post[midi - SEMI_LO] * 0.3)
+    alts.push({ midi: below, rel: 0.5 });
   // Чистота: доля прироста энергии, которая приходится на ноту и её обертоны (±1 полутон — запас на строй).
   const i0 = midi - SEMI_LO;
   let tonal = 0;
@@ -48,7 +67,7 @@ export function pluckFromSpectra(pre: Float32Array, post: Float32Array, lo: numb
       }
     }
   const clarity = Math.min(1, tonal / total);
-  return clarity >= minClarity ? { midi, clarity, energy: tonal } : { midi: null, clarity, energy: tonal };
+  return clarity >= minClarity ? { midi, clarity, energy: tonal, alts } : { midi: null, clarity, energy: tonal };
 }
 
 export interface StringFingering {
@@ -77,33 +96,63 @@ export function solveFingering(plucks: Pluck[], tuning: number[], capo = 0, maxF
   const n = tuning.length;
   const list = plucks.slice(0, n);
   if (!list.length) return null;
+  // Варианты каждого щипка: главная нота (без штрафа) и запасные (штраф тем больше, чем они слабее).
+  const options = list.map((p) =>
+    p.midi == null
+      ? [{ midi: null as number | null, penalty: 0 }]
+      : [
+          { midi: p.midi as number | null, penalty: 0 },
+          ...(p.alts ?? [])
+            .filter((a) => a.rel >= 0.15)
+            .slice(0, 3)
+            .map((a) => ({ midi: a.midi as number | null, penalty: 1.2 - Math.log(a.rel) * 1.5 })),
+        ],
+  );
   const scored: { frets: Frets; strings: number[]; cost: number }[] = [];
-  for (const strings of combos(n, list.length)) {
+  const evaluate = (strings: number[], picks: (number | null)[], extra: number) => {
     const frets: Frets = new Array(n).fill(null);
-    let ok = true;
-    strings.forEach((s, j) => {
-      const m = list[j].midi;
-      if (m == null) return; // глухой щипок — струна заглушена
-      const f = m - tuning[s];
-      if (f < capo || f > maxFret + capo) ok = false;
-      else frets[s] = f;
-    });
-    if (!ok) continue;
+    for (let j = 0; j < strings.length; j++) {
+      const m = picks[j];
+      if (m == null) continue; // глухой щипок — струна заглушена
+      const f = m - tuning[strings[j]];
+      if (f < capo || f > maxFret + capo) return;
+      frets[strings[j]] = f;
+    }
     const fretted = frets.filter((f): f is number => f != null && f > capo);
     const span = fretted.length ? Math.max(...fretted) - Math.min(...fretted) : 0;
-    if (span > 5) continue;
+    if (span > 5) return;
     // Пропуски внутри (между задетыми струнами) — маловероятны; снаружи — обычное дело (x32010).
     const first = strings[0];
     const last = strings[strings.length - 1];
     const inner = last - first + 1 - strings.length;
     const outer = n - (last - first + 1);
-    const cost = inner * 4 + outer * 1 + span * 0.6 + (fretted.length ? Math.min(...fretted) - capo : 0) * 0.12;
+    const cost = inner * 4 + outer * 1 + span * 0.6 + (fretted.length ? Math.min(...fretted) - capo : 0) * 0.12 + extra;
     scored.push({ frets, strings, cost });
+  };
+  for (const strings of combos(n, list.length)) {
+    // Перебор вариантов нот (не больше 4 на щипок — до 4^6 сочетаний, это быстро).
+    const picks: (number | null)[] = new Array(list.length).fill(null);
+    const walk = (j: number, extra: number) => {
+      if (j === list.length) return evaluate(strings, picks, extra);
+      for (const o of options[j]) {
+        if (o.midi != null) {
+          const f = o.midi - tuning[strings[j]];
+          if (f < capo || f > maxFret + capo) continue;
+        }
+        picks[j] = o.midi;
+        walk(j + 1, extra + o.penalty);
+      }
+    };
+    walk(0, 0);
   }
   if (!scored.length) return null;
   scored.sort((a, b) => a.cost - b.cost);
-  const gap = scored.length > 1 ? scored[1].cost - scored[0].cost : 10;
-  return { frets: scored[0].frets, strings: scored[0].strings, confidence: Math.max(0, Math.min(1, gap / 2)) };
+  // Уверенность — насколько лучший вариант лучше следующего с другой аппликатурой.
+  const best = scored[0];
+  const key = best.frets.join(',');
+  const next = scored.find((x) => x.frets.join(',') !== key);
+  const gap = next ? next.cost - best.cost : 10;
+  return { frets: best.frets, strings: best.strings, confidence: Math.max(0, Math.min(1, gap / 2)) };
 }
 
 /** Табулатурная запись аппликатуры: x32010 (лады больше 9 — в скобках). */
