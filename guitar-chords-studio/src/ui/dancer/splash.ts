@@ -1,6 +1,6 @@
 // Заставка при запуске: танцор, пока загружается программа. Убирается, когда программа отрисовалась.
 import './dancer.css';
-import { startDancer } from './dancer';
+import { startDancer } from './dancerCore';
 
 const host = document.getElementById('splash');
 if (host) {

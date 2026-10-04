@@ -1,6 +1,6 @@
 import './dancer.css';
 import { useEffect, useRef } from 'react';
-import { startDancer } from './dancer';
+import { startDancer } from './dancerCore';
 
 interface Props {
   /** Прогресс 0..1; null — сколько ждать, неизвестно (танцор просто танцует посередине). */
