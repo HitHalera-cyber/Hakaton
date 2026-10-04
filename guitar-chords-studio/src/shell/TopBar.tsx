@@ -4,6 +4,7 @@ import { store, useGuitar, usePick } from '../store';
 import type { DotLabel, LayoutId } from '../store/model';
 import { LAYOUTS } from './layouts/list';
 import { THEMES } from './themes';
+import { PlayModePicker } from '../ui/PlayModePicker';
 
 /** Настройки инструмента: строй, каподастр, транспонирование, подписи на грифе; раскладка и тема. */
 export function TopBar() {
@@ -47,6 +48,10 @@ export function TopBar() {
             +½
           </button>
         </div>
+        <label className="field inline">
+          <span>Звук</span>
+          <PlayModePicker />
+        </label>
         <span className="grow" />
         <button className={`btn toggle ${view.showNotes ? 'on' : ''}`} onClick={() => patchView({ showNotes: !view.showNotes })}>
           Ноты на грифе

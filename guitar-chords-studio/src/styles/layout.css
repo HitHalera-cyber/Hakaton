@@ -198,3 +198,6 @@
   border-bottom: var(--bw) solid var(--ok);
   font-size: 14px;
 }
+.topbar .play-mode button {
+  padding: 4px 10px;
+}

@@ -13,6 +13,9 @@
   opacity: 0.6;
 }
 .listen-symbol {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: center;
   font-family: var(--font-symbol, var(--font-display));
   text-shadow: var(--glow);
   font-size: calc(64px * var(--display-scale));
@@ -247,4 +250,12 @@
 }
 .calib-table td.bad {
   color: var(--danger);
+}
+
+/* Длинные названия (Cmaj7/G, A + E) — мельче, чтобы не распирать блок. */
+.listen-symbol.long {
+  font-size: calc(46px * var(--display-scale));
+}
+.listen-symbol.xlong {
+  font-size: calc(34px * var(--display-scale));
 }

@@ -3,7 +3,7 @@
 // а сам скользит вперёд). Без React — чтобы работать и на заставке до загрузки программы.
 
 /** Углы в градусах: 0 — вниз, плюс — вперёд (по направлению взгляда). */
-interface Pose {
+export interface Pose {
   lean: number;
   head: number;
   hat: number;
@@ -88,7 +88,7 @@ const UP = 12;
 const LOW = 12;
 
 /** Точки скелета для позы: таз в (0,0), y вниз. */
-function skeleton(p: Pose) {
+export function skeleton(p: Pose) {
   const dir = (deg: number, len: number, from: [number, number]): [number, number] => [
     from[0] + Math.sin(deg * R) * len,
     from[1] + Math.cos(deg * R) * len,
@@ -120,6 +120,68 @@ export interface DancerState {
  * Нарисовать танцора в svg (viewBox 0 0 W H) и запустить анимацию. Возвращает функцию остановки.
  * getState вызывается каждый кадр — так снаружи меняют «идёт / стоит» и положение.
  */
+/**
+ * Движения танцора (без рисования): каждый кадр — поза и «поворот» (scaleX: 1 — лицом вправо,
+ * −1 — влево, между ними — оборот вокруг себя).
+ */
+export class DancerAnimator {
+  private mode: 'pose' | 'walk' = 'pose';
+  private walkPhase = 0;
+  private idleT = 0;
+  private poseIdx = 0;
+  private from: Pose = STAND;
+  private current: Pose = STAND;
+  private facing = 1;
+
+  step(dt: number, moving: boolean): { pose: Pose; scaleX: number } {
+    let pose: Pose;
+    let scaleX = 1;
+    if (moving) {
+      if (this.mode !== 'walk') {
+        this.mode = 'walk';
+        this.from = this.current;
+        this.idleT = 0;
+      }
+      this.walkPhase = (this.walkPhase + dt / 0.9) % 1;
+      this.idleT = Math.min(1, this.idleT + dt / 0.25);
+      pose = lerpPose(this.from, moonwalk(this.walkPhase), ease(this.idleT));
+      // Лицом назад (влево), а скользит вперёд (вправо).
+      scaleX = -1;
+      this.facing = -1;
+    } else {
+      if (this.mode !== 'pose') {
+        this.mode = 'pose';
+        this.from = this.current;
+        this.idleT = 0;
+      }
+      // Цикл: поворот на месте (0,7 с) → поза (0,35 с переход + 0,9 с держать) → следующая.
+      this.idleT += dt;
+      const SPIN = 0.7;
+      const IN = 0.35;
+      const HOLD = 0.9;
+      const cycle = SPIN + IN + HOLD;
+      if (this.idleT >= cycle) {
+        this.idleT -= cycle;
+        this.poseIdx = (this.poseIdx + 1) % POSES.length;
+        this.from = POSES[(this.poseIdx + POSES.length - 1) % POSES.length];
+      }
+      const target = POSES[this.poseIdx];
+      const spinPose = P(0, 0, 0, [70, 10], [-70, -10], [2, 0, -40], [-2, 0, -40], 4);
+      if (this.idleT < SPIN) {
+        const t = this.idleT / SPIN;
+        // Поворот: руки в стороны, тело «сжимается» по ширине — оборот вокруг себя.
+        pose = lerpPose(this.from, spinPose, Math.min(1, t * 2.5));
+        scaleX = Math.cos(t * 2 * Math.PI) * this.facing;
+      } else {
+        pose = lerpPose(spinPose, target, ease(Math.min(1, (this.idleT - SPIN) / IN)));
+        this.facing = 1;
+      }
+    }
+    this.current = pose;
+    return { pose, scaleX };
+  }
+}
+
 export function startDancer(svg: SVGSVGElement, getState: () => DancerState & { x?: number }): () => void {
   const NS = 'http://www.w3.org/2000/svg';
   svg.innerHTML = '';
@@ -143,64 +205,14 @@ export function startDancer(svg: SVGSVGElement, getState: () => DancerState & { 
 
   let raf = 0;
   let last = performance.now();
-  let mode: 'pose' | 'walk' = 'pose';
-  let walkPhase = 0;
-  let idleT = 0;
-  let poseIdx = 0;
-  let from: Pose = STAND;
-  let current: Pose = STAND;
-  let facing = 1;
+  const anim = new DancerAnimator();
   const pts = (list: [number, number][]) => list.map((q, i) => `${i ? 'L' : 'M'}${q[0].toFixed(2)} ${q[1].toFixed(2)}`).join('');
 
   const frame = (now: number) => {
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
     const st = getState();
-    let pose: Pose;
-    let scaleX = 1;
-    if (st.moving) {
-      if (mode !== 'walk') {
-        mode = 'walk';
-        from = current;
-        idleT = 0;
-      }
-      walkPhase = (walkPhase + dt / 0.9) % 1;
-      idleT = Math.min(1, idleT + dt / 0.25);
-      pose = lerpPose(from, moonwalk(walkPhase), ease(idleT));
-      // Лицом назад (влево), а скользит вперёд (вправо).
-      scaleX = -1;
-      facing = -1;
-    } else {
-      if (mode !== 'pose') {
-        mode = 'pose';
-        from = current;
-        idleT = 0;
-      }
-      // Цикл: поворот на месте (0,7 с) → поза (0,35 с переход + 0,9 с держать) → следующая.
-      idleT += dt;
-      const SPIN = 0.7;
-      const IN = 0.35;
-      const HOLD = 0.9;
-      const cycle = SPIN + IN + HOLD;
-      if (idleT >= cycle) {
-        idleT -= cycle;
-        poseIdx = (poseIdx + 1) % POSES.length;
-        from = POSES[(poseIdx + POSES.length - 1) % POSES.length];
-      }
-      const target = POSES[poseIdx];
-      if (idleT < SPIN) {
-        const t = idleT / SPIN;
-        // Поворот: руки в стороны, тело «сжимается» по ширине — оборот вокруг себя.
-        pose = lerpPose(from, P(0, 0, 0, [70, 10], [-70, -10], [2, 0, -40], [-2, 0, -40], 4), Math.min(1, t * 2.5));
-        scaleX = Math.cos(t * 2 * Math.PI) * facing;
-      } else {
-        const t = Math.min(1, (idleT - SPIN) / IN);
-        pose = lerpPose(lerpPose(from, P(0, 0, 0, [70, 10], [-70, -10], [2, 0, -40], [-2, 0, -40], 4), 1), target, ease(t));
-        facing = 1;
-        scaleX = 1;
-      }
-    }
-    current = pose;
+    const { pose, scaleX } = anim.step(dt, st.moving);
     const sk = skeleton(pose);
     // Опора: ниже всех — стопа, она стоит на «полу».
     const feet = [...sk.legF, ...sk.legB].map((q) => q[1]);

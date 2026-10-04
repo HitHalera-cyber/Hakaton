@@ -6,6 +6,7 @@ import { pcName } from '../../core/music/notes';
 import { ChordDiagram } from '../../ui/ChordDiagram';
 import { MicSettings } from './MicSettings';
 import { StringsView } from './StringsView';
+import { symClass } from './symClass';
 import type { ChordListener } from './useListener';
 
 interface Props {
@@ -86,12 +87,12 @@ export function ListenPanel({ listener, onPick, circle, voicing, capo }: Props) 
             <StringsView listener={listener} />
           ) : notes ? (
             <>
-              <div className="listen-symbol">{notes.label}</div>
+              <div className={`listen-symbol ${symClass(notes.label)}`}>{notes.label}</div>
               <div className="listen-ru">{notes.nameRu}</div>
             </>
           ) : best ? (
             <>
-              <div className="listen-symbol">{best.symbol}</div>
+              <div className={`listen-symbol ${symClass(best.symbol)}`}>{best.symbol}</div>
               <div className="listen-ru">{best.nameRu}</div>
               {!pending && (
                 <div className="confidence" title="Насколько программа уверена">

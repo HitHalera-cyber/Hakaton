@@ -1,6 +1,7 @@
 import { midiName } from '../../core/music/notes';
 import { useGuitar } from '../../store';
 import { ChordDiagram } from '../../ui/ChordDiagram';
+import { symClass } from './symClass';
 import type { ChordListener } from './useListener';
 
 /** Режим «По струнам»: какие щипки услышаны и итоговая точная аппликатура. */
@@ -14,7 +15,7 @@ export function StringsView({ listener }: { listener: ChordListener }) {
       {r ? (
         <div className="strings-result">
           <div>
-            <div className="listen-symbol">{r.symbol}</div>
+            <div className={`listen-symbol ${symClass(r.symbol)}`}>{r.symbol}</div>
             <div className="listen-ru">{r.nameRu}</div>
             <div className="strings-tab" title="Аппликатура от 6-й струны к 1-й: x — не звучит, 0 — открытая">
               {r.tab}

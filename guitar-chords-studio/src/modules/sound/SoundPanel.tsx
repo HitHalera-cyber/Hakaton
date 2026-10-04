@@ -10,42 +10,18 @@ export interface SoundSettings {
   autoPlay: boolean;
 }
 
-const PLAY_MODES: [PlayMode, string, string][] = [
-  ['strum', '↓ Бой вниз', 'Удар по струнам сверху вниз (от баса)'],
-  ['strumUp', '↑ Бой вверх', 'Удар снизу вверх (от тонких струн)'],
-  ['arpeggio', '♪ Перебор', 'Струны по одной'],
-];
-
 interface Props {
   settings: SoundSettings;
   instrument: Instrument;
   onChange: (patch: Partial<SoundSettings>) => void;
-  /** Сыграть аккорд выбранным способом (для пробы). */
-  onPlay: (mode: PlayMode) => void;
   onStop: () => void;
-  canPlay: boolean;
 }
 
-export function SoundPanel({ settings, instrument, onChange, onPlay, onStop, canPlay }: Props) {
+export function SoundPanel({ settings, instrument, onChange, onStop }: Props) {
   return (
     <div className="tab-body">
-      <p className="hint">Выберите, как звучит аккорд — выбор запоминается для кнопки «Играть» и для автоигры, пока вы его не смените.</p>
+      <p className="hint">Бой вниз, бой вверх или перебор — переключатель «Звук» в верхней строке, он действует везде.</p>
       <div className="row">
-        <div className="segmented" role="radiogroup" aria-label="Как играть аккорд">
-          {PLAY_MODES.map(([mode, label, title]) => (
-            <button
-              key={mode}
-              className={settings.mode === mode ? 'on' : ''}
-              title={title}
-              onClick={() => {
-                onChange({ mode });
-                if (canPlay) onPlay(mode);
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
         <button className="btn" onClick={onStop} title="Esc">
           ■ Стоп
         </button>
