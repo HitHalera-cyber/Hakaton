@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { SEMI_COUNT, SEMI_LO } from '../src/core/analysis/dsp';
-import { checkFingering } from '../src/core/analysis/fingerCheck';
 import { MelodyTracker, melodyTab, placeOnFretboard } from '../src/core/analysis/melody';
 import { TUNINGS } from '../src/core/music/tunings';
 import { matchesChord } from '../src/core/practice/chordMatch';
@@ -102,44 +101,6 @@ function spectrum(notes: { midi: number; amp?: number }[]) {
       if (midi + off - SEMI_LO < SEMI_COUNT) semi[midi + off - SEMI_LO] += amp * w;
   return semi;
 }
-
-describe('проверка аппликатуры', () => {
-  // C-dur: x32010 → C3 E3 G3 C4 E4 (струны 1..5), 6-я (E2) заглушена.
-  const expected = [
-    { string: 0, midi: null, openMidi: 40 },
-    { string: 1, midi: 48, openMidi: 45 },
-    { string: 2, midi: 52, openMidi: 50 },
-    { string: 3, midi: 55, openMidi: 55 },
-    { string: 4, midi: 60, openMidi: 59 },
-    { string: 5, midi: 64, openMidi: 64 },
-  ];
-
-  it('чистый аккорд — все струны в порядке', () => {
-    const r = checkFingering(spectrum([48, 52, 55, 60, 64].map((midi) => ({ midi }))), expected);
-    expect(r.good).toBe(6);
-    expect(r.extras).toEqual([]);
-  });
-
-  it('приглушённая струна и лишняя нота находятся', () => {
-    // Си-струна (C4) почти не звучит, а вместо неё звенит открытая B3.
-    const r = checkFingering(
-      spectrum([{ midi: 48 }, { midi: 52 }, { midi: 55 }, { midi: 60, amp: 0.02 }, { midi: 64 }, { midi: 59, amp: 0.8 }]),
-      expected,
-    );
-    // B3 вместо C4 на второй струне — струна «не та».
-    expect(r.strings[4].status).toBe('wrong');
-    expect(r.strings[4].heard).toBe(59);
-    expect(r.extras).toContain(59);
-  });
-
-  it('звон заглушенной басовой струны', () => {
-    const r = checkFingering(
-      spectrum([{ midi: 40, amp: 0.9 }, { midi: 48 }, { midi: 52 }, { midi: 55 }, { midi: 60 }, { midi: 64 }]),
-      expected,
-    );
-    expect(r.strings[0].status).toBe('ringing');
-  });
-});
 
 describe('подбор мелодии', () => {
   it('кадры высоты тона превращаются в ноты', () => {

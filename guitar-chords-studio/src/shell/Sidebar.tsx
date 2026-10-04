@@ -1,4 +1,7 @@
-import { MODULE_GROUPS } from '../modules/registry';
+import { useState } from 'react';
+import { MODULE_HELP } from '../modules/help';
+import { MODULE_GROUPS, getModule } from '../modules/registry';
+import { HelpPopover } from './HelpPopover';
 import type { ModuleId } from '../modules/ids';
 import { usePick } from '../store';
 
@@ -18,6 +21,7 @@ export function Sidebar({ active, compact, onOpen }: Props) {
     setAboutOpen: s.setAboutOpen,
     setPaletteOpen: s.setPaletteOpen,
   }));
+  const [help, setHelp] = useState<{ id: ModuleId; x: number; y: number } | null>(null);
   const badges: Partial<Record<ModuleId, string>> = { sequence: seqPlaying ? '▶' : undefined, listen: listening ? '●' : undefined };
   return (
     <aside className={`sidebar ${compact ? 'compact' : ''}`}>
@@ -42,7 +46,11 @@ export function Sidebar({ active, compact, onOpen }: Props) {
                 key={m.id}
                 className={`nav-item ${active === m.id ? 'on' : ''}`}
                 onClick={() => onOpen(m.id)}
-                title={compact ? m.title : m.description}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  setHelp({ id: m.id, x: e.clientX, y: e.clientY });
+                }}
+                title={`${compact ? m.title : m.description} · правый клик — подробнее`}
               >
                 <span className="nav-icon">{m.icon}</span>
                 <span className="nav-label">{m.title}</span>
@@ -56,6 +64,15 @@ export function Sidebar({ active, compact, onOpen }: Props) {
         <span className="nav-icon">ℹ</span>
         <span className="nav-label">О программе</span>
       </button>
+      {help && (
+        <HelpPopover
+          {...help}
+          icon={getModule(help.id).icon}
+          title={getModule(help.id).title}
+          text={MODULE_HELP[help.id]}
+          onClose={() => setHelp(null)}
+        />
+      )}
     </aside>
   );
 }

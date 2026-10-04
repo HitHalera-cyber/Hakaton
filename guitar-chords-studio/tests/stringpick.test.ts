@@ -113,3 +113,31 @@ describe('«по струнам»: весь путь от звука до апп
     expect(found).toEqual(tabs);
   });
 });
+
+describe('проверка аппликатуры по струнам', () => {
+  it('ошибки постановки находятся по каждой струне', async () => {
+    const { alignPluck, judgeString } = await import('../src/core/analysis/fingerCheck');
+    // Нужен C (x32010). Сыграно: 6-я не заглушена и звенит (E2), 2-я не прижата (B3 вместо C4),
+    // 3-я заглушена пальцем (глухой стук), остальные верно.
+    const played = pickStrings('032m00'.replace('m', 'm'));
+    // pickStrings понимает 'm' как глухой щипок; струны: 6:E2 5:C3 4:E3 3:глухо 2:B3(открытая) 1:E4
+    const expected = [null, 48, 52, 55, 60, 64].map((midi, s) => ({ string: s, midi, openMidi: STD[s] }));
+    if (process.env.DBG) process.stderr.write(JSON.stringify(played) + '\n');
+    const verdicts: Record<number, string> = {};
+    let cursor = 0;
+    for (const p of played) {
+      const s = alignPluck(expected, cursor, p);
+      verdicts[s] = judgeString(expected[s], p).status;
+      cursor = s + 1;
+    }
+    expect(verdicts).toEqual({ 0: 'ringing', 1: 'ok', 2: 'ok', 3: 'missing', 4: 'open', 5: 'ok' });
+  });
+
+  it('пропущенный щипок не сдвигает остальные струны', async () => {
+    const { alignPluck } = await import('../src/core/analysis/fingerCheck');
+    const expected = [null, 48, 52, 55, 60, 64].map((midi, s) => ({ string: s, midi, openMidi: STD[s] }));
+    // Программа не услышала щипок 5-й струны: первым пришёл E3 (4-я).
+    expect(alignPluck(expected, 1, { midi: 52, clarity: 0.8 })).toBe(2);
+    expect(alignPluck(expected, 1, { midi: 48, clarity: 0.8 })).toBe(1);
+  });
+});

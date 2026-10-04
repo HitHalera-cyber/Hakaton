@@ -1,154 +1,159 @@
 import '../../ui/practice.css';
 import { useEffect, useRef, useState } from 'react';
-import { checkFingering, type FingerCheckResult, type StringStatus } from '../../core/analysis/fingerCheck';
-import { SpectrumAnalyzer } from '../../core/analysis/dsp';
+import { alignPluck, judgeString, summarize, type ExpectedString, type StringStatus } from '../../core/analysis/fingerCheck';
+import type { Pluck } from '../../core/analysis/stringPick';
+import { listenPlucks } from '../../services/pluckListener';
 import { midiName, pcName } from '../../core/music/notes';
-import { MIC_FRAME, mic, OnsetDetector, rmsOf } from '../../services/mic';
 import { useGuitar } from '../../store';
 import type { ModuleDef } from '../types';
 
-type Phase = 'idle' | 'waiting' | 'listening' | 'done';
+type Phase = 'idle' | 'listening' | 'done';
 
 const STATUS: Record<StringStatus, { icon: string; text: string; cls: string }> = {
   ok: { icon: '✓', text: 'звучит чисто', cls: '' },
-  weak: { icon: '⚠', text: 'звучит слабо — палец приглушает струну или прижат не у лада', cls: 'warn' },
-  missing: { icon: '✗', text: 'не звучит — струну глушит соседний палец', cls: 'bad' },
-  wrong: { icon: '✗', text: 'звучит не та нота — струна не прижата или прижата не на том ладу', cls: 'bad' },
+  weak: { icon: '⚠', text: 'нота верная, но с призвуком — палец касается струны или прижат далеко от лада (дребезг)', cls: 'warn' },
+  quiet: { icon: '⚠', text: 'звучит тихо и коротко — струну приглушает соседний палец', cls: 'warn' },
+  missing: { icon: '✗', text: 'не звучит — струну глушит палец', cls: 'bad' },
+  open: { icon: '✗', text: 'звучит открытая струна — палец не прижал её', cls: 'bad' },
+  wrong: { icon: '✗', text: 'звучит не та нота — палец не на том ладу или не на той струне', cls: 'bad' },
   silent: { icon: '✓', text: 'молчит, как и должна', cls: '' },
-  ringing: { icon: '✗', text: 'звенит, хотя должна молчать — заглушите её', cls: 'bad' },
+  ringing: { icon: '✗', text: 'звенит, хотя должна молчать — заглушите её пальцем или не задевайте', cls: 'bad' },
+  skipped: { icon: '·', text: 'не сыграна', cls: 'muted' },
 };
 
-/** Проверка аппликатуры: какие струны аккорда звучат чисто, а какие — нет. */
+/**
+ * Проверка аппликатуры: зажмите аккорд и проведите по струнам по одной, от басовой к тонкой.
+ * Каждая струна проверяется сразу после щипка.
+ */
 function FingerCheckView() {
   const g = useGuitar();
   const [phase, setPhase] = useState<Phase>('idle');
   const [error, setError] = useState('');
-  const [result, setResult] = useState<FingerCheckResult | null>(null);
-  const raf = useRef<number | null>(null);
+  const [plucks, setPlucks] = useState<(Pluck | null)[]>([]);
+  const [level, setLevel] = useState(0);
+  const stopRef = useRef<(() => void) | null>(null);
+  const cursor = useRef(0);
+  const lastPluckAt = useRef(0);
 
   const n = g.strings.length;
-  const expected = Array.from({ length: n }, (_, s) => ({
+  const expected: ExpectedString[] = Array.from({ length: n }, (_, s) => ({
     string: s,
     midi: g.boardNotes.find((x) => x.string === s)?.midi ?? null,
     openMidi: g.strings[s] + g.capo,
   }));
   const hasChord = expected.some((e) => e.midi != null);
+  const expRef = useRef(expected);
+  expRef.current = expected;
 
   const stop = () => {
-    if (raf.current != null) {
-      cancelAnimationFrame(raf.current);
-      raf.current = null;
-      mic.release();
-    }
+    stopRef.current?.();
+    stopRef.current = null;
   };
   useEffect(() => stop, []);
+  // Пауза после последнего щипка — проверка закончена.
+  useEffect(() => {
+    if (phase !== 'listening') return;
+    const id = window.setInterval(() => {
+      if (cursor.current > 0 && Date.now() - lastPluckAt.current > 2500) finish();
+    }, 300);
+    return () => window.clearInterval(id);
+  }, [phase]);
+
+  const finish = () => {
+    stop();
+    setPhase('done');
+  };
 
   const check = async () => {
     setError('');
-    setResult(null);
+    setPlucks(new Array(n).fill(null));
+    cursor.current = 0;
     try {
-      await mic.acquire();
+      stopRef.current = await listenPlucks({
+        lo: Math.min(...g.strings) + g.capo,
+        hi: Math.max(...g.strings) + g.capo + 15,
+        onLevel: setLevel,
+        onPluck: (p) => {
+          const exp = expRef.current;
+          const s = alignPluck(exp, cursor.current, p);
+          if (s >= exp.length) return;
+          cursor.current = s + 1;
+          lastPluckAt.current = Date.now();
+          setPlucks((list) => list.map((x, i) => (i === s ? p : x)));
+          if (cursor.current >= exp.length) window.setTimeout(finish, 400);
+        },
+      });
+      setPhase('listening');
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
-      return;
     }
-    setPhase('waiting');
-    const spectrum = new SpectrumAnalyzer(MIC_FRAME, mic.sampleRate);
-    const buf = new Float32Array(MIC_FRAME);
-    const acc = new Float32Array(spectrum.semitones(buf).semi.length);
-    const onsets = new OnsetDetector(0.55);
-    const target = expected.map((e) => ({ ...e }));
-    let onsetAt = -1;
-    let frames = 0;
-    let lastFrame = 0;
-    const tick = () => {
-      if (!mic.read(buf)) return;
-      const now = mic.now;
-      const rms = rmsOf(buf);
-      if (onsetAt < 0 && onsets.feed(rms, now)) {
-        onsetAt = now;
-        setPhase('listening');
-      }
-      // Спустя 0,3 с после удара (сам удар шумный) копим спектр ~0,8 с.
-      if (onsetAt >= 0 && now - onsetAt > 0.3 && now - lastFrame > 0.09) {
-        lastFrame = now;
-        const { semi } = spectrum.semitones(buf);
-        for (let i = 0; i < acc.length; i++) acc[i] += semi[i];
-        frames++;
-      }
-      if (frames >= 8) {
-        stop();
-        setResult(checkFingering(acc, target));
-        setPhase('done');
-        return;
-      }
-      raf.current = requestAnimationFrame(tick);
-    };
-    raf.current = requestAnimationFrame(tick);
   };
+
+  const verdicts = expected.map((e, i) => judgeString(e, plucks[i] ?? null));
+  const sum = phase === 'done' ? summarize(verdicts, plucks) : null;
+  const next = cursor.current;
 
   return (
     <div className="tab-body">
       <p className="hint">
-        Поставьте аккорд на гриф (кликом, из справочника или песенника), нажмите «Проверить» и один раз ударьте по струнам. Программа
-        скажет, какие струны звучат чисто, а какие глушатся.
+        Поставьте аккорд на гриф (кликом, из справочника или песенника) и зажмите его на гитаре. Нажмите «Проверить» и проведите по струнам{' '}
+        <b>по одной, от {n}-й к 1-й</b> — заглушённые тоже. Каждая струна проверяется сразу после щипка.
       </p>
       <div className="pr-row">
         <div className="pr-target">
           <span className="sym">{g.result.primary?.symbol ?? (hasChord ? '?' : '—')}</span>
           <small className="hint">{hasChord ? 'аккорд на грифе' : 'поставьте аккорд на гриф'}</small>
         </div>
-        <button className="btn primary" disabled={!hasChord || phase === 'waiting' || phase === 'listening'} onClick={() => void check()}>
-          🎤 Проверить
-        </button>
-        {(phase === 'waiting' || phase === 'listening') && (
+        {phase === 'listening' ? (
           <>
-            <span className="listening-note">{phase === 'waiting' ? '● Ударьте по струнам…' : '● Слушаю звучание…'}</span>
-            <button className="btn small" onClick={() => (stop(), setPhase('idle'))}>
-              Отмена
+            <span className="listening-note">● Щипайте струны по одной…</span>
+            <div className="level" title="Уровень микрофона">
+              <span style={{ width: `${level * 100}%` }} />
+            </div>
+            <button className="btn small" onClick={finish}>
+              Готово
             </button>
           </>
+        ) : (
+          <button className="btn primary" disabled={!hasChord} onClick={() => void check()}>
+            🎤 {phase === 'done' ? 'Проверить ещё раз' : 'Проверить'}
+          </button>
         )}
       </div>
       {error && <p className="error">{error}</p>}
 
-      {result && (
+      {phase !== 'idle' && (
         <div className="fc-result">
-          <div className="pr-cards">
-            <div className="pr-card">
-              <small>Чисто звучат</small>
-              <span className="pr-big">
-                {result.good}/{result.total}
-              </span>
+          {sum && (
+            <div className="pr-cards">
+              <div className="pr-card">
+                <small>Чисто звучат</small>
+                <span className="pr-big">
+                  {sum.good}/{sum.total}
+                </span>
+              </div>
             </div>
-          </div>
+          )}
           <div className="fc-strings">
-            {[...result.strings].reverse().map((s) => {
-              const st = STATUS[s.status];
+            {verdicts.map((v, i) => {
+              const waiting = phase === 'listening' && !plucks[i];
+              const st = waiting
+                ? { icon: i === next ? '▶' : '·', text: i === next ? 'щипните эту струну' : '', cls: 'muted' }
+                : STATUS[v.status];
               return (
-                <div key={s.string} className={`fc-string ${st.cls}`}>
-                  <b>{n - s.string}</b>
-                  <span className="fc-note">{s.midi != null ? midiName(s.midi) : `× ${pcName(g.strings[s.string] + g.capo)}`}</span>
+                <div key={v.string} className={`fc-string ${st.cls} ${waiting && i === next ? 'next' : ''}`}>
+                  <b>{n - v.string}</b>
+                  <span className="fc-note">{v.midi != null ? midiName(v.midi) : `× ${pcName(expected[i].openMidi)}`}</span>
                   <span className="fc-icon">{st.icon}</span>
                   <span className="fc-text">
                     {st.text}
-                    {s.heard != null && ` (слышно ${midiName(s.heard)})`}
+                    {v.heard != null && !waiting && ` (слышно ${midiName(v.heard)})`}
                   </span>
-                  {s.midi != null && (
-                    <div className="pr-bar fc-level">
-                      <span className={st.cls} style={{ width: `${Math.round(s.level * 100)}%` }} />
-                    </div>
-                  )}
                 </div>
               );
             })}
           </div>
-          {result.extras.length > 0 && (
-            <p className="error">
-              Лишние ноты: {result.extras.map(midiName).join(', ')} — задета соседняя струна или палец стоит не на том ладу.
-            </p>
-          )}
-          {result.good === result.total && result.extras.length === 0 && <p className="ok-text">Отлично: аккорд звучит чисто!</p>}
+          {sum && sum.good === sum.total && <p className="ok-text">Отлично: аккорд звучит чисто!</p>}
         </div>
       )}
     </div>

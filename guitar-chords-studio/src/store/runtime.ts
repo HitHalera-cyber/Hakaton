@@ -46,6 +46,8 @@ export interface ListenRuntime {
   /** Сколько миллисекунд нейросеть думала над последним ударом и на чём считает. */
   neuralMs: number;
   neuralBackend: string;
+  /** Когда шумодав последний раз отсеял посторонний звук (мс). */
+  ignoredAt: number;
   /** Последняя услышанная нота или интервал (когда звучит не аккорд). */
   heardNotes: HeardNotes | null;
   hold: { state: HoldState; progress: number };
@@ -140,6 +142,7 @@ export const createRuntimeSlice: Slice<RuntimeSlice> = (set, get) => ({
     neural: 'off',
     neuralMs: 0,
     neuralBackend: '',
+    ignoredAt: 0,
     hold: { state: 'idle', progress: 0 },
   },
   setListen: (p) => set((s) => ({ listen: { ...s.listen, ...p } })),

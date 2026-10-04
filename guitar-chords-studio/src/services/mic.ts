@@ -20,6 +20,9 @@ class MicService {
   private ringFilled = 0;
   private ringAt = 0;
   private proc: ScriptProcessorNode | null = null;
+  /** Срез гула и стуков ниже самой низкой струны. */
+  private highpass: BiquadFilterNode | null = null;
+  private highpassHz = 60;
   private deviceId = '';
   /** Автоусиление: множитель к ручному усилению, подстраивается под громкость игры. */
   private autoGain = false;
@@ -62,7 +65,48 @@ class MicService {
   }
 
   private applyGain() {
-    if (this.gainNode) this.gainNode.gain.value = this.gain;
+    if (!this.gainNode) return;
+    const g = this.gain;
+    if (this.gainNode.gain.value !== g) {
+      this.gainNode.gain.value = g;
+      this.gainLog.push({ t: this.now, g });
+      while (this.gainLog.length > 2 && this.gainLog[1].t < this.now - 1) this.gainLog.shift();
+    }
+  }
+  private gainLog: { t: number; g: number }[] = [];
+
+  /**
+   * Среднее усиление за последние seconds секунд: в окне анализа лежит звук, записанный при разном
+   * усилении (автоусиление его меняет), — делить надо на среднее за это окно, а не на текущее.
+   */
+  gainOver(seconds: number): number {
+    const now = this.now;
+    const from = now - seconds;
+    const log = this.gainLog;
+    if (!log.length) return this.gain;
+    let acc = 0;
+    let t = from;
+    // Усиление до первой записи в окне — из последней записи до окна (или текущее, если её нет).
+    let g = this.gain;
+    for (let i = log.length - 1; i >= 0; i--)
+      if (log[i].t <= from) {
+        g = log[i].g;
+        break;
+      } else if (i === 0) g = log[0].g;
+    for (const e of log) {
+      if (e.t <= from) continue;
+      acc += g * (e.t - t);
+      t = e.t;
+      g = e.g;
+    }
+    acc += g * (now - t);
+    return acc / seconds || this.gain;
+  }
+
+  /** Срезать всё ниже hz (гул, стук по корпусу, шаги) — ставится чуть ниже самой низкой струны. */
+  setHighpass(hz: number) {
+    this.highpassHz = hz;
+    if (this.highpass) this.highpass.frequency.value = hz;
   }
 
   /** Хранить последние seconds секунд звука (0 — не хранить). */
@@ -209,7 +253,12 @@ class MicService {
       const analyser = ctx.createAnalyser();
       analyser.fftSize = MIC_FRAME;
       analyser.smoothingTimeConstant = 0;
-      src.connect(gain).connect(analyser);
+      const hp = ctx.createBiquadFilter();
+      hp.type = 'highpass';
+      hp.frequency.value = this.highpassHz;
+      hp.Q.value = 0.7;
+      src.connect(hp).connect(gain).connect(analyser);
+      this.highpass = hp;
       this.stream = s;
       this.gainNode = gain;
       this.analyserNode = analyser;
@@ -224,6 +273,7 @@ class MicService {
   }
 
   private close() {
+    this.highpass = null;
     this.proc?.disconnect();
     this.proc = null;
     this.ring = null;
@@ -266,6 +316,16 @@ export function attackOf(buf: Float32Array, n = 1024): number {
 export class OnsetDetector {
   private floor = 0.001;
   private lastOnset = -10;
+  private peakLevel = 0;
+  private peakAt = -10;
+  private undo: { lastOnset: number; peakLevel: number; peakAt: number } | null = null;
+
+  /** Последний удар оказался не ударом (например, щелчком метронома) — забыть его. */
+  forget() {
+    if (!this.undo) return;
+    Object.assign(this, this.undo);
+    this.undo = null;
+  }
   private recent: { t: number; rms: number }[] = [];
   /** Громкость за последние секунды — по ней считается фон (шум комнаты и микрофона). */
   private long: { t: number; rms: number }[] = [];
@@ -297,11 +357,26 @@ export class OnsetDetector {
     const threshold = 3.5 - this.sensitivity * 2.2;
     const jump = 2.2 - this.sensitivity * 0.8;
     while (this.recent.length && this.recent[0].t < now - 0.25) this.recent.shift();
-    const before = this.recent.filter((r) => r.t < now - 0.03);
-    const recentMin = before.length ? Math.min(...before.map((r) => r.rms)) : 0;
+    // Сравниваем с тем, что звучало после прошлого удара: иначе тишина перед ним через
+    // мгновение снова «засчитала» бы тот же затухающий удар.
+    // И только после пика прошлого удара: пока струны удара вступают одна за другой, громкость
+    // ещё растёт — это тот же удар, а не новый.
+    const after = Math.max(this.lastOnset, this.peakAt);
+    const before = this.recent.filter((r) => r.t < now - 0.03 && r.t > after);
+    const fresh = now - this.lastOnset < 0.25;
+    const recentMin = before.length ? Math.min(...before.map((r) => r.rms)) : fresh ? Infinity : 0;
     this.recent.push({ t: now, rms });
+    if (fresh && rms > this.peakLevel) {
+      this.peakLevel = rms;
+      this.peakAt = now;
+    }
     const onset = rms > Math.max(0.002, this.floor * threshold) && rms > recentMin * jump && now - this.lastOnset > this.refractory;
-    if (onset) this.lastOnset = now;
+    if (onset) {
+      this.undo = { lastOnset: this.lastOnset, peakLevel: this.peakLevel, peakAt: this.peakAt };
+      this.lastOnset = now;
+      this.peakLevel = rms;
+      this.peakAt = now;
+    }
     this.trackFloor(rms, now);
     return onset;
   }

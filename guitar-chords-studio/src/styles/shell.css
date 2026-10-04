@@ -68,3 +68,37 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* Справка по правому клику на пункте меню. */
+.help-pop {
+  position: fixed;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border: var(--bw) solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  color: var(--text);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  animation: help-in 0.12s ease-out;
+}
+.help-pop b {
+  font-family: var(--font-display);
+  font-size: 17px;
+}
+.help-pop p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.45;
+}
+.help-pop small {
+  color: var(--text-2);
+}
+@keyframes help-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}

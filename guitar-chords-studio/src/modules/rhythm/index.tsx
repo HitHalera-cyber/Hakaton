@@ -1,6 +1,18 @@
 import '../../ui/practice.css';
 import { useEffect, useRef, useState } from 'react';
-import { HIT_NEAR_MS, HIT_OK_MS, beatError, classifyHit, hitStreak, timingAdvice, timingSummary } from '../../core/practice/timing';
+import { audio } from '../../core/audio/engine';
+import {
+  HIT_NEAR_MS,
+  HIT_OK_MS,
+  attackIndex,
+  beatError,
+  classifyHit,
+  hitStreak,
+  lowShare,
+  median,
+  timingAdvice,
+  timingSummary,
+} from '../../core/practice/timing';
 import { bus } from '../../services/bus';
 import { metronome } from '../../services/metronome';
 import { mic, OnsetDetector, rmsOf } from '../../services/mic';
@@ -8,6 +20,16 @@ import { store, usePick } from '../../store';
 import type { ModuleDef } from '../types';
 
 const RANGE_MS = 120;
+/** Меньше такой доли низких частот — это щелчок метронома, а не струны. */
+const CLICK_LOW_SHARE = 0.55;
+/** Сколько ударов собрать для подстройки задержки. */
+const TUNE_HITS = 8;
+
+/** Задержка по умолчанию: вывод звука (как сообщает система) + ввод с микрофона (~15 мс). */
+function defaultLatency() {
+  const ctx = audio.context as AudioContext & { outputLatency?: number };
+  return Math.round(((ctx.outputLatency ?? 0) + (ctx.baseLatency ?? 0)) * 1000 + 15);
+}
 
 /**
  * Тренировка ритма: метроном щёлкает, вы играете в долю (или восьмыми), микрофон ловит каждый удар
@@ -23,7 +45,13 @@ function RhythmView() {
   const [active, setActive] = useState(false);
   const [error, setError] = useState('');
   const [sub, setSub] = useState(1);
-  const [latency, setLatency] = useState(40);
+  // Задержка по умолчанию — то, что сообщает система о колонках, плюс типичная задержка микрофона.
+  const latency = rhythm.latencyMs ?? defaultLatency();
+  const setLatency = (ms: number) => patchRhythm({ latencyMs: ms });
+  // Подстройка задержки: сколько ударов собрано (null — не идёт).
+  const [tuning, setTuning] = useState<number[] | null>(null);
+  const tuningRef = useRef<number[] | null>(null);
+  tuningRef.current = tuning;
   const [errors, setErrors] = useState<number[]>([]);
   // Текущая доля такта — для огоньков (−1 — метроном молчит).
   const [beat, setBeat] = useState(-1);
@@ -59,21 +87,56 @@ function RhythmView() {
     if (!metronome.running) metronome.start();
     setActive(true);
     const onsets = new OnsetDetector(0.6, 0.1);
-    const buf = new Float32Array(1024);
+    const buf = new Float32Array(2048);
+    // Кандидат в удары ждёт ~70 мс: щелчок метронома (если микрофон слышит колонки) за это время
+    // затихает, а струна звучит дальше — так щелчки не принимаются за удары.
+    let candidate: { t: number; peak: number; at: number } | null = null;
     const tick = () => {
       if (!mic.read(buf)) return;
       const now = mic.now;
-      if (onsets.feed(rmsOf(buf, 512), now)) {
-        const t = now - opts.current.latency / 1000;
-        const err = beatError(t, beats.current, metronome.beatDuration, opts.current.sub);
-        if (err != null) {
-          setErrors((list) => [...list, err].slice(-64));
-          setHitAt(Date.now());
+      const rms = rmsOf(buf, 512);
+      if (candidate) {
+        candidate.peak = Math.max(candidate.peak, rms);
+        if (now - candidate.at >= 0.07) {
+          const c = candidate;
+          candidate = null;
+          if (rms >= c.peak * 0.35) onHit(c.t);
         }
+      }
+      if (onsets.feed(rms, now) && !candidate) {
+        // Точный момент удара — по отсчётам внутри буфера, а не по кадру экрана.
+        const idx = attackIndex(buf);
+        // Щелчок метронома из колонок (высокий писк) — не удар; забываем его, чтобы не мешал поймать удар сразу за ним.
+        if (lowShare(buf, idx, mic.sampleRate) < CLICK_LOW_SHARE) onsets.forget();
+        else candidate = { t: now - (buf.length - idx) / mic.sampleRate, peak: rms, at: now };
       }
       raf.current = requestAnimationFrame(tick);
     };
     raf.current = requestAnimationFrame(tick);
+  };
+
+  /** Удар в момент t (по часам звука, без поправки на задержку). */
+  const onHit = (t: number) => {
+    const tun = tuningRef.current;
+    if (tun) {
+      // Подстройка: ошибка без поправки — это и есть задержка.
+      const err = beatError(t, beats.current, metronome.beatDuration, 1);
+      if (err == null) return;
+      const next = [...tun, err];
+      if (next.length >= TUNE_HITS) {
+        const ms = Math.round(Math.max(0, Math.min(300, median(next) * 1000)));
+        setLatency(ms);
+        setTuning(null);
+        setErrors([]);
+        store.getState().toast(`Задержка подстроена: ${ms} мс`);
+      } else setTuning(next);
+      return;
+    }
+    const err = beatError(t - opts.current.latency / 1000, beats.current, metronome.beatDuration, opts.current.sub);
+    if (err != null) {
+      setErrors((list) => [...list, err].slice(-64));
+      setHitAt(Date.now());
+    }
   };
 
   const stop = () => {
@@ -127,14 +190,39 @@ function RhythmView() {
             Восьмые
           </button>
         </div>
-        <label className="field inline" title="Звук с микрофона приходит с небольшой задержкой — она вычитается">
-          <span>Задержка микрофона</span>
-          <input type="range" min={0} max={150} step={5} value={latency} onChange={(e) => setLatency(Number(e.target.value))} />
+        <label className="field inline" title="Щелчок доходит из колонок, а звук гитары — в микрофон с задержкой. Её программа вычитает">
+          <span>Задержка звука</span>
+          <input type="range" min={0} max={300} step={5} value={latency} onChange={(e) => setLatency(Number(e.target.value))} />
           <b>{latency} мс</b>
         </label>
+        <button
+          className="btn"
+          disabled={tuning != null}
+          title="Сыграйте 8 ударов ровно в щелчок — программа сама вычислит задержку вашего компьютера"
+          onClick={async () => {
+            if (!active) await start();
+            setTuning([]);
+          }}
+        >
+          🎯 Подстроить задержку
+        </button>
         {running && !active && <span className="hint">метроном играет</span>}
       </div>
       {error && <p className="error">{error}</p>}
+      {tuning != null && (
+        <div className="rh-advice near">
+          <b>
+            Подстройка задержки: {tuning.length} из {TUNE_HITS}
+          </b>
+          <span>Бейте по струнам ровно в щелчок, как слышите его. Программа измерит, на сколько звук запаздывает в вашем компьютере.</span>
+        </div>
+      )}
+      {rhythm.latencyMs == null && tuning == null && (
+        <p className="hint">
+          Совет: сначала нажмите «🎯 Подстроить задержку» — у каждого компьютера она своя, и без подстройки удары кажутся мимо. Лучше играть
+          в наушниках, чтобы микрофон не слышал щелчки.
+        </p>
+      )}
 
       <div className="rh-stage">
         <div className="rh-beats" title="Доли такта: горит та, что звучит сейчас">

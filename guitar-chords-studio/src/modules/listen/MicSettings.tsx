@@ -104,10 +104,18 @@ export function MicSettings({ listener }: { listener: ChordListener }) {
         <input type="checkbox" checked={settings.autoGain} onChange={(e) => patch({ autoGain: e.target.checked })} />
         Автоусиление
       </label>
-      <label className="check" title="Гул, вентилятор, шум микрофона запоминаются, пока гитара молчит, и вычитаются из звука">
+      <label
+        className="check"
+        title="Шумодав: гул и шум микрофона запоминаются, пока гитара молчит, и вычитаются; речь, хлопки, стук и свист не принимаются за аккорды"
+      >
         <input type="checkbox" checked={settings.denoise} onChange={(e) => patch({ denoise: e.target.checked })} />
-        Убирать шум комнаты{settings.denoise && active && (noiseReady ? ' ✓' : ' (помолчите 2 с…)')}
+        Шумодав (шум и посторонние звуки){settings.denoise && active && (noiseReady ? ' ✓' : ' (помолчите 2 с…)')}
       </label>
+      {active && settings.denoise && Date.now() - listener.ignoredAt < 2500 && (
+        <span className="muted-label" title="Звук не похож на гитару — аккорд не показан">
+          🔇 Посторонний звук пропущен
+        </span>
+      )}
       {active && Math.abs(tuningCents) >= 5 && (
         <span className="muted-label" title="Гитара целиком настроена выше или ниже эталона — программа это учитывает">
           Строй гитары: {tuningCents > 0 ? '+' : ''}

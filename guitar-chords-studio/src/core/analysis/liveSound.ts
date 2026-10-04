@@ -109,3 +109,76 @@ export function recognizeSound(semi: Float32Array, models: ChordModel[]): SoundR
   const { chroma } = chromaFromNotes(detectNotes(semi));
   return { ...recognizeChord(chroma, bassSalience(semi), models), notes: null };
 }
+
+export interface SoundQuality {
+  /** Доля энергии в найденных нотах и их обертонах (у аккорда высокая, у шума, хлопка, стука — низкая). */
+  tonal: number;
+  /** Насколько спектр похож сам на себя через ~0,3 с (у аккорда — тот же, у речи и свиста — «плывёт»). */
+  stable: number;
+  /** Громкость снова растёт после удара (у струны — только затухает, у речи — слоги). */
+  regrowth: number;
+}
+
+const HARM = [0, 12, 19, 24, 28];
+
+/** Оценить, похож ли звук на гитару: по кадрам спектра (по полутонам) после удара. */
+export function soundQuality(frames: Float32Array[]): SoundQuality {
+  if (!frames.length) return { tonal: 0, stable: 0, regrowth: 0 };
+  const n = frames[0].length;
+  const sum = new Float32Array(n);
+  for (const f of frames) for (let i = 0; i < n; i++) sum[i] += f[i];
+  // Не больше 6 нот (у гитары 6 струн): у шума «нотами» оказалось бы всё подряд.
+  const notes = significantNotes(sum, 0.12).slice(0, 6);
+  // Тоновость: энергия точно на нотах и первых обертонах от всей энергии.
+  const mark = new Uint8Array(n);
+  for (const m of notes)
+    for (const h of HARM) {
+      const i = m - 24 + h;
+      if (i >= 0 && i < n) mark[i] = 1;
+    }
+  let tonalE = 0;
+  let all = 0;
+  for (let i = 0; i < n; i++) {
+    all += sum[i];
+    if (mark[i]) tonalE += sum[i];
+  }
+  const tonal = all > 0 ? tonalE / all : 0;
+  // Устойчивость: косинус между кадрами, разнесёнными на 3 шага (окна почти не перекрываются).
+  const cos = (a: Float32Array, b: Float32Array) => {
+    let ab = 0;
+    let aa = 0;
+    let bb = 0;
+    for (let i = 0; i < n; i++) {
+      const x = Math.sqrt(a[i]);
+      const y = Math.sqrt(b[i]);
+      ab += x * y;
+      aa += x * x;
+      bb += y * y;
+    }
+    return aa > 0 && bb > 0 ? ab / Math.sqrt(aa * bb) : 0;
+  };
+  const gap = Math.min(3, frames.length - 1);
+  let stable = 1;
+  if (gap >= 1) {
+    let acc = 0;
+    let cnt = 0;
+    for (let i = gap; i < frames.length; i++, cnt++) acc += cos(frames[i - gap], frames[i]);
+    stable = acc / cnt;
+  }
+  // Повторный рост громкости: насколько кадр громче самого тихого из предыдущих.
+  // Считаем от самого громкого из первых кадров: до него удар ещё нарастает (окно анализа
+  // захватывает и тишину перед ударом).
+  const energy = frames.map((f) => f.reduce((a, b) => a + b, 0));
+  let peak = 0;
+  for (let i = 1; i < Math.min(4, energy.length); i++) if (energy[i] > energy[peak]) peak = i;
+  let low = energy[peak];
+  let regrowth = 0;
+  for (const e of energy.slice(peak)) {
+    if (low > 0) regrowth = Math.max(regrowth, e / low - 1);
+    low = Math.min(low, e);
+  }
+  return { tonal, stable, regrowth };
+}
+
+/** Похоже на гитару — можно называть аккорд; иначе это посторонний звук. */
+export const looksLikeGuitar = (q: SoundQuality) => q.tonal >= 0.55 && q.stable >= 0.75 && q.regrowth < 0.35;

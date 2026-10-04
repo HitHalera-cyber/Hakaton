@@ -28,10 +28,19 @@ export function startServices() {
   };
   syncAudio();
   mic.setGain(store.getState().settings.listen.gain);
+  // Срез гула — на треть октавы ниже самой низкой струны (у баса ниже, чем у гитары).
+  const syncHighpass = () => {
+    const g = store.getState().guitar();
+    const low = 440 * Math.pow(2, (Math.min(...g.strings) - 69) / 12);
+    mic.setHighpass(Math.max(25, low * 0.75));
+  };
+  syncHighpass();
   mic.setAutoGain(store.getState().settings.listen.autoGain);
   void mic.setDevice(store.getState().settings.listen.deviceId);
   store.subscribe((s, prev) => {
     if (s.settings.sound !== prev.settings.sound || s.settings.view.tuning !== prev.settings.view.tuning) syncAudio();
+    if (s.settings.view.tuning !== prev.settings.view.tuning || s.settings.view.customStrings !== prev.settings.view.customStrings)
+      syncHighpass();
     const l = s.settings.listen;
     if (l.gain !== prev.settings.listen.gain) mic.setGain(l.gain);
     if (l.autoGain !== prev.settings.listen.autoGain) mic.setAutoGain(l.autoGain);

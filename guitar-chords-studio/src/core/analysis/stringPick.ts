@@ -12,6 +12,8 @@ export interface Pluck {
   midi: number | null;
   /** Насколько щипок похож на чистую ноту (0..1). */
   clarity: number;
+  /** Громкость ноты (прирост энергии на ноте и её обертонах). */
+  energy?: number;
 }
 
 /** Сдвиги обертонов (полутона) для оценки «чистоты» ноты. */
@@ -46,7 +48,7 @@ export function pluckFromSpectra(pre: Float32Array, post: Float32Array, lo: numb
       }
     }
   const clarity = Math.min(1, tonal / total);
-  return clarity >= minClarity ? { midi, clarity } : { midi: null, clarity };
+  return clarity >= minClarity ? { midi, clarity, energy: tonal } : { midi: null, clarity, energy: tonal };
 }
 
 export interface StringFingering {
@@ -117,6 +119,7 @@ export function fretsToTab(frets: Frets): string {
 export class PluckTracker {
   private history: { t: number; semi: Float32Array }[] = [];
   private lastPluck = -10;
+  private floor = -1;
   /** Наименьший промежуток между щипками, с. */
   minGap = 0.22;
 
@@ -133,6 +136,10 @@ export class PluckTracker {
   feed(t: number, semi: Float32Array, quick: boolean): { at: number; pre: Float32Array } | null {
     this.history.push({ t, semi });
     while (this.history.length && this.history[0].t < t - 0.6) this.history.shift();
+    // Фон: самая тихая энергия за последние секунды (медленно поднимается, быстро опускается).
+    let total = 0;
+    for (let i = 0; i < semi.length; i++) total += semi[i];
+    this.floor = this.floor < 0 || total < this.floor ? total : this.floor * 1.004;
     if (t - this.lastPluck < this.minGap) return null;
     if (quick) {
       this.lastPluck = t;
@@ -154,7 +161,8 @@ export class PluckTracker {
       }
       base += old[i];
     }
-    if (base > 0 && inc / base > 0.3 && peak / inc > 0.2) {
+    // В тишине шум колеблется — новой нотой считаем только то, что заметно громче фона.
+    if (base > 0 && inc / base > 0.3 && peak / inc > 0.2 && inc > this.floor * 1.5 && this.history[0].t <= t - 0.5) {
       this.lastPluck = t - 0.12;
       return { at: t - 0.12, pre: this.semiAt(t - 0.3) ?? old };
     }
@@ -163,5 +171,6 @@ export class PluckTracker {
 
   reset() {
     this.history = [];
+    this.floor = -1;
   }
 }

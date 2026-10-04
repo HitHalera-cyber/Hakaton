@@ -1,93 +1,73 @@
-// Проверка аппликатуры по звуку: какие струны аккорда звучат чисто, какие почти не слышны
-// (струна приглушена пальцем) и не звенит ли лишнее (заглушенная струна, неверный лад).
+// Проверка аппликатуры по струнам: аккорд зажат, струны щиплются по одной от 6-й к 1-й (и
+// заглушённые тоже). Каждая струна оценивается отдельно: та ли нота, чисто ли звучит, не звенит ли
+// струна, которая должна молчать. Так надёжнее, чем по одному удару, где ноты струн перекрываются.
 
-import { detectNotes, SEMI_LO } from './dsp';
-import { mod12 } from '../music/notes';
+import type { Pluck } from './stringPick';
 
 export interface ExpectedString {
   /** Номер струны (0 — басовая). */
   string: number;
   /** Нота, которая должна звучать; null — струна должна молчать. */
   midi: number | null;
-  /** Нота открытой струны с учётом каподастра — чтобы узнать звон заглушенной струны. */
+  /** Нота открытой струны с учётом каподастра. */
   openMidi: number;
 }
 
-export type StringStatus = 'ok' | 'weak' | 'missing' | 'wrong' | 'ringing' | 'silent';
+export type StringStatus = 'ok' | 'weak' | 'quiet' | 'missing' | 'open' | 'wrong' | 'silent' | 'ringing' | 'skipped';
 
 export interface StringVerdict {
   string: number;
   midi: number | null;
   status: StringStatus;
-  /** Сила ноты относительно самой громкой ноты аккорда (0..1). */
-  level: number;
-  /** Для 'wrong': какая нота звучит вместо нужной. */
+  /** Что услышано (нота), если отличается от нужной. */
   heard?: number;
+  /** Чистота звука 0..1. */
+  clarity: number;
 }
 
-export interface FingerCheckResult {
-  strings: StringVerdict[];
-  /** Лишние ноты (не из аккорда). */
-  extras: number[];
-  /** Сколько струн звучат как надо, из скольких. */
-  good: number;
-  total: number;
-}
+/** Ниже такой чистоты нота звучит с призвуком: дребезг, палец касается струны. */
+const CLEAN = 0.55;
 
-/** Обертоны струны, которые вычитаются из спектра перед оценкой более высоких нот (с запасом — чуть меньше типичных). */
-const PARTIALS: [number, number][] = [
-  [12, 0.5],
-  [19, 0.3],
-  [24, 0.2],
-];
+/** Оценка одной струны по её щипку (null — щипка не было). */
+export function judgeString(e: ExpectedString, p: Pluck | null): StringVerdict {
+  const base = { string: e.string, midi: e.midi, clarity: p?.clarity ?? 0 };
+  if (!p) return { ...base, status: e.midi == null ? 'silent' : 'skipped' };
+  if (e.midi == null) {
+    // Должна молчать: глухой стук — правильно, звонкая нота — струна не заглушена.
+    return p.midi == null ? { ...base, status: 'silent' } : { ...base, status: 'ringing', heard: p.midi };
+  }
+  if (p.midi == null) return { ...base, status: 'missing' };
+  if (p.midi === e.midi) return { ...base, status: p.clarity < CLEAN ? 'weak' : 'ok' };
+  // Октава выше/ниже на той же струне не бывает — это ошибка распознавания; засчитываем, но с пометкой.
+  if (Math.abs(p.midi - e.midi) === 12) return { ...base, status: p.clarity < CLEAN ? 'weak' : 'ok' };
+  if (p.midi === e.openMidi) return { ...base, status: 'open', heard: p.midi };
+  return { ...base, status: 'wrong', heard: p.midi };
+}
 
 /**
- * Сила каждой ноты-кандидата: идём от баса вверх, берём основной тон и вычитаем его обертоны.
- * Иначе октава нижней струны «заполняет» приглушённую верхнюю (C3 и C4 в до мажоре).
+ * На какую струну пришёлся щипок: обычно на следующую по порядку. Но если щипок совпал с нотой
+ * одной из следующих струн, а не текущей, — значит, программа пропустила щипок (или вы пропустили
+ * струну), и мы перескакиваем.
  */
-export function noteStrengths(semi: ArrayLike<number>, midis: number[]): Map<number, number> {
-  const s = Float32Array.from(semi);
-  const at = (m: number) => m - SEMI_LO;
-  const out = new Map<number, number>();
-  for (const m of [...new Set(midis)].sort((a, b) => a - b)) {
-    const i = at(m);
-    const f = i >= 0 && i < s.length ? Math.max(0, s[i]) : 0;
-    out.set(m, f);
-    for (const [off, w] of PARTIALS) if (i + off >= 0 && i + off < s.length) s[i + off] = Math.max(0, s[i + off] - f * w);
-  }
-  return out;
+export function alignPluck(expected: ExpectedString[], cursor: number, p: Pluck): number {
+  if (cursor >= expected.length) return cursor;
+  const cur = expected[cursor];
+  // Щипок подходит текущей струне (в том числе ошибки на ней: открытая нота, звон заглушённой).
+  if (p.midi == null || p.midi === cur.midi || p.midi === cur.openMidi) return cursor;
+  if (cur.midi != null && Math.abs(p.midi - cur.midi) <= 2) return cursor;
+  // Точно совпал с одной из двух следующих струн — значит, щипок текущей пропущен.
+  for (let s = cursor + 1; s < Math.min(expected.length, cursor + 3); s++) if (expected[s].midi === p.midi) return s;
+  return cursor;
 }
 
-export function checkFingering(semi: ArrayLike<number>, expected: ExpectedString[]): FingerCheckResult {
-  const playing = expected.filter((e): e is ExpectedString & { midi: number } => e.midi != null);
-  const playMidis = new Set(playing.map((e) => e.midi));
-  const chordPcs = new Set(playing.map((e) => mod12(e.midi)));
-  const mutedOpen = expected.filter((e) => e.midi == null && !playMidis.has(e.openMidi)).map((e) => e.openMidi);
-  const strengths = noteStrengths(semi, [...playMidis, ...mutedOpen]);
-  const ref = Math.max(1e-9, ...playing.map((e) => strengths.get(e.midi)!));
-
-  const strings: StringVerdict[] = expected.map((e) => {
-    if (e.midi == null) {
-      // Заглушенная струна «звенит», если слышна её открытая нота (которой нет среди нот аккорда).
-      const lvl = playMidis.has(e.openMidi) ? 0 : strengths.get(e.openMidi)! / ref;
-      return { string: e.string, midi: null, status: lvl > 0.3 ? 'ringing' : 'silent', level: Math.min(1, lvl) };
-    }
-    // У низких струн основной тон в записи всегда тише — делаем поправку.
-    const lvl = (strengths.get(e.midi)! / ref) * (e.midi < 50 ? 2.5 : e.midi < 57 ? 1.5 : 1);
-    return { string: e.string, midi: e.midi, status: lvl < 0.05 ? 'missing' : lvl < 0.2 ? 'weak' : 'ok', level: Math.min(1, lvl) };
+/** Итог: сколько струн в порядке и тихие струны (заметно тише остальных — их приглушает палец). */
+export function summarize(verdicts: StringVerdict[], plucks: (Pluck | null)[]): { good: number; total: number } {
+  const energies = plucks.map((p, i) => (verdicts[i].status === 'ok' && p?.energy ? p.energy : 0)).filter((x) => x > 0);
+  const med = energies.length ? [...energies].sort((a, b) => a - b)[energies.length >> 1] : 0;
+  verdicts.forEach((v, i) => {
+    const en = plucks[i]?.energy ?? 0;
+    if (v.status === 'ok' && med > 0 && en < med * 0.15) v.status = 'quiet';
   });
-  const found = detectNotes(Float32Array.from(semi), 10, 84);
-  const top = found[0]?.strength ?? 0;
-  const extras = found.filter((n) => !chordPcs.has(mod12(n.midi)) && n.strength > top * 0.25).map((n) => n.midi);
-
-  // Лишняя нота на полтона–тон от ноты струны: скорее всего, эта струна не прижата или прижата не на том ладу.
-  for (const x of extras) {
-    let best: StringVerdict | null = null;
-    for (const v of strings)
-      if (v.midi != null && Math.abs(v.midi - x) <= 2 && (!best || Math.abs(v.midi - x) < Math.abs(best.midi! - x))) best = v;
-    if (best) Object.assign(best, { status: 'wrong', heard: x });
-  }
-
-  const good = strings.filter((s) => s.status === 'ok' || s.status === 'silent').length;
-  return { strings, extras, good, total: strings.length };
+  const good = verdicts.filter((v) => v.status === 'ok' || v.status === 'silent').length;
+  return { good, total: verdicts.length };
 }

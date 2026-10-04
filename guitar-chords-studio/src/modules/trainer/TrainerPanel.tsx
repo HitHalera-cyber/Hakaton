@@ -337,14 +337,14 @@ export function TrainerPanel(p: Props) {
                 ))}
               </select>
             </label>
-            <button className="btn primary" onClick={nextEar}>
-              {earQ ? '▶ Следующий аккорд' : '▶ Начать'}
-            </button>
             {earQ && (
-              <button className="btn" onClick={() => playEar(earQ)}>
+              <button className="btn primary" onClick={() => playEar(earQ)}>
                 🔁 Повторить
               </button>
             )}
+            <button className="btn primary" onClick={nextEar}>
+              {earQ ? '▶ Следующий аккорд' : '▶ Начать'}
+            </button>
           </div>
           {earQ && EAR_LEVELS[earLevel].full && (
             <>
@@ -402,14 +402,14 @@ export function TrainerPanel(p: Props) {
                 ))}
               </select>
             </label>
-            <button className="btn primary" onClick={nextEarNote}>
-              {earNoteQ ? '▶ Следующая нота' : '▶ Начать'}
-            </button>
             {earNoteQ && (
-              <button className="btn" onClick={() => playNote(earNoteQ.midi)}>
+              <button className="btn primary" onClick={() => playNote(earNoteQ.midi)}>
                 🔁 Повторить
               </button>
             )}
+            <button className="btn primary" onClick={nextEarNote}>
+              {earNoteQ ? '▶ Следующая нота' : '▶ Начать'}
+            </button>
             {earNoteQ && (
               <button className="btn" onClick={() => playNote(57)} title="Эталон: ля первой октавы (A3)">
                 🎯 Эталон A

@@ -10,7 +10,15 @@
 import { applyGains } from '../core/analysis/calibration';
 import { LIVE_VOCAB, buildModels, type RecognizedChord } from '../core/analysis/chordRecognition';
 import { SEMI_COUNT, SpectrumAnalyzer, tuningFromVector } from '../core/analysis/dsp';
-import { exactChord, recognizeNotes, recognizeSound, type HeardNotes, type SoundResult } from '../core/analysis/liveSound';
+import {
+  exactChord,
+  looksLikeGuitar,
+  recognizeNotes,
+  recognizeSound,
+  soundQuality,
+  type HeardNotes,
+  type SoundResult,
+} from '../core/analysis/liveSound';
 import { PluckTracker, fretsToTab, pluckFromSpectra, solveFingering, type Pluck } from '../core/analysis/stringPick';
 import { boardFromFrets, soundingNotes, type Frets } from '../core/music/fretboard';
 import { store } from '../store';
@@ -93,10 +101,18 @@ class ChordListenerService {
     let spectrum = new SpectrumAnalyzer(MIC_FRAME, mic.sampleRate, (cal()?.tuningCents ?? 0) / 100);
     const buf = new Float32Array(MIC_FRAME);
     // Накопленный спектр по полутонам (после вычитания шума) и число кадров в нём.
-    const acc = { semi: new Float32Array(SEMI_COUNT), frames: 0 };
+    const acc = { semi: new Float32Array(SEMI_COUNT), frames: 0, list: [] as Float32Array[] };
     const resetAcc = () => {
       acc.semi.fill(0);
       acc.frames = 0;
+      acc.list = [];
+    };
+    /** Шумодав: похож ли звук после удара на гитару (а не на речь, хлопок, стук, свист). */
+    const isGuitar = (final = true) => {
+      if (!listen().denoise || acc.list.length < 2) return true;
+      const ok = looksLikeGuitar(soundQuality(acc.list));
+      if (!ok && final) set({ ignoredAt: Date.now() });
+      return ok;
     };
     // Спектр шума (в единицах «до усиления», чтобы автоусиление его не искажало).
     const noise = new Float32Array(SEMI_COUNT);
@@ -109,7 +125,7 @@ class ChordListenerService {
 
     /** Спектр по полутонам сейчас: без усиления микрофона, с калибровкой и (по желанию) без шума. */
     const semiNow = (denoise = false) => {
-      const g = mic.gain || 1;
+      const g = mic.gainOver(MIC_FRAME / mic.sampleRate) || 1;
       const { semi } = spectrum.semitones(buf, 0);
       for (let i = 0; i < semi.length; i++) semi[i] /= g;
       if (denoise && listen().denoise && noiseFrames >= 3)
@@ -119,7 +135,7 @@ class ChordListenerService {
     const learnNoise = (now: number) => {
       if (now - lastNoiseAt < 0.25) return;
       lastNoiseAt = now;
-      const g = mic.gain || 1;
+      const g = mic.gainOver(MIC_FRAME / mic.sampleRate) || 1;
       const { semi } = spectrum.semitones(buf, 0);
       const k = noiseFrames < 8 ? 1 / (noiseFrames + 1) : 0.1;
       for (let i = 0; i < SEMI_COUNT; i++) noise[i] += (semi[i] / g - noise[i]) * k;
@@ -146,6 +162,7 @@ class ChordListenerService {
       const semi = semiNow(true);
       for (let i = 0; i < SEMI_COUNT; i++) acc.semi[i] += semi[i];
       acc.frames++;
+      acc.list.push(semi);
       trackTuning();
       showChroma(acc.semi);
       return recognizeSound(acc.semi, this.models);
@@ -330,10 +347,10 @@ class ChordListenerService {
           lastFrameAt = now;
           lastSoundAt = now;
           const r = addFrame();
-          if (!useNeural) {
+          if (!useNeural && acc.frames >= 3 && isGuitar()) {
             set({ result: r });
             const key = keyOf(r);
-            if (key && acc.frames >= 2 && key !== lastKey) {
+            if (key && key !== lastKey) {
               lastKey = key;
               emit(r);
             }
@@ -343,6 +360,7 @@ class ChordListenerService {
           const at = neuralOnset;
           neuralOnset = -1;
           void runNeural(at, NEURAL_LISTEN, (r) => {
+            if (!isGuitar()) return;
             set({ result: r });
             const key = keyOf(r);
             if (key && key !== lastKey) {
@@ -358,6 +376,10 @@ class ChordListenerService {
         if (onset && emitted) {
           holdStart = -1;
           emitted = false;
+        } else if (onset && holdStart >= 0) {
+          // Новый удар, пока копили прошлый: начинаем копить заново.
+          holdStart = now;
+          resetAcc();
         }
         if (sounding && holdStart < 0) {
           holdStart = now;
@@ -369,7 +391,7 @@ class ChordListenerService {
           if (held > 0.25 && now - lastFrameAt > 0.1 && sounding) {
             lastFrameAt = now;
             const r = addFrame();
-            if (!useNeural) set({ result: r });
+            if (!useNeural && acc.frames >= 3 && isGuitar(false)) set({ result: r });
           }
           const progress = Math.min(1, held / holdSeconds);
           set({ hold: { state: 'listening', progress } });
@@ -377,7 +399,8 @@ class ChordListenerService {
             emitted = true;
             set({ hold: { state: 'done', progress: 1 } });
             // Аккорд звучит давно — берём последние ~1,3 с, без сравнения «до/после удара».
-            if (useNeural) void runNeural(now - 1.35, 1.3, (r) => (set({ result: r }), emit(r)), false);
+            if (!isGuitar()) set({ hold: { state: 'idle', progress: 0 } });
+            else if (useNeural) void runNeural(now - 1.35, 1.3, (r) => (set({ result: r }), emit(r)), false);
             else {
               const r = recognizeSound(acc.semi, this.models);
               set({ result: r });

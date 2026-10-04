@@ -67,6 +67,8 @@ jobs:
           if-no-files-found: error
 
   android:
+    # Сборка APK пока выключена — включить: убрать строку if.
+    if: false
     needs: test
     runs-on: ubuntu-latest
     steps:

@@ -171,7 +171,8 @@
 }
 .fc-string {
   display: grid;
-  grid-template-columns: 22px 64px 20px 1fr 120px;
+  grid-template-columns: 22px 64px 20px 1fr;
+  border: var(--bw) solid transparent;
   align-items: center;
   gap: 8px;
   padding: 4px 8px;
@@ -370,4 +371,12 @@
 }
 .rh-advice b {
   font-size: 17px;
+}
+.fc-string.muted {
+  opacity: 0.55;
+}
+.fc-string.next {
+  opacity: 1;
+  border-color: var(--accent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 50%, transparent);
 }

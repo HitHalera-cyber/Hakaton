@@ -75,3 +75,49 @@ export function timingAdvice(s: TimingSummary): { zone: HitZone; title: string; 
           : 'Держите руку в постоянном движении, как маятник.';
   return { zone, title, tip };
 }
+
+/**
+ * Где в буфере начался удар (индекс отсчёта): первый короткий блок, где громкость резко выше фона
+ * в начале буфера. Нужен, чтобы знать момент удара точнее, чем «кадр экрана» (~16 мс).
+ */
+export function attackIndex(buf: Float32Array, block = 64): number {
+  const n = Math.floor(buf.length / block);
+  if (n < 4) return buf.length - 1;
+  const env = new Float32Array(n);
+  for (let b = 0; b < n; b++) {
+    let s = 0;
+    for (let i = b * block; i < (b + 1) * block; i++) s += buf[i] * buf[i];
+    env[b] = Math.sqrt(s / block);
+  }
+  let max = 0;
+  for (const v of env) max = Math.max(max, v);
+  const base = [...env.slice(0, Math.max(2, n >> 2))].sort((a, b) => a - b)[Math.max(0, (n >> 3) - 1)] ?? 0;
+  const thr = Math.max(base * 3, max * 0.3);
+  for (let b = 1; b < n; b++) if (env[b] >= thr) return b * block;
+  return buf.length - 1;
+}
+
+/** Медиана (для подстройки задержки: устойчива к случайным промахам). */
+export function median(xs: number[]): number {
+  if (!xs.length) return 0;
+  const s = [...xs].sort((a, b) => a - b);
+  const m = s.length >> 1;
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+
+/**
+ * Доля низких частот (до ~500 Гц) в отрезке buf[from..]: у удара по струнам она большая, у щелчка
+ * метронома (писк 1–2 кГц), который микрофон слышит из колонок, — маленькая.
+ */
+export function lowShare(buf: Float32Array, from: number, sampleRate: number, cutoff = 500): number {
+  const a = 1 - Math.exp((-2 * Math.PI * cutoff) / sampleRate);
+  let y = 0;
+  let low = 0;
+  let all = 0;
+  for (let i = Math.max(0, from); i < buf.length; i++) {
+    y += a * (buf[i] - y);
+    low += y * y;
+    all += buf[i] * buf[i];
+  }
+  return all > 0 ? Math.sqrt(low / all) : 0;
+}
