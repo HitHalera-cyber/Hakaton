@@ -3,6 +3,7 @@
 
 import { audio } from '../core/audio/engine';
 import { boardFromFrets, boardFromMidi, emptyBoard } from '../core/music/fretboard';
+import { applyTheme, migrateTheme } from '../shell/themes';
 import { store } from '../store';
 import { bus } from './bus';
 import { chordListener } from './chordListener';
@@ -50,7 +51,7 @@ export function startServices() {
     }
     if (l.deviceId !== prev.settings.listen.deviceId)
       mic.setDevice(l.deviceId).catch((e) => s.setListen({ error: e instanceof Error ? e.message : String(e) }));
-    if (s.settings.view.theme !== prev.settings.view.theme) document.documentElement.dataset.theme = s.settings.view.theme;
+    if (s.settings.view.theme !== prev.settings.view.theme) applyTheme(migrateTheme(s.settings.view.theme));
     // Число струн доски = число струн инструмента.
     const strings = s.guitar().strings.length;
     if (s.board.length !== strings) store.setState({ board: emptyBoard(strings) });

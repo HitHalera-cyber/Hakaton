@@ -1,0 +1,164 @@
+/* Оформления с картиной на фоне: окно программы лежит поверх картины, панели полупрозрачные.
+   Тема задаёт цвета (data-theme), картина — data-art. Файл создан по картинкам из src/assets/art. */
+
+@media (min-width: 900px) {
+  [data-art] body {
+    background: #000;
+    overflow: hidden;
+  }
+  [data-art] body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background: var(--art-img) center / cover no-repeat;
+  }
+  /* Свечи, огонь, луна — мягко мерцают поверх картины. */
+  [data-art] body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    mix-blend-mode: screen;
+    background: var(--art-glow) center / cover no-repeat;
+    animation: art-flicker 2.6s ease-in-out infinite;
+  }
+  [data-art] .app:not(.layout-phone) {
+    position: fixed;
+    left: var(--art-l);
+    right: var(--art-r);
+    top: var(--art-t);
+    bottom: var(--art-b);
+    height: auto;
+    z-index: 2;
+    background: rgba(var(--art-tint), 0.18);
+    border: 1px solid var(--art-edge);
+    border-radius: 6px;
+    overflow: hidden;
+    box-shadow:
+      0 0 0 1px rgba(0, 0, 0, 0.5),
+      0 0 24px color-mix(in srgb, var(--art-edge) 40%, transparent),
+      0 24px 60px rgba(0, 0, 0, 0.6);
+  }
+  [data-art] .app .sidebar {
+    background: rgba(var(--art-tint), 0.42);
+  }
+  [data-art] .app .main {
+    background: transparent;
+  }
+  [data-art] .app .topbar {
+    background: rgba(var(--art-tint), 0.42);
+  }
+  [data-art] .app .panel {
+    background: rgba(var(--art-tint), 0.5);
+    border-color: color-mix(in srgb, var(--art-edge) 55%, transparent);
+  }
+  [data-art] .app :is(.panel, .sidebar, .topbar) {
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+  }
+}
+@keyframes art-flicker {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  20% {
+    opacity: 0.8;
+  }
+  45% {
+    opacity: 0.5;
+  }
+  70% {
+    opacity: 0.9;
+  }
+}
+
+[data-art='forest'] {
+  --art-img: url('../assets/art/forest.webp');
+  --art-glow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1672' height='941' viewBox='0 0 1672 941' preserveAspectRatio='xMidYMid slice'%3E%3Cdefs%3E%3CradialGradient id='g'%3E%3Cstop offset='0' stop-color='#ff2a1a' stop-opacity='1'/%3E%3Cstop offset='1' stop-color='#ff2a1a' stop-opacity='0'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='812' cy='45' r='150' fill='url(%23g)' style='fill-opacity:0.5'/%3E%3Ccircle cx='408' cy='108' r='10' fill='url(%23g)' style='fill-opacity:1'/%3E%3C/svg%3E");
+  --art-l: 4vw;
+  --art-r: 3vw;
+  --art-t: 15vh;
+  --art-b: 2vh;
+  --art-tint: 10, 9, 11;
+  --art-edge: #a03228;
+}
+
+[data-art='izba'] {
+  --art-img: url('../assets/art/izba.webp');
+  --art-glow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1672' height='941' viewBox='0 0 1672 941' preserveAspectRatio='xMidYMid slice'%3E%3Cdefs%3E%3CradialGradient id='g'%3E%3Cstop offset='0' stop-color='#ffb04a' stop-opacity='1'/%3E%3Cstop offset='1' stop-color='#ffb04a' stop-opacity='0'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='240' cy='300' r='60' fill='url(%23g)' style='fill-opacity:0.6'/%3E%3Ccircle cx='300' cy='330' r='34' fill='url(%23g)' style='fill-opacity:0.5'/%3E%3Ccircle cx='1620' cy='640' r='100' fill='url(%23g)' style='fill-opacity:0.6'/%3E%3C/svg%3E");
+  --art-l: 4vw;
+  --art-r: 3vw;
+  --art-t: 14vh;
+  --art-b: 2vh;
+  --art-tint: 24, 14, 8;
+  --art-edge: #c8904a;
+  --accent: #e08a2a;
+  --nav-btn: linear-gradient(180deg, #b06a1a, #6a3a0c);
+  --nav-title: #f0c880;
+  --nav-ember: 255, 180, 80;
+  --nav-ember-2: 220, 120, 40;
+}
+
+[data-art='winter'] {
+  --art-img: url('../assets/art/winter.webp');
+  --art-glow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1376' height='768' viewBox='0 0 1376 768' preserveAspectRatio='xMidYMid slice'%3E%3Cdefs%3E%3CradialGradient id='g'%3E%3Cstop offset='0' stop-color='#bfe4ff' stop-opacity='1'/%3E%3Cstop offset='1' stop-color='#bfe4ff' stop-opacity='0'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='688' cy='140' r='110' fill='url(%23g)' style='fill-opacity:0.6'/%3E%3C/svg%3E");
+  --art-l: 10vw;
+  --art-r: 3vw;
+  --art-t: 16vh;
+  --art-b: 2vh;
+  --art-tint: 8, 14, 28;
+  --art-edge: #9cd0ff;
+}
+
+[data-art='swamp'] {
+  --art-img: url('../assets/art/swamp.webp');
+  --art-glow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1376' height='768' viewBox='0 0 1376 768' preserveAspectRatio='xMidYMid slice'%3E%3Cdefs%3E%3CradialGradient id='g'%3E%3Cstop offset='0' stop-color='#ffcf6a' stop-opacity='1'/%3E%3Cstop offset='1' stop-color='#ffcf6a' stop-opacity='0'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='45' cy='380' r='40' fill='url(%23g)' style='fill-opacity:0.8'/%3E%3Ccircle cx='95' cy='400' r='40' fill='url(%23g)' style='fill-opacity:0.8'/%3E%3Ccircle cx='410' cy='555' r='40' fill='url(%23g)' style='fill-opacity:0.8'/%3E%3Ccircle cx='130' cy='630' r='45' fill='url(%23g)' style='fill-opacity:0.8'/%3E%3Ccircle cx='240' cy='300' r='30' fill='url(%23g)' style='fill-opacity:0.6'/%3E%3C/svg%3E");
+  --art-l: 10vw;
+  --art-r: 3vw;
+  --art-t: 12vh;
+  --art-b: 2vh;
+  --art-tint: 6, 16, 12;
+  --art-edge: #7fbf7a;
+}
+
+[data-art='forge'] {
+  --art-img: url('../assets/art/forge.webp');
+  --art-glow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1376' height='768' viewBox='0 0 1376 768' preserveAspectRatio='xMidYMid slice'%3E%3Cdefs%3E%3CradialGradient id='g'%3E%3Cstop offset='0' stop-color='#ff9a3a' stop-opacity='1'/%3E%3Cstop offset='1' stop-color='#ff9a3a' stop-opacity='0'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='185' cy='180' r='110' fill='url(%23g)' style='fill-opacity:0.8'/%3E%3Ccircle cx='685' cy='115' r='120' fill='url(%23g)' style='fill-opacity:0.6'/%3E%3Ccircle cx='1110' cy='470' r='90' fill='url(%23g)' style='fill-opacity:0.8'/%3E%3Ccircle cx='230' cy='690' r='80' fill='url(%23g)' style='fill-opacity:0.7'/%3E%3Ccircle cx='1330' cy='470' r='70' fill='url(%23g)' style='fill-opacity:0.7'/%3E%3C/svg%3E");
+  --art-l: 8vw;
+  --art-r: 3vw;
+  --art-t: 16vh;
+  --art-b: 2vh;
+  --art-tint: 24, 10, 6;
+  --art-edge: #ff8a2a;
+}
+
+[data-art='volhv'] {
+  --art-img: url('../assets/art/volhv.webp');
+  --art-glow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1920' height='1080' viewBox='0 0 1920 1080' preserveAspectRatio='xMidYMid slice'%3E%3Cdefs%3E%3CradialGradient id='g'%3E%3Cstop offset='0' stop-color='#ff8a4a' stop-opacity='1'/%3E%3Cstop offset='1' stop-color='#ff8a4a' stop-opacity='0'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='816' cy='370' r='90' fill='url(%23g)' style='fill-opacity:0.7'/%3E%3Ccircle cx='933' cy='810' r='70' fill='url(%23g)' style='fill-opacity:0.9'/%3E%3C/svg%3E");
+  --art-l: 4vw;
+  --art-r: 3vw;
+  --art-t: 6vh;
+  --art-b: 2vh;
+  --art-tint: 12, 12, 16;
+  --art-edge: #c87a4a;
+}
+
+[data-art='moon'] {
+  --art-img: url('../assets/art/moon.webp');
+  --art-glow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1376' height='768' viewBox='0 0 1376 768' preserveAspectRatio='xMidYMid slice'%3E%3Cdefs%3E%3CradialGradient id='g'%3E%3Cstop offset='0' stop-color='#d8e8ff' stop-opacity='1'/%3E%3Cstop offset='1' stop-color='#d8e8ff' stop-opacity='0'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='505' cy='110' r='130' fill='url(%23g)' style='fill-opacity:0.5'/%3E%3Ccircle cx='270' cy='520' r='120' fill='url(%23g)' style='fill-opacity:0.35'/%3E%3C/svg%3E");
+  --art-l: 10vw;
+  --art-r: 3vw;
+  --art-t: 16vh;
+  --art-b: 2vh;
+  --art-tint: 8, 14, 28;
+  --art-edge: #a8c8f0;
+  --accent: #6f9fe8;
+  --nav-btn: linear-gradient(180deg, #3a5a9a, #22386a);
+  --nav-ember: 160, 200, 255;
+  --nav-ember-2: 90, 130, 220;
+  --dot: #3a5a9a;
+  --root: #9fd0ff;
+}
