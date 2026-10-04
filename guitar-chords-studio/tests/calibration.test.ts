@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { applyGains, buildCalibration, measureOpenString } from '../src/core/analysis/calibration';
-import { SEMI_LO, SpectrumAnalyzer } from '../src/core/analysis/dsp';
+import { SEMI_COUNT, SEMI_LO, SpectrumAnalyzer } from '../src/core/analysis/dsp';
 import { TUNINGS } from '../src/core/music/tunings';
 import { SR } from './helpers/strum';
 
@@ -34,21 +34,30 @@ describe('калибровка', () => {
     expect(Math.abs(cal.tuningCents - 10)).toBeLessThanOrEqual(4);
   });
 
-  it('басы поднимаются, верха не трогаются', () => {
+  it('басы поднимаются (не больше ×1,5), верха не трогаются', () => {
     const gainAt = (m: number) => cal.gains[m - SEMI_LO];
-    expect(gainAt(STD[0])).toBeGreaterThan(2);
+    expect(gainAt(STD[0])).toBe(1.5);
     expect(gainAt(STD[1])).toBeGreaterThan(1.3);
     expect(gainAt(STD[3])).toBeCloseTo(1, 1);
     expect(gainAt(STD[5])).toBeCloseTo(1, 1);
     expect(gainAt(90)).toBe(1);
   });
 
-  it('после калибровки основной тон низкой струны снова сильнее октавы', () => {
+  it('после калибровки основной тон низкой струны подтянут, но без перебора', () => {
     const x = openString(STD[0], 10, fundOf(STD[0]));
     const semi = analyzer.semitones(x, 0).semi;
     const i = STD[0] - SEMI_LO;
-    expect(semi[i]).toBeLessThan(semi[i + 12]);
+    const before = semi[i];
+    const octave = semi[i + 12];
     applyGains(semi, cal.gains);
-    expect(semi[i]).toBeGreaterThan(semi[i + 12] * 0.7);
+    expect(semi[i]).toBeCloseTo(before * 1.5, 3);
+    // Октава (обертон) почти не трогается.
+    expect(semi[i + 12]).toBeLessThan(octave * 1.5);
+  });
+
+  it('старая калибровка с подъёмом ×6 ограничивается ×1,5', () => {
+    const semi = new Float32Array(SEMI_COUNT).fill(1);
+    applyGains(semi, new Array(SEMI_COUNT).fill(6));
+    expect(semi[10]).toBe(1.5);
   });
 });

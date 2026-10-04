@@ -38,7 +38,7 @@ export function pluckFromSpectra(pre: Float32Array, post: Float32Array, lo: numb
     total += d[i];
   }
   if (total <= 0) return { midi: null, clarity: 0 };
-  const found = detectNotes(d, 3, Math.min(hi, SEMI_LO + n - 1)).filter((x) => x.midi >= lo && x.midi <= hi);
+  const found = detectNotes(d, 3, Math.min(hi, SEMI_LO + n - 1), 0.5).filter((x) => x.midi >= lo && x.midi <= hi);
   if (!found.length) return { midi: null, clarity: 0 };
   const midi = found[0].midi;
   // Запасные варианты: другие ноты прироста (кроме соседних полутонов — это размытие той же ноты)

@@ -131,7 +131,9 @@ class ChordListenerService {
       for (let i = 0; i < semi.length; i++) semi[i] /= g;
       if (denoise && listen().denoise && noiseFrames >= 3)
         for (let i = 0; i < SEMI_COUNT; i++) semi[i] = Math.max(0, semi[i] - noise[i] * NOISE_OVER);
-      return applyGains(semi, cal()?.gains);
+      // Подъём басов из калибровки — только для «По струнам» (там он помогает отличить ноту от октавы);
+      // для целых аккордов он мешал: басовые обертоны заглушали остальные ноты.
+      return listen().mode === 'strings' ? applyGains(semi, cal()?.gains) : semi;
     };
     const learnNoise = (now: number) => {
       if (now - lastNoiseAt < 0.25) return;

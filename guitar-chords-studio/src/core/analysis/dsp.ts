@@ -183,7 +183,13 @@ export interface DetectedNote {
  * убираем её обертоны из спектра и повторяем. Так обертон струны G (нота D) не принимается
  * за отдельную ноту.
  */
-export function detectNotes(semi: Float32Array, maxNotes = 8, maxMidi = 69): DetectedNote[] {
+/**
+ * lowerMin — насколько сильным (доля от найденной) должен быть основной тон более низкой ноты,
+ * чтобы найденная считалась её обертоном. Для обычного спектра хватает 5 %; для прироста
+ * («что добавилось после щипка») нужно больше: там слабый случайный прирост на басовой струне
+ * (биения звенящих струн) иначе «съедает» новую ноту — ми 1-й струны становилась ля 5-й.
+ */
+export function detectNotes(semi: Float32Array, maxNotes = 8, maxMidi = 69, lowerMin = 0.05): DetectedNote[] {
   const s = Float32Array.from(semi);
   const notes: DetectedNote[] = [];
   let first = 0;
@@ -215,7 +221,7 @@ export function detectNotes(semi: Float32Array, maxNotes = 8, maxMidi = 69): Det
       for (const off of [19, 28]) {
         const q = best - off;
         if (q < 0 || SEMI_LO + q < 35) continue;
-        if (s[q] >= s[best] * 0.05 && salience(q) >= bestSal * 0.35) {
+        if (s[q] >= s[best] * lowerMin && salience(q) >= bestSal * 0.35) {
           best = q;
           bestSal = salience(q);
           changed = true;

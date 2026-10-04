@@ -29,7 +29,8 @@ export interface Calibration {
 }
 
 const RATIO_TARGET = 0.9;
-const MAX_GAIN = 6;
+/** Подъём басов — не больше чем в 1,5 раза: сильнее — и басовые обертоны начинали «перекрикивать» аккорд. */
+const MAX_GAIN = 1.5;
 
 /** Замер одной открытой струны: звук (для точной высоты) и спектр по полутонам. */
 export function measureOpenString(
@@ -91,6 +92,7 @@ export function buildCalibration(measured: (Omit<StringCalibration, 'level'> & {
 /** Применить калибровку к спектру по полутонам (на месте). */
 export function applyGains(semi: Float32Array, gains: readonly number[] | null | undefined) {
   if (!gains) return semi;
-  for (let i = 0; i < semi.length && i < gains.length; i++) semi[i] *= gains[i];
+  // Старые калибровки поднимали басы до ×6 — ограничиваем и их.
+  for (let i = 0; i < semi.length && i < gains.length; i++) semi[i] *= Math.min(MAX_GAIN, gains[i]);
   return semi;
 }

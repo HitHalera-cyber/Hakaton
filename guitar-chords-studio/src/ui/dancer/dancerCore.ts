@@ -98,19 +98,25 @@ function moonwalk(phase: number): Pose {
   const half = phase < 0.5 ? 0 : 1;
   const u = (phase % 0.5) / 0.5;
   const POP = 0.15;
-  const FLOOR = TH + SH - 0.6;
-  // Положения щиколоток: скользящая уезжает назад (+4 → −9), опорная (на носке) — вперёд (−9 → +4).
   const glide = u < POP ? 0 : (u - POP) / (1 - POP);
   const pop = u < POP ? easeOut(u / POP) : 1;
-  const slideX = 7 - 19 * glide;
-  const toeX = -12 + 19 * glide;
-  // На щелчке: прежняя опорная (была на носке впереди) опускает пятку, прежняя скользящая (сзади) встаёт на носок.
+  // Корпус: на щелчке резко «проседает» (колени, плечи вниз, наклон вперёд, кивок головой),
+  // за первую треть скольжения выпрямляется — это и есть «драйв» движения.
+  const dip = u < 0.35 ? Math.sin((Math.PI * u) / 0.35) : 0;
+  const FLOOR = TH + SH - 0.6 - 2.2 * dip;
+  // Вес над опорной ногой: таз чуть сдвигается назад по ходу скольжения.
+  const shift = -2 * glide;
+  // Скользящая уезжает назад (+7 → −12), опорная (на носке, колено вперёд) — навстречу (−12 → +7).
+  const slideX = 7 - 19 * glide + shift;
+  const toeX = -12 + 19 * glide + shift;
+  // На щелчке: прежняя опорная опускает пятку, прежняя скользящая встаёт на носок.
   const slider = legTo(slideX, FLOOR - 1 - 7 * (1 - pop), -65 * (1 - pop));
   const toe = legTo(toeX, FLOOR - 1 - 7 * pop, -65 * pop);
   const [a, b] = half === 0 ? [slider, toe] : [toe, slider];
-  const shrug = (1 - pop) * 6;
-  const swing = Math.sin(2 * Math.PI * phase);
-  return P(7, -6, -6, [22 + 14 * swing + shrug, 40], [-18 - 14 * swing - shrug, 35], a, b, shrug * 0.3);
+  // Руки полусогнуты у пояса и резко меняются местами на щелчке (против ног).
+  const side = (half === 0 ? 1 : -1) * (2 * pop - 1);
+  const lean = 8 + 7 * dip;
+  return P(lean, -10 - 10 * dip, -6 - 4 * dip, [30 + 22 * side, 70 - 15 * dip], [-20 - 22 * side, 65 - 15 * dip], a, b, 6 * dip);
 }
 
 /** Поза для вращения: колено поднято, руки прижаты. */
@@ -144,7 +150,8 @@ export function skeleton(p: Pose, d: Dims = NORMAL) {
   ];
   const hip: [number, number] = [0, 0];
   const neck = dir(180 - p.lean, d.torso, hip); // корпус вверх
-  const shoulder = dir(p.lean, 3, neck);
+  // rise — плечи вверх (дёрнуть плечами).
+  const shoulder = dir(p.lean, 3 - p.rise * 0.5, neck);
   const head = dir(180 - p.lean - p.head * 0.5, d.neck, neck);
   const arm = ([s, e]: [number, number]) => {
     const elbow = dir(s, d.upper, shoulder);
@@ -209,7 +216,7 @@ export class DancerAnimator {
         this.idleT = 0;
       }
       // Цикл: вращение (покадрово, ~0,5 с) → поза (0,25 с переход + 1 с держать) → следующая.
-      this.idleT += dt;
+      this.idleT += Math.max(0, dt);
       const SPIN = 0.48;
       const IN = 0.18;
       const HOLD = 1.0;
@@ -222,7 +229,7 @@ export class DancerAnimator {
       const target = POSES[this.poseIdx];
       if (this.idleT < SPIN) {
         // Вращение — раскадровка: 8 кадров (два оборота), без плавной «прокрутки» картинки.
-        const f = SPIN_FRAMES[Math.floor((this.idleT / SPIN) * 8) % 4];
+        const f = SPIN_FRAMES[Math.max(0, Math.floor((this.idleT / SPIN) * 8)) % 4];
         pose = SPIN_POSE();
         view = f.view;
         scaleX = f.scaleX;

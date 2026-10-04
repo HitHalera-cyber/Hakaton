@@ -141,3 +141,30 @@ describe('проверка аппликатуры по струнам', () => {
     expect(alignPluck(expected, 1, { midi: 48, clarity: 0.8 })).toBe(1);
   });
 });
+
+describe('«по струнам»: 1-я струна поверх звенящих', () => {
+  it('ми 1-й струны не превращается в ля из-за слабого прироста на 5-й', () => {
+    const n = 84;
+    const pre = new Float32Array(n);
+    const post = new Float32Array(n);
+    const add = (arr: Float32Array, midi: number, amp: number) => {
+      for (const [off, w] of [
+        [0, 1],
+        [12, 0.5],
+        [19, 0.35],
+        [24, 0.25],
+        [28, 0.2],
+      ])
+        if (midi + off - 24 < n) arr[midi + off - 24] += amp * w;
+    };
+    // Звенят струны аккорда (ля 5-й открытой — громко), щипок 1-й струны (ми) — тихий.
+    for (const m of [45, 52, 57, 60]) {
+      add(pre, m, 1);
+      add(post, m, 0.95);
+    }
+    post[45 - 24] = pre[45 - 24] * 1.15; // биения: ля на мгновение громче
+    add(post, 64, 0.35);
+    const p = pluckFromSpectra(pre, post, 40, 79);
+    expect(p.midi).toBe(64);
+  });
+});

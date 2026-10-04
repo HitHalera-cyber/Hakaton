@@ -307,7 +307,8 @@ export function startPixelDancer(
   let last = performance.now();
   let raf = 0;
   const frame = (now: number) => {
-    const dt = Math.min(0.05, (now - last) / 1000);
+    // Метки времени кадров могут идти раньше performance.now() на старте — шаг не бывает отрицательным.
+    const dt = Math.max(0, Math.min(0.05, (now - last) / 1000));
     last = now;
     const st = getState();
     const ctx = canvas.getContext('2d')!;
