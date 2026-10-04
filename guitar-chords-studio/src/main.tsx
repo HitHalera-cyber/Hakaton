@@ -21,3 +21,5 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </StrictMode>,
 );
+// Заставка с танцором видна, пока программа грузится; показываем её хотя бы мгновение, чтобы не мигала.
+window.setTimeout(() => (window as unknown as { __hideSplash?: () => void }).__hideSplash?.(), 900);

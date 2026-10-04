@@ -1,0 +1,86 @@
+.dancer {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+.dancer-svg {
+  width: 100%;
+  height: 90px;
+  overflow: visible;
+  color: var(--text, #ddd);
+}
+.dancer-limb {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.dancer-limb.back {
+  opacity: 0.55;
+}
+.dancer-head {
+  fill: currentColor;
+}
+.dancer-hat {
+  fill: none;
+  stroke: var(--accent, #c33);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.dancer-track {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--panel-2, #222);
+  overflow: hidden;
+}
+.dancer-track span {
+  display: block;
+  height: 100%;
+  background: var(--accent, #c33);
+  transition: width 0.3s linear;
+}
+.dancer-track span.indeterminate {
+  opacity: 0.35;
+  animation: dancer-pulse 1.4s ease-in-out infinite;
+}
+@keyframes dancer-pulse {
+  50% {
+    opacity: 0.7;
+  }
+}
+.dancer-label {
+  color: var(--text-2, #999);
+  text-align: center;
+}
+
+/* Заставка при запуске. */
+#splash {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--app-bg, var(--bg, #111));
+  color: var(--text, #ddd);
+  transition: opacity 0.3s ease;
+}
+#splash .dancer-svg {
+  width: 260px;
+  height: 150px;
+}
+#splash small {
+  font-family: var(--font-display, serif);
+  font-size: 18px;
+  opacity: 0.8;
+  order: 2;
+}
+#splash.gone {
+  opacity: 0;
+  pointer-events: none;
+}

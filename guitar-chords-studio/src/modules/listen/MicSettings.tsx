@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { mic } from '../../services/mic';
+import { Dancer } from '../../ui/dancer/Dancer';
 import { CalibrationWizard } from './CalibrationWizard';
 import type { ChordListener } from './useListener';
 
@@ -44,6 +45,7 @@ export function MicSettings({ listener }: { listener: ChordListener }) {
             Нейросеть (бета)
           </button>
         </div>
+        {settings.engine === 'neural' && neural === 'loading' && <Dancer progress={null} label="Загружаю нейросеть…" />}
         {settings.engine === 'neural' && (
           <small className="hint">
             {neural === 'loading'

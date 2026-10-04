@@ -1,4 +1,5 @@
 import './song.css';
+import { Dancer } from '../../ui/dancer/Dancer';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { audio as engine } from '../../core/audio/engine';
 import { saveFile, safeName } from '../../core/export/download';
@@ -277,10 +278,10 @@ export function SongPanel({ capo, onCapo, onChord, onToSequence, onToSongbook, o
       {error && <p className="error">{error}</p>}
 
       {(status === 'decoding' || status === 'analyzing') && (
-        <div className="progress">
-          <span style={{ width: `${Math.round((status === 'decoding' ? 0.05 : 0.05 + progress * 0.95) * 100)}%` }} />
-          <small>{status === 'decoding' ? 'Читаю файл…' : `Слушаю песню… ${Math.round(progress * 100)}%`}</small>
-        </div>
+        <Dancer
+          progress={status === 'decoding' ? 0.05 : 0.05 + progress * 0.95}
+          label={status === 'decoding' ? 'Читаю файл…' : `Слушаю песню… ${Math.round(progress * 100)}%`}
+        />
       )}
 
       {url && (
