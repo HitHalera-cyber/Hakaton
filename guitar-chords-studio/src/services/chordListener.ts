@@ -23,6 +23,7 @@ import { PluckTracker, fretsToTab, pluckFromSpectra, solveFingering, type Pluck 
 import { boardFromFrets, soundingNotes, type Frets } from '../core/music/fretboard';
 import { store } from '../store';
 import { bus } from './bus';
+import { StrumHitDetector } from './hitDetector';
 import { MIC_FRAME, OnsetDetector, attackOf, mic, rmsOf } from './mic';
 import { neural } from './neural';
 
@@ -275,6 +276,11 @@ class ChordListenerService {
     const onsets = new OnsetDetector();
     // «По струнам»: щипки поверх звенящих струн — по всплеску высоких частот, с короткой паузой.
     const plucksOn = new OnsetDetector(0.6, 0.16);
+    // И третий признак — резкий всплеск верхов по коротким блокам (как в «Ритме»): ловит и тихую
+    // тонкую струну, которую общая громкость не замечает.
+    const pluckHits = new StrumHitDetector(false);
+    pluckHits.ratio = 2.2;
+    pluckHits.minGap = 0.16;
     let onsetAt = -10;
     let lastFrameAt = 0;
     let lastKey = '';
@@ -314,6 +320,7 @@ class ChordListenerService {
         // Щипок — скачок громкости (басовые струны), всплеск верхов (поверх звенящих струн)
         // или новая нота в спектре. Громкость — без учёта автоусиления, иначе оно маскирует скачки.
         const attack = plucksOn.feed((attackOf(buf) * 3) / (mic.gain || 1), now);
+        const sharp = pluckHits.feed(buf, now, mic.sampleRate) != null;
         const semi = semiNow();
         if (pending && now - pending.at >= PLUCK_POST) {
           finishPluck(semi);
@@ -321,7 +328,7 @@ class ChordListenerService {
           lastSoundAt = now;
           if (plucks.length >= guitar().strings.length) finishChord();
         }
-        const hit = tracker.feed(now, semi, onset || attack);
+        const hit = tracker.feed(now, semi, onset || attack || sharp);
         if (hit) {
           if (pending) finishPluck(semi);
           if (plucks.length >= guitar().strings.length) finishChord();

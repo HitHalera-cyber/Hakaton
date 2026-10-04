@@ -1,6 +1,6 @@
 import './dancer.css';
 import { useEffect, useRef } from 'react';
-import { DANCER_STYLE, fitCanvas, startPixelDancer } from './pixelDancer';
+import { DANCER_STYLE_SMALL, fitCanvas, startPixelDancer } from './pixelDancer';
 
 interface Props {
   /** Прогресс 0..1; null — сколько ждать, неизвестно (танцор просто танцует посередине). */
@@ -9,9 +9,12 @@ interface Props {
   label?: string;
 }
 
-/** Как быстро показанная полоса догоняет настоящий прогресс: постоянная времени, с, и наибольшая скорость (доля в секунду). */
-const EASE_SECONDS = 1.4;
-const MAX_SPEED = 0.18;
+/**
+ * Полоса догоняет настоящий прогресс как пружина с затуханием: без рывков, разгоняется и тормозит
+ * плавно. STIFF — жёсткость (1/с²), MAX_SPEED — наибольшая скорость (доля полосы в секунду).
+ */
+const STIFF = 1.1;
+const MAX_SPEED = 0.14;
 
 /**
  * Экран ожидания: полоса прогресса и танцор на её конце. Полоса не прыгает, а плавно догоняет
@@ -30,8 +33,9 @@ export function Dancer({ progress, label }: Props) {
     const ro = new ResizeObserver(() => fitCanvas(el));
     ro.observe(el);
     let shown = 0;
+    let vel = 0;
     let last = performance.now();
-    const stop = startPixelDancer(el, DANCER_STYLE, () => {
+    const stop = startPixelDancer(el, DANCER_STYLE_SMALL, () => {
       const now = performance.now();
       const dt = Math.min(0.1, (now - last) / 1000);
       last = now;
@@ -39,13 +43,17 @@ export function Dancer({ progress, label }: Props) {
       const W = el.width;
       if (goal == null) return { moving: false, x: W / 2 };
       // Новый запуск (прогресс сбросился) — полосу тоже сначала.
-      if (goal < shown - 0.25) shown = goal;
-      const prev = shown;
-      const step = (goal - shown) * (1 - Math.exp(-dt / EASE_SECONDS));
-      shown += Math.max(-MAX_SPEED * dt, Math.min(MAX_SPEED * dt, step));
+      if (goal < shown - 0.25) {
+        shown = goal;
+        vel = 0;
+      }
+      // Критически затухающая пружина: догоняет без перелёта и без рывков.
+      vel += (STIFF * (goal - shown) - 2 * Math.sqrt(STIFF) * vel) * dt;
+      vel = Math.max(0, Math.min(MAX_SPEED, vel));
+      shown = Math.min(1, shown + vel * dt);
       if (bar.current) bar.current.style.width = `${(shown * 100).toFixed(2)}%`;
-      const pad = el.height * 0.35;
-      return { moving: shown - prev > 0.0004, x: Math.max(pad, Math.min(W - pad, shown * W)) };
+      const pad = el.height * 0.4;
+      return { moving: vel > 0.004, x: Math.max(pad, Math.min(W - pad, shown * W)), speed: vel * W };
     });
     return () => {
       stop();

@@ -24,6 +24,7 @@ class MicService {
   private highpass: BiquadFilterNode | null = null;
   private highpassHz = 60;
   private deviceId = '';
+  private channel: 'mix' | 'left' | 'right' = 'mix';
   /** Автоусиление: множитель к ручному усилению, подстраивается под громкость игры. */
   private autoGain = false;
   private autoFactor = 1;
@@ -165,6 +166,15 @@ class MicService {
     await this.open();
   }
 
+  /** Какой канал слушать (у звуковых карт гитара обычно во входе 1 — левом канале). */
+  async setChannel(ch: 'mix' | 'left' | 'right') {
+    if (ch === this.channel) return;
+    this.channel = ch;
+    if (!this.analyserNode) return;
+    this.close();
+    await this.open();
+  }
+
   /** Доступные микрофоны (названия видны после того, как доступ к микрофону разрешён). */
   async devices(): Promise<{ id: string; label: string }[]> {
     if (!navigator.mediaDevices?.enumerateDevices) return [];
@@ -238,7 +248,9 @@ class MicService {
 
   private async open() {
     try {
-      const base = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
+      const base: MediaTrackConstraints = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
+      // Отдельный канал — просим стерео, иначе браузер сведёт входы в моно.
+      if (this.channel !== 'mix') base.channelCount = { ideal: 2 };
       const s = await navigator.mediaDevices
         .getUserMedia({ audio: this.deviceId ? { ...base, deviceId: { exact: this.deviceId } } : base })
         // Выбранный микрофон отключён — берём системный.
@@ -257,7 +269,13 @@ class MicService {
       hp.type = 'highpass';
       hp.frequency.value = this.highpassHz;
       hp.Q.value = 0.7;
-      src.connect(hp).connect(gain).connect(analyser);
+      if (this.channel === 'mix') src.connect(hp);
+      else {
+        const split = ctx.createChannelSplitter(2);
+        src.connect(split);
+        split.connect(hp, this.channel === 'left' ? 0 : 1);
+      }
+      hp.connect(gain).connect(analyser);
       this.highpass = hp;
       this.stream = s;
       this.gainNode = gain;

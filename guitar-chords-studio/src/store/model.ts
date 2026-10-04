@@ -80,6 +80,10 @@ export interface ListenSettings {
   denoise: boolean;
   /** Выбранный микрофон ('' — системный по умолчанию). */
   deviceId: string;
+  /** Откуда звук: микрофон или гитара по кабелю (звуковая карта, комбик с USB, линейный вход). */
+  input: 'mic' | 'line';
+  /** Какой канал устройства слушать: гитара в звуковой карте обычно только в одном (вход 1 — левый). */
+  channel: 'mix' | 'left' | 'right';
   engine: ListenEngine;
   /** Калибровка под гитару и микрофон (null — не проводилась). */
   calibration: Calibration | null;
@@ -122,6 +126,8 @@ export const DEFAULT_SETTINGS: Settings = {
     autoGain: true,
     denoise: true,
     deviceId: '',
+    input: 'mic',
+    channel: 'mix',
     engine: 'dsp',
     calibration: null,
   },

@@ -6,7 +6,7 @@
 }
 .dancer-canvas {
   width: 100%;
-  height: 56px;
+  height: 38px;
   image-rendering: pixelated;
 }
 .dancer-track {
@@ -49,8 +49,8 @@
   transition: opacity 0.3s ease;
 }
 #splash .dancer-canvas {
-  width: 200px;
-  height: 96px;
+  width: 160px;
+  height: 72px;
 }
 #splash small {
   font-family: var(--font-display, serif);

@@ -37,6 +37,7 @@ export function startServices() {
   };
   syncHighpass();
   mic.setAutoGain(store.getState().settings.listen.autoGain);
+  void mic.setChannel(store.getState().settings.listen.channel);
   void mic.setDevice(store.getState().settings.listen.deviceId);
   store.subscribe((s, prev) => {
     if (s.settings.sound !== prev.settings.sound || s.settings.view.tuning !== prev.settings.view.tuning) syncAudio();
@@ -49,6 +50,8 @@ export function startServices() {
       mic.keepHistory(l.engine === 'neural' ? 2.6 : 0);
       if (l.engine === 'neural') void chordListener.loadNeural();
     }
+    if (l.channel !== prev.settings.listen.channel)
+      mic.setChannel(l.channel).catch((e) => s.setListen({ error: e instanceof Error ? e.message : String(e) }));
     if (l.deviceId !== prev.settings.listen.deviceId)
       mic.setDevice(l.deviceId).catch((e) => s.setListen({ error: e instanceof Error ? e.message : String(e) }));
     if (s.settings.view.theme !== prev.settings.view.theme) applyTheme(migrateTheme(s.settings.view.theme));

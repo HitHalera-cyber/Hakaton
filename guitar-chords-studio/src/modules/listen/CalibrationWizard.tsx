@@ -3,6 +3,7 @@ import { buildCalibration, measureOpenString, type Calibration } from '../../cor
 import { SpectrumAnalyzer } from '../../core/analysis/dsp';
 import { midiName, pcNameRu } from '../../core/music/notes';
 import { chordListener } from '../../services/chordListener';
+import { StrumHitDetector } from '../../services/hitDetector';
 import { MIC_FRAME, OnsetDetector, mic, rmsOf } from '../../services/mic';
 import { store, useGuitar } from '../../store';
 
@@ -33,6 +34,9 @@ export function CalibrationWizard({ onClose }: { onClose: () => void }) {
     const buf = new Float32Array(MIC_FRAME);
     const analyzer = new SpectrumAnalyzer(MIC_FRAME, mic.sampleRate);
     const onsets = new OnsetDetector(0.55);
+    // Тонкая струна звучит тихо — её ловим ещё и по всплеску верхов.
+    const sharp = new StrumHitDetector(false);
+    sharp.ratio = 2.2;
     let measureAt = -1;
     void mic
       .acquire()
@@ -43,7 +47,8 @@ export function CalibrationWizard({ onClose }: { onClose: () => void }) {
           const now = mic.now;
           const rms = rmsOf(buf);
           setLevel(Math.min(1, rms * 6));
-          if (onsets.feed(rms, now) && stepRef.current < n) {
+          const hit = sharp.feed(buf, now, mic.sampleRate) != null;
+          if ((onsets.feed(rms, now) || hit) && stepRef.current < n && measureAt < 0) {
             measureAt = now + 0.4;
             setMsg('Слушаю…');
           }
@@ -58,7 +63,7 @@ export function CalibrationWizard({ onClose }: { onClose: () => void }) {
             if (m.cents == null) {
               setMsg(
                 m.heardMidi != null
-                  ? `Слышу ${midiName(m.heardMidi)}, а ждал ${midiName(opens[s])}. Сыграйте открытую струну ещё раз или нажмите «Дальше».`
+                  ? `Слышу ${midiName(m.heardMidi)}, а ждал ${midiName(opens[s])}. Если струна правда так звучит — подстройте её тюнером (Инструменты → Тюнер); если нет — заглушите остальные струны ладонью и сыграйте ещё раз.`
                   : 'Не расслышал ноту — сыграйте струну погромче или поднесите гитару к микрофону.',
               );
             } else {

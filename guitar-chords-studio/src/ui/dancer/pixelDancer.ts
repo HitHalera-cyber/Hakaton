@@ -1,7 +1,7 @@
 // Пиксельный танцор в разных рисовках: те же движения (DancerAnimator), но разные пропорции,
 // «кисть» и фон — классический спрайт, чиби, блоки, 1-бит с растром, палочник, ЖК-игрушка, силуэт на луне.
 
-import { DancerAnimator, NORMAL, skeleton, type Dims, type Pose } from './dancerCore';
+import { DancerAnimator, NORMAL, skeleton, type Dims, type Pose, type View } from './dancerCore';
 
 type Ink = 'suit' | 'suitBack' | 'shade' | 'skin' | 'hat' | 'band' | 'glove' | 'socks' | 'shoes' | 'eye' | 'outline' | 'hair';
 const INKS: Ink[] = ['suit', 'suitBack', 'shade', 'skin', 'hat', 'band', 'glove', 'socks', 'shoes', 'eye', 'outline', 'hair'];
@@ -91,7 +91,8 @@ class Raster {
 }
 
 /** Нарисовать позу в растр W×H; x — центр по горизонтали, ноги — у нижнего края. */
-export function rasterize(pose: Pose, scaleX: number, w: number, h: number, style: PixelStyle, x = w / 2): Raster {
+export function rasterize(pose: Pose, scaleX: number, w: number, h: number, style: PixelStyle, x = w / 2, view: View = 'side'): Raster {
+  if (view !== 'side') return rasterizeFront(pose, w, h, style, x, view === 'back');
   const R = new Raster(w, h);
   R.square = style.kind === 'blocky';
   const d = style.dims ?? NORMAL;
@@ -164,6 +165,87 @@ export function rasterize(pose: Pose, scaleX: number, w: number, h: number, styl
   return R;
 }
 
+/**
+ * Вид спереди или со спины (кадры вращения). Поза задаёт только главное: поднятое колено
+ * (pose.legF[1] — сгиб колена) и прижаты ли руки.
+ */
+function rasterizeFront(pose: Pose, w: number, h: number, style: PixelStyle, x: number, back: boolean): Raster {
+  const R = new Raster(w, h);
+  const d = style.dims ?? NORMAL;
+  const tall = d.thigh + d.shin + d.torso + d.neck + 12 * (style.head ?? 1);
+  const k = style.height / tall;
+  const legLen = d.thigh + d.shin;
+  const T = (px: number, py: number): [number, number] => [x + px * k, h - 1 - (legLen + 1 - py) * k];
+  const ink = (n: Ink) => (style.colors[n] ? INKS.indexOf(n) + 1 : INKS.indexOf('suit') + 1);
+  const limb = Math.max(0.75, 1.5 * k * (style.limb ?? 1));
+  const neckY = -d.torso;
+  // Ноги: опорная прямо вниз, вторая (если колено согнуто) — колено вверх, стопа у колена опорной.
+  const raised = pose.legF[1] > 40;
+  const legL: [number, number][] = [
+    [-2.4, 0],
+    [-2.4, d.thigh],
+    [-2.4, legLen],
+  ];
+  const legR: [number, number][] = raised
+    ? [
+        [2.4, 0],
+        [5.5, d.thigh * 0.55],
+        [0.5, d.thigh * 0.95],
+      ]
+    : [
+        [2.4, 0],
+        [2.6, d.thigh],
+        [2.8, legLen],
+      ];
+  for (const [i, lg] of [legL, legR].entries()) {
+    const [hp, kn, an] = lg.map(([a, b]) => T(a, b));
+    R.line(hp, kn, limb * 1.15, ink(i ? 'suitBack' : 'suit'));
+    R.line(kn, an, limb * 1.1, ink(i ? 'suitBack' : 'suit'), 0, 0.72);
+    R.line(kn, an, limb * 0.95, ink('socks'), 0.72, 1);
+    const sx = lg === legL ? -1 : 1;
+    R.line(an, T(lg[2][0] + sx * 1.5, lg[2][1] + 0.5), limb * 1.05, ink('shoes'));
+  }
+  // Корпус пошире, чем сбоку.
+  R.line(T(0, 0), T(0, neckY), limb * 2.4, ink('suit'));
+  // Руки: прижаты к груди при вращении, иначе — вдоль тела.
+  const tucked = Math.abs(pose.armF[1]) > 60;
+  for (const sx of [-1, 1]) {
+    const sh = T(sx * 4.5, neckY + 2);
+    const el = tucked ? T(sx * 7, neckY + 10) : T(sx * 6.5, neckY + 11);
+    const hand = tucked ? T(sx * 2.5, neckY + 7) : T(sx * 7, neckY + 20);
+    R.line(sh, el, limb, ink('suit'));
+    R.line(el, hand, limb * 0.95, ink('suit'), 0, 0.72);
+    R.line(el, hand, limb * 1.15, ink(sx > 0 ? 'glove' : 'skin'), 0.72, 1);
+  }
+  const hk = k * (style.head ?? 1);
+  const head = T(0, neckY - d.neck);
+  const hr = 5.4 * hk;
+  if (back && style.colors.hair) {
+    // Со спины — затылок и волосы до плеч.
+    R.dot(head[0], head[1], hr, ink('hair'));
+    for (const dx of [-4, -2, 0, 2, 4])
+      R.line([head[0] + dx * hk, head[1]], [head[0] + dx * 1.2 * hk, head[1] + 9 * hk], Math.max(0.6, hk), ink('hair'));
+  } else {
+    R.dot(head[0], head[1], hr, ink('skin'));
+    if (style.colors.hair)
+      for (const sx of [-1, 1])
+        R.line([head[0] + sx * hr * 0.95, head[1] - 2 * hk], [head[0] + sx * hr * 1.15, head[1] + 7 * hk], Math.max(0.6, hk), ink('hair'));
+    if (style.colors.eye && !back) {
+      R.set(Math.floor(head[0] - hr * 0.4), Math.floor(head[1]), ink('eye'));
+      R.set(Math.floor(head[0] + hr * 0.4), Math.floor(head[1]), ink('eye'));
+    }
+  }
+  // Федора спереди: широкие поля и тулья.
+  R.line([head[0] - 8.5 * hk, head[1] - 4 * hk], [head[0] + 8.5 * hk, head[1] - 4 * hk], Math.max(0.5, 1.1 * hk), ink('hat'));
+  for (let dy = -10.5; dy <= -4; dy += 0.8)
+    R.line([head[0] - 4.6 * hk, head[1] + dy * hk], [head[0] + 4.6 * hk, head[1] + dy * hk], Math.max(0.5, 0.8 * hk), ink('hat'));
+  if (style.colors.band)
+    R.line([head[0] - 4.6 * hk, head[1] - 5.6 * hk], [head[0] + 4.6 * hk, head[1] - 5.6 * hk], Math.max(0.5, 0.7 * hk), ink('band'));
+  if (style.colors.shade) R.shade(ink('suit'), ink('shade'));
+  if (style.colors.outline) R.outline(ink('outline'));
+  return R;
+}
+
 /** Нарисовать растр: каждый «пиксель» — квадрат px×px (с особенностями рисовки). */
 export function paint(ctx: CanvasRenderingContext2D, R: Raster, style: PixelStyle, px: number, ghost?: Raster) {
   const pal = INKS.map((n) => style.colors[n] ?? style.colors.suit ?? '#fff');
@@ -219,7 +301,7 @@ export function paint(ctx: CanvasRenderingContext2D, R: Raster, style: PixelStyl
 export function startPixelDancer(
   canvas: HTMLCanvasElement,
   style: PixelStyle,
-  getState: () => { moving: boolean; x?: number },
+  getState: () => { moving: boolean; x?: number; speed?: number },
 ): () => void {
   const anim = new DancerAnimator();
   let last = performance.now();
@@ -228,14 +310,17 @@ export function startPixelDancer(
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
     const st = getState();
-    const { pose, scaleX } = anim.step(dt, st.moving);
     const ctx = canvas.getContext('2d')!;
     const px = Math.max(1, Math.floor(canvas.height / (style.height + 6)));
+    // Шагов в секунду — так, чтобы ступни скользили со скоростью полосы (шаг ≈ 26 «единиц» тела).
+    const unit = (style.height / 74) * px;
+    const rate = st.speed != null ? Math.max(0.55, Math.min(2.2, st.speed / (26 * unit))) : 1.1;
+    const { pose, scaleX, view } = anim.step(dt, st.moving, rate);
     const w = Math.floor(canvas.width / px);
     const h = Math.floor(canvas.height / px);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     const x = st.x != null ? (st.x * w) / canvas.width : w / 2;
-    paint(ctx, rasterize(pose, scaleX, w, h, style, x), style, px);
+    paint(ctx, rasterize(pose, scaleX, w, h, style, x, view), style, px);
     raf = requestAnimationFrame(frame);
   };
   raf = requestAnimationFrame(frame);
@@ -365,3 +450,5 @@ export const PIXEL_STYLES: PixelStyle[] = [
 
 /** Рисовка, выбранная для экранов загрузки: спрайт с длинными волосами. */
 export const DANCER_STYLE = PIXEL_STYLES[0];
+/** Маленький танцор для полос загрузки внутри программы. */
+export const DANCER_STYLE_SMALL: PixelStyle = { ...DANCER_STYLE, height: 30 };

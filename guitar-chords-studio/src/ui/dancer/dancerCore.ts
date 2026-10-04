@@ -68,17 +68,53 @@ const lerpPose = (a: Pose, b: Pose, t: number): Pose => {
 };
 const ease = (t: number) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
 
-/** Лунная походка: фаза шага 0..1. Одна нога плоско скользит назад, другая — согнута, на носке. */
-function moonwalk(phase: number): Pose {
-  const leg = (p: number): [number, number, number] => {
-    const s = Math.sin(2 * Math.PI * p);
-    const bent = Math.max(0, s);
-    // Скользящая нога уходит назад (минус), согнутая — впереди, на носке.
-    return [-14 * Math.cos(2 * Math.PI * p) - 4, 38 * bent, -70 * bent];
-  };
-  const swing = Math.sin(2 * Math.PI * phase);
-  return P(-3, -4, -6, [10 + 14 * swing, 20], [-10 - 14 * swing, -20], leg(phase), leg(phase + 0.5));
+/** Угол (градусы, 0 — вниз, плюс — вперёд) от точки a к точке b. */
+const angTo = (ax: number, ay: number, bx: number, by: number) => (Math.atan2(bx - ax, by - ay) * 180) / Math.PI;
+
+/**
+ * Нога по положению щиколотки (относительно таза, y вниз): бедро, колено, стопа для skeleton().
+ * Колено сгибается вперёд. foot — угол стопы (0 — плоско, −60 — на носке).
+ */
+function legTo(ax: number, ay: number, foot: number): [number, number, number] {
+  const d = Math.min(TH + SH - 0.01, Math.hypot(ax, ay));
+  const toAnkle = angTo(0, 0, ax, ay);
+  const alpha = (Math.acos((TH * TH + d * d - SH * SH) / (2 * TH * d)) * 180) / Math.PI;
+  const hip = toAnkle + alpha;
+  const kx = Math.sin(hip * R) * TH;
+  const ky = Math.cos(hip * R) * TH;
+  const shin = angTo(kx, ky, ax, ay);
+  return [hip, hip - shin, foot];
 }
+
+const easeOut = (t: number) => 1 - (1 - t) ** 3;
+
+/**
+ * Лунная походка, как у Майкла: одна нога стоит на носке с согнутым коленом, другая — плоско
+ * скользит назад; затем резкий «щелчок»: пятка опорной ноги падает, а скользившая встаёт на носок.
+ * Щелчок короткий (15 % шага), скольжение — длинное и ровное. Корпус чуть вперёд, руки
+ * полусогнуты, на щелчке — толчок плечами.
+ */
+function moonwalk(phase: number): Pose {
+  const half = phase < 0.5 ? 0 : 1;
+  const u = (phase % 0.5) / 0.5;
+  const POP = 0.15;
+  const FLOOR = TH + SH - 0.6;
+  // Положения щиколоток: скользящая уезжает назад (+4 → −9), опорная (на носке) — вперёд (−9 → +4).
+  const glide = u < POP ? 0 : (u - POP) / (1 - POP);
+  const pop = u < POP ? easeOut(u / POP) : 1;
+  const slideX = 7 - 19 * glide;
+  const toeX = -12 + 19 * glide;
+  // На щелчке: прежняя опорная (была на носке впереди) опускает пятку, прежняя скользящая (сзади) встаёт на носок.
+  const slider = legTo(slideX, FLOOR - 1 - 7 * (1 - pop), -65 * (1 - pop));
+  const toe = legTo(toeX, FLOOR - 1 - 7 * pop, -65 * pop);
+  const [a, b] = half === 0 ? [slider, toe] : [toe, slider];
+  const shrug = (1 - pop) * 6;
+  const swing = Math.sin(2 * Math.PI * phase);
+  return P(7, -6, -6, [22 + 14 * swing + shrug, 40], [-18 - 14 * swing - shrug, 35], a, b, shrug * 0.3);
+}
+
+/** Поза для вращения: колено поднято, руки прижаты. */
+const SPIN_POSE = (): Pose => P(0, 0, 0, [40, 100], [-40, -100], [60, 110, -40], [0, 0, -50], 3);
 
 const R = Math.PI / 180;
 const TH = 15;
@@ -128,6 +164,17 @@ export function skeleton(p: Pose, d: Dims = NORMAL) {
  * Движения танцора (без рисования): каждый кадр — поза и «поворот» (scaleX: 1 — лицом вправо,
  * −1 — влево, между ними — оборот вокруг себя).
  */
+/** Вид танцора: сбоку (повернут по scaleX), спереди, со спины. */
+export type View = 'side' | 'front' | 'back';
+
+/** Кадры вращения: два оборота по 4 кадра — сбоку, спереди, другим боком, спиной. */
+const SPIN_FRAMES: { view: View; scaleX: number }[] = [
+  { view: 'side', scaleX: 1 },
+  { view: 'front', scaleX: 1 },
+  { view: 'side', scaleX: -1 },
+  { view: 'back', scaleX: 1 },
+];
+
 export class DancerAnimator {
   private mode: 'pose' | 'walk' = 'pose';
   private walkPhase = 0;
@@ -135,34 +182,37 @@ export class DancerAnimator {
   private poseIdx = 0;
   private from: Pose = STAND;
   private current: Pose = STAND;
-  private facing = 1;
 
-  step(dt: number, moving: boolean): { pose: Pose; scaleX: number } {
+  /**
+   * Следующий кадр. rate — шагов лунной походки в секунду (чтобы ноги скользили со скоростью
+   * полосы загрузки).
+   */
+  step(dt: number, moving: boolean, rate = 1.1): { pose: Pose; scaleX: number; view: View } {
     let pose: Pose;
     let scaleX = 1;
+    let view: View = 'side';
     if (moving) {
       if (this.mode !== 'walk') {
         this.mode = 'walk';
         this.from = this.current;
         this.idleT = 0;
       }
-      this.walkPhase = (this.walkPhase + dt / 0.9) % 1;
+      this.walkPhase = (this.walkPhase + dt * rate) % 1;
       this.idleT = Math.min(1, this.idleT + dt / 0.25);
       pose = lerpPose(this.from, moonwalk(this.walkPhase), ease(this.idleT));
       // Лицом назад (влево), а скользит вперёд (вправо).
       scaleX = -1;
-      this.facing = -1;
     } else {
       if (this.mode !== 'pose') {
         this.mode = 'pose';
         this.from = this.current;
         this.idleT = 0;
       }
-      // Цикл: поворот на месте (0,7 с) → поза (0,35 с переход + 0,9 с держать) → следующая.
+      // Цикл: вращение (покадрово, ~0,5 с) → поза (0,25 с переход + 1 с держать) → следующая.
       this.idleT += dt;
-      const SPIN = 0.7;
-      const IN = 0.35;
-      const HOLD = 0.9;
+      const SPIN = 0.48;
+      const IN = 0.18;
+      const HOLD = 1.0;
       const cycle = SPIN + IN + HOLD;
       if (this.idleT >= cycle) {
         this.idleT -= cycle;
@@ -170,18 +220,17 @@ export class DancerAnimator {
         this.from = POSES[(this.poseIdx + POSES.length - 1) % POSES.length];
       }
       const target = POSES[this.poseIdx];
-      const spinPose = P(0, 0, 0, [70, 10], [-70, -10], [2, 0, -40], [-2, 0, -40], 4);
       if (this.idleT < SPIN) {
-        const t = this.idleT / SPIN;
-        // Поворот: руки в стороны, тело «сжимается» по ширине — оборот вокруг себя.
-        pose = lerpPose(this.from, spinPose, Math.min(1, t * 2.5));
-        scaleX = Math.cos(t * 2 * Math.PI) * this.facing;
+        // Вращение — раскадровка: 8 кадров (два оборота), без плавной «прокрутки» картинки.
+        const f = SPIN_FRAMES[Math.floor((this.idleT / SPIN) * 8) % 4];
+        pose = SPIN_POSE();
+        view = f.view;
+        scaleX = f.scaleX;
       } else {
-        pose = lerpPose(spinPose, target, ease(Math.min(1, (this.idleT - SPIN) / IN)));
-        this.facing = 1;
+        pose = lerpPose(SPIN_POSE(), target, easeOut(Math.min(1, (this.idleT - SPIN) / IN)));
       }
     }
     this.current = pose;
-    return { pose, scaleX };
+    return { pose, scaleX, view };
   }
 }

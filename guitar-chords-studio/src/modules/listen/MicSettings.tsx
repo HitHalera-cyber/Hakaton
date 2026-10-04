@@ -25,8 +25,45 @@ export function MicSettings({ listener }: { listener: ChordListener }) {
 
   if (calibrating) return <CalibrationWizard onClose={() => setCalibrating(false)} />;
 
+  const line = settings.input === 'line';
   return (
     <>
+      <div className="field input-field">
+        <span>Откуда звук</span>
+        <div className="segmented" role="radiogroup" aria-label="Источник звука">
+          <button
+            className={!line ? 'on' : ''}
+            onClick={() => patch({ input: 'mic', channel: 'mix', autoGain: true, denoise: true, gain: 3 })}
+            title="Микрофон ноутбука, веб-камеры или USB-микрофон: гитара играет в комнате"
+          >
+            🎤 Микрофон
+          </button>
+          <button
+            className={line ? 'on' : ''}
+            onClick={() => patch({ input: 'line', autoGain: false, denoise: false, gain: 1 })}
+            title="Гитара по кабелю: через звуковую карту, гитарный USB-кабель, комбик с USB или выход комбика в линейный вход"
+          >
+            🎸 Кабель
+          </button>
+        </div>
+        {line && (
+          <small className="hint">
+            Подключите гитару через звуковую карту (Focusrite, Behringer UMC и т. п.), гитарный USB-кабель или комбик с USB, либо выход
+            комбика «Line out / Phones» — в линейный вход компьютера (не в микрофонный!). Выберите это устройство ниже. На комбике — чистый
+            канал без перегруза и эффектов: так ноты слышны точнее. Если индикатор громкости не двигается — выберите другой канал.
+          </small>
+        )}
+      </div>
+      {line && (
+        <label className="field">
+          <span>Канал</span>
+          <select value={settings.channel} onChange={(e) => patch({ channel: e.target.value as 'mix' | 'left' | 'right' })}>
+            <option value="mix">Оба (сводить)</option>
+            <option value="left">Левый — вход 1</option>
+            <option value="right">Правый — вход 2</option>
+          </select>
+        </label>
+      )}
       <div className="field engine-field">
         <span>Чем распознавать</span>
         <div className="segmented" role="radiogroup" aria-label="Движок распознавания">
@@ -82,9 +119,9 @@ export function MicSettings({ listener }: { listener: ChordListener }) {
             : 'Не проводилась — займёт полминуты'}
         </small>
       </div>
-      {devices.length > 1 && (
+      {(devices.length > 1 || line) && (
         <label className="field">
-          <span>Микрофон</span>
+          <span>{line ? 'Устройство (звуковая карта)' : 'Микрофон'}</span>
           <select value={settings.deviceId} onChange={(e) => patch({ deviceId: e.target.value })}>
             <option value="">Системный по умолчанию</option>
             {devices.map((d) => (
@@ -97,10 +134,17 @@ export function MicSettings({ listener }: { listener: ChordListener }) {
       )}
       <label className="slider">
         <span>
-          Усиление микрофона ×{settings.gain}
+          {line ? 'Усиление входа' : 'Усиление микрофона'} ×{settings.gain}
           {settings.autoGain && active && ` (сейчас ×${gainNow})`}
         </span>
-        <input type="range" min={1} max={12} step={0.5} value={settings.gain} onChange={(e) => patch({ gain: Number(e.target.value) })} />
+        <input
+          type="range"
+          min={line ? 0.25 : 1}
+          max={12}
+          step={0.25}
+          value={settings.gain}
+          onChange={(e) => patch({ gain: Number(e.target.value) })}
+        />
       </label>
       <label className="check" title="Программа сама прибавляет громкость тихого микрофона и убавляет при перегрузе">
         <input type="checkbox" checked={settings.autoGain} onChange={(e) => patch({ autoGain: e.target.checked })} />
