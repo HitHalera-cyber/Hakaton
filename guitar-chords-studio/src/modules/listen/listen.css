@@ -120,9 +120,17 @@
 }
 .listen-settings {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* minmax(0, …) — колонки не распирает длинный текст (название микрофона, подписи). */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
   gap: 8px 16px;
   align-items: center;
+}
+.listen-settings > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.listen-settings select {
+  max-width: 100%;
 }
 
 /* Схема «как играть» для распознанного аккорда. */
@@ -204,67 +212,12 @@
   box-shadow: 0 0 8px var(--accent);
 }
 
-/* ---------- Движок и калибровка ---------- */
+/* ---------- Источник звука и движок ---------- */
 .input-field,
-.engine-field,
-.calib-field {
+.engine-field {
   display: flex;
   flex-direction: column;
   gap: 4px;
-}
-.calib {
-  grid-column: 1 / -1;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px 14px;
-  border: var(--bw) solid var(--accent);
-  border-radius: var(--radius);
-  background: var(--panel-2);
-}
-.calib-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 17px;
-}
-.calib-steps {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.calib-steps span {
-  padding: 3px 8px;
-  border-radius: var(--radius-sm);
-  border: var(--bw) solid var(--border);
-  color: var(--text-2);
-}
-.calib-steps span.done {
-  border-color: var(--ok);
-  color: var(--ok);
-}
-.calib-steps span.now {
-  border-color: var(--accent);
-  color: var(--text);
-  font-weight: 700;
-}
-.calib-table {
-  border-collapse: collapse;
-  width: 100%;
-}
-.calib-table :is(th, td) {
-  padding: 5px 8px;
-  border-bottom: 1px solid var(--border);
-  text-align: left;
-}
-.calib-table td.ok {
-  color: var(--ok);
-}
-.calib-table td.warn {
-  color: var(--warn);
-}
-.calib-table td.bad {
-  color: var(--danger);
 }
 
 /* Длинные названия (Cmaj7/G, A + E) — мельче, чтобы не распирать блок. */

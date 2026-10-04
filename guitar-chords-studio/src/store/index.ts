@@ -23,6 +23,8 @@ function mergeSettings(saved: Partial<Settings> | undefined): Settings {
   const merged = Object.fromEntries(
     (Object.keys(DEFAULT_SETTINGS) as (keyof Settings)[]).map((k) => [k, { ...DEFAULT_SETTINGS[k], ...(s[k] ?? {}) }]),
   ) as unknown as Settings;
+  // Калибровка убрана (с ней аккорды распознавались хуже) — старую запись не храним.
+  delete (merged.listen as Partial<typeof merged.listen> & { calibration?: unknown }).calibration;
   // Раскладка «Свободные окна» убрана.
   if (!['classic', 'dashboard', 'listener'].includes(merged.view.layout)) merged.view.layout = 'dashboard';
   if (!isModuleId(merged.view.tab)) merged.view.tab = DEFAULT_SETTINGS.view.tab;

@@ -1,15 +1,12 @@
 import { useEffect, useState } from 'react';
 import { mic } from '../../services/mic';
 import { Dancer } from '../../ui/dancer/Dancer';
-import { CalibrationWizard } from './CalibrationWizard';
 import type { ChordListener } from './useListener';
 
 /** Настройки микрофона: какой микрофон, усиление (ручное или авто), вычитание шума, строй. */
 export function MicSettings({ listener }: { listener: ChordListener }) {
   const { settings, patch, active, gainNow, noiseReady, tuningCents, neural } = listener;
   const [devices, setDevices] = useState<{ id: string; label: string }[]>([]);
-  const [calibrating, setCalibrating] = useState(false);
-  const cal = settings.calibration;
 
   // Названия микрофонов доступны только после разрешения — перечитываем, когда слушание включилось.
   useEffect(() => {
@@ -22,8 +19,6 @@ export function MicSettings({ listener }: { listener: ChordListener }) {
       alive = false;
     };
   }, [active]);
-
-  if (calibrating) return <CalibrationWizard onClose={() => setCalibrating(false)} />;
 
   const line = settings.input === 'line';
   return (
@@ -96,28 +91,6 @@ export function MicSettings({ listener }: { listener: ChordListener }) {
                     : 'Загрузится при «Начать слушать»'}
           </small>
         )}
-      </div>
-      <div className="field calib-field">
-        <span>Калибровка</span>
-        <div className="row">
-          <button
-            className="btn small"
-            onClick={() => setCalibrating(true)}
-            title="Сыграть открытые струны по очереди — программа подстроится под гитару и микрофон"
-          >
-            🎯 {cal ? 'Откалибровать заново' : 'Откалибровать под гитару'}
-          </button>
-          {cal && (
-            <button className="link" onClick={() => patch({ calibration: null })}>
-              сбросить
-            </button>
-          )}
-        </div>
-        <small className="hint">
-          {cal
-            ? `Сделана ${new Date(cal.date).toLocaleDateString('ru-RU')}: строй ${cal.tuningCents > 0 ? '+' : ''}${cal.tuningCents} ц, басы ×${Math.max(...cal.gains).toFixed(1)}`
-            : 'Не проводилась — займёт полминуты'}
-        </small>
       </div>
       {(devices.length > 1 || line) && (
         <label className="field">

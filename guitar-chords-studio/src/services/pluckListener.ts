@@ -2,10 +2,8 @@
 // Щипок ловится по скачку громкости, всплеску верхов или новой ноте в спектре; нота определяется
 // по тому, что добавилось в спектре за 0,2 с после щипка.
 
-import { applyGains } from '../core/analysis/calibration';
 import { SpectrumAnalyzer } from '../core/analysis/dsp';
 import { PluckTracker, pluckFromSpectra, type Pluck } from '../core/analysis/stringPick';
-import { store } from '../store';
 import { MIC_FRAME, OnsetDetector, attackOf, mic, rmsOf } from './mic';
 
 export interface PluckListenerOptions {
@@ -19,8 +17,7 @@ export interface PluckListenerOptions {
 /** Начать слушать щипки. Возвращает функцию остановки. Бросает ошибку, если нет микрофона. */
 export async function listenPlucks(o: PluckListenerOptions): Promise<() => void> {
   await mic.acquire();
-  const cal = store.getState().settings.listen.calibration;
-  const spectrum = new SpectrumAnalyzer(MIC_FRAME, mic.sampleRate, (cal?.tuningCents ?? 0) / 100);
+  const spectrum = new SpectrumAnalyzer(MIC_FRAME, mic.sampleRate);
   const buf = new Float32Array(MIC_FRAME);
   const loud = new OnsetDetector(0.55);
   const hf = new OnsetDetector(0.6, 0.16);
@@ -32,7 +29,7 @@ export async function listenPlucks(o: PluckListenerOptions): Promise<() => void>
     const g = mic.gain || 1;
     const { semi } = spectrum.semitones(buf, 0);
     for (let i = 0; i < semi.length; i++) semi[i] /= g;
-    return applyGains(semi, cal?.gains);
+    return semi;
   };
   const tick = () => {
     if (!alive || !mic.read(buf)) return;

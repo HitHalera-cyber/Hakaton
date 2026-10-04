@@ -1,6 +1,5 @@
 // Модель данных приложения: типы и значения по умолчанию. Здесь нет React и побочных эффектов.
 
-import type { Calibration } from '../core/analysis/calibration';
 import type { PlayMode, Timbre } from '../core/audio/engine';
 import type { Board, Frets } from '../core/music/fretboard';
 import { TUNINGS } from '../core/music/tunings';
@@ -85,8 +84,6 @@ export interface ListenSettings {
   /** Какой канал устройства слушать: гитара в звуковой карте обычно только в одном (вход 1 — левый). */
   channel: 'mix' | 'left' | 'right';
   engine: ListenEngine;
-  /** Калибровка под гитару и микрофон (null — не проводилась). */
-  calibration: Calibration | null;
 }
 
 export interface Settings {
@@ -129,7 +126,6 @@ export const DEFAULT_SETTINGS: Settings = {
     input: 'mic',
     channel: 'mix',
     engine: 'dsp',
-    calibration: null,
   },
 };
 

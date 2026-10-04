@@ -4,10 +4,9 @@
 //  • «По струнам» — струны щиплются по одной от 6-й к 1-й: получается точная аппликатура.
 // Два движка: формулы (спектр по полутонам) и нейросеть Basic Pitch (по записи последних секунд).
 // Для плохого микрофона: шум комнаты запоминается, пока гитара молчит, и вычитается из спектра;
-// строй гитары оценивается по звуку; калибровка поднимает басы, которые «съедает» микрофон.
+// строй гитары оценивается по звуку.
 // Результаты идут в хранилище (для экрана) и в шину 'chord:heard' / 'notes:heard' (гриф, круг, уроки).
 
-import { applyGains } from '../core/analysis/calibration';
 import { LIVE_VOCAB, buildModels, type RecognizedChord } from '../core/analysis/chordRecognition';
 import { SEMI_COUNT, SpectrumAnalyzer, tuningFromVector } from '../core/analysis/dsp';
 import {
@@ -98,8 +97,7 @@ class ChordListenerService {
   }
 
   private loop() {
-    const cal = () => store.getState().settings.listen.calibration;
-    let spectrum = new SpectrumAnalyzer(MIC_FRAME, mic.sampleRate, (cal()?.tuningCents ?? 0) / 100);
+    let spectrum = new SpectrumAnalyzer(MIC_FRAME, mic.sampleRate);
     const buf = new Float32Array(MIC_FRAME);
     // Накопленный спектр по полутонам (после вычитания шума) и число кадров в нём.
     const acc = { semi: new Float32Array(SEMI_COUNT), frames: 0, list: [] as Float32Array[] };
@@ -124,16 +122,14 @@ class ChordListenerService {
     const set = store.getState().setListen;
     const listen = () => store.getState().settings.listen;
 
-    /** Спектр по полутонам сейчас: без усиления микрофона, с калибровкой и (по желанию) без шума. */
+    /** Спектр по полутонам сейчас: без усиления микрофона и (по желанию) без шума. */
     const semiNow = (denoise = false) => {
       const g = mic.gainOver(MIC_FRAME / mic.sampleRate) || 1;
       const { semi } = spectrum.semitones(buf, 0);
       for (let i = 0; i < semi.length; i++) semi[i] /= g;
       if (denoise && listen().denoise && noiseFrames >= 3)
         for (let i = 0; i < SEMI_COUNT; i++) semi[i] = Math.max(0, semi[i] - noise[i] * NOISE_OVER);
-      // Подъём басов из калибровки — только для «По струнам» (там он помогает отличить ноту от октавы);
-      // для целых аккордов он мешал: басовые обертоны заглушали остальные ноты.
-      return listen().mode === 'strings' ? applyGains(semi, cal()?.gains) : semi;
+      return semi;
     };
     const learnNoise = (now: number) => {
       if (now - lastNoiseAt < 0.25) return;
