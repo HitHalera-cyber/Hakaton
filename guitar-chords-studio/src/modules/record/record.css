@@ -1,0 +1,84 @@
+.rec {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.rec-ref,
+.rec-controls,
+.rec-play,
+.rec-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+}
+.rec-btn {
+  min-width: 140px;
+  font-size: 17px;
+}
+.rec-btn.on {
+  border-color: var(--danger);
+  color: var(--danger);
+  animation: rec-blink 1.2s ease-in-out infinite;
+}
+@keyframes rec-blink {
+  50% {
+    box-shadow: 0 0 14px var(--danger);
+  }
+}
+.rec-time {
+  font-family: var(--font-mono);
+  margin-left: 6px;
+}
+.rec-level {
+  width: 160px;
+  height: 10px;
+  border-radius: 5px;
+  background: var(--panel-2);
+  overflow: hidden;
+}
+.rec-level span {
+  display: block;
+  height: 100%;
+  background: var(--ok);
+  transition: width 0.08s linear;
+}
+.rec-level span.clip {
+  background: var(--danger);
+}
+.rec-compare {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.rec-wave {
+  width: 100%;
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--panel-2) 70%, transparent);
+  cursor: pointer;
+}
+.rec-mix {
+  min-width: 180px;
+}
+.rec-takes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.rec-take {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  border: var(--bw) solid transparent;
+}
+.rec-take.on {
+  border-color: var(--accent);
+}
+.rec-take small {
+  color: var(--text-2);
+  flex: 1;
+}

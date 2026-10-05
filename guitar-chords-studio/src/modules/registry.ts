@@ -12,6 +12,7 @@ import { listenModule } from './listen';
 import { melodyModule } from './melody';
 import { metronomeModule } from './metronome';
 import { midiModule } from './midi';
+import { recordModule } from './record';
 import { rhythmModule } from './rhythm';
 import { scalesModule } from './scales';
 import { sequenceModule } from './sequence';
@@ -42,6 +43,7 @@ export const MODULES: ModuleDef[] = [
   scalesModule,
   keyModule,
   tunerModule,
+  recordModule,
   midiModule,
   favoritesModule,
 ];

@@ -19,6 +19,7 @@ export const MODULE_IDS = [
   'scales',
   'key',
   'tuner',
+  'record',
   'midi',
   'favorites',
 ] as const;

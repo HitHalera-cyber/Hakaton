@@ -157,6 +157,53 @@ class MicService {
     this.proc = proc;
   }
 
+  /**
+   * Запись «как есть» — до усиления программы (оно меняется само), после среза гула. Пока идёт
+   * запись, отсчёты копятся кусками; stopCapture() склеивает их и возвращает с моментом начала
+   * (по часам AudioContext).
+   */
+  startCapture() {
+    this.stopCapture();
+    if (!this.highpass) throw new Error('Микрофон не включён');
+    const ctx = audio.context;
+    const chunks: Float32Array[] = [];
+    const proc = ctx.createScriptProcessor(4096, 1, 1);
+    let startTime = -1;
+    proc.onaudioprocess = (e) => {
+      const x = e.inputBuffer.getChannelData(0);
+      // Первый буфер начался на длину буфера раньше, чем пришёл обработчик.
+      if (startTime < 0) startTime = ctx.currentTime - x.length / ctx.sampleRate;
+      chunks.push(Float32Array.from(x));
+    };
+    this.highpass.connect(proc);
+    proc.connect(ctx.destination);
+    this.capture = { proc, chunks, start: () => startTime };
+  }
+
+  /** Остановить запись: все отсчёты и момент начала. */
+  stopCapture(): { samples: Float32Array; startTime: number; sampleRate: number } | null {
+    const c = this.capture;
+    if (!c) return null;
+    this.capture = null;
+    c.proc.disconnect();
+    c.proc.onaudioprocess = null;
+    const n = c.chunks.reduce((a, x) => a + x.length, 0);
+    const samples = new Float32Array(n);
+    let o = 0;
+    for (const x of c.chunks) {
+      samples.set(x, o);
+      o += x.length;
+    }
+    return { samples, startTime: c.start(), sampleRate: this.sampleRate };
+  }
+
+  /** Сколько уже записано, секунд. */
+  get captured() {
+    const c = this.capture;
+    return c ? c.chunks.reduce((a, x) => a + x.length, 0) / this.sampleRate : 0;
+  }
+  private capture: { proc: ScriptProcessorNode; chunks: Float32Array[]; start: () => number } | null = null;
+
   /** Выбрать микрофон ('' — системный). Если он уже открыт — переоткрывается с новым устройством. */
   async setDevice(id: string) {
     if (id === this.deviceId) return;
