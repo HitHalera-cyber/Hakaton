@@ -55,6 +55,8 @@ class Context:
     drawing = None
     symbols = None
     api5 = None
+    api5_module = None
+    last_api5 = None
 
 
 def constant(name: str, fallback=None):
@@ -130,6 +132,7 @@ def step_load_api5_constants(ctx: Context) -> None:
             continue
         if ctx.api5 is None and module is not None and hasattr(module, "KompasObject"):
             raw = Dispatch("Kompas.Application.5")
+            ctx.api5_module = module
             ctx.api5 = module.KompasObject(raw._oleobj_.QueryInterface(
                 module.KompasObject.CLSID, pythoncom.IID_IDispatch))
     if ctx.api5 is None:
@@ -253,6 +256,84 @@ def step_save(ctx: Context) -> None:
     log(f"    Сохранено: {OUTPUT_FILE} ({OUTPUT_FILE.stat().st_size} байт)")
 
 
+
+# --- API5 route -------------------------------------------------------------
+# In v22 API7 collection.Add() returned nothing while API5 ksLineSeg worked,
+# so every object type is also tried through API5. Objects are placed lower on
+# the sheet (y < 0 relative to the API7 ones) to tell the routes apart.
+
+
+def _api5_doc(ctx: Context):
+    if ctx.api5 is None:
+        raise RuntimeError("API5 недоступен")
+    return ctx.api5.ActiveDocument2D()
+
+
+def _api5_param(ctx: Context, struct_const: str, interface: str):
+    raw = ctx.api5.GetParamStruct(constant(struct_const))
+    return getattr(ctx.api5_module, interface)(raw)
+
+
+def _check_ref(ref, what: str) -> None:
+    log(f"    {what}: ссылка {ref}")
+    if not ref:
+        raise RuntimeError(f"{what} не создан (ksReturnResult={_last_error()})")
+
+
+def _last_error():
+    try:
+        return Context.last_api5.ksReturnResult()
+    except Exception:
+        return "?"
+
+
+def step_api5_geometry(ctx: Context) -> None:
+    Context.last_api5 = ctx.api5
+    doc = _api5_doc(ctx)
+    _check_ref(doc.ksLineSeg(20.0, -20.0, 120.0, -20.0, STYLE_MAIN), "отрезок ksLineSeg")
+    _check_ref(doc.ksCircle(70.0, -60.0, 12.5, STYLE_MAIN), "окружность ksCircle")
+    _check_ref(doc.ksArcByAngle(150.0, -60.0, 20.0, 0.0, 90.0, 1, STYLE_MAIN),
+               "дуга ksArcByAngle")
+    _check_ref(doc.ksLineSeg(50.0, -60.0, 90.0, -60.0, STYLE_AXIAL), "осевая ksLineSeg")
+    _check_ref(doc.ksPoint(20.0, -100.0, 0), "точка ksPoint")
+
+
+def step_api5_text(ctx: Context) -> None:
+    doc = _api5_doc(ctx)
+    # ksText(x, y, angle, height, narrowing, flags, string)
+    _check_ref(doc.ksText(20.0, -110.0, 0.0, 5.0, 1.0, 0, "Тест API5"), "текст ksText")
+
+
+def step_api5_linear_dimension(ctx: Context) -> None:
+    doc = _api5_doc(ctx)
+    par = _api5_param(ctx, "ko_LDimParam", "ksLDimParam")
+    src = ctx.api5_module.ksLDimSourceParam(par.GetSPar())
+    src.Init()
+    src.x1, src.y1, src.x2, src.y2 = 20.0, -20.0, 120.0, -20.0
+    src.dx, src.dy = 0.0, -12.0
+    src.basePoint = 1
+    src.ps = 1  # horizontal
+    drw = ctx.api5_module.ksLDimDrawingParam(par.GetDPar())
+    drw.Init()
+    txt = ctx.api5_module.ksDimTextParam(par.GetTPar())
+    txt.Init(False)
+    _check_ref(doc.ksLinDimension(par), "линейный размер ksLinDimension")
+
+
+def step_api5_diametral_dimension(ctx: Context) -> None:
+    doc = _api5_doc(ctx)
+    par = _api5_param(ctx, "ko_RDimParam", "ksRDimParam")
+    src = ctx.api5_module.ksRDimSourceParam(par.GetSPar())
+    src.Init()
+    src.xc, src.yc, src.rad = 70.0, -60.0, 12.5
+    drw = ctx.api5_module.ksRDimDrawingParam(par.GetDPar())
+    drw.Init()
+    drw.ang = 45.0
+    txt = ctx.api5_module.ksDimTextParam(par.GetTPar())
+    txt.Init(False)
+    _check_ref(doc.ksDiamDimension(par), "размер диаметра ksDiamDimension")
+
+
 STEPS = [
     ("Подключение к КОМПАС (API7)", step_connect, True),
     ("Константы API5", step_load_api5_constants, False),
@@ -266,6 +347,10 @@ STEPS = [
     ("Текст", step_text, False),
     ("Линейный размер", step_linear_dimension, False),
     ("Размер диаметра", step_diametral_dimension, False),
+    ("API5: отрезок, окружность, дуга, осевая, точка", step_api5_geometry, False),
+    ("API5: текст", step_api5_text, False),
+    ("API5: линейный размер", step_api5_linear_dimension, False),
+    ("API5: размер диаметра", step_api5_diametral_dimension, False),
     ("Сохранение .cdw", step_save, False),
 ]
 
