@@ -79,6 +79,8 @@ def cast(obj, interface: str):
 def step_connect(ctx: Context) -> None:
     from win32com.client import gencache
 
+    print("    (первый запуск может занять 1-3 минуты: генерируются обёртки API"
+          " и запускается КОМПАС)", flush=True)
     ctx.app = gencache.EnsureDispatch("Kompas.Application.7")
     ctx.app.Visible = True
     try:
@@ -215,6 +217,7 @@ def main() -> int:
     ctx = Context()
     failed = []
     for name, func, required in STEPS:
+        print(f"...    {name}", flush=True)
         try:
             func(ctx)
             log(f"[OK]   {name}")
