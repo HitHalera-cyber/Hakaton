@@ -54,6 +54,7 @@ class Context:
     view = None
     drawing = None
     symbols = None
+    api5 = None
 
 
 def constant(name: str, fallback=None):
@@ -89,12 +90,50 @@ def step_connect(ctx: Context) -> None:
         log("    (имя/версию приложения получить не удалось)")
 
 
-def step_load_api5_constants(ctx: Context) -> None:
-    # API5 holds the ks* constants used by dimensions; generating its wrapper
-    # makes them visible through win32com.client.constants.
-    from win32com.client import gencache
+def find_kompas_typelibs() -> list[tuple[str, int, int, str]]:
+    """List registered type libraries whose name mentions KOMPAS."""
+    import winreg
 
-    gencache.EnsureDispatch("Kompas.Application.5")
+    found = []
+    with winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, "TypeLib") as root:
+        for i in range(winreg.QueryInfoKey(root)[0]):
+            guid = winreg.EnumKey(root, i)
+            try:
+                with winreg.OpenKey(root, guid) as guid_key:
+                    for j in range(winreg.QueryInfoKey(guid_key)[0]):
+                        version = winreg.EnumKey(guid_key, j)
+                        name = winreg.QueryValue(guid_key, version)
+                        if "kompas" in name.lower() or "компас" in name.lower():
+                            major, _, minor = version.partition(".")
+                            found.append((guid, int(major, 16), int(minor or "0", 16), name))
+            except (OSError, ValueError):
+                continue
+    return found
+
+
+def step_load_api5_constants(ctx: Context) -> None:
+    # Kompas.Application.5 does not expose type info, so its wrappers (with
+    # the ks* constants and the KompasObject interface) are generated from
+    # the registered type libraries instead.
+    import pythoncom
+    from win32com.client import Dispatch, gencache
+
+    typelibs = find_kompas_typelibs()
+    if not typelibs:
+        raise RuntimeError("в реестре не найдено ни одной библиотеки типов КОМПАС")
+    for guid, major, minor, name in typelibs:
+        try:
+            module = gencache.EnsureModule(guid, 0, major, minor)
+            log(f"    {name} {major}.{minor} {guid}: ok")
+        except Exception as exc:
+            log(f"    {name} {major}.{minor} {guid}: {exc!r}")
+            continue
+        if ctx.api5 is None and module is not None and hasattr(module, "KompasObject"):
+            raw = Dispatch("Kompas.Application.5")
+            ctx.api5 = module.KompasObject(raw._oleobj_.QueryInterface(
+                module.KompasObject.CLSID, pythoncom.IID_IDispatch))
+    if ctx.api5 is None:
+        raise RuntimeError("интерфейс KompasObject (API5) не найден")
 
 
 def step_new_drawing(ctx: Context) -> None:
@@ -117,6 +156,38 @@ def step_line(ctx: Context) -> None:
     seg.Style = STYLE_MAIN
     if not seg.Update():
         raise RuntimeError("LineSegment.Update() вернул False")
+
+
+def step_diagnose_editing(ctx: Context) -> None:
+    """Find out why collection.Add() returns nothing.
+
+    Tries the same operation through late binding and through API5: if every
+    route fails, KOMPAS itself refuses to edit (licence / view-only mode),
+    not a particular API call.
+    """
+    from win32com.client import dynamic
+
+    try:
+        log(f"    Документ только для чтения: {ctx.doc.ReadOnly}")
+    except Exception as exc:
+        log(f"    ReadOnly недоступен: {exc!r}")
+
+    late = dynamic.Dispatch(ctx.drawing.LineSegments._oleobj_)
+    seg = late.Add()
+    log(f"    API7 Add() через позднее связывание: {seg!r}")
+
+    if ctx.api5 is None:
+        log("    API5 недоступен, проверка через ksLineSeg пропущена")
+        return
+    doc5 = ctx.api5.ActiveDocument2D()
+    ref = doc5.ksLineSeg(20.0, 40.0, 120.0, 40.0, STYLE_MAIN)
+    log(f"    API5 ksLineSeg вернул {ref} (0 = не создан)")
+    try:
+        log(f"    API5 код последней ошибки: {ctx.api5.ksReturnResult()}")
+    except Exception as exc:
+        log(f"    ksReturnResult недоступен: {exc!r}")
+    if not ref:
+        raise RuntimeError("КОМПАС не создаёт объекты ни через API7, ни через API5")
 
 
 def step_circle(ctx: Context) -> None:
@@ -188,6 +259,7 @@ STEPS = [
     ("Новый чертёж", step_new_drawing, True),
     ("Активный вид и контейнеры", step_active_view, True),
     ("Отрезок", step_line, False),
+    ("Диагностика редактирования", step_diagnose_editing, False),
     ("Окружность", step_circle, False),
     ("Дуга", step_arc, False),
     ("Осевая линия", step_axial_line, False),
