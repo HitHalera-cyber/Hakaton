@@ -1,2 +1,5 @@
 prototype/smoke_test_report.txt
 prototype/dim_test_report.txt
+core/samples/
+*_result/
+__pycache__/

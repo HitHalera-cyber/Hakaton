@@ -1,0 +1,27 @@
+[project]
+name = "kompas-ai-core"
+version = "0.1.0"
+description = "Recognition core: technical drawing (PDF) -> editable drawing model for KOMPAS-3D"
+requires-python = ">=3.10"
+dependencies = [
+    "pymupdf>=1.24",
+    "numpy>=1.24",
+    "ezdxf>=1.1",
+    "shapely>=2.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.scripts]
+kompas-ai = "kompas_ai.cli:main"
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["kompas_ai*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
