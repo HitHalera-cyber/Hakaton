@@ -313,7 +313,7 @@ def step_api5_linear_dimension(ctx: Context) -> None:
     src.dx, src.dy = 0.0, -12.0
     src.basePoint = 1
     src.ps = 1  # horizontal
-    drw = ctx.api5_module.ksLDimDrawingParam(par.GetDPar())
+    drw = ctx.api5_module.ksDimDrawingParam(par.GetDPar())
     drw.Init()
     txt = ctx.api5_module.ksDimTextParam(par.GetTPar())
     txt.Init(False)
