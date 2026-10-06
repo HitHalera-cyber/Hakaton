@@ -152,6 +152,7 @@ class Drawing:
     entities: list[Entity] = field(default_factory=list)
     constraints: list[Constraint] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    processing: list[str] = field(default_factory=list)  # what was corrected and how
 
     def of_type(self, cls: type) -> list:
         return [e for e in self.entities if isinstance(e, cls)]
@@ -178,6 +179,7 @@ class Drawing:
             "summary": self.summary(),
             "review": [e.id for e in self.review],
             "warnings": self.warnings,
+            "processing": self.processing,
             "entities": [e.to_dict() for e in self.entities],
             "constraints": [asdict(c) for c in self.constraints],
         }
@@ -203,6 +205,7 @@ class Drawing:
             entities=entities,
             constraints=[Constraint(**c) for c in data.get("constraints", [])],
             warnings=list(data.get("warnings", [])),
+            processing=list(data.get("processing", [])),
         )
 
     @classmethod

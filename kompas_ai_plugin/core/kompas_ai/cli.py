@@ -31,6 +31,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--reference", type=Path, default=None,
                         help="эталонный DXF того же чертежа для оценки точности")
     parser.add_argument("--no-preview", action="store_true", help="не строить preview.png")
+    parser.add_argument("--raw", action="store_true",
+                        help="не выравнивать геометрию по размерам (как измерено в PDF)")
     args = parser.parse_args(argv)
 
     if hasattr(sys.stdout, "reconfigure"):
@@ -41,7 +43,7 @@ def main(argv: list[str] | None = None) -> int:
     out = args.out or args.pdf.with_name(args.pdf.stem + "_result")
     out.mkdir(parents=True, exist_ok=True)
 
-    drawing = recognize_pdf(args.pdf, args.page)
+    drawing = recognize_pdf(args.pdf, args.page, exact=not args.raw)
     drawing.save_json(out / "drawing.json")
     write_dxf(drawing, out / "drawing.dxf")
     if not args.no_preview:

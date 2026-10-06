@@ -38,6 +38,8 @@ def summary_text(drawing: ir.Drawing) -> str:
         name = TYPE_NAMES.get(e.kind, e.kind)
         note = "; ".join(e.notes) if e.notes else ""
         out.append(f"  - {name} {e.id} (уверенность {e.confidence:.0%}){': ' + note if note else ''}")
+    if drawing.processing:
+        out += [""] + drawing.processing
     if drawing.warnings:
         out += ["", "Предупреждения:"] + [f"  ! {w}" for w in drawing.warnings]
     dims = drawing.of_type(ir.Dimension)

@@ -19,6 +19,7 @@ from . import ir
 from .geometry.chains import build_chains
 from .geometry.constraints import find_constraints
 from .geometry.linetypes import merge_dashed
+from .geometry.regularize import regularize
 from .geometry.scaling import check_dimension, resolve_scale, scale_text, snap_scale
 from .geometry.segmentation import Primitive, merge_cocircular, segment_chain
 from .pdf.vector_extractor import extract_page
@@ -30,7 +31,9 @@ from .semantics.regions import hatch_regions
 from .semantics.sheet import analyse_sheet, is_title_block_text, read_title_block
 
 
-def recognize_pdf(pdf_path: str | Path, page: int = 0) -> ir.Drawing:
+def recognize_pdf(pdf_path: str | Path, page: int = 0, exact: bool = True) -> ir.Drawing:
+    """Recognise one PDF page. ``exact`` corrects the geometry to the written
+    dimensions (see geometry/regularize.py); False keeps the measured PDF values."""
     content = extract_page(pdf_path, page)
     drawing = ir.Drawing(source=str(pdf_path))
     if not content.is_vector:
@@ -101,6 +104,8 @@ def recognize_pdf(pdf_path: str | Path, page: int = 0) -> ir.Drawing:
 
     _build_entities(drawing, geometry, is_thin, found, plain_texts, regions, orphan_groups,
                     suspicious)
+    if exact:
+        drawing.processing.append(regularize(drawing).text())
     drawing.constraints = find_constraints(drawing.entities)
     if content.unknown_symbols:
         drawing.warnings.append(

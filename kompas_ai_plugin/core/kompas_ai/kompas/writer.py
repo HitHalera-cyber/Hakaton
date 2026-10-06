@@ -142,7 +142,10 @@ class DrawingWriter:
         diameter = written.startswith("Ø")
         if diameter:
             written = written[1:].strip()
-        if d.dim_type == "angular" or self.mode == "view" or self.scale == 1.0:
+        # The value written on the source drawing is exact; KOMPAS' own measure
+        # is used only where the geometry is in model units (a scaled view) or
+        # for angles (their sides are set to the written value).
+        if d.dim_type == "angular" or self.mode == "view":
             return DimText(auto=True, diameter_sign=diameter and d.dim_type != "diameter")
         return DimText(auto=False, value=written, diameter_sign=diameter)
 
