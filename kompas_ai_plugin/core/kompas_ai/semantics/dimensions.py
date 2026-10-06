@@ -20,11 +20,20 @@ from ..pdf.vector_extractor import RawText
 from .arrows import Arrow
 
 DIM_TEXT_RE = re.compile(
-    r"^(?P<prefix>[ØR⌀]|M(?=\d))?\s*(?P<value>\d+(?:[.,]\d+)?)\s*(?P<deg>°)?\s*(?P<tail>.*)$")
+    r"^(?P<prefix>[ØR⌀]|M(?=\d))?\s*(?P<value>\d+(?:[.,]\d+)?)"
+    r"(?:\s*(?P<deg>°)\s*(?:(?P<min>\d{1,2})\s*['′])?(?:\s*(?P<sec>\d{1,2})\s*(?:\"|″|''))?)?"
+    r"\s*(?P<tail>.*)$")
+# What may follow the value: a tolerance (±0,1 / +0,2 -0,1), a fit (H7, (h6)),
+# a thread pitch (×1,5) or a chamfer angle (×45°). Anything else ("2u", "1m",
+# "130 R, мм", two numbers) is ordinary text, not a dimension.
+TAIL_RE = re.compile(
+    r"^(|±\s*\d+(?:[.,]\d+)?|[+\-−]\s*\d+(?:[.,]\d+)?(?:\s*[+\-−]\s*\d+(?:[.,]\d+)?)?"
+    r"|\(?[A-Za-z]{1,2}\d{1,2}\)?|[x×]\s*\d+(?:[.,]\d+)?°?)$")
 TIP_ON_LINE = 0.35  # mm
 PARALLEL_TOLERANCE = 3.0  # deg
 EXT_ON_TIP = 0.35  # mm
 CENTER_ON_LINE = 0.4  # mm
+MAX_TEXT_GAP = 15.0  # mm; a value text is never farther than this beyond its dimension line
 
 
 @dataclass
@@ -60,25 +69,33 @@ class FoundDimension:
 
 def parse_dim_text(t: RawText) -> DimText | None:
     m = DIM_TEXT_RE.match(t.text.strip())
-    if not m:
+    if not m or not TAIL_RE.match(m.group("tail").strip()):
         return None
     raw_value = m.group("value")
     value = float(raw_value.replace(",", "."))
     decimals = len(re.split(r"[.,]", raw_value)[1]) if re.search(r"[.,]", raw_value) else 0
+    angular = bool(m.group("deg"))
+    if angular:  # 37°57' → 37.95°; the rounding unit is then a minute
+        minutes, seconds = int(m.group("min") or 0), int(m.group("sec") or 0)
+        value += minutes / 60 + seconds / 3600
+        if m.group("min"):
+            decimals = 2
     prefix = (m.group("prefix") or "").replace("⌀", "Ø")
-    return DimText(t, prefix, value, decimals, bool(m.group("deg")), m.group("tail").strip())
+    return DimText(t, prefix, value, decimals, angular, m.group("tail").strip())
 
 
 def find_dimensions(texts: list[DimText], arrows: list[Arrow], thin: list[Primitive],
-                    curves: list[Primitive]) -> list[FoundDimension]:
+                    curves: list[Primitive], axes: list[Primitive] = ()) -> list[FoundDimension]:
     """Match each dimension text with its dimension line and arrows.
 
     ``thin`` are thin lines/arcs (dimension and extension line candidates),
-    ``curves`` the main circles/arcs that diameter/radius dims may refer to.
+    ``curves`` the main circles/arcs that diameter/radius dims may refer to,
+    ``axes`` the axis lines (a diameter on a half view ends past the axis).
     """
     found = []
     for dt in texts:
-        dim = _angular(dt, arrows, thin) if dt.angular else _linear(dt, arrows, thin, curves)
+        dim = _angular(dt, arrows, thin) if dt.angular \
+            else _linear(dt, arrows, thin, curves, axes)
         if dim is not None:
             found.append(dim)
     return found
@@ -87,7 +104,7 @@ def find_dimensions(texts: list[DimText], arrows: list[Arrow], thin: list[Primit
 # --- linear, diameter, radius ---------------------------------------------------
 
 
-def _linear(dt: DimText, arrows, thin, curves) -> FoundDimension | None:
+def _linear(dt: DimText, arrows, thin, curves, axes=()) -> FoundDimension | None:
     best = None
     for line in thin:
         if line.kind != "line" or line.length < 1.0:
@@ -101,7 +118,17 @@ def _linear(dt: DimText, arrows, thin, curves) -> FoundDimension | None:
         if not tips:
             continue
         along_gap = _outside_extent(dt.center, line)
-        score = across + 0.2 * along_gap + (0.0 if len(tips) >= 2 else 10.0)
+        if along_gap > max(MAX_TEXT_GAP, 3 * dt.raw.height) \
+                and _outside_shelf(dt.center, line, thin) > dt.raw.height:
+            continue
+        # The value is written above its dimension line: the line lies on the
+        # baseline side of the text (below it in the text's own frame).
+        a = math.radians(dt.raw.angle)
+        down = (math.sin(a), -math.cos(a))
+        foot = _foot(dt.center, line)
+        side = (foot[0] - dt.center[0]) * down[0] + (foot[1] - dt.center[1]) * down[1]
+        score = across + 0.2 * along_gap + (0.0 if len(tips) >= 2 else 10.0) \
+            + (0.0 if side >= -0.3 else 5.0)
         if best is None or score < best[0]:
             best = (score, line, tips)
     if best is None:
@@ -110,7 +137,7 @@ def _linear(dt: DimText, arrows, thin, curves) -> FoundDimension | None:
     shelves = _collinear_pieces(line, dt, thin)
 
     if len(tips) >= 2:
-        t1, t2 = _farthest_pair(tips)
+        t1, t2 = _pair_near_text(tips, line, dt.center)
         measured = math.dist(t1, t2)
         circle = _circle_between(t1, t2, curves) if dt.prefix == "Ø" else None
         if circle is not None:
@@ -122,11 +149,21 @@ def _linear(dt: DimText, arrows, thin, curves) -> FoundDimension | None:
         _attach_extension_lines(dim, line, thin)
         return dim
 
-    # One arrow: a radius or a diameter leader ending on a circle.
+    # One arrow: a radius or a diameter leader ending on a circle …
     tip = tips[0]
     circle = _circle_on_leader(tip, line, curves)
     if circle is None:
-        return None
+        # … or a diameter on a half view: the line runs past the axis and
+        # only one arrow is drawn. The size is twice the tip–axis distance.
+        cross = _axis_crossing(line, axes) if dt.prefix == "Ø" else None
+        if cross is None:
+            return None
+        mirror = (2 * cross[0] - tip[0], 2 * cross[1] - tip[1])
+        dim = FoundDimension("linear", dt, 2 * math.dist(tip, cross), p1=tip, p2=mirror, tips=1,
+                             used=[line] + shelves, line_point=cross)
+        _attach_extension_lines(dim, line, thin)
+        dim.p2 = mirror if dim.p2 == mirror else dim.p2
+        return dim
     if dt.prefix == "Ø":
         return FoundDimension("diameter", dt, 2 * circle.radius, p1=tip, center=circle.center,
                               radius=circle.radius, ref=circle, tips=1, used=[line] + shelves)
@@ -156,6 +193,36 @@ def _collinear_pieces(line: Primitive, dt: DimText, thin) -> list[Primitive]:
     return out
 
 
+def _foot(p, line: Primitive):
+    ux, uy = _unit(line.p1, line.p2)
+    t = (p[0] - line.p1[0]) * ux + (p[1] - line.p1[1]) * uy
+    return (line.p1[0] + ux * t, line.p1[1] + uy * t)
+
+
+def _outside_shelf(p, line: Primitive, thin) -> float:
+    """Distance of ``p`` beyond the dimension line extended by its collinear
+    pieces (the shelf a small dimension's text is written on)."""
+    ux, uy = _unit(line.p1, line.p2)
+
+    def t(q):
+        return (q[0] - line.p1[0]) * ux + (q[1] - line.p1[1]) * uy
+
+    lo, hi = 0.0, line.length
+    pieces = [o for o in thin if o is not line and o.kind == "line"
+              and point_line_distance(o.p1, line.p1, line.p2) <= 0.2
+              and point_line_distance(o.p2, line.p1, line.p2) <= 0.2]
+    grown = True
+    while grown:
+        grown = False
+        for o in pieces:
+            a, b = sorted((t(o.p1), t(o.p2)))
+            if a <= hi + 0.5 and b >= lo - 0.5 and (a < lo or b > hi):
+                lo, hi = min(lo, a), max(hi, b)
+                grown = True
+    tp = t(p)
+    return max(0.0, lo - tp, tp - hi)
+
+
 def _tips_on_line(line: Primitive, arrows: list[Arrow]) -> list[tuple[float, float]]:
     ux, uy = _unit(line.p1, line.p2)
     tips = []
@@ -168,6 +235,33 @@ def _tips_on_line(line: Primitive, arrows: list[Arrow]) -> list[tuple[float, flo
         if -1.0 <= t <= line.length + 1.0:
             tips.append(a.tip)
     return tips
+
+
+def _pair_near_text(tips, line: Primitive, text_center):
+    """Two neighbouring arrow tips whose interval is nearest to the text.
+
+    Chain dimensions share one line with many arrows; the value belongs to
+    the span it is written over (or next to, for small spans).
+    """
+    ux, uy = _unit(line.p1, line.p2)
+
+    def t(p):
+        return (p[0] - line.p1[0]) * ux + (p[1] - line.p1[1]) * uy
+
+    ordered = sorted(tips, key=t)
+    tc = t(text_center)
+    best = None
+    for a, b in zip(ordered, ordered[1:]):
+        lo, hi = t(a), t(b)
+        if hi - lo < 0.3:  # two arrows at one point (touching chain dims)
+            continue
+        gap = max(0.0, lo - tc, tc - hi)
+        key = (round(gap, 1), hi - lo)
+        if best is None or key < best[0]:
+            best = (key, a, b)
+    if best is None:
+        return _farthest_pair(tips)
+    return best[1], best[2]
 
 
 def _farthest_pair(points):
@@ -189,6 +283,31 @@ def _outside_extent(p, line: Primitive) -> float:
     ux, uy = _unit(line.p1, line.p2)
     t = (p[0] - line.p1[0]) * ux + (p[1] - line.p1[1]) * uy
     return max(0.0, -t, t - line.length)
+
+
+def _axis_crossing(line: Primitive, axes) -> tuple[float, float] | None:
+    """Point where the dimension line crosses a perpendicular axis line."""
+    for ax in axes:
+        if ax.kind != "line":
+            continue
+        if angle_diff(direction_deg(ax.p1, ax.p2), direction_deg(line.p1, line.p2) + 90.0) > 2.0:
+            continue
+        x = _intersection(line.p1, line.p2, ax.p1, ax.p2)
+        if x is None:
+            continue
+        on_line = point_segment_distance(x, line.p1, line.p2) <= 6.0
+        on_axis = point_segment_distance(x, ax.p1, ax.p2) <= 1.0
+        if on_line and on_axis:
+            return x
+    return None
+
+
+def _intersection(a1, a2, b1, b2):
+    d = (a2[0] - a1[0]) * (b2[1] - b1[1]) - (a2[1] - a1[1]) * (b2[0] - b1[0])
+    if abs(d) < 1e-12:
+        return None
+    t = ((b1[0] - a1[0]) * (b2[1] - b1[1]) - (b1[1] - a1[1]) * (b2[0] - b1[0])) / d
+    return (a1[0] + t * (a2[0] - a1[0]), a1[1] + t * (a2[1] - a1[1]))
 
 
 def _circle_between(t1, t2, curves) -> Primitive | None:
@@ -249,15 +368,17 @@ def _angular(dt: DimText, arrows, thin) -> FoundDimension | None:
         d = abs(math.dist(dt.center, arc.center) - arc.radius)
         if d > dt.raw.height + 4.0:
             continue
-        tips = [a.tip for a in arrows if abs(math.dist(a.tip, arc.center) - arc.radius) <= TIP_ON_LINE]
-        if len(tips) < 2:
+        tips = [a.tip for a in arrows
+                if abs(math.dist(a.tip, arc.center) - arc.radius) <= TIP_ON_LINE
+                and _within_arc(arc, a.tip, margin=10.0)]
+        if len(tips) < 2 or not _within_arc(arc, dt.center, margin=30.0):
             continue
         if best is None or d < best[0]:
             best = (d, arc, tips)
     if best is None:
         return None
     _, arc, tips = best
-    t1, t2 = _farthest_pair(tips)
+    t1, t2 = _angular_pair_near_text(tips, arc, dt.center)
     a1 = math.atan2(t1[1] - arc.center[1], t1[0] - arc.center[0])
     a2 = math.atan2(t2[1] - arc.center[1], t2[0] - arc.center[0])
     angle = abs(math.degrees((a2 - a1 + math.pi) % (2 * math.pi) - math.pi))
@@ -282,3 +403,32 @@ def _angular(dt: DimText, arrows, thin) -> FoundDimension | None:
 def _arc_mid(arc: Primitive):
     mid = math.radians(arc.start_angle + arc.sweep / 2)
     return (arc.center[0] + arc.radius * math.cos(mid), arc.center[1] + arc.radius * math.sin(mid))
+
+
+def _polar_deg(center, p) -> float:
+    return math.degrees(math.atan2(p[1] - center[1], p[0] - center[0])) % 360.0
+
+
+def _within_arc(arc: Primitive, p, margin: float) -> bool:
+    rel = (_polar_deg(arc.center, p) - arc.start_angle) % 360.0
+    return rel <= arc.sweep + margin or rel >= 360.0 - margin
+
+
+def _angular_pair_near_text(tips, arc: Primitive, text_center):
+    """Neighbouring tips (by angle along the arc) around the text position."""
+    def rel(p):
+        r = (_polar_deg(arc.center, p) - arc.start_angle) % 360.0
+        return r - 360.0 if r > 360.0 - 30.0 else r
+
+    ordered = sorted(tips, key=rel)
+    tc = rel(text_center)
+    best = None
+    for a, b in zip(ordered, ordered[1:]):
+        lo, hi = rel(a), rel(b)
+        if hi - lo < 0.05:
+            continue
+        gap = max(0.0, lo - tc, tc - hi)
+        key = (round(gap, 1), hi - lo)
+        if best is None or key < best[0]:
+            best = (key, a, b)
+    return (best[1], best[2]) if best else _farthest_pair(tips)

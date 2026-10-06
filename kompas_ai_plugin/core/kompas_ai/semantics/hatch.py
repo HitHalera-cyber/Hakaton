@@ -12,6 +12,7 @@ from ..geometry.segmentation import Primitive
 MIN_LINES = 4
 ANGLE_BIN = 1.0  # deg
 AXIS_EXCLUSION = 2.0  # deg; lines near 0/90 are left to dimensions and axes
+MIN_SPACING, MAX_SPACING = 0.5, 12.0  # mm; hatch line spacing on the sheet (ГОСТ 2.306: 1–10)
 
 
 @dataclass
@@ -142,5 +143,7 @@ def _spacing(lines: list[Primitive], angle: float) -> float | None:
     if len(diffs) < MIN_LINES - 2:
         return None
     s = median(diffs)
+    if not MIN_SPACING <= s <= MAX_SPACING:  # parallel lines of a graph, not a hatch
+        return None
     regular = [d for d in diffs if abs(d / s - round(d / s)) < 0.15]
     return s if len(regular) >= 0.8 * len(diffs) else None

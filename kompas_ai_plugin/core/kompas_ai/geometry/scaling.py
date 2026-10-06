@@ -26,7 +26,7 @@ class DimensionCheck:
     ok: bool
 
 
-def _scale_text(value: float) -> str:
+def scale_text(value: float) -> str:
     def fmt(v):
         return f"{v:g}".replace(".", ",")
     return f"{fmt(value)}:1" if value >= 1 else f"1:{fmt(1 / value)}"
@@ -48,11 +48,11 @@ def resolve_scale(title: Scale, ratios: list[float]) -> Scale:
         scale.dimension_estimate = round(estimate, 4)
         if title.source == "default":
             snapped = snap_scale(estimate)
-            scale.value, scale.text, scale.source = snapped, _scale_text(snapped), "dimensions"
+            scale.value, scale.text, scale.source = snapped, scale_text(snapped), "dimensions"
         elif abs(estimate / title.value - 1) > CONFLICT_TOLERANCE:
             scale.conflicts.append(
                 f"Масштаб в основной надписи {title.text}, а по размерам получается "
-                f"{_scale_text(snap_scale(estimate))} (≈{estimate:.3f}). Проверьте масштаб.")
+                f"{scale_text(snap_scale(estimate))} (≈{estimate:.3f}). Проверьте масштаб.")
         spread = [r for r in ratios if abs(r / scale.value - 1) > CONFLICT_TOLERANCE]
         if spread and len(spread) < len(ratios):
             scale.conflicts.append(

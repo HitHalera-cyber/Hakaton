@@ -12,13 +12,14 @@ Stages (each in its own module):
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 
 from . import ir
 from .geometry.chains import build_chains
 from .geometry.constraints import find_constraints
 from .geometry.linetypes import merge_dashed
-from .geometry.scaling import check_dimension, resolve_scale
+from .geometry.scaling import check_dimension, resolve_scale, scale_text, snap_scale
 from .geometry.segmentation import Primitive, segment_chain
 from .pdf.vector_extractor import extract_page
 from .semantics.arrows import arrows_from_chains, find_arrows, merge_arrow_sources
@@ -68,14 +69,25 @@ def recognize_pdf(pdf_path: str | Path, page: int = 0) -> ir.Drawing:
         (dim_texts if parsed else plain_texts).append(parsed or t)
     thin_free = [p for p in prims if is_thin(p) and not p.tags & {"axial", "dashed"}]
     main_curves = [p for p in prims if not is_thin(p) and p.kind in ("circle", "arc")]
-    found = find_dimensions(dim_texts, arrows, thin_free, main_curves)
+    axes = [p for p in prims if "axial" in p.tags]
+    found = find_dimensions(dim_texts, arrows, thin_free, main_curves, axes)
     used = {id(p) for d in found for p in d.used}
     matched_texts = {id(d.text) for d in found}
+    suspicious: set[int] = set()
     for dt in dim_texts:
         if id(dt) not in matched_texts:
             plain_texts.append(dt.raw)
-            drawing.warnings.append(
-                f"Текст «{dt.raw.text}» похож на размер, но размерная линия не найдена.")
+            # Numbers on graph axes and in tables are plain text; only a number
+            # with arrowheads around it is a dimension that was not assembled.
+            reach = 4 * dt.raw.height + 10.0
+            # Single digits next to arrows are usually labels of vectors or
+            # positions (u₂, 1, 2…), not dimension values.
+            looks_like_value = dt.prefix or dt.angular or dt.decimals or dt.value >= 10
+            if looks_like_value and any(math.dist(a.tip, dt.center) <= reach for a in arrows):
+                suspicious.add(id(dt.raw))
+                drawing.warnings.append(
+                    f"Текст «{dt.raw.text}» похож на размер (рядом стрелки), "
+                    "но размерная линия не найдена — добавлен как текст.")
 
     ratios = [d.measured / d.text.value for d in found
               if d.dim_type != "angular" and d.text.value > 0]
@@ -87,7 +99,8 @@ def recognize_pdf(pdf_path: str | Path, page: int = 0) -> ir.Drawing:
     mark_axis_lines([p for p in geometry if is_thin(p)], contour)
     regions, orphan_groups = hatch_regions(hatch_groups, contour)
 
-    _build_entities(drawing, geometry, is_thin, found, plain_texts, regions, orphan_groups)
+    _build_entities(drawing, geometry, is_thin, found, plain_texts, regions, orphan_groups,
+                    suspicious)
     drawing.constraints = find_constraints(drawing.entities)
     if content.unknown_symbols:
         drawing.warnings.append(
@@ -95,7 +108,8 @@ def recognize_pdf(pdf_path: str | Path, page: int = 0) -> ir.Drawing:
     return drawing
 
 
-def _build_entities(drawing, geometry, is_thin, found, plain_texts, regions, orphan_groups):
+def _build_entities(drawing, geometry, is_thin, found, plain_texts, regions, orphan_groups,
+                    suspicious=frozenset()):
     counters: dict[str, int] = {}
 
     def new_id(prefix: str) -> str:
@@ -123,8 +137,10 @@ def _build_entities(drawing, geometry, is_thin, found, plain_texts, regions, orp
         drawing.entities.append(_dimension_entity(d, new_id("D"), ref_ids, drawing.scale.value))
 
     for t in plain_texts:
-        drawing.entities.append(ir.Text(new_id("T"), 0.9, [], text=t.text, position=_r(t.origin),
-                                        height=t.height, angle=t.angle))
+        conf, notes = (0.6, ["Похоже на размер, но собран как текст"]) if id(t) in suspicious \
+            else (0.9, [])
+        drawing.entities.append(ir.Text(new_id("T"), conf, notes, text=t.text,
+                                        position=_r(t.origin), height=t.height, angle=t.angle))
 
     for region in regions:
         drawing.entities.append(ir.Hatch(new_id("H"), 0.9, [], angle=round(region.angle, 2),
@@ -156,14 +172,32 @@ def _dimension_entity(d: FoundDimension, dim_id: str, ref_ids, scale: float) -> 
     conf = 0.95 if d.tips >= 2 else 0.8
     unit = "°" if d.dim_type == "angular" else " мм"
     if not check.ok:
-        conf = 0.6
-        notes.append(f"Надпись {d.text.raw.text}, а по геометрии {check.model_value:.3f}{unit} "
-                     f"(расхождение {check.deviation:+.3f}{unit})")
+        other = _other_view_scale(d, scale)
+        if other:
+            conf = 0.85
+            notes.append(f"Размер соответствует масштабу {other} — видимо, вид в другом масштабе")
+        else:
+            conf = 0.6
+            notes.append(f"Надпись {d.text.raw.text}, а по геометрии {check.model_value:.3f}{unit} "
+                         f"(расхождение {check.deviation:+.3f}{unit})")
     return ir.Dimension(
         dim_id, conf, notes, dim_type=d.dim_type, text=d.text.raw.text, nominal=d.text.value,
         measured=round(d.measured, 4), p1=_r(d.p1), p2=_r(d.p2), line_point=_r(d.line_point),
         center=_r(d.center), radius=round(d.radius, 4) if d.radius else None,
         orientation=d.orientation, ref=ref_ids.get(id(d.ref)) if d.ref is not None else None)
+
+
+def _other_view_scale(d: FoundDimension, sheet_scale: float) -> str | None:
+    """Scale text (e.g. "3:1") if the dimension fits another standard scale exactly."""
+    if d.dim_type == "angular" or not d.text.value:
+        return None
+    ratio = d.measured / d.text.value
+    snapped = snap_scale(ratio)
+    if snapped == ratio or abs(snapped - sheet_scale) < 1e-9:
+        return None
+    if check_dimension(d.dim_type, d.measured, d.text.value, d.text.decimals, snapped).ok:
+        return scale_text(snapped)
+    return None
 
 
 def _r(p):

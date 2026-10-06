@@ -242,7 +242,9 @@ def merge_text_runs(spans: list[RawText]) -> list[RawText]:
             if abs(prev.angle - span.angle) > 1.0:
                 continue
             along, across = along_across(span.origin, prev.last_origin or prev.origin, prev.angle)
-            if abs(across) < 0.3 * prev.height and 0.0 < along < 1.3 * prev.height:
+            same_size = min(prev.height, span.height) / max(prev.height, span.height) > 0.8
+            # Sub/superscripts (smaller, shifted) stay separate texts at their own place.
+            if same_size and abs(across) < 0.3 * prev.height and 0.0 < along < 1.3 * prev.height:
                 sep = " " if along > 0.9 * prev.height and not span.text.startswith(" ") else ""
                 merged[i] = RawText(
                     text=prev.text + sep + span.text,

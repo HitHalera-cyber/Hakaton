@@ -16,6 +16,12 @@ def test_parse_dim_texts():
     assert parse_dim_text(raw("R10")).prefix == "R"
     assert parse_dim_text(raw("120 ±0,1")).tail == "±0,1"
     assert parse_dim_text(raw("Изм.")) is None
+    d = parse_dim_text(raw("37°57'"))
+    assert d.angular and abs(d.value - 37.95) < 1e-9
+    # labels of vectors and graph captions are not dimensions
+    for text in ("2u", "1m", "2uср", "130 R, мм", "68,94 50,92"):
+        assert parse_dim_text(raw(text)) is None
+    assert parse_dim_text(raw("Ø20H7")).tail == "H7"
 
 
 def test_merge_symbol_and_value():
