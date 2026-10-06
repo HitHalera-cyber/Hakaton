@@ -58,9 +58,12 @@ kompas_ai_plugin/
 - линейные размеры `ksLinDimension`: `ps` 0 — параллельный, 1 — вертикальный,
   2 — горизонтальный; число появляется при `ksDimTextParam.bitFlag = 1`;
 - радиус `ksRadDimension` и диаметр `ksDiamDimension` (`ksRDimParam`);
-- штриховка: `ksHatch(0, угол, шаг, 0, 0, 0)` → объекты границы → `ksEndObj()`.
+- штриховка: `ksHatch(0, угол, шаг, 0, 0, 0)` → объекты границы → `ksEndObj()`;
+- угловой размер `ksAngDimension` (`ksADimParam`: xc, yc, ang1, ang2, rad, dir; рисование — `ksDimDrawingParam`);
+- новый документ нужного формата: `Document2D().ksCreateDocument(ksDocumentParam)`,
+  `ksStandartSheet.format` 0–4 = A0–A4, `direct=True` — альбомный.
 
 Не работает или не проверено:
 - API7 `коллекция.Add()` и `LayoutSheets.Update()` без лицензии ничего не делают;
-- вид с масштабом `ksCreateSheetView` вернул 0 — проверяется в `api_test3.py`;
-- угловой размер, формат листа через API5 — `api_test3.py`.
+- вид с масштабом `ksCreateSheetView` без лицензии отклоняется (код 216) — пока рисуем
+  в мм листа, а числа размеров пишем вручную (`api_test4.py`).
