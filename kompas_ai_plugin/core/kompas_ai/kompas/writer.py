@@ -156,6 +156,13 @@ class DrawingWriter:
             a2 = _polar(d.center, d.p2)
             if (a2 - a1) % 360.0 > 180.0:  # dimension the angle, not its complement
                 a1, a2 = a2, a1
+            # KOMPAS writes the angle it measures (45°21' for 45.36°). When the
+            # written value agrees with the drawing, the sides are set exactly
+            # to it around their bisector so the dimension reads like the source.
+            sweep = (a2 - a1) % 360.0
+            if d.nominal and abs(sweep - d.nominal) <= 1.0:
+                mid = a1 + sweep / 2
+                a1, a2 = (mid - d.nominal / 2) % 360.0, (mid + d.nominal / 2) % 360.0
             return self.b.angular_dim(self._p(d.center), a1, a2, self._len(d.radius or 20.0), text)
         return None
 

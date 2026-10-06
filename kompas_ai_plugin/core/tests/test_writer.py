@@ -37,8 +37,8 @@ def drawing_5_to_1():
                      p1=(10, 10), p2=(60, 10), line_point=(35, 0), orientation="horizontal"),
         ir.Dimension("D2", dim_type="diameter", text="Ø5", nominal=5, measured=25,
                      p1=(35 + 12.5, 20), center=(35, 20), radius=12.5),
-        ir.Dimension("D3", dim_type="angular", text="45°", nominal=45, measured=45,
-                     p1=(80, 10), p2=(70 + 10 * math.cos(math.radians(45)), 10 + 10 * math.sin(math.radians(45))),
+        ir.Dimension("D3", dim_type="angular", text="45°", nominal=45, measured=45.4,
+                     p1=(80, 10), p2=(70 + 10 * math.cos(math.radians(45.4)), 10 + 10 * math.sin(math.radians(45.4))),
                      center=(70, 10), radius=20),
         ir.Hatch("H1", angle=45, spacing=2, contours=[[(0, 0), (5, 0), (5, 5), (0, 0)]]),
     ]
@@ -57,7 +57,8 @@ def test_sheet_mode_writes_values_by_hand():
     (_, _, _, diameter, rtext), = b.of("radial_dim")
     assert diameter and rtext.value == "5"
     (_, a1, a2, _, atext), = b.of("angular_dim")
-    assert atext.auto and abs(a1 - 0.0) < 1e-6 and abs(a2 - 45.0) < 1e-6
+    # measured 45.4° is drawn as exactly 45° around the same bisector
+    assert atext.auto and abs(a1 - 0.2) < 1e-6 and abs(a2 - 45.2) < 1e-6
     assert report.created == {"hatch": 1, "line": 2, "circle": 1, "dimension": 3}
     assert not report.failed
 
