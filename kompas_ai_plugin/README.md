@@ -73,3 +73,8 @@ kompas_ai_plugin/
 добавляется в `ksDynamicArray(GetTextArr())` элементом `ksChar255` (`ko_Char255`).
 Значок Ø даёт `sign = 1`. С `stringFlag = True` строка не добавляется; `bitFlag = 1`
 вместе со строкой даёт две строки (авто + ручная).
+
+Текст с индексами (`api_test5.py`): абзац `ksParagraph` + `ksTextLine` + элементы
+`ksTextItemParam` создаются, но поле `type` (ksTItSBase = 7, ksTItSUpperIndex = 8,
+ksTItSLowerIndex = 9, ksTItSEnd = 16) в API5 не действует — индекс, видимо, задаётся
+флагами `ksTextItemFont.bitVector`; подбирается в `api_test6.py`.
