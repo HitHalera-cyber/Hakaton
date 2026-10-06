@@ -183,3 +183,38 @@ class Drawing:
     def save_json(self, path: str | Path) -> None:
         Path(path).write_text(json.dumps(self.to_dict(), ensure_ascii=False, indent=2),
                               encoding="utf-8")
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Drawing":
+        kinds = {c.__name__.lower(): c for c in ENTITY_TYPES}
+        entities = []
+        for raw in data.get("entities", []):
+            raw = dict(raw)
+            entity_cls = kinds[raw.pop("type")]
+            entities.append(entity_cls(**{k: _tuples(v) for k, v in raw.items()}))
+        sheet = dict(data.get("sheet", {}))
+        sheet["offset"] = tuple(sheet.get("offset", (0.0, 0.0)))
+        return cls(
+            source=data.get("source", ""),
+            sheet=Sheet(**sheet),
+            scale=Scale(**data.get("scale", {})),
+            entities=entities,
+            constraints=[Constraint(**c) for c in data.get("constraints", [])],
+            warnings=list(data.get("warnings", [])),
+        )
+
+    @classmethod
+    def load_json(cls, path: str | Path) -> "Drawing":
+        return cls.from_dict(json.loads(Path(path).read_text(encoding="utf-8")))
+
+
+ENTITY_TYPES = (Line, Circle, Arc, PointMark, Text, Hatch, Dimension)
+
+
+def _tuples(value):
+    """JSON turns tuples into lists; points are restored as tuples."""
+    if isinstance(value, list):
+        if len(value) == 2 and all(isinstance(v, (int, float)) for v in value):
+            return (float(value[0]), float(value[1]))
+        return [_tuples(v) for v in value]
+    return value

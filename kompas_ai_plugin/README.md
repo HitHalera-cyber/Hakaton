@@ -48,6 +48,7 @@
 kompas_ai_plugin/
 ├── prototype/      проверка API КОМПАС (smoke_test.py, dim_test.py)
 ├── core/           ядро распознавания на Python — готов этап 1 (векторный PDF), см. core/README.md
+│                   + запись в КОМПАС: py -m kompas_ai.to_kompas чертёж.pdf
 └── plugin_cs/      C#-библиотека для КОМПАС (команда «Распознать чертёж», UI) — позже
 ```
 

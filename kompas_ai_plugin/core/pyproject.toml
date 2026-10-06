@@ -8,6 +8,7 @@ dependencies = [
     "numpy>=1.24",
     "ezdxf>=1.1",
     "shapely>=2.0",
+    "pywin32>=306; sys_platform == 'win32'",
 ]
 
 [project.optional-dependencies]
