@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import math
 
-from .fitting import angle_diff, direction_deg, point_line_distance
+from .fitting import angle_diff, direction_deg, fit_circle, point_line_distance
 from .segmentation import Primitive
 
 MAX_GAP = 3.0  # mm between consecutive dashes
@@ -131,38 +131,65 @@ def _gaps(intervals) -> list[float]:
 
 
 def _merge_arcs(arcs: list[Primitive]) -> list[Primitive]:
+    """Group dashes of one circle by their points, not by their own fits:
+    a short dash has few vertices and its own centre/radius are unreliable."""
     groups: list[list[Primitive]] = []
-    for arc in arcs:
-        for group in groups:
-            ref = group[0]
-            tol = 0.3 + 0.01 * ref.radius
-            if math.dist(ref.center, arc.center) <= tol and abs(ref.radius - arc.radius) <= tol:
+    fits: list[tuple] = []
+    for arc in sorted(arcs, key=lambda a: -a.length):
+        for i, group in enumerate(groups):
+            center, radius = fits[i]
+            tol = 0.25 + 0.003 * radius
+            if all(abs(math.dist(p, center) - radius) <= tol for p in arc.points):
                 group.append(arc)
+                fit = fit_circle([p for g in group for p in g.points])
+                if fit is not None:
+                    fits[i] = (fit.center, fit.radius)
                 break
         else:
             groups.append([arc])
+            fits.append((arc.center, arc.radius))
 
     out = []
-    for group in groups:
-        if len(group) == 1:
-            out.append(group[0])
-            continue
-        weights = [g.sweep for g in group]
-        total = sum(weights)
-        cx = sum(g.center[0] * w for g, w in zip(group, weights)) / total
-        cy = sum(g.center[1] * w for g, w in zip(group, weights)) / total
-        r = sum(g.radius * w for g, w in zip(group, weights)) / total
-        covered, start, end = _arc_union(group)
-        points = [p for g in group for p in g.points]
-        error = max(g.error for g in group)
-        if covered >= CIRCLE_COVERAGE:
-            merged = Primitive("circle", points, group[0].width, error, center=(cx, cy), radius=r)
-        else:
-            merged = Primitive("arc", points, group[0].width, error, center=(cx, cy), radius=r,
-                               start_angle=start, end_angle=end, sweep=(end - start) % 360)
-        merged.tags = {"axial", f"pieces={len(group)}"}
-        out.append(merged)
+    for group, ((cx, cy), r) in zip(groups, fits):
+        for run in _arc_runs(group, r):
+            if len(run) == 1:
+                out.append(run[0])
+                continue
+            covered, start, end = _arc_union(run)
+            points = [p for g in run for p in g.points]
+            error = max(g.error for g in run)
+            if covered >= CIRCLE_COVERAGE:
+                merged = Primitive("circle", points, run[0].width, error, center=(cx, cy), radius=r)
+            else:
+                merged = Primitive("arc", points, run[0].width, error, center=(cx, cy), radius=r,
+                                   start_angle=start, end_angle=end, sweep=(end - start) % 360)
+            merged.tags = set().union(*(g.tags for g in run)) | {f"pieces={len(run)}"}
+            # Pieces with gaps between them are dashes of a dash-dot circle;
+            # touching pieces are one solid arc (e.g. chained angular dimensions).
+            if covered - sum(g.sweep for g in run) > 0.5:
+                merged.tags.add("axial")
+            out.append(merged)
     return out
+
+
+def _arc_runs(group: list[Primitive], radius: float) -> list[list[Primitive]]:
+    """Split co-circular pieces into runs whose gaps are dash-sized."""
+    max_gap_deg = math.degrees(MAX_GAP / max(radius, 1e-6))
+    pieces = sorted(group, key=lambda g: g.start_angle % 360.0)
+    runs: list[list[Primitive]] = [[pieces[0]]]
+    reach = pieces[0].start_angle % 360.0 + pieces[0].sweep
+    for g in pieces[1:]:
+        start = g.start_angle % 360.0
+        if start - reach <= max_gap_deg:
+            runs[-1].append(g)
+        else:
+            runs.append([g])
+        reach = max(reach, start + g.sweep)
+    if len(runs) > 1:  # close the circle across 0°
+        first = runs[0][0].start_angle % 360.0 + 360.0
+        if first - reach <= max_gap_deg:
+            runs[0] = runs.pop() + runs[0]
+    return runs
 
 
 def _arc_union(group: list[Primitive]) -> tuple[float, float, float]:

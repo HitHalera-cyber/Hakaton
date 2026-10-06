@@ -20,7 +20,7 @@ from .geometry.chains import build_chains
 from .geometry.constraints import find_constraints
 from .geometry.linetypes import merge_dashed
 from .geometry.scaling import check_dimension, resolve_scale, scale_text, snap_scale
-from .geometry.segmentation import Primitive, segment_chain
+from .geometry.segmentation import Primitive, merge_cocircular, segment_chain
 from .pdf.vector_extractor import extract_page
 from .semantics.arrows import arrows_from_chains, find_arrows, merge_arrow_sources
 from .semantics.axes import mark_axis_lines
@@ -47,7 +47,7 @@ def recognize_pdf(pdf_path: str | Path, page: int = 0) -> ir.Drawing:
     outline_arrows, chains = arrows_from_chains(chains)
     arrows = merge_arrow_sources(outline_arrows, find_arrows(content.fills))
 
-    prims = [p for chain in chains for p in segment_chain(chain)]
+    prims = merge_cocircular([p for chain in chains for p in segment_chain(chain)])
     prims = [p for p in prims if not layout.is_sheet_graphic(p.points)]
     widths = sorted({round(p.width, 3) for p in prims})
     thin_w = widths[0] if len(widths) > 1 else -1.0  # one width only: everything is main

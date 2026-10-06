@@ -189,3 +189,96 @@ def _join(a: Primitive, b: Primitive, width) -> Primitive | None:
         if fit and fit.max_error <= CIRCLE_TOLERANCE + 0.002 * fit.radius:
             return _make_arc(points, width, fit.center, fit.radius, fit.max_error)
     return None
+
+
+def merge_cocircular(prims: list[Primitive]) -> list[Primitive]:
+    """Join arcs of one circle that were cut at junctions (touching, same width).
+
+    A circle touched by other objects is split into several chains at the
+    junction points; its pieces are re-joined here. Pieces separated by gaps
+    (dash patterns) are left to the line-type stage.
+    """
+    arcs = [p for p in prims if p.kind == "arc"]
+    rest = [p for p in prims if p.kind != "arc"]
+    groups: list[list[Primitive]] = []
+    for arc in arcs:
+        for g in groups:
+            ref = g[0]
+            tol = 3 * CIRCLE_TOLERANCE + 0.003 * ref.radius
+            if abs(ref.width - arc.width) < 1e-3 and math.dist(ref.center, arc.center) <= tol \
+                    and abs(ref.radius - arc.radius) <= tol:
+                g.append(arc)
+                break
+        else:
+            groups.append([arc])
+
+    # Short chords lying on a circle (left over where a junction split it)
+    # fill the gaps between its arc pieces.
+    used_chords: set[int] = set()
+    for g in groups:
+        ref = max(g, key=lambda a: a.sweep)
+        tol = CIRCLE_TOLERANCE + 0.002 * ref.radius
+        for line in rest:
+            if line.kind != "line" or abs(line.width - ref.width) >= 1e-3 or id(line) in used_chords:
+                continue
+            if line.length > 0.6 * ref.radius or not all(
+                    abs(math.dist(p, ref.center) - ref.radius) <= tol for p in (line.p1, line.p2)):
+                continue
+            a1 = math.degrees(math.atan2(line.p1[1] - ref.center[1], line.p1[0] - ref.center[0]))
+            a2 = math.degrees(math.atan2(line.p2[1] - ref.center[1], line.p2[0] - ref.center[0]))
+            start, sweep = (a1 % 360.0, (a2 - a1) % 360.0)
+            if sweep > 180.0:
+                start, sweep = a2 % 360.0, 360.0 - sweep
+            g.append(Primitive("arc", [line.p1, line.p2], ref.width, line.error, center=ref.center,
+                               radius=ref.radius, start_angle=start, end_angle=(start + sweep) % 360,
+                               sweep=sweep, p1=line.p1, p2=line.p2))
+            used_chords.add(id(line))
+
+    out = [p for p in rest if id(p) not in used_chords]
+    for g in groups:
+        out.extend(_join_touching(g) if len(g) > 1 else g)
+    return out
+
+
+def _join_touching(group: list[Primitive]) -> list[Primitive]:
+    """Union of touching angular spans; a span covering the circle becomes a circle."""
+    spans = sorted(((p.start_angle % 360.0, p.sweep, p) for p in group), key=lambda s: s[0])
+    runs: list[list] = []
+    for start, sweep, p in spans:
+        if runs:
+            r_start, r_sweep, members = runs[-1]
+            gap = (start - (r_start + r_sweep)) % 360.0
+            if gap <= 1.0 or gap >= 359.0 - sweep:  # touching or overlapping
+                runs[-1] = [r_start, max(r_sweep, (start - r_start) % 360.0 + sweep), members + [p]]
+                continue
+        runs.append([start, sweep, [p]])
+    # the last run may continue into the first one across 0°
+    if len(runs) > 1:
+        first, last = runs[0], runs[-1]
+        gap = (first[0] - (last[0] + last[1])) % 360.0
+        if gap <= 1.0:
+            runs[0] = [last[0], last[1] + gap + first[1], last[2] + first[2]]
+            runs.pop()
+
+    out = []
+    for start, sweep, members in runs:
+        if len(members) == 1:
+            out.append(members[0])
+            continue
+        points = [q for m in members for q in m.points]
+        fit = fit_circle(points)
+        center, radius = (fit.center, fit.radius) if fit else (members[0].center, members[0].radius)
+        error = fit.max_error if fit else max(m.error for m in members)
+        width = members[0].width
+        if sweep >= FULL_CIRCLE:
+            prim = Primitive("circle", points, width, error, center=center, radius=radius)
+        else:
+            end = (start + sweep) % 360.0
+            prim = Primitive("arc", points, width, error, center=center, radius=radius,
+                             start_angle=start, end_angle=end, sweep=sweep)
+            a, b = (math.radians(start), math.radians(end))
+            prim.p1 = (center[0] + radius * math.cos(a), center[1] + radius * math.sin(a))
+            prim.p2 = (center[0] + radius * math.cos(b), center[1] + radius * math.sin(b))
+        prim.tags = set().union(*(m.tags for m in members))
+        out.append(prim)
+    return out

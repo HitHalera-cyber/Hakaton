@@ -384,19 +384,15 @@ def _angular(dt: DimText, arrows, thin) -> FoundDimension | None:
     angle = abs(math.degrees((a2 - a1 + math.pi) % (2 * math.pi) - math.pi))
     dim = FoundDimension("angular", dt, angle, p1=t1, p2=t2, center=arc.center,
                          radius=arc.radius, line_point=_arc_mid(arc), tips=2, used=[arc])
-    # Extension lines run radially from the vertex through the tips; the
-    # measured points are their ends nearest the vertex.
-    points = []
+    # Extension lines run radially from the vertex through the tips. They are
+    # consumed, but p1/p2 stay at the tips: an extension line may start at the
+    # vertex itself, where the direction of the side is undefined.
     for tip in (t1, t2):
-        point = tip
         for ext in thin:
             if ext.kind == "line" and point_segment_distance(tip, ext.p1, ext.p2) <= EXT_ON_TIP \
                     and point_line_distance(arc.center, ext.p1, ext.p2) <= 1.0:
-                point = min((ext.p1, ext.p2), key=lambda p: math.dist(p, arc.center))
                 dim.used.append(ext)
                 break
-        points.append(point)
-    dim.p1, dim.p2 = points
     return dim
 
 

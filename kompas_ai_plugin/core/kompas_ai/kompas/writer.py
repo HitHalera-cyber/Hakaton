@@ -152,6 +152,8 @@ class DrawingWriter:
             return self.b.radial_dim(self._p(d.center), self._len(d.radius), angle,
                                      d.dim_type == "diameter", text)
         if d.dim_type == "angular" and d.center and d.p1 and d.p2:
+            if min(math.dist(d.center, d.p1), math.dist(d.center, d.p2)) < 1e-3:
+                return None  # a side point at the vertex has no direction
             a1 = _polar(d.center, d.p1)
             a2 = _polar(d.center, d.p2)
             if (a2 - a1) % 360.0 > 180.0:  # dimension the angle, not its complement
