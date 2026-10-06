@@ -111,6 +111,8 @@ class DrawingWriter:
         if isinstance(e, ir.PointMark):
             return self.b.point(self._p(e.position))
         if isinstance(e, ir.Text):
+            if e.parts and any(part[1] != "normal" for part in e.parts):
+                return self._indexed_text(e)
             return self.b.text(self._p(e.position), e.text, self._len(e.height), e.angle)
         if isinstance(e, ir.Hatch):
             if not e.contours:
@@ -120,6 +122,19 @@ class DrawingWriter:
         if isinstance(e, ir.Dimension):
             return self._dimension(e)
         return False
+
+    def _indexed_text(self, e: ir.Text):
+        """One text with indices if KOMPAS can, else each part at its own place."""
+        try:
+            ref = self.b.rich_text(self._p(e.position), [(t, k) for t, k, *_ in e.parts],
+                                   self._len(e.height), e.angle)
+            if ref:
+                return ref
+        except NotImplementedError:
+            pass
+        refs = [self.b.text(self._p((x, y)), t, self._len(h), e.angle)
+                for t, _, x, y, h in e.parts if t.strip()]
+        return refs[0] if refs and all(refs) else None
 
     def _dim_text(self, d: ir.Dimension) -> DimText:
         """Auto value when KOMPAS can compute it; otherwise the text read from the PDF."""

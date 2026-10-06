@@ -79,6 +79,8 @@ class Text(Entity):
     position: Point = (0.0, 0.0)  # baseline start
     height: float = 3.5
     angle: float = 0.0  # degrees, CCW from +X
+    # Text with indices: [text, kind, x, y, height] per part, kind normal|sub|sup.
+    parts: list | None = None
 
 
 @dataclass

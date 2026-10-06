@@ -16,6 +16,11 @@ from .backend import DimText, Point
 
 FORMAT_DOC_SHEET = 1  # ksDocumentParam.type: drawing with a standard sheet
 
+# ksTextItemParam.type values for an index: (start of the index, end of it)
+# per kind. Not confirmed yet (prototype/api_test5.py) — until then texts with
+# indices are written as separate texts at their places.
+INDEX_ITEM_TYPES: dict[str, tuple[int, int]] | None = None
+
 
 def _find_kompas_typelibs() -> list[tuple[str, int, int, str]]:
     import winreg
@@ -130,6 +135,30 @@ class Api5Backend:
 
     def text(self, p, value, height, angle):
         return self.doc.ksText(p[0], p[1], angle, height, 1.0, 0, value)
+
+    def rich_text(self, p, parts, height, angle):
+        if INDEX_ITEM_TYPES is None:
+            raise NotImplementedError("тип элемента текста для индекса не подтверждён")
+        par = self._param("ko_ParagraphParam", "ksParagraphParam")
+        par.Init()
+        par.x, par.y, par.ang = p[0], p[1], angle
+        self.doc.ksParagraph(par)
+        line = self._param("ko_TextLineParam", "ksTextLineParam")
+        line.Init()
+        arr = self._sub("ksDynamicArray", line.GetTextItemArr())
+        for text, kind in parts:
+            types = [0] if kind == "normal" else list(INDEX_ITEM_TYPES[kind])
+            values = [text] if kind == "normal" else [text, ""]
+            for value, item_type in zip(values, types):
+                item = self._param("ko_TextItemParam", "ksTextItemParam")
+                item.Init()
+                font = self._sub("ksTextItemFont", item.GetItemFont())
+                font.Init()
+                font.height, font.ksu = height, 1.0
+                item.s, item.type = value, item_type
+                arr.ksAddArrayItem(-1, item)
+        self.doc.ksTextLine(line)
+        return self.doc.ksEndObj()
 
     def linear_dim(self, p1, p2, offset, kind, text):
         par = self._param("ko_LDimParam", "ksLDimParam")

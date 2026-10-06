@@ -49,6 +49,12 @@ class Backend(Protocol):
 
     def text(self, p: Point, value: str, height: float, angle: float) -> int: ...
 
+    def rich_text(self, p: Point, parts: list[tuple[str, str]], height: float,
+                  angle: float) -> int:
+        """One text object with indices; parts = [(text, "normal"|"sub"|"sup")].
+        Raises NotImplementedError when the backend cannot do it."""
+        ...
+
     def linear_dim(self, p1: Point, p2: Point, offset: Point, kind: int, text: DimText) -> int: ...
 
     def radial_dim(self, center: Point, radius: float, angle: float, diameter: bool,

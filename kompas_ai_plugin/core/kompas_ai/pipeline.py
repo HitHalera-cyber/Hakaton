@@ -139,8 +139,11 @@ def _build_entities(drawing, geometry, is_thin, found, plain_texts, regions, orp
     for t in plain_texts:
         conf, notes = (0.6, ["Похоже на размер, но собран как текст"]) if id(t) in suspicious \
             else (0.9, [])
+        parts = [[text, kind, round(x, 4), round(y, 4), h] for text, kind, x, y, h in t.parts] \
+            if t.parts else None
         drawing.entities.append(ir.Text(new_id("T"), conf, notes, text=t.text,
-                                        position=_r(t.origin), height=t.height, angle=t.angle))
+                                        position=_r(t.origin), height=t.height, angle=t.angle,
+                                        parts=parts))
 
     for region in regions:
         drawing.entities.append(ir.Hatch(new_id("H"), 0.9, [], angle=round(region.angle, 2),

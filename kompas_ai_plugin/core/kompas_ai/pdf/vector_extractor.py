@@ -60,6 +60,9 @@ class RawText:
     font: str
     bbox: tuple[float, float, float, float]  # x0, y0, x1, y1 in mm (axis aligned)
     last_origin: tuple[float, float] | None = None  # origin of the last character
+    # Rich text: [(text, kind, x, y, height)], kind "normal" | "sub" | "sup";
+    # x, y is where the part starts in the PDF. None = plain text.
+    parts: list[tuple] | None = None
 
 
 @dataclass
@@ -259,7 +262,68 @@ def merge_text_runs(spans: list[RawText]) -> list[RawText]:
             merged.append(span)
     for t in merged:
         t.text = " ".join(t.text.split())
-    return merged
+    return attach_indices(merged)
+
+
+INDEX_MAX_SIZE = 0.85  # an index is smaller than its base text
+
+
+def attach_indices(texts: list[RawText]) -> list[RawText]:
+    """Join subscripts/superscripts to their base text: P + «кав» + «=3,38» → P_кав=3,38.
+
+    An index is a smaller text starting right after the base, with its
+    baseline shifted down (subscript) or up (superscript). Text of the base
+    size that continues after an index is joined too.
+    """
+    def frame(t: RawText, p):
+        a = math.radians(t.angle)
+        ux, uy = math.cos(a), math.sin(a)
+        vx, vy = p[0] - t.origin[0], p[1] - t.origin[1]
+        return vx * ux + vy * uy, -vx * uy + vy * ux
+
+    def last_kind(t: RawText) -> str:
+        return t.parts[-1][1] if t.parts else "normal"
+
+    def attach(base: RawText, x: RawText) -> str | None:
+        if abs(base.angle - x.angle) > 1.0:
+            return None
+        h = base.height
+        along = frame(base, x.origin)[0] - frame(base, base.last_origin or base.origin)[0]
+        across = frame(base, x.origin)[1]
+        if not 0.0 < along < 1.5 * h:
+            return None
+        if x.height < INDEX_MAX_SIZE * h and not x.parts and 0.08 * h < abs(across) < 0.8 * h:
+            return "sub" if across < 0 else "sup"
+        if last_kind(base) != "normal" and x.height >= INDEX_MAX_SIZE * h and abs(across) < 0.3 * h:
+            return "normal"
+        return None
+
+    def gap(base: RawText, x: RawText) -> float:
+        return frame(base, x.origin)[0] - frame(base, base.last_origin or base.origin)[0]
+
+    items = list(texts)
+    changed = True
+    while changed:
+        changed = False
+        for x in items:
+            # the base an index belongs to is the nearest one before it
+            options = [(gap(b, x), b, k) for b in items if b is not x
+                       for k in [attach(b, x)] if k is not None]
+            if not options:
+                continue
+            _, base, kind = min(options, key=lambda o: o[0])
+            base_parts = base.parts or [(base.text, "normal", *base.origin, base.height)]
+            x_parts = [(text, kind if k == "normal" else k, px, py, ph) for text, k, px, py, ph in
+                       (x.parts or [(x.text, "normal", *x.origin, x.height)])]
+            base.parts = base_parts + x_parts
+            base.text = base.text + x.text
+            base.bbox = (min(base.bbox[0], x.bbox[0]), min(base.bbox[1], x.bbox[1]),
+                         max(base.bbox[2], x.bbox[2]), max(base.bbox[3], x.bbox[3]))
+            base.last_origin = x.last_origin
+            items.remove(x)
+            changed = True
+            break
+    return items
 
 
 def extract_page(pdf_path: str | Path, page_number: int = 0) -> PageContent:

@@ -96,3 +96,22 @@ def test_json_round_trip(tmp_path):
     loaded = ir.Drawing.load_json(tmp_path / "d.json")
     assert [e.id for e in loaded.entities] == [e.id for e in d.entities]
     assert loaded.of_type(ir.Circle)[0].center == d.of_type(ir.Circle)[0].center
+
+
+def test_indexed_text_falls_back_to_parts():
+    class NoRich(FakeBackend):
+        def rich_text(self, *args):
+            raise NotImplementedError
+
+    d = ir.Drawing()
+    d.entities = [ir.Text("T1", text="pкав=3,38", position=(10, 10), height=5,
+                          parts=[["p", "normal", 10, 10, 5], ["кав", "sub", 13, 9, 3.5],
+                                 ["=3,38", "normal", 20, 10, 5]])]
+    b = NoRich()
+    report = DrawingWriter(b).write(d)
+    assert [a[1] for a in b.of("text")] == ["p", "кав", "=3,38"]
+    assert report.created == {"text": 1}
+
+    rich = FakeBackend()
+    DrawingWriter(rich).write(d)
+    assert rich.of("rich_text")[0][1] == [("p", "normal"), ("кав", "sub"), ("=3,38", "normal")]

@@ -46,8 +46,9 @@ def write_dxf(drawing: ir.Drawing, path: str | Path) -> None:
             msp.add_arc(e.center, e.radius, e.start_angle, e.end_angle,
                         dxfattribs={"layer": _layer(e.style)})
         elif isinstance(e, ir.Text):
-            msp.add_text(e.text, height=e.height, rotation=e.angle,
-                         dxfattribs={"layer": "TEXT", "insert": e.position})
+            for text, _, x, y, h in (e.parts or [(e.text, "normal", *e.position, e.height)]):
+                msp.add_text(text, height=h, rotation=e.angle,
+                             dxfattribs={"layer": "TEXT", "insert": (x, y)})
         elif isinstance(e, ir.Hatch) and e.contours:
             hatch = msp.add_hatch(dxfattribs={"layer": "HATCH"})
             hatch.set_pattern_fill("ANSI31", scale=e.spacing / 3.175, angle=e.angle - 45.0)
