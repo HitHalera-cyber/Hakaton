@@ -1,0 +1,57 @@
+name: KOMPAS-AI Windows build
+
+# Builds KompasAI.exe and the installer for the kompas_ai_plugin project.
+on:
+  push:
+    paths:
+      - "kompas_ai_plugin/**"
+      - ".github/workflows/kompas-ai-windows.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: kompas_ai_plugin
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r core/requirements.txt pyside6 pyinstaller
+
+      - name: Tests
+        working-directory: kompas_ai_plugin/core
+        run: python -m pytest -q
+
+      - name: Build KompasAI.exe
+        run: pyinstaller packaging/KompasAI.spec --noconfirm --distpath dist --workpath build
+
+      - name: Smoke test of the packaged recogniser
+        working-directory: kompas_ai_plugin/core
+        run: |
+          python -c "import sys; sys.path.insert(0, 'tests'); from synthetic import plate_with_hole; from pathlib import Path; plate_with_hole(Path('plate.pdf'))"
+          python -m kompas_ai.cli plate.pdf -o plate_result --no-preview
+
+      - name: Build installer
+        run: |
+          choco install innosetup -y --no-progress
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVersion=0.1.${{ github.run_number }} packaging\installer.iss
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: KompasAI-Setup
+          path: kompas_ai_plugin/dist/KompasAI_Setup_*.exe
+
+      - name: Upload portable folder
+        uses: actions/upload-artifact@v4
+        with:
+          name: KompasAI-portable
+          path: kompas_ai_plugin/dist/KompasAI

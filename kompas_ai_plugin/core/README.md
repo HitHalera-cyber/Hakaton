@@ -28,6 +28,25 @@ py -m kompas_ai.cli чертёж.pdf --reference чертёж.dxf
 | `drawing.json` | модель чертежа — вход для записи в КОМПАС |
 | `drawing.dxf` | тот же чертёж в DXF (можно открыть в КОМПАС или любой САПР) |
 
+## Программа с окном (KompasAI.exe)
+
+```
+py -m pip install -r requirements.txt pyside6
+py -m kompas_ai.gui
+```
+
+Открыть PDF (или перетащить в окно) → предпросмотр распознанного (колесо мыши —
+масштаб, перетаскивание — сдвиг) → список «Требуют проверки» (щелчок показывает
+объект на листе) → «Построить в КОМПАС» / «Сохранить DXF» / «Сохранить отчёт».
+
+Сборка exe и установщика — автоматически на GitHub (Actions → «KOMPAS-AI Windows
+build» → артефакты `KompasAI-Setup` и `KompasAI-portable`), вручную:
+```
+cd kompas_ai_plugin
+pyinstaller packaging/KompasAI.spec --noconfirm
+iscc packaging\installer.iss
+```
+
 ## Построить чертёж в КОМПАС (Windows, КОМПАС v22–v24)
 
 ```

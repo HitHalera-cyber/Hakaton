@@ -41,6 +41,12 @@ LEGEND = [("Основные линии", ir.STYLE_MAIN), ("Окружности
 
 def render_preview(drawing: ir.Drawing, pdf_path: str | Path, out_png: str | Path,
                    page_number: int = 0, dpi: int = 200) -> None:
+    Path(out_png).write_bytes(render_preview_png(drawing, pdf_path, page_number, dpi))
+
+
+def render_preview_png(drawing: ir.Drawing, pdf_path: str | Path, page_number: int = 0,
+                       dpi: int = 200, legend: bool = True) -> bytes:
+    """The preview image as PNG bytes (used by the window and by render_preview)."""
     src = pymupdf.open(str(pdf_path))
     doc = pymupdf.open()
     doc.insert_pdf(src, from_page=page_number, to_page=page_number)
@@ -61,10 +67,19 @@ def render_preview(drawing: ir.Drawing, pdf_path: str | Path, out_png: str | Pat
     for e in drawing.entities:
         _draw_entity(shape, e, pt)
     shape.commit()
-    _legend(page, drawing)
-    page.get_pixmap(dpi=dpi).save(str(out_png))
+    if legend:
+        _legend(page, drawing)
+    png = page.get_pixmap(dpi=dpi).tobytes("png")
     doc.close()
     src.close()
+    return png
+
+
+def sheet_to_pixel(drawing: ir.Drawing, page_height_pt: float, dpi: int, p) -> tuple[float, float]:
+    """Sheet mm → pixel of the preview image (to point at an object in the window)."""
+    ox, oy = drawing.sheet.offset
+    k = dpi / 72.0
+    return ((p[0] + ox) / PT_TO_MM * k, (page_height_pt - (p[1] + oy) / PT_TO_MM) * k)
 
 
 def _polyline(shape, points, color, width):

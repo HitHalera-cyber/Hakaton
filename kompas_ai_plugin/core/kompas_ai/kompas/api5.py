@@ -11,6 +11,10 @@ licence; the writer then falls back to drawing in sheet millimetres.
 from __future__ import annotations
 
 import math
+import os
+import sys
+import tempfile
+from pathlib import Path
 
 from .backend import DimText, Point
 
@@ -42,10 +46,27 @@ def _find_kompas_typelibs() -> list[tuple[str, int, int, str]]:
     return found
 
 
+def _prepare_win32com() -> None:
+    """In the packaged exe the pywin32 cache folder is read-only; the wrappers
+    generated for the KOMPAS type libraries go to the user's profile instead."""
+    if not getattr(sys, "frozen", False):
+        return
+    import win32com
+
+    gen = Path(os.environ.get("LOCALAPPDATA", tempfile.gettempdir())) / "KompasAI" / "gen_py"
+    gen.mkdir(parents=True, exist_ok=True)
+    win32com.__gen_path__ = str(gen)
+    from win32com.client import gencache
+
+    gencache.is_readonly = False
+    gencache.GetGeneratePath()
+
+
 class Api5Backend:
     """Draws into a new KOMPAS drawing through API5."""
 
     def __init__(self, visible: bool = True, log=print):
+        _prepare_win32com()
         import pythoncom
         from win32com.client import Dispatch, constants, gencache
 
