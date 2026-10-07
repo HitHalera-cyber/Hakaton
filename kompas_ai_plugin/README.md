@@ -78,3 +78,7 @@ kompas_ai_plugin/
 `ksTextItemParam` создаются, но поле `type` (ksTItSBase = 7, ksTItSUpperIndex = 8,
 ksTItSLowerIndex = 9, ksTItSEnd = 16) в API5 не действует — индекс, видимо, задаётся
 флагами `ksTextItemFont.bitVector`; подбирается в `api_test6.py`.
+Результат `api_test6.py`: флаги `bitVector` 0x40…0x2000000 дают только начертание
+(0x40 — курсив, 0x100 — жирный, 0x400 — подчёркнутый), индекса и отклонений нет.
+Вывод: в API5 без лицензии индекс создать не удаётся; тексты с индексами пишутся
+частями на своих местах. С лицензией проверить API7 (`ITextItem.ItemType`).
