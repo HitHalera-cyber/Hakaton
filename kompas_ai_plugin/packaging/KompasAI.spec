@@ -17,7 +17,7 @@ if sys.platform == "win32":
 a = Analysis(
     [str(ROOT / "packaging" / "kompas_ai_app.py")],
     pathex=[str(CORE)],
-    datas=collect_data_files("ezdxf"),
+    datas=collect_data_files("ezdxf") + [(str(ROOT / "packaging" / "icon" / "kompas_ai.png"), "kompas_ai")],
     hiddenimports=hidden,
     excludes=["tkinter", "matplotlib", "PIL", "pytest", "IPython",
               # Qt parts the window does not use
@@ -32,6 +32,6 @@ exe = EXE(
     exclude_binaries=True,
     name="KompasAI",
     console=False,            # a window application, no black console
-    icon=None,
+    icon=str(ROOT / "packaging" / "icon" / "kompas_ai.ico"),
 )
 coll = COLLECT(exe, a.binaries, a.datas, name="KompasAI")

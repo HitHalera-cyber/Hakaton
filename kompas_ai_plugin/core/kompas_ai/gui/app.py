@@ -9,7 +9,8 @@ import sys
 from pathlib import Path
 
 from PySide6.QtCore import QSettings, Qt, QThread
-from PySide6.QtGui import QAction, QBrush, QColor, QFont, QKeySequence, QPainter, QPen, QPixmap
+from PySide6.QtGui import (QAction, QBrush, QColor, QFont, QIcon, QKeySequence, QPainter, QPen,
+                           QPixmap)
 from PySide6.QtWidgets import (QApplication, QComboBox, QFileDialog, QGraphicsEllipseItem,
                                QGraphicsScene, QGraphicsView, QLabel, QListWidget,
                                QListWidgetItem, QMainWindow, QMessageBox, QPlainTextEdit,
@@ -292,9 +293,19 @@ def _anchor(e: ir.Entity):
     return None
 
 
+def _icon_path() -> Path | None:
+    """Icon next to the packaged exe, or in the source tree when run from code."""
+    candidates = [Path(getattr(sys, "_MEIPASS", "")) / "kompas_ai" / "kompas_ai.png",
+                  Path(__file__).resolve().parents[3] / "packaging" / "icon" / "kompas_ai.png"]
+    return next((p for p in candidates if p.is_file()), None)
+
+
 def main(argv: list[str] | None = None) -> int:
     app = QApplication(argv if argv is not None else sys.argv)
     app.setApplicationName(APP_NAME)
+    icon = _icon_path()
+    if icon:
+        app.setWindowIcon(QIcon(str(icon)))
     window = MainWindow()
     window.show()
     args = app.arguments()[1:]

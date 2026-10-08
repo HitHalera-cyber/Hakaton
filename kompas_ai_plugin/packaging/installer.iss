@@ -17,6 +17,8 @@ SolidCompression=yes
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=lowest
 WizardStyle=modern
+SetupIconFile=icon\kompas_ai.ico
+UninstallDisplayIcon={app}\KompasAI.exe
 
 [Languages]
 Name: "ru"; MessagesFile: "compiler:Languages\Russian.isl"
