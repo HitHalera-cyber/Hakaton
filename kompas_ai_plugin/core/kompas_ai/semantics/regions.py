@@ -37,25 +37,35 @@ class HatchRegion:
 ON_CURVE = 0.15  # mm; a line end this close to a circle is attached to it
 
 
-def _curve_points(p: Primitive, extra_angles=()) -> list[tuple[float, float]]:
+def _curve_points(p: Primitive, extra_angles=(), extend=(True, True)) -> list[tuple[float, float]]:
     if p.kind == "line":
         # Extend slightly so that lines ending a hair short of another line
-        # still split the faces (polygonize needs exact intersections).
+        # still split the faces (polygonize needs exact intersections). An end
+        # placed on a curve vertex is not extended: it already coincides.
         dx, dy = p.p2[0] - p.p1[0], p.p2[1] - p.p1[1]
         n = math.hypot(dx, dy) or 1.0
-        e = SNAP_EXTENSION / n
-        return [(p.p1[0] - dx * e, p.p1[1] - dy * e), (p.p2[0] + dx * e, p.p2[1] + dy * e)]
+        e1 = SNAP_EXTENSION / n if extend[0] else 0.0
+        e2 = SNAP_EXTENSION / n if extend[1] else 0.0
+        return [(p.p1[0] - dx * e1, p.p1[1] - dy * e1), (p.p2[0] + dx * e2, p.p2[1] + dy * e2)]
     start, sweep = (0.0, 360.0) if p.kind == "circle" else (p.start_angle, p.sweep)
     steps = max(4, int(math.ceil(sweep / ARC_STEP_DEG)))
-    angles = {start + sweep * i / steps for i in range(steps + 1)}
-    # Line ends on the curve become curve vertices, so tangent lines touch the
-    # polygonal approximation exactly instead of missing it by the sagitta.
+    # position along the curve → angle used for the vertex
+    angles = {sweep * i / steps: start + sweep * i / steps for i in range(steps + 1)}
+    # Line ends on the curve become curve vertices (the very same angle value,
+    # see contour_faces), so lines touch the polygonal approximation exactly.
     for a in extra_angles:
         rel = (a - start) % 360.0
-        if rel <= sweep:
-            angles.add(start + rel)
-    return [(p.center[0] + p.radius * math.cos(math.radians(a)),
-             p.center[1] + p.radius * math.sin(math.radians(a))) for a in sorted(angles)]
+        if rel <= sweep + 1e-9:
+            angles = {k: v for k, v in angles.items() if abs(k - rel) > 1e-6}
+            angles[min(rel, sweep)] = a
+    return [_on_curve(p, angles[k]) for k in sorted(angles)]
+
+
+def _on_curve(c: Primitive, angle: float) -> tuple[float, float]:
+    # One formula for curve vertices and the line ends snapped onto them, so
+    # the coordinates are bit-identical and polygonize sees a shared node.
+    return (c.center[0] + c.radius * math.cos(math.radians(angle)),
+            c.center[1] + c.radius * math.sin(math.radians(angle)))
 
 
 def contour_faces(contour: list[Primitive]) -> list[Polygon]:
@@ -66,18 +76,27 @@ def contour_faces(contour: list[Primitive]) -> list[Polygon]:
     for p in contour:
         if p.kind != "line":
             continue
-        ends = []
+        ends, free = [], []
         for end in (p.p1, p.p2):
+            snapped = False
             for c in curves:
                 if abs(math.dist(end, c.center) - c.radius) <= ON_CURVE:
                     a = math.degrees(math.atan2(end[1] - c.center[1], end[0] - c.center[0]))
-                    extra[id(c)].append(a % 360.0)
-                    end = (c.center[0] + c.radius * math.cos(math.radians(a)),
-                           c.center[1] + c.radius * math.sin(math.radians(a)))
+                    if c.kind == "arc":
+                        # An end a hair beyond the arc's end is on its end point;
+                        # otherwise the ring does not close and no face is found.
+                        rel = (a - c.start_angle) % 360.0
+                        if rel > c.sweep:
+                            a = c.start_angle + (c.sweep if rel - c.sweep < 360.0 - rel
+                                                 else 0.0)
+                    extra[id(c)].append(a)
+                    end = _on_curve(c, a)
+                    snapped = True
                     break
             ends.append(end)
+            free.append(not snapped)
         moved = Primitive("line", ends, p.width, p.error, p1=ends[0], p2=ends[1])
-        lines.append(LineString(_curve_points(moved)))
+        lines.append(LineString(_curve_points(moved, extend=tuple(free))))
     lines += [LineString(_curve_points(c, extra[id(c)])) for c in curves]
     if not lines:
         return []

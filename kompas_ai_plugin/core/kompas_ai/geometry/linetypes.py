@@ -148,7 +148,9 @@ def _runs_on_line(group: list[Primitive], arrow_tips=()) -> list[Primitive]:
     runs = [part for run in runs for part in _split_irregular(run)]
     out = [iv[2] for iv in solo]
     for run in runs:
-        if len(run) > 1 and _gaps([(x[0], x[1]) for x in run]) and \
+        dash_dot = len(run) == 2 and min(x[1] - x[0] for x in run) <= 1.0 \
+            and max(x[1] - x[0] for x in run) > 2 * DOT_MAX  # a short axis: dash + dot
+        if len(run) > 1 and _gaps([(x[0], x[1]) for x in run]) and not dash_dot and \
                 (len(run) < MIN_DASHES or not _regular(run)):
             # Two pieces with a gap are two lines (e.g. a leader broken by its
             # text), not a dash pattern.

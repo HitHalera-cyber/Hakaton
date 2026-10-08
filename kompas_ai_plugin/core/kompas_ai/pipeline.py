@@ -58,7 +58,11 @@ def recognize_pdf(pdf_path: str | Path, page: int = 0, exact: bool = True) -> ir
     def is_thin(p: Primitive) -> bool:
         return abs(round(p.width, 3) - thin_w) < 1e-6
 
-    hatch_groups, _ = detect_hatches([p for p in prims if is_thin(p) and p.kind == "line"])
+    # A thin line with an arrowhead at its end is a dimension or leader line,
+    # never a hatch stroke (even when it runs at the hatch angle).
+    hatch_candidates = [p for p in prims if is_thin(p) and p.kind == "line"
+                        and not _ends_in_arrow(p, arrows)]
+    hatch_groups, _ = detect_hatches(hatch_candidates)
     hatch_ids = {id(l) for g in hatch_groups for l in g.lines}
     prims = [p for p in prims if id(p) not in hatch_ids]
     if thin_w > 0:
@@ -111,6 +115,20 @@ def recognize_pdf(pdf_path: str | Path, page: int = 0, exact: bool = True) -> ir
         drawing.warnings.append(
             "Неизвестные символы шрифта: " + " ".join(sorted(content.unknown_symbols)))
     return drawing
+
+
+def _ends_in_arrow(line: Primitive, arrows) -> bool:
+    ux, uy = line.p2[0] - line.p1[0], line.p2[1] - line.p1[1]
+    n = math.hypot(ux, uy) or 1.0
+    ux, uy = ux / n, uy / n
+    for a in arrows:
+        if abs(a.direction[0] * uy - a.direction[1] * ux) > 0.1:
+            continue
+        if any(math.dist(a.tip, end) <= max(0.35, a.length + 0.5) and
+               abs((a.tip[0] - line.p1[0]) * uy - (a.tip[1] - line.p1[1]) * ux) <= 0.35
+               for end in (line.p1, line.p2)):
+            return True
+    return False
 
 
 def _build_entities(drawing, geometry, is_thin, found, plain_texts, regions, orphan_groups,
