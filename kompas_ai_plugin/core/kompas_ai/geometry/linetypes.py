@@ -14,15 +14,22 @@ import math
 from .fitting import angle_diff, direction_deg, fit_circle, point_line_distance
 from .segmentation import Primitive
 
-MAX_GAP = 3.0  # mm between consecutive dashes
+MAX_GAP = 7.0  # mm between consecutive dashes (ISO 128 / AutoCAD patterns up to ~6 mm)
+MIN_DASHES = 3  # a dash pattern shows at least dash–dot–dash
 OFFSET_TOLERANCE = 0.12  # mm
 ANGLE_TOLERANCE = 0.8  # deg
 DOT_MAX = 2.5  # mm; a "dot" of a dash-dot line
 CIRCLE_COVERAGE = 300.0  # deg of dashes+gaps to call a dashed arc set a full circle
 
 
-def merge_dashed(prims: list[Primitive], thin_width: float) -> list[Primitive]:
-    """Return primitives with dash groups replaced by single styled primitives."""
+def merge_dashed(prims: list[Primitive], thin_width: float,
+                 arrow_tips: list[tuple[tuple[float, float], tuple[float, float]]] = ()
+                 ) -> list[Primitive]:
+    """Return primitives with dash groups replaced by single styled primitives.
+
+    ``arrow_tips``: (tip, direction) of the arrows. A gap with an arrow
+    pointing along the line separates two dimension lines of a chain; it is
+    not a gap of a dash pattern."""
     thin = [p for p in prims if abs(p.width - thin_width) < 1e-3]
     rest = [p for p in prims if abs(p.width - thin_width) >= 1e-3]
     lines = [p for p in thin if p.kind == "line"]
@@ -30,7 +37,7 @@ def merge_dashed(prims: list[Primitive], thin_width: float) -> list[Primitive]:
     others = [p for p in thin if p.kind not in ("line", "arc")]
     merged_arcs = _merge_arcs(arcs)
     lines = _absorb_dots(lines, merged_arcs)
-    return rest + others + _merge_lines(lines) + merged_arcs
+    return rest + others + _merge_lines(lines, arrow_tips) + merged_arcs
 
 
 def _absorb_dots(lines: list[Primitive], curves: list[Primitive]) -> list[Primitive]:
@@ -47,7 +54,7 @@ def _absorb_dots(lines: list[Primitive], curves: list[Primitive]) -> list[Primit
     return keep
 
 
-def _merge_lines(lines: list[Primitive]) -> list[Primitive]:
+def _merge_lines(lines: list[Primitive], arrow_tips=()) -> list[Primitive]:
     groups: list[list[Primitive]] = []
     for line in sorted(lines, key=lambda p: -p.length):
         for group in groups:
@@ -63,11 +70,11 @@ def _merge_lines(lines: list[Primitive]) -> list[Primitive]:
 
     out = []
     for group in groups:
-        out.extend(_runs_on_line(group))
+        out.extend(_runs_on_line(group, arrow_tips))
     return out
 
 
-def _runs_on_line(group: list[Primitive]) -> list[Primitive]:
+def _runs_on_line(group: list[Primitive], arrow_tips=()) -> list[Primitive]:
     """Split one collinear group into runs whose gaps are dash-sized."""
     ref = max(group, key=lambda p: p.length)
     ux, uy = ref.p2[0] - ref.p1[0], ref.p2[1] - ref.p1[1]
@@ -88,15 +95,28 @@ def _runs_on_line(group: list[Primitive]) -> list[Primitive]:
     intervals = [iv for iv in intervals if all(iv is not s for s in solo)]
     if not intervals:
         return [iv[2] for iv in solo]
+    # Arrow tips on this line, as positions along it.
+    stops = [t(p) for p, d in arrow_tips
+             if abs((p[0] - ref.p1[0]) * uy - (p[1] - ref.p1[1]) * ux) <= 0.3
+             and abs(d[0] * uy - d[1] * ux) < 0.1]
     runs: list[list] = [[intervals[0]]]
     for iv in intervals[1:]:
-        if iv[0] - max(x[1] for x in runs[-1]) <= MAX_GAP:
+        reach = max(x[1] for x in runs[-1])
+        blocked = iv[0] - reach > 0.05 and any(reach - 0.3 <= s <= iv[0] + 0.3 for s in stops)
+        if iv[0] - reach <= MAX_GAP and not blocked:
             runs[-1].append(iv)
         else:
             runs.append([iv])
 
+    runs = [part for run in runs for part in _split_irregular(run)]
     out = [iv[2] for iv in solo]
     for run in runs:
+        if len(run) > 1 and _gaps([(x[0], x[1]) for x in run]) and \
+                (len(run) < MIN_DASHES or not _regular(run)):
+            # Two pieces with a gap are two lines (e.g. a leader broken by its
+            # text), not a dash pattern.
+            out.extend(x[2] for x in run)
+            continue
         if len(run) == 1:
             out.append(run[0][2])
             continue
@@ -118,6 +138,40 @@ def _runs_on_line(group: list[Primitive]) -> list[Primitive]:
         merged.tags.add(f"pieces={len(run)}")
         out.append(merged)
     return out
+
+
+def _regular(run: list) -> bool:
+    """Dashes of one pattern repeat: the long dashes inside the run (the end
+    ones may be cut) have about the same length."""
+    lengths = [x[1] - x[0] for x in run]
+    if min(lengths) <= DOT_MAX:  # dash-dot: the dots already show the pattern
+        return True
+    inner = lengths[1:-1] or lengths
+    longs = [v for v in inner if v > DOT_MAX]
+    if len(longs) < 2:
+        return True
+    return max(longs) <= 1.35 * min(longs) + 0.3
+
+
+def _split_irregular(run: list) -> list[list]:
+    """Split a run where one gap is much larger than the pattern's gaps
+    (a separate line lying on the continuation of a dash line)."""
+    gaps = []
+    reach = run[0][1]
+    for iv in run[1:]:
+        gaps.append(iv[0] - reach)
+        reach = max(reach, iv[1])
+    real = sorted(g for g in gaps if g > 0.05)
+    if len(real) < 2:
+        return [run]
+    limit = 2.5 * real[len(real) // 2] + 0.5
+    parts = [[run[0]]]
+    for iv, g in zip(run[1:], gaps):
+        if g > limit:
+            parts.append([iv])
+        else:
+            parts[-1].append(iv)
+    return parts
 
 
 def _gaps(intervals) -> list[float]:

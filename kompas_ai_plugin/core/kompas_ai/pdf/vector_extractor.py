@@ -9,6 +9,7 @@ and the geometry fitter treats both the same way.
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -163,6 +164,9 @@ def _extract_geometry(page: pymupdf.Page, conv: _Converter, content: PageContent
                 content.fills.append(RawFill(points=points, color=tuple(fill)))
         if path["type"] in ("s", "fs") and path.get("color") is not None and fill is None:
             width = (path.get("width") or 0.0) * PT_TO_MM
+            pattern = _dash_pattern(path.get("dashes"))
+            if pattern:
+                polylines = [piece for poly in polylines for piece in _apply_dashes(poly, *pattern)]
             for poly in polylines:
                 for a, b in zip(poly, poly[1:]):
                     if math.dist(a, b) < 1e-6:
@@ -173,6 +177,72 @@ def _extract_geometry(page: pymupdf.Page, conv: _Converter, content: PageContent
                         continue
                     seen.add(key)
                     content.segments.append(RawSegment(a, b, width))
+
+
+def _dash_pattern(dashes: str | None):
+    """'[ 34 8.5 1.4 8.5 ] 0' → ([mm…], phase mm); None for a solid stroke."""
+    if not dashes:
+        return None
+    m = re.match(r"\s*\[([^\]]*)\]\s*([-\d.]*)", dashes)
+    if not m:
+        return None
+    try:
+        lengths = [float(v) * PT_TO_MM for v in m.group(1).split()]
+        phase = float(m.group(2) or 0) * PT_TO_MM
+    except ValueError:
+        return None
+    if not lengths or sum(lengths) <= 1e-6 or any(v < 0 for v in lengths):
+        return None
+    if len(lengths) % 2:
+        lengths *= 2
+    return lengths, phase
+
+
+def _apply_dashes(poly, lengths, phase):
+    """Split a polyline into the dashes a PDF viewer would draw. Exporters
+    (AutoCAD, SolidWorks, Inventor…) give centre and hidden lines as one
+    path with a dash array; KOMPAS draws every dash itself. Producing the
+    dashes here lets the same dash-merging logic handle both. Zero-length
+    dots (drawn with round caps) become 0.1 mm pieces."""
+    period = sum(lengths)
+    pos = phase % period
+    i = 0
+    while pos >= lengths[i]:
+        pos -= lengths[i]
+        i = (i + 1) % len(lengths)
+    left = lengths[i] - pos
+    pieces, cur = [], [poly[0]] if i % 2 == 0 else None
+    for a, b in zip(poly, poly[1:]):
+        d = math.dist(a, b)
+        t = 0.0
+        while d - t > left:
+            t += left
+            f = t / d
+            x = (a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f)
+            if i % 2 == 0:
+                cur.append(x)
+                pieces.append(cur)
+                cur = None
+            else:
+                cur = [x]
+            i = (i + 1) % len(lengths)
+            left = lengths[i]
+        left -= d - t
+        if cur is not None:
+            cur.append(b)
+    if cur is not None and len(cur) > 1:
+        pieces.append(cur)
+    out = []
+    for piece in pieces:
+        if sum(math.dist(p, q) for p, q in zip(piece, piece[1:])) < 0.1:
+            c = piece[0]
+            nxt = next((q for q in poly if math.dist(q, c) > 1e-6), None)
+            if nxt is None:
+                continue
+            k = 0.1 / math.dist(c, nxt)
+            piece = [c, (c[0] + (nxt[0] - c[0]) * k, c[1] + (nxt[1] - c[1]) * k)]
+        out.append(piece)
+    return out
 
 
 def _normalise_text(text: str, font: str, unknown: set[str]) -> str:

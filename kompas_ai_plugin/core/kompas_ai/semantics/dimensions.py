@@ -232,7 +232,13 @@ def _tips_on_line(line: Primitive, arrows: list[Arrow]) -> list[tuple[float, flo
         if abs(a.direction[0] * uy - a.direction[1] * ux) > 0.1:  # arrow not along the line
             continue
         t = (a.tip[0] - line.p1[0]) * ux + (a.tip[1] - line.p1[1]) * uy
+        along = a.direction[0] * ux + a.direction[1] * uy
         if -1.0 <= t <= line.length + 1.0:
+            tips.append(a.tip)
+        # AutoCAD-style dimension lines stop at the base of a filled arrow:
+        # the tip is then up to one arrow length beyond the line end, pointing away.
+        elif (-1.0 - a.length <= t < -1.0 and along < 0) or \
+                (line.length + 1.0 < t <= line.length + 1.0 + a.length and along > 0):
             tips.append(a.tip)
     return tips
 

@@ -62,7 +62,7 @@ def recognize_pdf(pdf_path: str | Path, page: int = 0, exact: bool = True) -> ir
     hatch_ids = {id(l) for g in hatch_groups for l in g.lines}
     prims = [p for p in prims if id(p) not in hatch_ids]
     if thin_w > 0:
-        prims = merge_dashed(prims, thin_w)
+        prims = merge_dashed(prims, thin_w, [(a.tip, a.direction) for a in arrows])
 
     # Dimensions
     texts = [t for t in content.texts if not is_title_block_text(t, layout)]

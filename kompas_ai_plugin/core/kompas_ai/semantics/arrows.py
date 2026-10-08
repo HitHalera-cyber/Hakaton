@@ -41,7 +41,15 @@ def _touch(b1, b2, tol=TOUCH_TOLERANCE) -> bool:
 def find_arrows(fills: list[RawFill]) -> list[Arrow]:
     groups: list[list[tuple[float, float]]] = []
     boxes: list[tuple] = []
+    arrows = []
     for f in fills:
+        # A clean filled triangle (AutoCAD, SolidWorks…) is a whole arrow; it
+        # must not be merged with the arrow of a neighbouring chain dimension
+        # touching it tip to tip.
+        whole = _arrow_from_triangle(f.points)
+        if whole is not None:
+            arrows.append(whole)
+            continue
         box = _bbox(f.points)
         for i, b in enumerate(boxes):
             if _touch(b, box):
@@ -51,12 +59,36 @@ def find_arrows(fills: list[RawFill]) -> list[Arrow]:
         else:
             groups.append(list(f.points))
             boxes.append(box)
-    arrows = []
     for pts in groups:
         arrow = _arrow_from_points(pts)
         if arrow is not None:
             arrows.append(arrow)
     return arrows
+
+
+def _arrow_from_triangle(points) -> Arrow | None:
+    """An isosceles triangle with a sharp apex. (The halves KOMPAS splits its
+    arrows into are right triangles, so they are left to be merged.)"""
+    corners = []
+    for p in points:
+        if all(math.dist(p, q) > 0.02 for q in corners):
+            corners.append(p)
+    if len(corners) != 3:
+        return None
+    for i in range(3):
+        tip, b1, b2 = corners[i], corners[i - 1], corners[(i + 1) % 3]
+        s1, s2 = math.dist(tip, b1), math.dist(tip, b2)
+        base = math.dist(b1, b2)
+        if not s1 or not s2 or abs(s1 - s2) > 0.1 * max(s1, s2) or base >= 0.6 * min(s1, s2):
+            continue
+        mid = ((b1[0] + b2[0]) / 2, (b1[1] + b2[1]) / 2)
+        length = math.dist(tip, mid)
+        if not MIN_LENGTH <= length <= MAX_LENGTH:
+            return None
+        d = ((tip[0] - mid[0]) / length, (tip[1] - mid[1]) / length)
+        return Arrow(tip=(float(tip[0]), float(tip[1])), direction=d, length=length,
+                     points=[tuple(c) for c in corners])
+    return None
 
 
 def _arrow_from_points(points) -> Arrow | None:
