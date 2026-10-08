@@ -47,8 +47,12 @@ class Primitive:
         return math.radians(self.sweep or 360.0) * (self.radius or 0.0)
 
 
+DENSE_STEP = 0.25  # mm; chords shorter than this come from a pixel-grid tessellation
+RESAMPLE_STEP = 0.4  # mm
+
+
 def segment_chain(chain: Chain) -> list[Primitive]:
-    pieces = _greedy(chain.points, chain.width)
+    pieces = _greedy(_smooth_dense_runs(chain.points), chain.width)
     pieces = _rebalance(pieces, chain.width)
     pieces = _merge_neighbours(pieces, chain.width, closed=chain.closed)
     if chain.closed and len(pieces) == 1 and pieces[0].kind == "arc" \
@@ -57,6 +61,61 @@ def segment_chain(chain: Chain) -> list[Primitive]:
         return [Primitive("circle", arc.points, chain.width, arc.error,
                           center=arc.center, radius=arc.radius)]
     return pieces
+
+
+def _smooth_dense_runs(points):
+    """Printer drivers and some CAD plotters (LibreCAD, "print to PDF") write
+    curves as hundreds of steps on a pixel grid. The staircase turns by ±90°
+    at every step, so no arc fits its turning angles. Runs of such tiny steps
+    are resampled every RESAMPLE_STEP mm by averaging the points around each
+    sample; the run's end points (junctions with other objects) are kept."""
+    n = len(points)
+    if n < 10:
+        return points
+    short = [math.dist(a, b) < DENSE_STEP for a, b in zip(points, points[1:])]
+    if sum(short) < 8:
+        return points
+    out = [points[0]]
+    i = 0
+    while i < n - 1:
+        if not short[i]:
+            out.append(points[i + 1])
+            i += 1
+            continue
+        j = i
+        while j < n - 1 and short[j]:
+            j += 1
+        run = points[i:j + 1]
+        out.extend(_resample(run)[1:] if len(run) >= 8 else run[1:])
+        i = j
+    return out
+
+
+def _resample(run):
+    cum = [0.0]
+    for a, b in zip(run, run[1:]):
+        cum.append(cum[-1] + math.dist(a, b))
+    total = cum[-1]
+    steps = max(2, int(round(total / RESAMPLE_STEP)))
+    half = total / steps / 2
+    out = [run[0]]
+    lo = 0
+    for k in range(1, steps):
+        target = total * k / steps
+        while cum[lo] < target - half:
+            lo += 1
+        hi = lo
+        sx = sy = 0.0
+        m = 0
+        while hi < len(run) and cum[hi] <= target + half:
+            sx += run[hi][0]
+            sy += run[hi][1]
+            m += 1
+            hi += 1
+        if m:
+            out.append((sx / m, sy / m))
+    out.append(run[-1])
+    return out
 
 
 def _greedy(points, width) -> list[Primitive]:

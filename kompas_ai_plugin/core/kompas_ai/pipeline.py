@@ -42,6 +42,12 @@ def recognize_pdf(pdf_path: str | Path, page: int = 0, exact: bool = True) -> ir
             "Растровое распознавание будет добавлено на этапе 2.")
         return drawing
 
+    if not content.texts:
+        drawing.warnings.append(
+            "В PDF нет текстового слоя: надписи и числа размеров нарисованы линиями. "
+            "Геометрия распознана, но размеры, масштаб и тексты — нет (масштаб принят 1:1). "
+            "Если возможно, сохраните PDF заново с выводом текста как текста (шрифты TrueType, "
+            "без «текст в кривые»).")
     layout = analyse_sheet(content)
     drawing.sheet = layout.sheet
     title_scale = read_title_block(content, layout)

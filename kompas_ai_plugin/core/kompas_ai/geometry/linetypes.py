@@ -165,8 +165,8 @@ def _runs_on_line(group: list[Primitive], arrow_tips=()) -> list[Primitive]:
             style_tag = None
         else:
             dashes = [x[1] - x[0] for x in run]
-            style_tag = "axial" if min(dashes) <= DOT_MAX and max(dashes) > 2 * DOT_MAX \
-                else "dashed"
+            style_tag = "axial" if (min(dashes) <= DOT_MAX and max(dashes) > 2 * DOT_MAX) \
+                or _long_short(dashes) else "dashed"
         p1 = (ref.p1[0] + ux * lo, ref.p1[1] + uy * lo)
         p2 = (ref.p1[0] + ux * hi, ref.p1[1] + uy * hi)
         merged = Primitive("line", [p1, p2], run[0][2].width,
@@ -189,7 +189,25 @@ def _regular(run: list) -> bool:
     longs = [v for v in inner if v > DOT_MAX]
     if len(longs) < 2:
         return True
-    return max(longs) <= 1.35 * min(longs) + 0.3
+    # one dash length (hidden line) or two (AutoCAD CENTER: long dash, short dash)
+    return len(_length_clusters(longs)) <= 2
+
+
+def _length_clusters(values: list[float]) -> list[list[float]]:
+    clusters: list[list[float]] = []
+    for v in sorted(values):
+        if clusters and v <= 1.35 * clusters[-1][0] + 0.3:
+            clusters[-1].append(v)
+        else:
+            clusters.append([v])
+    return clusters
+
+
+def _long_short(lengths: list[float]) -> bool:
+    """Long and short dashes alternating (CENTER-type pattern without dots)."""
+    inner = lengths[1:-1] if len(lengths) > 3 else lengths
+    clusters = _length_clusters(inner)
+    return len(clusters) == 2 and clusters[1][0] >= 2.5 * clusters[0][-1]
 
 
 def _split_irregular(run: list) -> list[list]:
