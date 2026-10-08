@@ -114,3 +114,35 @@ def plate_with_hole(path: Path, bezier: bool = False, width_text: str = "60") ->
         "circle": (c, r),
         "dims": {"60": ("linear", 60.0), "Ø20": ("diameter", 20.0)},
     }
+
+
+def acad_style(path: Path) -> dict:
+    """The way AutoCAD/SolidWorks-like exporters draw: dimension lines stop at
+    the base of filled triangle arrows, chain arrows touch tip to tip, centre
+    lines and circles are single paths with a PDF dash array, Bézier circles.
+
+    Plate 100×40 at (20, 100), a chain of dimensions 30 + 70 below it, a
+    horizontal centre line and a dash-dot circle R12 around a Ø10 hole.
+    """
+    s = Sheet()
+    x0, y0, w, h = 20.0, 100.0, 100.0, 40.0
+    for a, b in (((x0, y0), (x0 + w, y0)), ((x0 + w, y0), (x0 + w, y0 + h)),
+                 ((x0 + w, y0 + h), (x0, y0 + h)), ((x0, y0 + h), (x0, y0))):
+        s.line(a, b)
+    hole = (x0 + 30, y0 + 20)
+    s.bezier_circle(hole, 5.0)
+    pattern = "[%g %g %g %g] 0" % tuple(v * MM for v in (12, 3, 0.5, 3))
+    s.page.draw_line(s.p(x0 - 5, y0 + 20), s.p(x0 + w + 5, y0 + 20), color=(0, 0, 0),
+                     width=THIN * MM, dashes=pattern)
+    s.page.draw_circle(s.p(*hole), 12 * MM, color=(0, 0, 0), width=THIN * MM, dashes=pattern)
+    yd, arrow = y0 - 12, 3.0
+    stops = [x0, x0 + 30, x0 + w]
+    for x in stops:
+        s.line((x, y0), (x, yd - 2), THIN)
+    for a, b, text in ((stops[0], stops[1], "30"), (stops[1], stops[2], "70")):
+        s.line((a + arrow, yd), (b - arrow, yd), THIN)
+        s.arrow((a, yd), (-1, 0), length=arrow, width=1.0)
+        s.arrow((b, yd), (1, 0), length=arrow, width=1.0)
+        s.text(((a + b) / 2 - 2.5, yd + 1), text, 3.5)
+    s.save(path)
+    return {"dims": {"30": 30.0, "70": 70.0}, "axis_y": y0 + 20, "pitch": (hole, 12.0)}

@@ -1,3 +1,5 @@
+import pytest
+
 from kompas_ai.geometry.scaling import check_dimension, resolve_scale, snap_scale
 from kompas_ai.ir import Scale
 from kompas_ai.pdf.vector_extractor import RawText, merge_text_runs
@@ -40,3 +42,16 @@ def test_scale_from_dimensions_and_conflict():
 def test_dimension_check():
     assert check_dimension("linear", 23.283, 4.67, 2, 5.0).ok
     assert not check_dimension("linear", 30.0, 4.67, 2, 5.0).ok
+
+
+@pytest.mark.parametrize("text,count,prefix,value", [
+    ("6 отв. Ø18", 6, "Ø", 18.0), ("2×Ø8", 2, "Ø", 8.0), ("4 holes Ø9", 4, "Ø", 9.0),
+    ("3xM6", 3, "M", 6.0), ("Ø20", 1, "Ø", 20.0)])
+def test_hole_count_dimension_text(text, count, prefix, value):
+    d = parse_dim_text(RawText(text, (0, 0), 0.0, 3.5, "f", (0, 0, 1, 1)))
+    assert (d.count, d.prefix, d.value) == (count, prefix, value)
+
+
+def test_chamfer_text_is_not_a_hole_count():
+    d = parse_dim_text(RawText("2×45°", (0, 0), 0.0, 3.5, "f", (0, 0, 1, 1)))
+    assert d.count == 1 and d.value == 2.0 and d.tail == "×45°"

@@ -54,3 +54,23 @@ def test_outputs(tmp_path):
     msp = ezdxf.readfile(tmp_path / "d.dxf").modelspace()
     assert len(msp.query("CIRCLE")) == 1 and len(msp.query("DIMENSION")) == 2
     assert (tmp_path / "p.png").stat().st_size > 1000
+
+
+def test_acad_style_exporter(tmp_path):
+    """Trimmed dimension lines, touching chain arrows, PDF dash arrays."""
+    from synthetic import acad_style
+
+    truth = acad_style(tmp_path / "acad.pdf")
+    d = recognize_pdf(tmp_path / "acad.pdf")
+
+    dims = {x.text: x for x in d.of_type(ir.Dimension)}
+    assert set(dims) == set(truth["dims"])
+    for text, value in truth["dims"].items():
+        assert abs(dims[text].measured - value) < 0.05
+
+    axes = [l for l in d.of_type(ir.Line) if l.style == ir.STYLE_AXIAL
+            and abs(l.p1[1] - truth["axis_y"]) < 0.05 and abs(l.p2[1] - truth["axis_y"]) < 0.05]
+    assert len(axes) == 1 and abs(axes[0].p1[0] - axes[0].p2[0]) > 100
+    (c, r) = truth["pitch"]
+    assert any(e.style == ir.STYLE_AXIAL and math.dist(e.center, c) < 0.05
+               and abs(e.radius - r) < 0.05 for e in d.of_type(ir.Circle))
