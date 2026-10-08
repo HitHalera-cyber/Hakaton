@@ -36,8 +36,45 @@ def merge_dashed(prims: list[Primitive], thin_width: float,
     arcs = [p for p in thin if p.kind == "arc"]
     others = [p for p in thin if p.kind not in ("line", "arc")]
     merged_arcs = _merge_arcs(arcs)
+    chords = _chords_on(lines, merged_arcs)
+    if chords:  # dashes split at a junction into chords: put them back on their circle
+        lines = [l for l in lines if all(l is not c for c, _ in chords)]
+        merged_arcs = _merge_arcs(arcs + [_as_arc(l, c) for l, c in chords])
     lines = _absorb_dots(lines, merged_arcs)
     return rest + others + _merge_lines(lines, arrow_tips) + merged_arcs
+
+
+def _on_circle(line: Primitive, c: Primitive) -> bool:
+    """A short chord of ``c``: both ends on it, the middle at the chord's sagitta."""
+    if c.radius < 3.0 or line.length > max(DOT_MAX + 0.5, 0.5 * c.radius):
+        return False
+    if any(abs(math.dist(p, c.center) - c.radius) > 0.15 for p in (line.p1, line.p2)):
+        return False
+    mid = ((line.p1[0] + line.p2[0]) / 2, (line.p1[1] + line.p2[1]) / 2)
+    return abs(math.dist(mid, c.center) - c.radius) <= line.length ** 2 / (8 * c.radius) + 0.15
+
+
+def _chords_on(lines: list[Primitive], curves: list[Primitive]) -> list[tuple]:
+    dashed = [c for c in curves if "axial" in c.tags]
+    out = []
+    for line in lines:
+        c = next((c for c in dashed if _on_circle(line, c)), None)
+        if c is not None:
+            out.append((line, c))
+    return out
+
+
+def _as_arc(line: Primitive, c: Primitive) -> Primitive:
+    a1 = math.degrees(math.atan2(line.p1[1] - c.center[1], line.p1[0] - c.center[0]))
+    a2 = math.degrees(math.atan2(line.p2[1] - c.center[1], line.p2[0] - c.center[0]))
+    sweep = (a2 - a1) % 360.0
+    start = a1 if sweep <= 180.0 else a2
+    sweep = min(sweep, 360.0 - sweep)
+    arc = Primitive("arc", list(line.points), line.width, line.error, center=c.center,
+                    radius=c.radius, start_angle=start % 360.0, end_angle=(start + sweep) % 360.0,
+                    sweep=sweep)
+    arc.tags = set(line.tags)
+    return arc
 
 
 def _absorb_dots(lines: list[Primitive], curves: list[Primitive]) -> list[Primitive]:
@@ -203,63 +240,110 @@ def _merge_arcs(arcs: list[Primitive]) -> list[Primitive]:
             groups.append([arc])
             fits.append((arc.center, arc.radius))
 
+    groups, fits = _join_groups(groups, fits)
     out = []
     for group, ((cx, cy), r) in zip(groups, fits):
-        for run in _arc_runs(group, r):
+        spans = [_span_around(g, (cx, cy)) for g in group]
+        for run in _arc_runs(spans, r):
+            pieces = [g for _, _, g in run]
             if len(run) == 1:
-                out.append(run[0])
+                out.append(pieces[0])
                 continue
             covered, start, end = _arc_union(run)
-            points = [p for g in run for p in g.points]
-            error = max(g.error for g in run)
+            points = [p for g in pieces for p in g.points]
+            error = max(g.error for g in pieces)
             if covered >= CIRCLE_COVERAGE:
-                merged = Primitive("circle", points, run[0].width, error, center=(cx, cy), radius=r)
+                merged = Primitive("circle", points, pieces[0].width, error, center=(cx, cy),
+                                   radius=r)
             else:
-                merged = Primitive("arc", points, run[0].width, error, center=(cx, cy), radius=r,
-                                   start_angle=start, end_angle=end, sweep=(end - start) % 360)
-            merged.tags = set().union(*(g.tags for g in run)) | {f"pieces={len(run)}"}
+                merged = Primitive("arc", points, pieces[0].width, error, center=(cx, cy),
+                                   radius=r, start_angle=start, end_angle=end,
+                                   sweep=(end - start) % 360)
+            merged.tags = set().union(*(g.tags for g in pieces)) | {f"pieces={len(run)}"}
             # Pieces with gaps between them are dashes of a dash-dot circle;
             # touching pieces are one solid arc (e.g. chained angular dimensions).
-            if covered - sum(g.sweep for g in run) > 0.5:
+            if covered - sum(w for _, w, _ in run) > 0.5:
                 merged.tags.add("axial")
             out.append(merged)
     return out
 
 
-def _arc_runs(group: list[Primitive], radius: float) -> list[list[Primitive]]:
+def _join_groups(groups, fits):
+    """Second pass: a group started by a short, badly fitted dash may describe
+    the same circle as another group. Join groups whose points all lie on the
+    other's circle, refitting after each join."""
+    changed = True
+    while changed:
+        changed = False
+        order = sorted(range(len(groups)), key=lambda i: -sum(len(g.points) for g in groups[i]))
+        for ai, i in enumerate(order):
+            for j in order[ai + 1:]:
+                if groups[i] is None or groups[j] is None:
+                    continue
+                center, radius = fits[i]
+                tol = 0.25 + 0.003 * radius
+                if all(abs(math.dist(p, center) - radius) <= tol for g in groups[j] for p in g.points):
+                    groups[i] = groups[i] + groups[j]
+                    groups[j] = None
+                    fit = fit_circle([p for g in groups[i] for p in g.points])
+                    if fit is not None:
+                        fits[i] = (fit.center, fit.radius)
+                    changed = True
+        keep = [k for k, g in enumerate(groups) if g is not None]
+        groups, fits = [groups[k] for k in keep], [fits[k] for k in keep]
+    return groups, fits
+
+
+def _span_around(piece: Primitive, center) -> tuple[float, float, Primitive]:
+    """(start, sweep, piece) of a dash measured around the common centre.
+    A dot of a dash-dot circle has two vertices; its own centre is meaningless."""
+    angles = [math.degrees(math.atan2(p[1] - center[1], p[0] - center[0])) for p in piece.points]
+    unwrapped = [angles[0]]
+    for a in angles[1:]:
+        unwrapped.append(unwrapped[-1] + ((a - unwrapped[-1] + 180.0) % 360.0 - 180.0))
+    lo, hi = min(unwrapped), max(unwrapped)
+    return lo % 360.0, hi - lo, piece
+
+
+def _arc_runs(spans: list[tuple], radius: float) -> list[list[tuple]]:
     """Split co-circular pieces into runs whose gaps are dash-sized."""
     max_gap_deg = math.degrees(MAX_GAP / max(radius, 1e-6))
-    pieces = sorted(group, key=lambda g: g.start_angle % 360.0)
-    runs: list[list[Primitive]] = [[pieces[0]]]
-    reach = pieces[0].start_angle % 360.0 + pieces[0].sweep
+    pieces = sorted(spans, key=lambda g: g[0])
+    runs: list[list[tuple]] = [[pieces[0]]]
+    reach = pieces[0][0] + pieces[0][1]
     for g in pieces[1:]:
-        start = g.start_angle % 360.0
+        start = g[0]
         if start - reach <= max_gap_deg:
             runs[-1].append(g)
         else:
             runs.append([g])
-        reach = max(reach, start + g.sweep)
+        reach = max(reach, start + g[1])
     if len(runs) > 1:  # close the circle across 0°
-        first = runs[0][0].start_angle % 360.0 + 360.0
+        first = runs[0][0][0] + 360.0
         if first - reach <= max_gap_deg:
             runs[0] = runs.pop() + runs[0]
     return runs
 
 
-def _arc_union(group: list[Primitive]) -> tuple[float, float, float]:
+def _arc_union(group: list[tuple]) -> tuple[float, float, float]:
     """Angular span covered by the dashes including the gaps between them.
 
     Returns (span, start, end); the largest uncovered gap is taken as the
     opening of the arc.
     """
-    spans = sorted((g.start_angle % 360, g.sweep) for g in group)
-    ends = [(s, (s + w) % 360) for s, w in spans]
+    spans = sorted((s % 360.0, w) for s, w, _ in group)
+    # Sweep the sorted intervals once (overlapping dashes are allowed); the
+    # gap before each interval is measured from the farthest end so far.
+    reach = spans[0][0] + spans[0][1]
     largest_gap, gap_end = 0.0, spans[0][0]
-    for i, (s, e) in enumerate(ends):
-        nxt = ends[(i + 1) % len(ends)][0]
-        gap = (nxt - e) % 360
+    for start, width in spans[1:]:
+        gap = start - reach
         if gap > largest_gap:
-            largest_gap, gap_end = gap, nxt
-    start = gap_end
+            largest_gap, gap_end = gap, start
+        reach = max(reach, start + width)
+    wrap = spans[0][0] + 360.0 - reach
+    if wrap > largest_gap:
+        largest_gap, gap_end = wrap, spans[0][0]
+    largest_gap = max(0.0, largest_gap)
     span = 360.0 - largest_gap
-    return span, start, (start + span) % 360
+    return span, gap_end % 360.0, (gap_end + span) % 360.0

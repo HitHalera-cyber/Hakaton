@@ -20,7 +20,9 @@ from ..pdf.vector_extractor import RawText
 from .arrows import Arrow
 
 DIM_TEXT_RE = re.compile(
-    r"^(?P<prefix>[ØR⌀]|M(?=\d))?\s*(?P<value>\d+(?:[.,]\d+)?)"
+    # "6 отв. Ø18", "4 holes Ø9", "2×Ø8", "3xM6" — the count of equal elements
+    r"^(?:(?P<count>\d+)\s*(?:(?:отв|holes?)\.?\s*|[x×X]\s*(?=[ØR⌀M])))?"
+    r"(?P<prefix>[ØR⌀]|M(?=\d))?\s*(?P<value>\d+(?:[.,]\d+)?)"
     r"(?:\s*(?P<deg>°)\s*(?:(?P<min>\d{1,2})\s*['′])?(?:\s*(?P<sec>\d{1,2})\s*(?:\"|″|''))?)?"
     r"\s*(?P<tail>.*)$")
 # What may follow the value: a tolerance (±0,1 / +0,2 -0,1), a fit (H7, (h6)),
@@ -44,6 +46,7 @@ class DimText:
     decimals: int
     angular: bool
     tail: str
+    count: int = 1
 
     @property
     def center(self) -> tuple[float, float]:
@@ -81,7 +84,10 @@ def parse_dim_text(t: RawText) -> DimText | None:
         if m.group("min"):
             decimals = 2
     prefix = (m.group("prefix") or "").replace("⌀", "Ø")
-    return DimText(t, prefix, value, decimals, angular, m.group("tail").strip())
+    count = int(m.group("count") or 1)
+    if count < 1:
+        return None
+    return DimText(t, prefix, value, decimals, angular, m.group("tail").strip(), count)
 
 
 def find_dimensions(texts: list[DimText], arrows: list[Arrow], thin: list[Primitive],
