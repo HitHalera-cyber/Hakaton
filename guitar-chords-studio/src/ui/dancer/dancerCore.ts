@@ -38,18 +38,37 @@ const P = (
 });
 
 const STAND = P(0, 0, 0, [12, 10], [-12, -10], [4, 0, 0], [-4, 0, 0]);
-/** Узнаваемые позы. */
-const POSES: Pose[] = [
+/**
+ * Узнаваемые позы. Обычная — после вращения быстро встаёт в позу. Особая (наклон) сначала
+ * выпрямляется (pre), потом медленно наклоняется (inT), держит (hold) и так же медленно
+ * возвращается (out).
+ */
+interface PoseStep {
+  pose: Pose;
+  pre?: Pose;
+  inT?: number;
+  hold?: number;
+  out?: number;
+}
+
+/**
+ * «Антигравитационный» наклон, как в Smooth Criminal: тело прямое, как доска, от пяток до макушки;
+ * ступни стоят на полу, ноги прямые, руки прижаты вдоль тела, шляпа и голова — на одной линии с корпусом.
+ * Все углы — от одного угла наклона, поэтому при плавном переходе тело остаётся прямым.
+ */
+const leanPose = (a: number): Pose => P(a, 0, a * 1.6, [-a + 7, 4], [-a + 3, 2], [-a + 3, 0, 0], [-a - 3, 0, 0]);
+
+const POSES: PoseStep[] = [
   // На носочках, колени вместе, рука у шляпы.
-  P(-4, -6, -14, [150, 70], [-20, -20], [6, 8, -80], [-2, 8, -80], 7),
-  // Наклон вперёд всем телом.
-  P(34, 10, 6, [20, 0], [10, 0], [-28, 0, 28], [-34, 0, 34]),
+  { pose: P(-4, -6, -14, [150, 70], [-20, -20], [6, 8, -80], [-2, 8, -80], 7) },
+  // Наклон вперёд всем телом (45° — как у Майкла).
+  { pose: leanPose(42), pre: leanPose(0), inT: 0.9, hold: 1.1, out: 0.7 },
   // Рука вверх, вторая на поясе, ноги врозь.
-  P(-6, -10, -8, [168, 4], [-40, -110], [16, 0, 0], [-18, 0, 0]),
+  { pose: P(-6, -10, -8, [168, 4], [-40, -110], [16, 0, 0], [-18, 0, 0]) },
   // Выпад ногой вперёд, руки в стороны.
-  P(-14, -4, -10, [95, 10], [-95, -10], [70, 30, 10], [-6, 0, 0]),
+  { pose: P(-14, -4, -10, [95, 10], [-95, -10], [70, 30, 10], [-6, 0, 0]) },
   // Шляпа набок, плечо вперёд, колено внутрь.
-  P(8, 14, 22, [135, 95], [-30, -40], [12, 30, -30], [-8, 0, 0]),
+  { pose: P(8, 14, 22, [135, 95], [-30, -40], [12, 30, -30], [-8, 0, 0]) },
 ];
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -67,6 +86,8 @@ const lerpPose = (a: Pose, b: Pose, t: number): Pose => {
   };
 };
 const ease = (t: number) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
+/** Плавно в обе стороны (для медленного наклона). */
+const easeInOut = (t: number) => 0.5 - 0.5 * Math.cos(Math.PI * Math.min(1, Math.max(0, t)));
 
 /** Угол (градусы, 0 — вниз, плюс — вперёд) от точки a к точке b. */
 const angTo = (ax: number, ay: number, bx: number, by: number) => (Math.atan2(bx - ax, by - ay) * 180) / Math.PI;
@@ -214,6 +235,10 @@ export class DancerAnimator {
   private walkPhase = 0;
   private idleT = 0;
   private poseIdx = 0;
+  /** Какая поза идёт сейчас (для превью). */
+  get poseIndex() {
+    return this.poseIdx;
+  }
   private from: Pose = STAND;
   private current: Pose = STAND;
 
@@ -247,26 +272,40 @@ export class DancerAnimator {
         this.from = this.current;
         this.idleT = 0;
       }
-      // Цикл: вращение (покадрово, ~0,5 с) → поза (0,25 с переход + 1 с держать) → следующая.
+      // Цикл: вращение (покадрово, ~0,5 с) → поза → следующая.
       this.idleT += Math.max(0, dt);
       const SPIN = 0.48;
-      const IN = 0.18;
-      const HOLD = 1.0;
-      const cycle = SPIN + IN + HOLD;
+      const step = POSES[this.poseIdx];
+      const PRE = step.pre ? 0.2 : 0;
+      const IN = step.inT ?? 0.18;
+      const HOLD = step.hold ?? 1.0;
+      const OUT = step.out ?? 0;
+      const cycle = SPIN + PRE + IN + HOLD + OUT;
       if (this.idleT >= cycle) {
         this.idleT -= cycle;
         this.poseIdx = (this.poseIdx + 1) % POSES.length;
-        this.from = POSES[(this.poseIdx + POSES.length - 1) % POSES.length];
       }
-      const target = POSES[this.poseIdx];
-      if (this.idleT < SPIN) {
+      const cur = POSES[this.poseIdx];
+      const t = this.idleT;
+      const pre = cur.pre ? 0.2 : 0;
+      const tin = cur.inT ?? 0.18;
+      const hold = cur.hold ?? 1.0;
+      if (t < SPIN) {
         // Вращение — раскадровка: 8 кадров (два оборота), без плавной «прокрутки» картинки.
-        const f = SPIN_FRAMES[Math.max(0, Math.floor((this.idleT / SPIN) * 8)) % 4];
+        const f = SPIN_FRAMES[Math.max(0, Math.floor((t / SPIN) * 8)) % 4];
         pose = SPIN_POSE();
         view = f.view;
         scaleX = f.scaleX;
+      } else if (cur.pre && t < SPIN + pre) {
+        pose = lerpPose(SPIN_POSE(), cur.pre, easeOut((t - SPIN) / pre));
+      } else if (t < SPIN + pre + tin) {
+        const from = cur.pre ?? SPIN_POSE();
+        const k = (t - SPIN - pre) / tin;
+        pose = lerpPose(from, cur.pose, cur.pre ? easeInOut(k) : easeOut(Math.min(1, k)));
+      } else if (t < SPIN + pre + tin + hold || !cur.out) {
+        pose = cur.pose;
       } else {
-        pose = lerpPose(SPIN_POSE(), target, easeOut(Math.min(1, (this.idleT - SPIN) / IN)));
+        pose = lerpPose(cur.pose, cur.pre ?? cur.pose, easeInOut((t - SPIN - pre - tin - hold) / cur.out));
       }
     }
     this.current = pose;

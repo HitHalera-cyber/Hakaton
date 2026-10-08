@@ -9,6 +9,11 @@ import { keyRootSpelling } from '../../core/music/scales';
 import { spelledName } from '../../core/music/notes';
 import { FX_NAMES, setSongFx, type SongFxMode } from './songFx';
 import { decodeChords, detectKey, shapeName, suggestCapo, type ChordSegment, type SongFeatures } from '../../core/analysis/songAnalysis';
+import { beatFeaturesFromActivations, blendFeatures, songActivations, tunedForModel } from '../../core/analysis/neural/songNeural';
+import { neural } from '../../services/neural';
+
+/** Доля нейросети при смешивании с формулами (подобрана на тестовых песнях). */
+const NEURAL_WEIGHT = 0.6;
 
 export interface SongChord {
   rootPc: number;
@@ -47,6 +52,18 @@ export function SongPanel({ capo, onCapo, onChord, onToSequence, onToSongbook, o
   const [vocab, setVocab] = useState<keyof typeof SONG_VOCAB>('simple');
   /** Минимальная длина аккорда в долях: защита от «дёрганья» из-за шума. */
   const [stability, setStability] = useState(2);
+  /** Разбор нейросетью вдобавок к формулам: точнее на настоящих записях, но дольше. */
+  const [useNeural, setUseNeural] = useState(() => {
+    try {
+      return localStorage.getItem('gcs.song.neural') !== '0';
+    } catch {
+      return true;
+    }
+  });
+  /** Какая часть разбора идёт: формулы или нейросеть (для подписи). */
+  const [phase, setPhase] = useState<'dsp' | 'neural'>('dsp');
+  /** Номер текущего разбора: новый файл отменяет прошлый. */
+  const runId = useRef(0);
   const [edits, setEdits] = useState<Record<number, { rootPc: number; templateId: string; symbol: string; nameRu: string }>>({});
   const [url, setUrl] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -168,16 +185,48 @@ export function SongPanel({ capo, onCapo, onChord, onToSequence, onToSongbook, o
         for (let i = 0; i < d.length; i++) mono[i] += d[i] / buffer.numberOfChannels;
       }
       setStatus('analyzing');
+      setPhase('dsp');
+      const run = ++runId.current;
+      // Для нейросети — копия звука (исходный буфер уйдёт в фоновый поток).
+      const neuralOn = useNeural;
+      const monoCopy = neuralOn ? mono.slice() : null;
+      const srcRate = buffer.sampleRate;
       worker.current?.terminate();
       const w = new Worker(new URL('./songWorker.ts', import.meta.url), { type: 'module' });
       worker.current = w;
       w.onmessage = (e: MessageEvent) => {
         const msg = e.data;
-        if (msg.type === 'progress') setProgress(msg.p);
+        if (msg.type === 'progress') setProgress(neuralOn ? msg.p * 0.3 : msg.p);
         else if (msg.type === 'done') {
-          setFeatures(msg.features);
-          setStatus('ready');
           w.terminate();
+          const f: SongFeatures = msg.features;
+          if (!monoCopy) {
+            setFeatures(f);
+            setStatus('ready');
+            return;
+          }
+          // Второй проход — нейросеть: её ноты смешиваются с формулами.
+          setPhase('neural');
+          void (async () => {
+            try {
+              const model = await neural.load();
+              // Звук для нейросети подстраивается под строй записи (её ноты — точно по A = 440).
+              const tuned = tunedForModel(monoCopy, srcRate, f.tuningCents);
+              const act = await songActivations(
+                model,
+                tuned.audio,
+                (p) => run === runId.current && setProgress(0.3 + 0.7 * p),
+                () => run !== runId.current,
+              );
+              if (run !== runId.current) return;
+              setFeatures(blendFeatures(f, beatFeaturesFromActivations(act, f.beats, f.duration, tuned.timeScale), NEURAL_WEIGHT));
+            } catch (err) {
+              console.warn('[разбор песни] нейросеть не сработала, остаются формулы', err);
+              if (run !== runId.current) return;
+              setFeatures(f);
+            }
+            setStatus('ready');
+          })();
         } else if (msg.type === 'error') {
           setError(msg.message);
           setStatus('error');
@@ -275,12 +324,37 @@ export function SongPanel({ capo, onCapo, onChord, onToSequence, onToSongbook, o
           </button>
         </div>
       )}
+      <label
+        className="check"
+        title="Нейросеть Basic Pitch слышит ноты в настоящих записях (перегруз, ревербер, клавишные, голос) чище, чем формулы. Разбор дольше: примерно 10–30 секунд на песню"
+      >
+        <input
+          type="checkbox"
+          checked={useNeural}
+          disabled={status === 'decoding' || status === 'analyzing'}
+          onChange={(e) => {
+            setUseNeural(e.target.checked);
+            try {
+              localStorage.setItem('gcs.song.neural', e.target.checked ? '1' : '0');
+            } catch {
+              /* не сохраняется — не страшно */
+            }
+          }}
+        />
+        🧠 Точнее: нейросеть вдобавок к формулам (дольше)
+      </label>
       {error && <p className="error">{error}</p>}
 
       {(status === 'decoding' || status === 'analyzing') && (
         <Dancer
           progress={status === 'decoding' ? 0.05 : 0.05 + progress * 0.95}
-          label={status === 'decoding' ? 'Читаю файл…' : `Слушаю песню… ${Math.round(progress * 100)}%`}
+          label={
+            status === 'decoding'
+              ? 'Читаю файл…'
+              : phase === 'neural'
+                ? `Нейросеть слушает песню… ${Math.round(progress * 100)}%`
+                : `Слушаю песню… ${Math.round(progress * 100)}%`
+          }
         />
       )}
 

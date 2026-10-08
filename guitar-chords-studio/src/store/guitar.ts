@@ -96,7 +96,14 @@ export const createGuitarSlice: Slice<GuitarSlice> = (set, get) => {
     },
     edit: (board) => {
       clearMidiIfAny();
-      get().apply(board);
+      // Щелчок по ладу — звучит только та струна, которую поменяли (весь аккорд — кнопкой «Играть»).
+      const before = notesOf(get().board);
+      set({ board });
+      if (!get().settings.sound.autoPlay) return;
+      const key = (n: ChordNote) => `${n.string}:${n.midi}`;
+      const old = new Set(before.map(key));
+      for (const n of notesOf(board).filter((x) => !old.has(key(x))))
+        audio.playNote(n.midi, 0.85, undefined, n.string != null ? `s${n.string}` : undefined);
     },
     loadFrets: (frets, play = true) => {
       clearMidiIfAny();

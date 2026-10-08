@@ -54,6 +54,14 @@ export interface SongSpec {
   drums: number;
   noise: number;
   seed: number;
+  /** Перегруз гитары (0 — чистая, 3–6 — рок). */
+  distortion?: number;
+  /** Ревербер на всю запись (0..1). */
+  reverb?: number;
+  /** Бас ходит по долям (квинта, проходящие), а не стоит на тонике. */
+  walkingBass?: boolean;
+  /** Подложка: клавишные держат аккорд (громкость). */
+  pad?: number;
 }
 
 export interface GeneratedSong {
@@ -70,15 +78,27 @@ export function makeSong(spec: SongSpec): GeneratedSong {
   const out = new Float32Array(Math.ceil(duration * GSR));
   const r = rng(spec.seed);
   const guitarH = [0.6, 0.5, 0.35, 0.25, 0.18, 0.12, 0.08, 0.05];
+  // Гитара пишется отдельно — чтобы её можно было «перегрузить».
+  const gtr = spec.distortion ? new Float32Array(out.length) : out;
   for (let b = 0; b < totalBeats; b++) {
     const t = b * beat;
     const sym = spec.chords[Math.floor(b / spec.beatsPerChord)];
     const notes = voicing(sym);
     // Бой: вниз на долю, вверх на полдоли (без баса).
-    notes.forEach((m, i) => addTone(out, t + i * 0.012, beat * 1.2, hz(m, spec.cents), 0.05, guitarH, 3));
-    notes.slice(2).forEach((m, i) => addTone(out, t + beat / 2 + i * 0.01, beat * 0.7, hz(m, spec.cents), 0.03, guitarH, 4));
-    // Бас: тоника на первую долю аккорда и на каждую долю.
-    addTone(out, t, beat * 0.95, hz(notes[0] - 12, spec.cents), 0.12, [1, 0.5, 0.3, 0.15], 1.5);
+    notes.forEach((m, i) => addTone(gtr, t + i * 0.012, beat * 1.2, hz(m, spec.cents), 0.05, guitarH, 3));
+    notes.slice(2).forEach((m, i) => addTone(gtr, t + beat / 2 + i * 0.01, beat * 0.7, hz(m, spec.cents), 0.03, guitarH, 4));
+    // Бас: тоника на первую долю аккорда; «ходящий» — дальше квинта, октава, подход к следующему.
+    const inChord = b % spec.beatsPerChord;
+    let bassMidi = notes[0] - 12;
+    if (spec.walkingBass && inChord > 0) {
+      const next = voicing(spec.chords[Math.min(spec.chords.length - 1, Math.floor(b / spec.beatsPerChord) + 1)])[0] - 12;
+      bassMidi = inChord === spec.beatsPerChord - 1 ? next + (next > bassMidi ? -1 : 1) : bassMidi + [0, 7, 12, 5][inChord % 4];
+    }
+    addTone(out, t, beat * 0.95, hz(bassMidi, spec.cents), 0.12, [1, 0.5, 0.3, 0.15], 1.5);
+    // Подложка клавишных: аккорд держится весь такт.
+    if (spec.pad && inChord === 0)
+      for (const m of notes.slice(1))
+        addTone(out, t, beat * spec.beatsPerChord, hz(m + 12, spec.cents), spec.pad * 0.025, [1, 0.3, 0.15], 0.3);
     // Ударные: бочка (1, 3), малый (2, 4), хай-хэт восьмыми.
     const s0 = Math.floor(t * GSR);
     for (let i = 0; i < GSR * 0.15 && s0 + i < out.length; i++) {
@@ -99,6 +119,33 @@ export function makeSong(spec: SongSpec): GeneratedSong {
       const midi = 60 + ((pc - 0 + 12) % 12) + (r() > 0.5 ? 12 : 0);
       addTone(out, t + 0.02, beat * 0.95, hz(midi, spec.cents), spec.vocal * 0.1, [1, 0.45, 0.25, 0.12, 0.06], 0.4, 0.006);
     }
+  }
+  if (spec.distortion) {
+    // Перегруз: мягкое ограничение — много новых обертонов и «грязи» между нотами.
+    const d = spec.distortion;
+    for (let i = 0; i < out.length; i++) out[i] += (Math.tanh(gtr[i] * d * 6) / 6) * 1.2;
+  }
+  if (spec.reverb) {
+    // Ревербер Шрёдера: четыре гребенчатых фильтра и два всепропускающих.
+    const wet = new Float32Array(out.length);
+    for (const [ms, g] of [
+      [29.7, 0.84],
+      [37.1, 0.83],
+      [41.1, 0.82],
+      [43.7, 0.81],
+    ]) {
+      const dl = Math.floor((ms / 1000) * GSR);
+      const buf = new Float32Array(out.length);
+      for (let i = 0; i < out.length; i++) buf[i] = out[i] + (i >= dl ? g * buf[i - dl] : 0);
+      for (let i = 0; i < out.length; i++) wet[i] += buf[i] / 4;
+    }
+    for (const ms of [5, 1.7]) {
+      const dl = Math.floor((ms / 1000) * GSR);
+      const y = new Float32Array(out.length);
+      for (let i = 0; i < out.length; i++) y[i] = -0.7 * wet[i] + (i >= dl ? wet[i - dl] + 0.7 * y[i - dl] : 0);
+      wet.set(y);
+    }
+    for (let i = 0; i < out.length; i++) out[i] += wet[i] * spec.reverb;
   }
   for (let i = 0; i < out.length; i++) out[i] += spec.noise * 0.02 * r();
   const truthAt = (tt: number) => {

@@ -81,7 +81,7 @@ export function SoundPanel({ settings, instrument, onChange, onStop }: Props) {
 
       <label className="check">
         <input type="checkbox" checked={settings.autoPlay} onChange={(e) => onChange({ autoPlay: e.target.checked })} />
-        Играть аккорд после каждого изменения на грифе
+        Звучит нота, когда ставите точку на гриф (аккорд целиком — кнопкой «Играть»)
       </label>
     </div>
   );
