@@ -51,8 +51,10 @@ DENSE_STEP = 0.25  # mm; chords shorter than this come from a pixel-grid tessell
 RESAMPLE_STEP = 0.4  # mm
 
 
-def segment_chain(chain: Chain) -> list[Primitive]:
-    pieces = _greedy(_smooth_dense_runs(chain.points), chain.width)
+def segment_chain(chain: Chain, smooth: bool = True) -> list[Primitive]:
+    """``smooth=False`` for exact polylines (no pixel-grid staircase to remove)."""
+    points = _smooth_dense_runs(chain.points) if smooth else chain.points
+    pieces = _greedy(points, chain.width)
     pieces = _rebalance(pieces, chain.width)
     pieces = _merge_neighbours(pieces, chain.width, closed=chain.closed)
     pieces = _fillets(pieces, chain.width)

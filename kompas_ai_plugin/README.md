@@ -94,3 +94,14 @@ ksTItSLowerIndex = 9, ksTItSEnd = 16) в API5 не действует — инд
   хотя `Stamp.Update()` вернул False;
 - индекс в тексте через API7 `ITextItem.ItemType`: работает, только если первый элемент
   имеет тип `ksTItSBase` (7); точная последовательность подбирается в `api_test8.py`.
+
+## Итоги тестов 9–10 и штуцера в виде 4:1
+- `ksLDimSourceParam.ps`: 0 — горизонтальный, 1 — вертикальный, 2 — параллельный
+  (первые тесты шли на горизонтальном отрезке, где 0 и 2 не различить).
+- В виде с масштабом в мм листа задаются: смещение размерной линии (dx, dy), радиус дуги
+  углового размера, высота текста, шаг штриховки. Геометрия — в мм вида.
+- API7: линейный размер с ручным текстом (`IDimensionText.NominalText.Str`), радиальный
+  размер, вид `Views.Add(ksView)`; `AngleDimensions.Add(...)` возвращает None — угловые через API5.
+- Связи API7 (`IDrawingObject1.NewConstraint`): ksCHorizontal, ksCVertical, ksCMergePoints
+  (Index/PartnerIndex 0 — начало, 1 — конец), ksCTangentTwoCurves работают.
+- 3D: деталь, эскиз на XOY, `o3d_baseRotated` (`SetSideParam(True, 360)`) работают.

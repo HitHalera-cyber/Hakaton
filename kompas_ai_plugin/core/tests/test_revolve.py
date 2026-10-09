@@ -24,3 +24,34 @@ def test_stepped_shaft_profile_from_outline():
     assert abs((max(xs) - min(xs)) - 70.0) < 1e-6
     assert abs(max(ys) - 15.0) < 1e-6 and min(ys) == 0.0
     assert abs(profile.area - (30 * 10 + 40 * 15)) < 1e-3
+
+
+def test_profile_segments_close_and_keep_arcs():
+    """A Ø20 rod with an R2 rounded end (2:1): one arc, loop closed exactly."""
+    import math
+
+    d = ir.Drawing(source="synthetic")
+    d.scale = ir.Scale(value=2.0, text="2:1", source="title_block")
+    k, y0 = 2.0, 100.0
+    P = lambda x, y: (50 + x * k, y0 + y * k)  # noqa: E731
+    d.entities = [_line(1, P(0, 10), P(28, 10)), _line(2, P(30, 8), P(30, -8)),
+                  _line(3, P(28, -10), P(0, -10)), _line(4, P(0, -10), P(0, 10)),
+                  _line(9, (40.0, y0), (130.0, y0), ir.STYLE_AXIAL)]
+    for i, (a0, a1) in enumerate(((0.0, 90.0), (270.0, 360.0))):
+        d.entities.append(ir.Arc(f"A{i}", 0.97, [], center=P(28, 8 if i == 0 else -8), radius=4.0,
+                                 start_angle=a0, end_angle=a1))
+    from kompas_ai.model3d.revolve import profile_segments
+
+    p = find_revolve_profile(d)
+    (loop,) = profile_segments(p)
+    arcs = [s for s in loop if s[0] == "arc"]
+    assert len(arcs) == 1 and abs(arcs[0][2] - 2.0) < 1e-3
+
+    def ends(s):
+        if s[0] == "line":
+            return s[1], s[2]
+        c, r, a1, a2 = s[1:]
+        return ((c[0] + r * math.cos(math.radians(a1)), c[1] + r * math.sin(math.radians(a1))),
+                (c[0] + r * math.cos(math.radians(a2)), c[1] + r * math.sin(math.radians(a2))))
+    for s1, s2 in zip(loop, loop[1:] + loop[:1]):
+        assert min(math.dist(a, b) for a in ends(s1) for b in ends(s2)) < 1e-6

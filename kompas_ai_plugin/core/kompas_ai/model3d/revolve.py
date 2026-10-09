@@ -24,7 +24,6 @@ from ..semantics.regions import contour_faces
 
 MIN_AXIS = 20.0  # sheet mm
 TOUCH = 0.05  # sheet mm
-SIMPLIFY = 0.005  # model mm
 
 
 @dataclass
@@ -33,6 +32,9 @@ class RevolveProfile:
     axis: tuple[tuple[float, float], tuple[float, float]]  # sheet mm
     source: str  # "hatch" | "outline"
     area: float  # model mm²
+    sheet_rings: list = None  # the same loops in sheet mm (exact drawing geometry)
+    side: int = 1
+    scale: float = 1.0
 
     def summary(self) -> str:
         length = max(x for r in self.rings for x, _ in r) - min(x for r in self.rings for x, _ in r)
@@ -48,12 +50,12 @@ def find_revolve_profile(drawing: ir.Drawing) -> RevolveProfile | None:
     for axis in _axes(drawing):
         on_axis = None
         for side in (1, -1):
-            half = _view_half(drawing, axis, side)
-            if half is None or half.is_empty:
+            faces = _view_half(drawing, axis, side)
+            if not faces:
                 continue
-            region, source = _hatched(drawing, half), "hatch"
+            region, source = _hatched(drawing, faces), "hatch"
             if region is None or region.is_empty:
-                region, source = half, "outline"
+                region, source = unary_union(faces), "outline"
             # A section shows the bore; a plain view on the other side of a
             # half-section does not — prefer the hatched side.
             score = (source == "hatch", region.area)
@@ -69,7 +71,9 @@ def find_revolve_profile(drawing: ir.Drawing) -> RevolveProfile | None:
     rings = _to_model(region, axis, side, scale)
     if not rings:
         return None
-    return RevolveProfile(rings, axis, source, region.area / scale ** 2)
+    sheet_rings = [[tuple(p) for p in ring.coords] for part in _polygons(region)
+                   for ring in [part.exterior] + list(part.interiors)]
+    return RevolveProfile(rings, axis, source, region.area / scale ** 2, sheet_rings, side, scale)
 
 
 def _axes(drawing: ir.Drawing):
@@ -90,16 +94,21 @@ def _half_plane(axis, side, extent=1000.0) -> Polygon:
                     (x1 + nx * extent, y1 + ny * extent)])
 
 
-def _hatched(drawing, half):
-    """Hatched material inside the half view (a section)."""
-    polys = []
+def _hatched(drawing, faces):
+    """The faces of the half view that are hatched (the material of a section).
+    The faces come from the final (dimension-exact) geometry; the hatch only
+    tells which of them are material — its own outline predates the
+    regularisation."""
+    hatches = []
     for h in drawing.of_type(ir.Hatch):
-        if not h.contours:
-            continue
-        poly = Polygon(h.contours[0], h.contours[1:]).buffer(0)
-        if not poly.is_empty and poly.intersection(half).area >= 0.5 * poly.area:
-            polys.append(poly.intersection(half))
-    return unary_union(polys) if polys else None
+        if h.contours:
+            poly = Polygon(h.contours[0], h.contours[1:]).buffer(0)
+            if not poly.is_empty:
+                hatches.append(poly.buffer(0.2))
+    if not hatches:
+        return None
+    material = [f for f in faces if any(h.contains(f.representative_point()) for h in hatches)]
+    return unary_union(material) if material else None
 
 
 def _within_axis_span(poly, axis) -> bool:
@@ -143,7 +152,7 @@ def _view_half(drawing, axis, side):
                 component.append(j)
     if not seen:
         return None
-    return unary_union([faces[i] for i in seen])
+    return [faces[i] for i in seen]
 
 
 def _to_model(region, axis, side, scale) -> list[list[tuple[float, float]]]:
@@ -162,7 +171,6 @@ def _to_model(region, axis, side, scale) -> list[list[tuple[float, float]]]:
     for part in parts:
         part = Polygon([model(p) for p in part.exterior.coords],
                        [[model(p) for p in hole.coords] for hole in part.interiors])
-        part = part.simplify(SIMPLIFY, preserve_topology=True)
         for ring in [part.exterior] + list(part.interiors):
             pts = [(round(x, 4), round(y, 4)) for x, y in ring.coords]
             if len(pts) >= 4:
@@ -180,3 +188,69 @@ def bounding_box(rings) -> Polygon:
     xs = [x for r in rings for x, _ in r]
     ys = [y for r in rings for _, y in r]
     return box(min(xs), min(ys), max(xs), max(ys))
+
+
+def profile_segments(profile: RevolveProfile) -> list[list[tuple]]:
+    """Each loop as sketch segments in model mm: ("line", p1, p2) or
+    ("arc", center, r, a1, a2), arcs counter-clockwise from a1 to a2 (degrees).
+
+    Lines and arcs are recognised on the sheet geometry (where the fitting
+    tolerances belong) and then moved to model mm, so fillets come back as
+    true arcs with their exact radii; ends are joined exactly."""
+    from ..geometry.chains import Chain
+    from ..geometry.segmentation import segment_chain
+
+    (x1, y1), (x2, y2) = profile.axis
+    n = math.hypot(x2 - x1, y2 - y1)
+    ux, uy = (x2 - x1) / n, (y2 - y1) / n
+    nx, ny = -uy * profile.side, ux * profile.side
+    k = profile.scale
+
+    def model(p):
+        vx, vy = p[0] - x1, p[1] - y1
+        return ((vx * ux + vy * uy) / k, max(0.0, (vx * nx + vy * ny) / k))
+
+    mirrored = ux * ny - uy * nx < 0  # the mapping reverses the direction of arcs
+
+    def model_angle(c, a):
+        p = (c[0] + math.cos(math.radians(a)), c[1] + math.sin(math.radians(a)))
+        q, cm = model(p), model(c)
+        return math.degrees(math.atan2(q[1] - cm[1], q[0] - cm[0])) % 360.0
+
+    out = []
+    for ring in profile.sheet_rings:
+        segs = []
+        for p in segment_chain(Chain(list(ring), 0.5, True), smooth=False):
+            if p.kind == "line":
+                segs.append(["line", model(p.p1), model(p.p2)])
+            else:
+                a1, a2 = (0.0, 360.0) if p.kind == "circle" else (p.start_angle, p.end_angle)
+                b1, b2 = model_angle(p.center, a1), model_angle(p.center, a2)
+                if mirrored:
+                    b1, b2 = b2, b1
+                segs.append(["arc", model(p.center), p.radius / k, b1, b2])
+        out.append([tuple(s) for s in _join_ends(segs)])
+    return out
+
+
+def _seg_ends(s):
+    if s[0] == "line":
+        return s[1], s[2]
+    c, r, a1, a2 = s[1:]
+    return ((c[0] + r * math.cos(math.radians(a1)), c[1] + r * math.sin(math.radians(a1))),
+            (c[0] + r * math.cos(math.radians(a2)), c[1] + r * math.sin(math.radians(a2))))
+
+
+def _join_ends(segs):
+    """Move line ends onto the neighbouring arc/line ends so the loop is closed
+    exactly (KOMPAS needs a closed sketch for the rotation)."""
+    for i, s in enumerate(segs):
+        if s[0] != "line":
+            continue
+        for j in (i - 1, (i + 1) % len(segs)):
+            other = _seg_ends(segs[j])
+            for k in (1, 2):
+                best = min(other, key=lambda q: math.dist(q, s[k]))
+                if math.dist(best, s[k]) <= 0.05:
+                    s[k] = best
+    return segs

@@ -138,6 +138,11 @@ class MainWindow(QMainWindow):
         self.dims_box.setChecked(True)
         self.dims_box.setToolTip("Снимите, чтобы построить просто чертёж — без размеров")
         bar.addWidget(self.dims_box)
+        self.param_box = QCheckBox("Параметризация")
+        self.param_box.setChecked(True)
+        self.param_box.setToolTip("Связи: горизонталь, вертикаль, совпадение концов, касание, "
+                                  "концентричность (нужна лицензия КОМПАС)")
+        bar.addWidget(self.param_box)
 
         self.build_act = QAction("Построить в КОМПАС", self)
         self.build_act.triggered.connect(self.build_in_kompas)
@@ -246,7 +251,8 @@ class MainWindow(QMainWindow):
         self._set_ready(False)
         self.statusBar().showMessage("Строю чертёж в КОМПАС…")
         job = KompasJob(self.drawing, Path(name), BUILD_MODES[self.build_mode.currentIndex()][1],
-                        with_dimensions=self.dims_box.isChecked())
+                        with_dimensions=self.dims_box.isChecked(),
+                        parametric=self.param_box.isChecked())
         job.progress.connect(self._log)
         job.finished.connect(self.on_built)
         job.failed.connect(self.on_failed)

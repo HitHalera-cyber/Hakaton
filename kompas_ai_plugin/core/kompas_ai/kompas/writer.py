@@ -94,6 +94,7 @@ class DrawingWriter:
 
         order = (ir.Hatch, ir.Line, ir.Circle, ir.Arc, ir.PointMark, ir.Text) \
             + ((ir.Dimension,) if self.with_dimensions else ())
+        refs: dict[str, object] = {}
         for cls in order:
             for e in drawing.of_type(cls):
                 try:
@@ -103,9 +104,31 @@ class DrawingWriter:
                     report.notes.append(f"{e.id}: {exc!r}")
                 if ref:
                     report.count(e.kind)
+                    refs[e.id] = ref
                 elif ref is not False:  # False = intentionally skipped
                     report.failed.append(e.id)
+            if cls is ir.Text and getattr(self.b, "parametric", False):
+                made, tried = self._constraints(drawing, refs)
+                report.notes.append(f"Параметризация: создано связей {made} из {tried}")
         return report
+
+    def _constraints(self, drawing: ir.Drawing, refs) -> tuple[int, int]:
+        """Relations found on the drawing → KOMPAS constraints (parametric mode)."""
+        jobs = []
+        for c in drawing.constraints:
+            if c.type == "coincident":
+                continue  # set below with the exact end points, lines and arcs alike
+            if c.a in refs and (c.b is None or c.b in refs):
+                jobs.append((c.type, refs[c.a], refs.get(c.b) if c.b else None, None, None))
+        jobs += [("coincident", refs[a], refs[b], ia, ib)
+                 for a, ia, b, ib in _shared_ends(drawing) if a in refs and b in refs]
+        made = 0
+        for kind, a, b, ia, ib in jobs:
+            try:
+                made += bool(self.b.constrain(kind, a, b, ia, ib))
+            except Exception:  # an over-constrained or unsupported pair: keep going
+                pass
+        return made, len(jobs)
 
     # --- entities ----------------------------------------------------------------------
 
@@ -165,13 +188,16 @@ class DrawingWriter:
         text = self._dim_text(d)
         if d.dim_type == "linear" and d.p1 and d.p2:
             p1, p2 = self._p(d.p1), self._p(d.p2)
-            line = self._p(d.line_point or d.p1)
+            # The offset of the dimension line is in sheet mm even inside a
+            # scaled view (like text heights): dividing it by the scale put all
+            # dimension lines 4× closer to the part in a 4:1 view.
+            line, q1 = d.line_point or d.p1, d.p1
             if d.orientation == "horizontal":
-                kind, offset = LINEAR_HORIZONTAL, (0.0, line[1] - p1[1])
+                kind, offset = LINEAR_HORIZONTAL, (0.0, line[1] - q1[1])
             elif d.orientation == "vertical":
-                kind, offset = LINEAR_VERTICAL, (line[0] - p1[0], 0.0)
+                kind, offset = LINEAR_VERTICAL, (line[0] - q1[0], 0.0)
             else:
-                kind, offset = LINEAR_PARALLEL, (line[0] - p1[0], line[1] - p1[1])
+                kind, offset = LINEAR_PARALLEL, (line[0] - q1[0], line[1] - q1[1])
             return self.b.linear_dim(p1, p2, offset, kind, text)
         if d.dim_type in ("diameter", "radius") and d.center and d.radius:
             angle = 45.0
@@ -195,8 +221,42 @@ class DrawingWriter:
             if d.nominal and abs(sweep - d.nominal) <= 1.0:
                 mid = a1 + sweep / 2
                 a1, a2 = (mid - d.nominal / 2) % 360.0, (mid + d.nominal / 2) % 360.0
-            return self.b.angular_dim(self._p(d.center), a1, a2, self._len(d.radius or 20.0), text)
+            # the radius of the dimension arc is in sheet mm as well
+            return self.b.angular_dim(self._p(d.center), a1, a2, d.radius or 20.0, text)
         return None
+
+
+def _ends(e) -> list[tuple[int, tuple[float, float]]]:
+    """(index, point) of the end points: 0 = start, 1 = end (arcs counter-clockwise)."""
+    if isinstance(e, ir.Line):
+        return [(0, tuple(e.p1)), (1, tuple(e.p2))]
+    if isinstance(e, ir.Arc):
+        return [(i, (e.center[0] + e.radius * math.cos(math.radians(a)),
+                     e.center[1] + e.radius * math.sin(math.radians(a))))
+                for i, a in ((0, e.start_angle), (1, e.end_angle))]
+    return []
+
+
+def _shared_ends(drawing: ir.Drawing, tol: float = 0.01):
+    """Pairs of objects whose end points coincide: (id_a, index_a, id_b, index_b).
+    Several objects at one node are chained (a–b, b–c), not all pairs."""
+    nodes: list[tuple[tuple[float, float], list[tuple[str, int]]]] = []
+    for e in drawing.of_type(ir.Line) + drawing.of_type(ir.Arc):
+        if getattr(e, "style", None) == ir.STYLE_AXIAL:
+            continue
+        for i, p in _ends(e):
+            for q, members in nodes:
+                if math.dist(p, q) <= tol:
+                    members.append((e.id, i))
+                    break
+            else:
+                nodes.append((p, [(e.id, i)]))
+    out = []
+    for _, members in nodes:
+        for (a, ia), (b, ib) in zip(members, members[1:]):
+            if a != b:
+                out.append((a, ia, b, ib))
+    return out
 
 
 def _polar(center, p) -> float:

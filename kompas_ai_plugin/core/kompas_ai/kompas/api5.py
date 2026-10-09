@@ -79,8 +79,10 @@ def _prepare_win32com() -> None:
 class Api5Backend:
     """Draws into a new KOMPAS drawing through API5."""
 
-    def __init__(self, visible: bool = True, log=print):
+    def __init__(self, visible: bool = True, log=print, parametric: bool = False):
         _prepare_win32com()
+        # parametric: geometry through API7 so that constraints can be set on it
+        self.parametric = parametric
         import pythoncom
         from win32com.client import Dispatch, constants, gencache
 
@@ -160,13 +162,53 @@ class Api5Backend:
         return bool(ok)
 
     def line(self, p1, p2, style):
+        if self.parametric:
+            seg = self._api7_drawing().LineSegments.Add()
+            seg.X1, seg.Y1, seg.X2, seg.Y2, seg.Style = p1[0], p1[1], p2[0], p2[1], style
+            return seg if seg.Update() else None
         return self.doc.ksLineSeg(p1[0], p1[1], p2[0], p2[1], style)
 
     def circle(self, center, radius, style):
+        if self.parametric:
+            c = self._api7_drawing().Circles.Add()
+            c.Xc, c.Yc, c.Radius, c.Style = center[0], center[1], radius, style
+            return c if c.Update() else None
         return self.doc.ksCircle(center[0], center[1], radius, style)
 
     def arc(self, center, radius, start, end, style):
+        if self.parametric:
+            a = self._api7_drawing().Arcs.Add()
+            a.Xc, a.Yc, a.Radius = center[0], center[1], radius
+            a.Angle1, a.Angle2, a.Direction, a.Style = start, end, True, style
+            return a if a.Update() else None
         return self.doc.ksArcByAngle(center[0], center[1], radius, start, end, 1, style)
+
+    # --- parametric constraints (API7, prototype/api_test10.py) ---------------------
+
+    CONSTRAINTS = {"horizontal": "ksCHorizontal", "vertical": "ksCVertical",
+                   "coincident": "ksCMergePoints", "tangent": "ksCTangentTwoCurves",
+                   "parallel": "ksCParallel", "perpendicular": "ksCPerpendicular",
+                   "concentric": "ksCConcentricity"}
+
+    def constrain(self, kind, a, b=None, index=None, partner_index=None) -> bool:
+        """A KOMPAS constraint on objects returned by line/circle/arc in
+        parametric mode. ``index``/``partner_index``: 0 = start, 1 = end point."""
+        from win32com.client import CastTo
+
+        name = self.CONSTRAINTS.get(kind)
+        if name is None or not hasattr(self.constants, name):
+            return False
+        c = CastTo(a, "IDrawingObject1").NewConstraint()
+        if c is None:
+            return False
+        c.ConstraintType = getattr(self.constants, name)
+        if index is not None:
+            c.Index = index
+        if b is not None:
+            c.Partner = b
+        if partner_index is not None:
+            c.PartnerIndex = partner_index
+        return bool(c.Create())
 
     def point(self, p):
         return self.doc.ksPoint(p[0], p[1], 0)
@@ -252,12 +294,14 @@ class Api5Backend:
 
     # --- 3D -----------------------------------------------------------------------------
 
-    def revolve_part(self, rings, path: str) -> bool:
+    def revolve_part(self, loops, path: str) -> bool:
         """A part made by revolving closed profile loops 360° around the X axis.
 
         Calls confirmed by prototype/api_test9.py (KOMPAS v23): Document3D.Create,
         sketch on the XOY plane, ksBaseRotatedDefinition, SaveAs. ``rings`` are
-        in model mm: x along the axis, y the radius (≥ 0).
+        in model mm: x along the axis, y the radius (≥ 0). ``loops``: closed
+        loops of ("line", p1, p2) / ("arc", center, r, a1, a2) segments
+        (model3d.revolve.profile_segments).
         """
         m, c = self.m, self.constants
         doc3d = self.kompas.Document3D()
@@ -269,11 +313,18 @@ class Api5Backend:
         sdef.SetPlane(part.GetDefaultEntity(c.o3d_planeXOY))
         sketch.Create()
         d2 = sdef.BeginEdit()
-        xs = [x for ring in rings for x, _ in ring]
-        for ring in rings:
-            for a, b in zip(ring, ring[1:]):
-                if math.dist(a, b) > 1e-6:
-                    d2.ksLineSeg(a[0], a[1], b[0], b[1], 1)
+        xs = []
+        for loop in loops:
+            for seg in loop:
+                if seg[0] == "line":
+                    (ax, ay), (bx, by) = seg[1], seg[2]
+                    if math.hypot(bx - ax, by - ay) > 1e-6:
+                        d2.ksLineSeg(ax, ay, bx, by, 1)
+                    xs += [ax, bx]
+                else:
+                    (cx, cy), r, a1, a2 = seg[1], seg[2], seg[3], seg[4]
+                    d2.ksArcByAngle(cx, cy, r, a1, a2, 1, 1)
+                    xs += [cx - r, cx + r]
         # the axis of revolution: an axial line in the sketch
         d2.ksLineSeg(min(xs) - 5.0, 0.0, max(xs) + 5.0, 0.0, 3)
         sdef.EndEdit()

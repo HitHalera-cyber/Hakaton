@@ -43,10 +43,12 @@ class KompasJob(QObject):
     finished = Signal(str)  # report text
     failed = Signal(str)
 
-    def __init__(self, drawing, out_cdw: Path, mode: str, with_dimensions: bool = True):
+    def __init__(self, drawing, out_cdw: Path, mode: str, with_dimensions: bool = True,
+                 parametric: bool = False):
         super().__init__()
         self.drawing, self.out, self.mode = drawing, out_cdw, mode
         self.with_dimensions = with_dimensions
+        self.parametric = parametric
 
     def run(self) -> None:
         if sys.platform != "win32":
@@ -61,7 +63,7 @@ class KompasJob(QObject):
                 from ..kompas.writer import DrawingWriter
 
                 self.progress.emit("Подключение к КОМПАС (первый раз — до пары минут)…")
-                backend = Api5Backend(log=self.progress.emit)
+                backend = Api5Backend(log=self.progress.emit, parametric=self.parametric)
                 self.progress.emit("Построение объектов…")
                 report = DrawingWriter(backend, mode=self.mode,
                                        with_dimensions=self.with_dimensions).write(self.drawing)
@@ -108,7 +110,9 @@ class RevolveJob(QObject):
                 self.progress.emit("Подключение к КОМПАС…")
                 backend = Api5Backend(log=self.progress.emit)
                 self.progress.emit("Эскиз профиля и операция вращения…")
-                saved = backend.revolve_part(profile.rings, str(self.out))
+                from ..model3d.revolve import profile_segments
+
+                saved = backend.revolve_part(profile_segments(profile), str(self.out))
                 self.finished.emit(profile.summary() + "\n" + (
                     f"3D-деталь сохранена: {self.out}" if saved else f"Не удалось сохранить {self.out}"))
             finally:
