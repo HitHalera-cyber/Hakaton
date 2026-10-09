@@ -192,15 +192,14 @@ class Api5Backend:
         return self.doc.ksArcByAngle(center[0], center[1], radius, start, end, 1, style)
 
     def _arc7(self, center, radius, start, end, style):
+        """API7 arc. In the exe the typed wrapper of the arc collection failed
+        with FileNotFoundError (all 56 arcs of the fitting were left out), so the
+        arc is made through late binding, which needs no generated wrapper."""
         from win32com.client import dynamic
 
-        obj = self._api7_drawing().Arcs.Add()
-        try:
-            a = obj
-            a.Xc, a.Yc, a.Radius = center[0], center[1], radius
-        except Exception:  # the typed wrapper failed: late binding
-            a = dynamic.Dispatch(obj._oleobj_)
-            a.Xc, a.Yc, a.Radius = center[0], center[1], radius
+        container = dynamic.Dispatch(self._api7_drawing()._oleobj_)
+        a = container.Arcs.Add()
+        a.Xc, a.Yc, a.Radius = center[0], center[1], radius
         a.Angle1, a.Angle2, a.Direction, a.Style = start, end, True, style
         return a if a.Update() else None
 

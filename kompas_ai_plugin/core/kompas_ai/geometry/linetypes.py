@@ -146,6 +146,7 @@ def _runs_on_line(group: list[Primitive], arrow_tips=()) -> list[Primitive]:
             runs.append([iv])
 
     runs = [part for run in runs for part in _split_irregular(run)]
+    runs = [part for run in runs for part in _peel_long_ends(run)]
     out = [iv[2] for iv in solo]
     for run in runs:
         dash_dot = len(run) == 2 and min(x[1] - x[0] for x in run) <= 1.0 \
@@ -208,6 +209,28 @@ def _long_short(lengths: list[float]) -> bool:
     inner = lengths[1:-1] if len(lengths) > 3 else lengths
     clusters = _length_clusters(inner)
     return len(clusters) == 2 and clusters[1][0] >= 2.5 * clusters[0][-1]
+
+
+def _peel_long_ends(run: list) -> list[list]:
+    """A solid line continuing a dash line (an extension line of a dimension
+    on the same straight, touching the first dash or after a gap) is much
+    longer than the dashes: take it off the ends of the run as its own line."""
+    if len(run) < 4:
+        return [run]
+    inner = [x[1] - x[0] for x in run[1:-1]]
+    limit = 1.5 * max(inner) + 0.5
+    parts = []
+    if run[0][1] - run[0][0] > limit:
+        parts.append([run[0]])
+        run = run[1:]
+    tail = None
+    if run[-1][1] - run[-1][0] > limit:
+        tail = [run[-1]]
+        run = run[:-1]
+    parts.append(run)
+    if tail:
+        parts.append(tail)
+    return parts
 
 
 def _split_irregular(run: list) -> list[list]:
