@@ -106,6 +106,10 @@ class DrawingWriter:
 
         order = (ir.Hatch, ir.Line, ir.Circle, ir.Arc, ir.PointMark, ir.Text) \
             + ((ir.Dimension,) if self.with_dimensions else ())
+        if self.with_dimensions:
+            moved = spread_dimension_lines(drawing.of_type(ir.Dimension))
+            if moved:
+                report.notes.append(f"Размерные линии разнесены по ГОСТ 2.307 (≥7 мм): {moved}")
         refs: dict[str, object] = {}
         for cls in order:
             for e in drawing.of_type(cls):
@@ -242,6 +246,40 @@ class DrawingWriter:
             return self.b.angular_dim(self._p(d.center), a1, a2,
                                       max(d.radius or 20.0, MIN_ANGULAR_RADIUS), text)
         return None
+
+
+DIM_LINE_GAP = 7.0  # mm on the sheet between parallel dimension lines (ГОСТ 2.307)
+
+
+def spread_dimension_lines(dims) -> int:
+    """Move dimension lines apart where two parallel ones on the same side of
+    the part overlap along their length and stand closer than DIM_LINE_GAP.
+    The outer one goes outwards; a chain (lines one after another on one
+    level) is left as it is. Returns how many were moved."""
+    moved = 0
+    for orient, axis in (("horizontal", 1), ("vertical", 0)):
+        group = [d for d in dims if d.dim_type == "linear" and d.orientation == orient
+                 and d.p1 and d.p2 and d.line_point]
+        for side in (1, -1):
+            # dimension lines on this side of their measured points, nearest first
+            same = [d for d in group
+                    if side * (d.line_point[axis] - min(d.p1[axis], d.p2[axis], key=lambda v: side * v)) > 0]
+            same.sort(key=lambda d: side * d.line_point[axis])
+            placed = []
+            for d in same:
+                lo, hi = sorted((d.p1[1 - axis], d.p2[1 - axis]))
+                level = d.line_point[axis]
+                for other_level, olo, ohi in placed:
+                    overlap = min(hi, ohi) - max(lo, olo)
+                    if overlap > 0.5 and side * (level - other_level) < DIM_LINE_GAP:
+                        level = other_level + side * DIM_LINE_GAP
+                if abs(level - d.line_point[axis]) > 1e-6:
+                    lp = list(d.line_point)
+                    lp[axis] = level
+                    d.line_point = tuple(lp)
+                    moved += 1
+                placed.append((level, lo, hi))
+    return moved
 
 
 def _ends(e) -> list[tuple[int, tuple[float, float]]]:
