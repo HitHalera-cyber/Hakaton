@@ -200,7 +200,9 @@ class Api5Backend:
         container = dynamic.Dispatch(self._api7_drawing()._oleobj_)
         a = container.Arcs.Add()
         a.Xc, a.Yc, a.Radius = center[0], center[1], radius
-        a.Angle1, a.Angle2, a.Direction, a.Style = start, end, True, style
+        # Direction = True is clockwise (api_test13: a 270°→360° arc came out as
+        # the three-quarter one); our arcs run counter-clockwise from start to end
+        a.Angle1, a.Angle2, a.Direction, a.Style = start, end, False, style
         return a if a.Update() else None
 
     # --- parametric constraints (API7, prototype/api_test10.py) ---------------------

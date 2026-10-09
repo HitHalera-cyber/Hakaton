@@ -62,7 +62,7 @@ def sketch_fixing(ctx) -> None:
         from win32com.client import dynamic
         arc = dynamic.Dispatch(drawing._oleobj_).Arcs.Add()
         arc.Xc, arc.Yc, arc.Radius = 20.0, 6.0, 1.0
-        arc.Angle1, arc.Angle2, arc.Direction, arc.Style = 270.0, 360.0, True, 1
+        arc.Angle1, arc.Angle2, arc.Direction, arc.Style = 270.0, 360.0, False, 1  # False = CCW
         result("дуга (позднее связывание)", arc.Update())
         for name, fn in [
             ("объединение точек отрезок–дуга", lambda: constrain(seg, "ksCMergePoints", Index=1,
