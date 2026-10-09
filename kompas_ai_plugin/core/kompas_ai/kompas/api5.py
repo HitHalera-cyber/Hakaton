@@ -281,17 +281,7 @@ class Api5Backend:
         return {0: found["start"], 1: found["end"]}
 
     def ellipse(self, center, a, b, angle, style):
-        """API7 ellipse (late binding, as the arcs), else API5 ksEllipse."""
-        try:
-            from win32com.client import dynamic
-
-            e = dynamic.Dispatch(self._api7_drawing()._oleobj_).Ellipses.Add()
-            e.Xc, e.Yc, e.SemiAxisA, e.SemiAxisB, e.Angle, e.Style = \
-                center[0], center[1], a, b, angle, style
-            if e.Update():
-                return e
-        except Exception as exc:
-            self.log(f"  эллипс через API7: {exc!r} — пробую API5")
+        """API5 ksEllipse (the API7 collection failed in the exe like the arcs)."""
         par = self._param("ko_EllipseParam", "ksEllipseParam")
         par.Init()
         par.xc, par.yc, par.a, par.b, par.ang, par.style = center[0], center[1], a, b, angle, style
@@ -470,7 +460,8 @@ class Api5Backend:
 
     # --- 3D -----------------------------------------------------------------------------
 
-    def revolve_part(self, loops, path: str, threads=(), log=None, flange=None) -> bool:
+    def revolve_part(self, loops, path: str, threads=(), log=None, flange=None,
+                     fillets=()) -> bool:
         """A part made by revolving closed profile loops 360° around the X axis.
 
         Calls confirmed by prototype/api_test9.py and api_test11.py (KOMPAS v23):
@@ -511,6 +502,13 @@ class Api5Backend:
                 self._flange(part, flange, log)
             except Exception as exc:
                 log(f"Фланец по виду с торца: {exc!r}")
+            for f in fillets:
+                try:
+                    ok = self._fillet_after_milling(part, flange, f)
+                    log(f"Скругление R{f.radius:g} после фрезеровки: "
+                        f"{'выполнено' if ok else 'не выполнено'}")
+                except Exception as exc:
+                    log(f"Скругление R{f.radius:g} после фрезеровки: {exc!r}")
         for t in threads:
             try:
                 ok = self._thread(part, t)
@@ -548,6 +546,33 @@ class Api5Backend:
             d.SetSideParam(False, c.etBlind, half, 0.0, False)
             d.SetSketch(sketch)
             log(f"Фланец: {name} — {'выполнено' if op.Create() else 'не выполнено'}")
+
+    def _fillet_after_milling(self, part, flange, f) -> bool:
+        """Round the corner edge left where the profile's fillet was taken out
+        (model3d.endview.fillets_after_milling) — only where the flange still
+        stands, i.e. along the section plane, not on the flats."""
+        c, m = self.constants, self.m
+        # which axis the flats face: a point on a flat (the flange's middle,
+        # at the flats' distance) finds a face on it
+        faces = part.EntityCollection(c.o3d_face)
+        faces.SelectByPoint(0.0, 0.0, flange.inner)
+        along_y = faces.GetCount() > 0  # flats square to Z: the flange stands along Y
+        op = part.NewEntity(c.o3d_fillet)
+        d = m.ksFilletDefinition(op.GetDefinition())
+        d.radius = f.radius
+        d.tangent = True
+        arr = d.array()
+        found = 0
+        for sign in (1.0, -1.0):
+            edges = part.EntityCollection(c.o3d_edge)
+            p = (f.x, sign * f.y, 0.0) if along_y else (f.x, 0.0, sign * f.y)
+            edges.SelectByPoint(*p)
+            if edges.GetCount():
+                arr.Add(edges.First())
+                found += 1
+        if not found:
+            raise RuntimeError("ребро не найдено")
+        return bool(op.Create())
 
     def _plane_sketch(self, part, plane, loops):
         m = self.m
@@ -671,7 +696,11 @@ class Api5Backend:
         tdef.autoDefinDr = False
         tdef.dr = t.diameter
         tdef.p = t.pitch
-        tdef.outside = t.outside
+        # «outside» is read-only (KOMPAS takes it from the face); set where allowed
+        try:
+            tdef.outside = t.outside
+        except AttributeError:
+            pass
         tdef.SetBaseObject(faces.First())
         return bool(thread.Create())
 

@@ -37,7 +37,8 @@ class WriteReport:
 
     def text(self) -> str:
         names = {"line": "отрезков", "circle": "окружностей", "arc": "дуг", "text": "текстов",
-                 "dimension": "размеров", "hatch": "штриховок", "pointmark": "точек"}
+                 "dimension": "размеров", "hatch": "штриховок", "pointmark": "точек",
+                 "ellipse": "эллипсов"}
         out = [f"Режим масштаба: {'вид с масштабом' if self.mode == 'view' else 'мм листа'}",
                "Создано в КОМПАС: " + ", ".join(f"{names.get(k, k)} {v}"
                                                 for k, v in self.created.items())]
@@ -223,6 +224,13 @@ class DrawingWriter:
         # An automatic value would drop tolerances, fits and thread pitches
         # (R1±0,5*, Ø26h12, M22×1,5): those keep the text of the source.
         plain = PLAIN_VALUE_RE.match(written) is not None
+        if plain and self.mode == "view" and d.dim_type != "angular" and d.nominal \
+                and d.measured is not None:
+            # KOMPAS would write what the geometry measures; where the drawing
+            # disagrees with its own number (15 drawn as 14,85) the number wins
+            model = d.measured / self.scale
+            if abs(model - d.nominal) > 0.005:
+                return DimText(auto=False, value=written, diameter_sign=diameter)
         if plain and (d.dim_type == "angular" or self.mode == "view"):
             return DimText(auto=True, diameter_sign=diameter and d.dim_type != "diameter")
         return DimText(auto=False, value=written, diameter_sign=diameter)
@@ -248,12 +256,11 @@ class DrawingWriter:
                 # the left over the neighbours
                 right = d.text_center[0] > max(d.p1[0], d.p2[0]) + 1.0
                 left = d.text_center[0] < min(d.p1[0], d.p2[0]) - 1.0
-                if left and "text_offset" in _params(self.b.linear_dim):
+                if left and d.text_pos and "text_offset" in _params(self.b.linear_dim):
                     # the value left of a small size, as on the source (KOMPAS
                     # would put it on the right, over its neighbours)
-                    mid = (d.p1[0] + d.p2[0]) / 2
                     return self.b.linear_dim(p1, p2, offset, kind, text,
-                                             text_offset=round(d.text_center[0] - mid, 2))
+                                             text_offset=_text_offset(d))
                 return self.b.linear_dim(p1, p2, offset, kind, text, text_right=right,
                                          line_point=self._p(((d.p1[0] + d.p2[0]) / 2, line[1])))
             return self.b.linear_dim(p1, p2, offset, kind, text)
@@ -386,6 +393,18 @@ def _shared_ends(drawing: ir.Drawing, tol: float = 0.01):
             if a != b:
                 out.append((a, ia, b, ib))
     return out
+
+
+def _text_offset(d: ir.Dimension) -> float:
+    """ksDimDrawingParam.textPos of a horizontal dimension: the distance from
+    the first point, towards the second, to the nearest edge of the value
+    (read off the fitting: 4,5±0,1 with −25,5 stood 25 mm right of its first
+    point, which lies right of the second)."""
+    sign = 1.0 if d.p2[0] >= d.p1[0] else -1.0
+    start = d.text_pos[0]
+    end = 2 * d.text_center[0] - start
+    a, b = (start - d.p1[0]) * sign, (end - d.p1[0]) * sign
+    return round(a if abs(a) < abs(b) else b, 2)
 
 
 def _side_extent(drawing: ir.Drawing, center, angle: float, tol: float = 0.3) -> float:

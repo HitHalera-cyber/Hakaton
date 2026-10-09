@@ -34,6 +34,7 @@ class FlangeSpec:
     x0: float
     x1: float
     radius: float  # how far the outline reaches from the axis
+    inner: float = 0.0  # how close to the axis the outline comes (a flat)
 
     def summary(self) -> str:
         kinds = {}
@@ -130,7 +131,7 @@ def find_flange(drawing: ir.Drawing, profile: RevolveProfile, loops) -> FlangeSp
                 else:
                     sg[1] = (_snap(sg[1][0]), _snap(sg[1][1]))
                     sg[2] = (_snap(sg[2][0]), _snap(sg[2][1]))
-            return FlangeSpec([tuple(s) for s in close_loop(segs)], x0, x1, max(dists))
+            return FlangeSpec([tuple(s) for s in close_loop(segs)], x0, x1, max(dists), min(dists))
     return None
 
 
@@ -223,3 +224,45 @@ def _angle(model, c, a):
     p = (c[0] + math.cos(math.radians(a)), c[1] + math.sin(math.radians(a)))
     q, cm = model(p), model(c)
     return math.degrees(math.atan2(q[1] - cm[1], q[0] - cm[0])) % 360.0
+
+
+@dataclass
+class FilletSpec:
+    """A fillet made after the milling: the corner of the profile at (x, y)
+    — an edge circle of radius y around the axis at x — rounded to radius."""
+
+    x: float
+    y: float
+    radius: float
+
+
+def fillets_after_milling(loops, flange: FlangeSpec, tol: float = 0.05):
+    """Fillets of the profile at the flange faces that reach past the flats:
+    revolved, they would stay as rings on the milled faces. They leave the
+    profile (a sharp corner) and come back as fillet operations after the
+    flange is cut. Returns (loops, fillets)."""
+    from .revolve import _cross
+
+    out_loops, fillets = [], []
+    for loop in loops:
+        segs = [list(s) for s in loop]
+        n = len(segs)
+        drop = []
+        for i, s in enumerate(segs):
+            a, b = segs[i - 1], segs[(i + 1) % n]
+            if s[0] != "arc" or a[0] != "line" or b[0] != "line":
+                continue
+            ends = _ends_of(s)
+            on_face = any(abs(p[0] - x) <= tol for p in ends for x in (flange.x0, flange.x1))
+            if not on_face or max(p[1] for p in ends) <= flange.inner + tol:
+                continue
+            corner = _cross(a[1], a[2], b[1], b[2])
+            if corner is None:
+                continue
+            for line in (a, b):  # the lines run on to the corner
+                k = 1 if math.dist(line[1], corner) < math.dist(line[2], corner) else 2
+                line[k] = corner
+            drop.append(i)
+            fillets.append(FilletSpec(corner[0], corner[1], s[2]))
+        out_loops.append([tuple(s) for i, s in enumerate(segs) if i not in drop])
+    return out_loops, fillets

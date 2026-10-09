@@ -122,20 +122,27 @@ class RevolveJob(QObject):
                     flange = find_flange(self.drawing, profile, loops)
                 except Exception as exc:
                     self.progress.emit(f"Вид с торца не разобран: {exc!r}")
+                fillets = []
                 if flange is not None:
                     self.progress.emit(flange.summary())
+                    from ..model3d.endview import fillets_after_milling
+
+                    loops, fillets = fillets_after_milling(loops, flange)
                     # the flange in the middle of the YOZ plane (see Api5Backend._flange)
                     shift = -(flange.x0 + flange.x1) / 2
                     loops = shift_loops(loops, shift)
                     flange.x0, flange.x1 = flange.x0 + shift, flange.x1 + shift
                     for t in threads:
                         t.x += shift
+                    for f in fillets:
+                        f.x += shift
                 ellipses = len(self.drawing.of_type(ir.Ellipse))
                 if ellipses:
                     self.progress.emit(f"Отверстий под углом (эллипсов на чертеже): {ellipses} — "
                                        "в модели пока не строятся")
                 saved = backend.revolve_part(loops, str(self.out), threads,
-                                             log=self.progress.emit, flange=flange)
+                                             log=self.progress.emit, flange=flange,
+                                             fillets=fillets)
                 self.finished.emit(profile.summary() + "\n" + (
                     f"3D-деталь сохранена: {self.out}" if saved else f"Не удалось сохранить {self.out}"))
             finally:
