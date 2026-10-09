@@ -91,6 +91,8 @@ class Api5Backend:
         self.parametric = parametric
         self._arc7_broken = False
         self._swapped_arcs: dict[int, object] = {}  # arcs stored end → start (see _arc7)
+        self._arcs: dict[int, object] = {}  # API7 arcs made here, by id (kept alive)
+        self._arc_indices: dict[int, int] | None = None  # our 0/1 → KOMPAS point index
         import pythoncom
         from win32com.client import Dispatch, constants, gencache
 
@@ -222,7 +224,61 @@ class Api5Backend:
                 self._swapped_arcs[id(a)] = a  # kept alive: the id stays unique
         except Exception as exc:  # no read-back: keep the arc as made
             self.log(f"  дуга: не удалось проверить направление ({exc!r})")
+        self._arcs[id(a)] = a
         return a
+
+    def _arc_point_index(self, arc, ours: int) -> int:
+        """KOMPAS point index of the start (0) or end (1) of one of our arcs."""
+        if id(arc) in self._swapped_arcs:
+            ours = 1 - ours
+        if self._arc_indices is None:
+            self._arc_indices = {0: 0, 1: 1}
+            try:
+                self._arc_indices = self._probe_arc_indices()
+                self.log(f"  точки дуги в связях КОМПАС: начало = {self._arc_indices[0]}, "
+                         f"конец = {self._arc_indices[1]}")
+            except Exception as exc:
+                self.log(f"  нумерацию точек дуги проверить не удалось ({exc!r}) — беру 0/1")
+        return self._arc_indices[ours]
+
+    def _probe_arc_indices(self) -> dict[int, int]:
+        """Which constraint point index is the start and which the end of an
+        arc: a segment end is merged with point k of a test arc far off the
+        drawing and the point it lands on is looked up; both are then deleted.
+        (A merge with index 0 put the arc centre on the segment end — the
+        small circles at the joints of the fitting.)"""
+        found = {}
+        for k in (0, 1, 2):
+            # construction style (6): left over, they would not enter a contour
+            arc = self._arc7((1000.0, 1000.0), 10.0, 0.0, 90.0, 6)
+            self._arcs.pop(id(arc), None)
+            seg = self.line((1010.5, 1000.3), (1030.0, 1000.3), 6)
+            try:
+                c = _interface(seg, "IDrawingObject1").NewConstraint()
+                c.ConstraintType = self.constants.ksCMergePoints
+                c.Index, c.Partner, c.PartnerIndex = 0, arc, k
+                if c.Create():
+                    xc, yc, r = float(arc.Xc), float(arc.Yc), float(arc.Radius)
+                    a1, a2 = math.radians(float(arc.Angle1)), math.radians(float(arc.Angle2))
+                    points = {"center": (xc, yc),
+                              "start": (xc + r * math.cos(a1), yc + r * math.sin(a1)),
+                              "end": (xc + r * math.cos(a2), yc + r * math.sin(a2))}
+                    p = (float(seg.X1), float(seg.Y1))
+                    name = min(points, key=lambda n: math.dist(points[n], p))
+                    if math.dist(points[name], p) < 1e-3:
+                        found[name] = k
+            finally:
+                for obj in (seg, arc):
+                    try:
+                        _interface(obj, "IDrawingObject").Delete()
+                    except Exception:
+                        try:
+                            obj.Delete()
+                        except Exception as exc:
+                            self.log(f"  пробный объект не удалён ({exc!r})")
+        if "start" not in found or "end" not in found:
+            raise RuntimeError(f"найдено только {found}")
+        return {0: found["start"], 1: found["end"]}
 
     # --- parametric constraints (API7, prototype/api_test10.py) ---------------------
 
@@ -245,11 +301,12 @@ class Api5Backend:
             return False
         c.ConstraintType = getattr(self.constants, name)
         if index is not None:
-            c.Index = 1 - index if id(a) in self._swapped_arcs else index
+            c.Index = self._arc_point_index(a, index) if id(a) in self._arcs else index
         if b is not None:
             c.Partner = b
         if partner_index is not None:
-            c.PartnerIndex = 1 - partner_index if id(b) in self._swapped_arcs else partner_index
+            c.PartnerIndex = self._arc_point_index(b, partner_index) if id(b) in self._arcs \
+                else partner_index
         return bool(c.Create())
 
     def point(self, p):
