@@ -194,3 +194,63 @@ def _set_radii(drawing: ir.Drawing, scale: float, report: RegularizeReport) -> N
         if d.center:
             d.center = curve.center
         report.radii_set += 1
+
+
+SNAP_ANNOTATION = 0.15  # sheet mm
+
+
+def snap_annotations(drawing: ir.Drawing, tol: float = SNAP_ANNOTATION) -> int:
+    """Measured points of dimensions and hatch outlines back onto the geometry.
+
+    The geometry is straightened and set to the dimensions after the hatches
+    and dimensions were read, so their points may be a tenth of a millimetre
+    off the lines they belong to: the hatch then pokes out of its outline and
+    an arrow stops short of the line. Each such point goes to the nearest end
+    of a line or arc, or else onto the nearest line. Returns how many moved."""
+    ends, lines = [], []
+    for e in drawing.entities:
+        if isinstance(e, ir.Line) and e.style != ir.STYLE_AXIAL:
+            ends += [tuple(e.p1), tuple(e.p2)]
+            lines.append((tuple(e.p1), tuple(e.p2)))
+        elif isinstance(e, ir.Arc):
+            for a in (e.start_angle, e.end_angle):
+                t = math.radians(a)
+                ends.append((e.center[0] + e.radius * math.cos(t),
+                             e.center[1] + e.radius * math.sin(t)))
+
+    def snap(p):
+        best = min(ends, key=lambda q: math.dist(p, q), default=None)
+        if best is not None and math.dist(p, best) <= tol:
+            return best
+        near, gap = None, tol
+        for a, b in lines:
+            dx, dy = b[0] - a[0], b[1] - a[1]
+            n2 = dx * dx + dy * dy
+            if n2 < 1e-12:
+                continue
+            k = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / n2
+            if 0.0 <= k <= 1.0:
+                q = (a[0] + k * dx, a[1] + k * dy)
+                if math.dist(p, q) < gap:
+                    near, gap = q, math.dist(p, q)
+        return near or p
+
+    moved = 0
+    for d in drawing.of_type(ir.Dimension):
+        if d.dim_type != "linear":
+            continue
+        for name in ("p1", "p2"):
+            p = getattr(d, name)
+            if p is not None:
+                q = snap(tuple(p))
+                if q != tuple(p):
+                    setattr(d, name, (round(q[0], 6), round(q[1], 6)))
+                    moved += 1
+    for h in drawing.of_type(ir.Hatch):
+        for ring in h.contours:
+            for i, p in enumerate(ring):
+                q = snap(tuple(p))
+                if q != tuple(p):
+                    ring[i] = (round(q[0], 6), round(q[1], 6))
+                    moved += 1
+    return moved

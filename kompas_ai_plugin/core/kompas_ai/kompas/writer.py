@@ -93,6 +93,7 @@ class DrawingWriter:
 
     def write(self, drawing: ir.Drawing) -> WriteReport:
         self._drawing = drawing
+        self._ovals = 0
         report = WriteReport(mode=self.mode)
         sheet = drawing.sheet
         fmt = FORMAT_INDEX.get(sheet.format)
@@ -132,6 +133,9 @@ class DrawingWriter:
             if cls is ir.Text and getattr(self.b, "parametric", False):
                 made, tried = self._constraints(drawing, refs)
                 report.notes.append(f"Параметризация: создано связей {made} из {tried}")
+        if self._ovals:
+            report.notes.append(f"Эллипсы ({self._ovals}) КОМПАС не построил — нарисованы "
+                                "замкнутыми овалами из четырёх дуг")
         return report
 
     def _constraints(self, drawing: ir.Drawing, refs) -> tuple[int, int]:
@@ -189,15 +193,13 @@ class DrawingWriter:
                     return ref
             except Exception:
                 pass
-        # no ellipse in this KOMPAS: the arcs and lines of the source
-        refs = []
-        for piece in e.arcs:
-            if piece[0] == "line":
-                refs.append(self.b.line(self._p(piece[1]), self._p(piece[2]), style))
-            else:
-                refs.append(self.b.arc(self._p(piece[1]), self._len(piece[2]), piece[3], piece[4],
-                                       style))
-        return refs[0] if refs and all(refs) else None
+        # no ellipse in this KOMPAS: a closed four-centre oval in its place
+        refs = [self.b.arc(self._p(c), self._len(r), a1, a2, style)
+                for c, r, a1, a2 in oval_arcs(e.center, e.a, e.b, e.angle)]
+        if refs and all(refs):
+            self._ovals += 1
+            return False  # drawn, but not as an ellipse (noted in the report)
+        return None
 
     def _indexed_text(self, e: ir.Text):
         """One text with indices if KOMPAS can, else each part at its own place."""
@@ -393,6 +395,33 @@ def _shared_ends(drawing: ir.Drawing, tol: float = 0.01):
             if a != b:
                 out.append((a, ia, b, ib))
     return out
+
+
+def oval_arcs(center, a, b, angle):
+    """Four arcs of the four-centre oval inscribed in the ellipse's box: they
+    meet tangentially, so the outline is closed. (center, r, a1, a2) each."""
+    t = math.radians(angle)
+    ux, uy = math.cos(t), math.sin(t)
+
+    def at(x, y):
+        return (center[0] + x * ux - y * uy, center[1] + x * uy + y * ux)
+
+    if a - b < 1e-9:
+        return [(tuple(center), a, 0.0, 180.0), (tuple(center), a, 180.0, 360.0)]
+    d = math.hypot(a, b)
+    # E on the chord B–A at a − b from the co-vertex B; the bisector of A–E
+    # crosses the axes at the centres (h, 0) and (0, −v)
+    ex, ey = (a - b) * a / d, b - (a - b) * b / d
+    mx, my = (a + ex) / 2, ey / 2
+    nx, ny = b / d, a / d
+    h = mx - my / ny * nx
+    v = -(my - mx / nx * ny)
+    r1, r2 = a - h, b + v
+    phi = math.degrees(math.atan2(v, h))
+    parts = (((h, 0.0), r1, -phi, phi), ((0.0, -v), r2, phi, 180.0 - phi),
+             ((-h, 0.0), r1, 180.0 - phi, 180.0 + phi), ((0.0, v), r2, 180.0 + phi, 360.0 - phi))
+    return [(at(cx, cy), r, (a1 + angle) % 360.0, (a2 + angle) % 360.0)
+            for (cx, cy), r, a1, a2 in parts]
 
 
 def _text_offset(d: ir.Dimension) -> float:

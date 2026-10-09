@@ -35,6 +35,7 @@ class FlangeSpec:
     x1: float
     radius: float  # how far the outline reaches from the axis
     inner: float = 0.0  # how close to the axis the outline comes (a flat)
+    bore: float = 0.0  # radius of the hole through the flange (from the profile)
 
     def summary(self) -> str:
         kinds = {}
@@ -131,7 +132,8 @@ def find_flange(drawing: ir.Drawing, profile: RevolveProfile, loops) -> FlangeSp
                 else:
                     sg[1] = (_snap(sg[1][0]), _snap(sg[1][1]))
                     sg[2] = (_snap(sg[2][0]), _snap(sg[2][1]))
-            return FlangeSpec([tuple(s) for s in close_loop(segs)], x0, x1, max(dists), min(dists))
+            return FlangeSpec([tuple(s) for s in close_loop(segs)], x0, x1, max(dists), min(dists),
+                              _bore(loops, x0, x1))
     return None
 
 
@@ -149,6 +151,21 @@ def _ring(loop, samples):
                 q.reverse()
         pts += q
     return pts
+
+
+def _bore(loops, x0, x1) -> float:
+    """The smallest radius of the profile over x0–x1: the bore the flange
+    extrusion must leave open (0 for a solid part)."""
+    ys = []
+    for loop in loops:
+        for s in loop:
+            if s[0] != "line":
+                continue
+            (ax, ay), (bx, by) = s[1], s[2]
+            lo, hi = min(ax, bx), max(ax, bx)
+            if hi >= x1 - 1e-6 and lo <= x0 + 1e-6 and abs(ay - by) < 1e-9:
+                ys.append(ay)  # a line along the whole flange
+    return min(ys) if ys else 0.0
 
 
 def _ends_of(s):

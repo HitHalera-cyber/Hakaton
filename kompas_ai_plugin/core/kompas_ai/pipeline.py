@@ -20,7 +20,7 @@ from .geometry.chains import build_chains
 from .geometry.constraints import find_constraints
 from .geometry.ellipses import merge_ellipses
 from .geometry.linetypes import merge_dashed
-from .geometry.regularize import regularize
+from .geometry.regularize import regularize, snap_annotations
 from .geometry.scaling import check_dimension, resolve_scale, scale_text, snap_scale
 from .geometry.segmentation import Primitive, merge_cocircular, segment_chain, snap_concentric
 from .pdf.vector_extractor import extract_page
@@ -120,6 +120,9 @@ def recognize_pdf(pdf_path: str | Path, page: int = 0, exact: bool = True) -> ir
                     suspicious)
     if exact:
         drawing.processing.append(regularize(drawing).text())
+        snapped = snap_annotations(drawing)
+        if snapped:
+            drawing.processing.append(f"Точки размеров и штриховок притянуты к контуру: {snapped}")
     drawing.constraints = find_constraints(drawing.entities)
     if content.unknown_symbols:
         drawing.warnings.append(

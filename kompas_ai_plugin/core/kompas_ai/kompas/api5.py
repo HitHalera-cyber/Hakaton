@@ -281,11 +281,38 @@ class Api5Backend:
         return {0: found["start"], 1: found["end"]}
 
     def ellipse(self, center, a, b, angle, style):
-        """API5 ksEllipse (the API7 collection failed in the exe like the arcs)."""
-        par = self._param("ko_EllipseParam", "ksEllipseParam")
-        par.Init()
-        par.xc, par.yc, par.a, par.b, par.ang, par.style = center[0], center[1], a, b, angle, style
-        return self.doc.ksEllipse(par)
+        """API7 IEllipse through the typed wrapper of the view (the late-bound
+        one failed with FileNotFoundError), else API5 ksEllipse with the field
+        names its structure has."""
+        errors = []
+        try:
+            e = self._api7_drawing().Ellipses.Add()
+            e.Xc, e.Yc, e.SemiAxisA, e.SemiAxisB, e.Angle, e.Style = \
+                center[0], center[1], a, b, angle, style
+            if e.Update():
+                return e
+            errors.append("API7: Update() = False")
+        except Exception as exc:
+            errors.append(f"API7: {exc!r}")
+        try:
+            par = self._param("ko_EllipseParam", "ksEllipseParam")
+            par.Init()
+            names = set(getattr(type(par), "_prop_map_put_", {}))
+            for keys, value in ((("xc", "xC"), center[0]), (("yc", "yC"), center[1]),
+                                (("a", "A"), a), (("b", "B"), b),
+                                (("angle", "ang", "Angle"), angle), (("style", "Style"), style)):
+                key = next((k for k in keys if k in names), keys[0])
+                setattr(par, key, value)
+            ref = self.doc.ksEllipse(par)
+            if ref:
+                return ref
+            errors.append(f"API5: ksEllipse = 0 (поля {sorted(names)})")
+        except Exception as exc:
+            errors.append(f"API5: {exc!r}")
+        if not getattr(self, "_ellipse_logged", False):
+            self._ellipse_logged = True
+            self.log("  эллипс не построен: " + "; ".join(errors))
+        return None
 
     # --- parametric constraints (API7, prototype/api_test10.py) ---------------------
 
@@ -531,8 +558,9 @@ class Api5Backend:
         r = flange.radius + 10.0
         square = [("line", (-r, -r), (r, -r)), ("line", (r, -r), (r, r)),
                   ("line", (r, r), (-r, r)), ("line", (-r, r), (-r, -r))]
+        bore = [("circle", (0.0, 0.0), flange.bore)] if flange.bore > 0 else []
         for name, loops, entity, interface in (
-                ("выдавливание контура", [outline], c.o3d_bossExtrusion,
+                ("выдавливание контура", [outline, bore], c.o3d_bossExtrusion,
                  "ksBossExtrusionDefinition"),
                 ("вырез вокруг контура", [square, outline], c.o3d_cutExtrusion,
                  "ksCutExtrusionDefinition")):
@@ -589,7 +617,9 @@ class Api5Backend:
     def _draw5(d2, loops):
         for loop in loops:
             for seg in loop:
-                if seg[0] == "line":
+                if seg[0] == "circle":
+                    d2.ksCircle(seg[1][0], seg[1][1], seg[2], 1)
+                elif seg[0] == "line":
                     (ax, ay), (bx, by) = seg[1], seg[2]
                     if math.hypot(bx - ax, by - ay) > 1e-6:
                         d2.ksLineSeg(ax, ay, bx, by, 1)
