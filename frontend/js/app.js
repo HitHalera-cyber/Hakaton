@@ -9,7 +9,6 @@ let state = {
   lastOrbit: null,
   map: null,
   mapLayer: null,
-  chart: null,
   globe: null, // lazily-created three.js state, see renderGlobe()
 };
 
@@ -34,10 +33,16 @@ function provenanceLabel(p) {
   return { observation: "наблюдение", external_forecast: "внешний прогноз", team_calculation: "расчёт команды" }[p] || p;
 }
 
+function toLocalInputValue(date) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}T${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}`;
+}
+
 async function init() {
   const now = new Date();
-  const pad = (n) => String(n).padStart(2, "0");
-  $("#reference_time").value = `${now.getUTCFullYear()}-${pad(now.getUTCMonth() + 1)}-${pad(now.getUTCDate())}T${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}`;
+  $("#reference_time").value = toLocalInputValue(now);
+  $("#compare_date_a").value = toLocalInputValue(now);
+  $("#compare_date_b").value = toLocalInputValue(new Date(now.getTime() + 24 * 3600 * 1000));
 
   document.querySelectorAll(".seg-btn[data-mode]").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -47,6 +52,8 @@ async function init() {
       $("#historical-hint").style.display = state.mode === "historical" ? "block" : "none";
       if (state.mode === "historical") {
         $("#reference_time").value = "2024-05-10T06:00";
+        $("#compare_date_a").value = "2024-05-10T06:00";
+        $("#compare_date_b").value = "2024-05-21T06:00";
       }
     });
   });
@@ -74,6 +81,7 @@ async function init() {
 
   $("#analyze-btn").addEventListener("click", runAnalyze);
   $("#experiment-btn").addEventListener("click", runExperiment);
+  $("#compare-dates-btn").addEventListener("click", runCompareDates);
   $("#export-btn").addEventListener("click", exportResult);
 }
 
@@ -135,6 +143,7 @@ async function runAnalyze() {
     step_minutes: parseFloat($("#step_minutes").value),
     disabled_sources: disabled,
     frozen_sources: frozen,
+    force_refresh: $("#force_refresh").checked,
   };
 
   setLoading(true);
@@ -164,6 +173,54 @@ function setLoading(v) {
   $("#loading").hidden = !v;
   $("#analyze-btn").disabled = v;
 }
+
+function setCompareLoading(v) {
+  const btn = $("#compare-dates-btn");
+  const status = $("#compare-dates-status");
+  btn.disabled = v;
+  status.hidden = !v;
+  status.textContent = v ? "Выполняется расчёт обеих дат…" : "";
+}
+
+// Buckets a window's combined_score (0..1, "team calculation" per O2/O4 —
+// see analysis.py's module docstring for the underlying weighted-average
+// rule) into a plain-language go/no-go verdict. Deliberately NOT presented
+// as an authoritative safety threshold: it is a stylised simplification of
+// the same number already shown in the windows table, meant to give a
+// non-specialist user an immediate first read — the detailed reason text
+// and the footer's "требует допуска уполномоченных специалистов" disclaimer
+// stay right next to it.
+function verdictFromScore(score) {
+  if (score === null || score === undefined) {
+    return { level: "unknown", title: "Недостаточно данных для вердикта" };
+  }
+  if (score <= 0.15) return { level: "ok", title: "Можно выходить" };
+  if (score <= 0.4) return { level: "caution", title: "Выход возможен, требуется повышенное внимание" };
+  return { level: "danger", title: "Не рекомендуется без дополнительной проверки" };
+}
+
+function verdictForWindow(recommendation, w) {
+  if (!recommendation.has_recommendation || !w) {
+    return {
+      level: "unknown",
+      title: "Недостаточно данных для вердикта",
+      detail: recommendation.reason + (recommendation.caveats.length ? " " + recommendation.caveats.join(" ") : ""),
+    };
+  }
+  const incomplete = w.data_completeness === "insufficient_data";
+  const { level, title } = verdictFromScore(w.combined_score);
+  let detail = recommendation.reason;
+  if (recommendation.caveats.length) detail += " " + recommendation.caveats.join(" ");
+  if (incomplete) detail += " Внимание: часть факторов для этого окна не имеет данных — вердикт может измениться, когда данные появятся.";
+  return { level, title, detail };
+}
+
+function verdictBadgeHtml(v) {
+  return (
+    `<div class="verdict-badge verdict-${v.level}"><span class="verdict-title">${v.title}</span></div>` +
+    `<p class="verdict-detail">${v.detail}</p>`
+  );
+}
 function showError(msg) {
   const el = $("#error-banner");
   el.textContent = "Ошибка: " + msg;
@@ -176,6 +233,12 @@ function hideError() {
 function render(data) {
   $("#results-content").hidden = false;
 
+  // Plain-language go/no-go verdict, first thing shown — see verdictForWindow.
+  const v = verdictForWindow(data.recommendation, data.windows[data.recommendation.recommended_window_index]);
+  $("#verdict-badge").className = "verdict-badge verdict-" + v.level;
+  $("#verdict-title").textContent = v.title;
+  $("#verdict-detail").textContent = v.detail;
+
   // Historical panel
   const hp = $("#historical-panel");
   if (data.historical_info.is_historical) {
@@ -187,55 +250,173 @@ function render(data) {
 
   // Orbit + map
   const o = data.orbit;
+  let spanNote = "";
+  if (o.track.length > 1) {
+    const spanHours = (new Date(o.track[o.track.length - 1].t) - new Date(o.track[0].t)) / 3_600_000;
+    const orbits = spanHours / 1.545; // ISS orbital period ~92.68 min
+    spanNote = ` · показан период ${fmt(o.track[0].t)} — ${fmt(o.track[o.track.length - 1].t)} (${spanHours.toFixed(1)} ч ≈ ${orbits.toFixed(1)} витка МКС) — охватывает все сравниваемые окна, а не только одну длительность ВКД`;
+  }
   $("#orbit-meta").textContent =
     `Источник: ${o.source_name} · эпоха ${fmt(o.epoch)} · давность данных ${o.age_hours.toFixed(1)} ч` +
-    (o.is_reconstruction ? " · РЕКОНСТРУКЦИЯ (см. пояснение)" : "");
-  renderTrajectory(o);
+    (o.is_reconstruction ? " · РЕКОНСТРУКЦИЯ (см. пояснение)" : "") + spanNote;
 
-  // Windows table + chart + recommendation
-  renderWindows(data);
-
-  // Factors
-  renderFactors(data.factors);
-
-  // Sources
-  renderSources(data.sources);
+  // Each panel below is rendered independently and wrapped so a failure in
+  // one (e.g. the map/globe throwing because a CDN script like Leaflet
+  // didn't load) can't silently cascade into the others never rendering —
+  // previously an exception here aborted the rest of render() outright, so
+  // a single broken panel could make the windows table/chart/factors look
+  // completely empty even though the underlying data was fine.
+  safeRender("trajectory", () => renderTrajectory(o));
+  safeRender("windows", () => renderWindows(data));
+  safeRender("factors", () => renderFactors(data.factors));
+  safeRender("sources", () => renderSources(data.sources));
 
   $("#result-id-label").textContent = `ID результата: ${data.result_id} · версия алгоритма ${data.algorithm_version}`;
 }
 
-const DAY_COLOR = "#f5c451";
-const NIGHT_COLOR = "#3355a8";
+function safeRender(label, fn) {
+  try {
+    fn();
+  } catch (e) {
+    console.error(`render step "${label}" failed:`, e);
+  }
+}
 
-// Splits a track into contiguous day/night runs (and at antimeridian
-// crossings), so both the 2D map and the 3D globe draw the same
-// server-computed illumination without a false line jumping across the
-// map or a seam at +/-180 degrees longitude. This is the single place
-// that logic lives, shared by both renderers.
-function splitDaylightSegments(track) {
+// Deliberately not pure yellow/blue: a swatch pair that close to Ukraine's
+// flag colors, stacked in the legend, was reading as the flag rather than
+// as "day/night" — shifted to amber/indigo, still warm=day, cool=night.
+const DAY_COLOR = "#e0a83e";
+const NIGHT_COLOR = "#4a3f8c";
+const TRACK_DENSIFY_STEPS = 8;
+const TRANSITION_GRADIENT_STEPS = 8;
+
+function hexToRgb(hex) {
+  const v = parseInt(hex.slice(1), 16);
+  return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
+}
+
+// Linear RGB interpolation between two hex colors: used to draw a short
+// gradient band across a day/night transition edge instead of a hard
+// color cut, since dawn/dusk is gradual in reality, not instantaneous.
+// A stylised visual approximation spread evenly over one sample gap, not
+// a physical twilight/penumbra model.
+function colorLerp(hexA, hexB, t) {
+  const [r1, g1, b1] = hexToRgb(hexA);
+  const [r2, g2, b2] = hexToRgb(hexB);
+  const lerp = (a, b) => Math.round(a + (b - a) * t);
+  return "#" + [lerp(r1, r2), lerp(g1, g2), lerp(b1, b2)].map((c) => c.toString(16).padStart(2, "0")).join("");
+}
+
+// Splits a track only at antimeridian (+/-180 degree longitude) crossings.
+// On the flat 2D map, connecting a point pair from either side of the
+// seam draws a spurious straight line across the whole map, so those runs
+// must never share a polyline; in the 3D Cartesian view there is no real
+// seam, so callers pass breakAtWrap=false to keep one continuous curve,
+// matching the previous (correct) 3D behavior. Day/night coloring,
+// including the transition gradient, is handled separately per-edge (see
+// buildDayNightPieces2D/3D below), so this no longer also splits on
+// daylight change the way it used to.
+function splitWrapRuns(track, breakAtWrap) {
   if (!track.length) return [];
-  const segments = [];
-  let segment = [track[0]];
+  if (!breakAtWrap) return [track];
+  const runs = [];
+  let run = [track[0]];
   for (let i = 1; i < track.length; i++) {
     const prev = track[i - 1];
     const cur = track[i];
-    const wrapped = Math.abs(cur.lon - prev.lon) > 180;
-    const dayChanged = cur.is_daylight !== prev.is_daylight;
-    if (wrapped || dayChanged) {
-      if (segment.length > 1) segments.push(segment);
-      segment = [prev];
+    if (Math.abs(cur.lon - prev.lon) > 180) {
+      if (run.length > 1) runs.push(run);
+      run = [cur];
+    } else {
+      run.push(cur);
     }
-    segment.push(cur);
   }
-  if (segment.length > 1) segments.push(segment);
-  return segments;
+  if (run.length > 1) runs.push(run);
+  return runs;
+}
+
+// Same sparseness problem as the 3D globe (see densifyTrackPoints below),
+// but for a flat [lat, lon] polyline: a straight line between samples up
+// to ~10 minutes (~38 degrees of arc) apart looks like short straight
+// facets, not the gentle curve a real ground track has. Inserting
+// great-circle intermediate points (the standard "intermediate point on a
+// great circle" formula) between each pair fixes that without needing a
+// smoothing spline that might drift off the true path.
+function densifyLatLon(points, stepsBetween) {
+  if (points.length < 2) return points.map((p) => [p.lat, p.lon]);
+  const out = [];
+  for (let i = 0; i < points.length - 1; i++) {
+    const a = points[i], b = points[i + 1];
+    const lat1 = (a.lat * Math.PI) / 180, lon1 = (a.lon * Math.PI) / 180;
+    const lat2 = (b.lat * Math.PI) / 180, lon2 = (b.lon * Math.PI) / 180;
+    const d = 2 * Math.asin(Math.sqrt(
+      Math.sin((lat2 - lat1) / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin((lon2 - lon1) / 2) ** 2
+    ));
+    out.push([a.lat, a.lon]);
+    if (d > 1e-8) {
+      for (let s = 1; s < stepsBetween; s++) {
+        const f = s / stepsBetween;
+        const A = Math.sin((1 - f) * d) / Math.sin(d);
+        const B = Math.sin(f * d) / Math.sin(d);
+        const x = A * Math.cos(lat1) * Math.cos(lon1) + B * Math.cos(lat2) * Math.cos(lon2);
+        const y = A * Math.cos(lat1) * Math.sin(lon1) + B * Math.cos(lat2) * Math.sin(lon2);
+        const z = A * Math.sin(lat1) + B * Math.sin(lat2);
+        const latI = Math.atan2(z, Math.sqrt(x * x + y * y));
+        const lonI = Math.atan2(y, x);
+        out.push([(latI * 180) / Math.PI, (lonI * 180) / Math.PI]);
+      }
+    }
+  }
+  out.push([points[points.length - 1].lat, points[points.length - 1].lon]);
+  return out;
+}
+
+// Turns one wrap-free run into drawable [lat, lon] pieces: consecutive
+// same-state points are grouped into a single densified polyline (solid
+// color), and each point pair where day/night actually flips is rendered
+// as several short color-interpolated sub-pieces spanning that one edge —
+// the gradual-dawn effect. (Previously every polyline here was colored
+// from the *first* point of its group; after a day/night change that
+// first point was still the old state, so the new group — mostly the new
+// state's points — was drawn in the old color. Coloring per-edge instead
+// fixes that along with adding the gradient.)
+function buildDayNightPieces2D(run) {
+  const pieces = [];
+  let group = [run[0]];
+  const flushGroup = () => {
+    if (group.length > 1) {
+      pieces.push({
+        latlngs: densifyLatLon(group, TRACK_DENSIFY_STEPS),
+        color: group[0].is_daylight ? DAY_COLOR : NIGHT_COLOR,
+      });
+    }
+  };
+  for (let i = 1; i < run.length; i++) {
+    const prev = run[i - 1];
+    const cur = run[i];
+    if (cur.is_daylight !== prev.is_daylight) {
+      flushGroup();
+      const latlngs = densifyLatLon([prev, cur], TRANSITION_GRADIENT_STEPS);
+      const colorA = prev.is_daylight ? DAY_COLOR : NIGHT_COLOR;
+      const colorB = cur.is_daylight ? DAY_COLOR : NIGHT_COLOR;
+      for (let s = 0; s < latlngs.length - 1; s++) {
+        const t = (s + 0.5) / (latlngs.length - 1);
+        pieces.push({ latlngs: [latlngs[s], latlngs[s + 1]], color: colorLerp(colorA, colorB, t) });
+      }
+      group = [cur];
+    } else {
+      group.push(cur);
+    }
+  }
+  flushGroup();
+  return pieces;
 }
 
 function updateViewHint() {
   $("#view-hint").textContent =
     state.viewMode === "3d"
-      ? "Жёлтый участок — станция освещена Солнцем (день), синий — в тени Земли (ночь), по тем же данным, что и в 2D. Освещение самого глобуса декоративное (студийный свет), реальное положение Солнца не отражает — ориентируйтесь по цвету трассы. Тяните мышью, крутите колесо для приближения."
-      : "Жёлтая линия — станция освещена Солнцем (день), тёмно-синяя — станция в тени Земли (ночь). Зелёная метка — начало показанного периода, оранжевая — конец. Карта автоматически приближена к участку трассы.";
+      ? "Золотистый участок — станция освещена Солнцем (день), фиолетовый — в тени Земли (ночь). Освещение глобуса декоративное, ориентируйтесь по цвету трассы. Тяните мышью, крутите колесо для приближения."
+      : "Золотистая линия — станция освещена Солнцем (день), тёмно-фиолетовая — станция в тени Земли (ночь). Зелёная метка — начало показанного периода, оранжевая — конец. Карта автоматически приближена к участку трассы.";
 }
 
 function renderTrajectory(orbit) {
@@ -253,10 +434,29 @@ function renderTrajectory(orbit) {
 
 function renderMap(orbit) {
   if (!state.map) {
-    state.map = L.map("map", { worldCopyJump: true }).setView([0, 0], 2);
+    // A multi-orbit ground track can span close to the full 360° of
+    // longitude, which used to make Leaflet zoom out far enough (combined
+    // with worldCopyJump) to render the whole world map two or three
+    // times side by side ("glued" copies) instead of one continuous map.
+    // Locking the map to a single world copy — no wrap-jumping, tiles
+    // that don't repeat past +/-180°, and hard bounds so it can never
+    // zoom out past showing that one copy — fixes this regardless of how
+    // wide the track's bounding box is.
+    state.map = L.map("map", {
+      worldCopyJump: false,
+      maxBounds: [[-90, -180], [90, 180]],
+      maxBoundsViscosity: 1.0,
+      minZoom: 2,
+    }).setView([0, 0], 2);
+    // Leaflet's default attribution control prepends its own "Leaflet"
+    // branding (with a small flag icon) before whatever the tile layer
+    // contributes; drop that prefix and keep only the OSM credit their
+    // tile usage policy actually requires.
+    state.map.attributionControl.setPrefix(false);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: "&copy; OpenStreetMap",
       maxZoom: 8,
+      noWrap: true,
     }).addTo(state.map);
 
     const legend = L.control({ position: "bottomright" });
@@ -277,12 +477,10 @@ function renderMap(orbit) {
   const track = orbit.track;
 
   if (track.length) {
-    splitDaylightSegments(track).forEach((segment) => {
-      L.polyline(segment.map((p) => [p.lat, p.lon]), {
-        color: segment[0].is_daylight ? DAY_COLOR : NIGHT_COLOR,
-        weight: 3,
-        opacity: 0.9,
-      }).addTo(group);
+    splitWrapRuns(track, true).forEach((run) => {
+      buildDayNightPieces2D(run).forEach((piece) => {
+        L.polyline(piece.latlngs, { color: piece.color, weight: 3, opacity: 0.9 }).addTo(group);
+      });
     });
 
     const first = track[0];
@@ -314,6 +512,73 @@ function latLonAltToVec3(lat, lon, altKm) {
     r * Math.sin(phi),
     r * Math.cos(phi) * Math.sin(lambda)
   );
+}
+
+// Server track points can be up to ~10 minutes apart, which for the ISS
+// (~7.7 km/s) is tens of degrees of arc — a straight Catmull-Rom spline
+// through such sparse 3D points cuts corners and looks like a jagged
+// "star" instead of an orbit. Inserting spherical-linear-interpolated
+// (slerp) points between each pair keeps every inserted point on the true
+// great-circle path at the correct altitude, so the curve actually hugs
+// the globe the way a real ground track does.
+function densifyTrackPoints(points, stepsBetween) {
+  if (points.length < 2) return points.map((p) => latLonAltToVec3(p.lat, p.lon, p.alt_km));
+  const out = [];
+  for (let i = 0; i < points.length - 1; i++) {
+    const a = points[i], b = points[i + 1];
+    const va = latLonAltToVec3(a.lat, a.lon, a.alt_km);
+    const vb = latLonAltToVec3(b.lat, b.lon, b.alt_km);
+    const ra = va.length(), rb = vb.length();
+    const ua = va.clone().normalize(), ub = vb.clone().normalize();
+    const cosTheta = Math.max(-1, Math.min(1, ua.dot(ub)));
+    const theta = Math.acos(cosTheta);
+    out.push(va);
+    if (theta > 1e-6) {
+      for (let s = 1; s < stepsBetween; s++) {
+        const t = s / stepsBetween;
+        const w1 = Math.sin((1 - t) * theta) / Math.sin(theta);
+        const w2 = Math.sin(t * theta) / Math.sin(theta);
+        const dir = ua.clone().multiplyScalar(w1).add(ub.clone().multiplyScalar(w2)).normalize();
+        out.push(dir.multiplyScalar(ra + (rb - ra) * t));
+      }
+    }
+  }
+  out.push(latLonAltToVec3(points[points.length - 1].lat, points[points.length - 1].lon, points[points.length - 1].alt_km));
+  return out;
+}
+
+// 3D counterpart of buildDayNightPieces2D: same grouping/gradient logic,
+// but producing THREE.Vector3 point arrays and numeric colors for tubes.
+function buildDayNightPieces3D(run) {
+  const pieces = [];
+  let group = [run[0]];
+  const flushGroup = () => {
+    if (group.length > 1) {
+      pieces.push({
+        points: densifyTrackPoints(group, TRACK_DENSIFY_STEPS),
+        color: group[0].is_daylight ? 0xe0a83e : 0x4a3f8c,
+      });
+    }
+  };
+  for (let i = 1; i < run.length; i++) {
+    const prev = run[i - 1];
+    const cur = run[i];
+    if (cur.is_daylight !== prev.is_daylight) {
+      flushGroup();
+      const pts = densifyTrackPoints([prev, cur], TRANSITION_GRADIENT_STEPS);
+      const colorA = prev.is_daylight ? DAY_COLOR : NIGHT_COLOR;
+      const colorB = cur.is_daylight ? DAY_COLOR : NIGHT_COLOR;
+      for (let s = 0; s < pts.length - 1; s++) {
+        const t = (s + 0.5) / (pts.length - 1);
+        pieces.push({ points: [pts[s], pts[s + 1]], color: parseInt(colorLerp(colorA, colorB, t).slice(1), 16) });
+      }
+      group = [cur];
+    } else {
+      group.push(cur);
+    }
+  }
+  flushGroup();
+  return pieces;
 }
 
 function setGlobeStatus(kind, html) {
@@ -354,15 +619,31 @@ function initGlobeScene() {
   starGeo.setAttribute("position", new THREE.Float32BufferAttribute(starPos, 3));
   scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0x445077, size: 0.06 })));
 
-  const earth = new THREE.Mesh(
-    new THREE.SphereGeometry(GLOBE_RADIUS, 64, 48),
-    new THREE.MeshPhongMaterial({ color: 0x123a5e, shininess: 10, specular: 0x224466 })
-  );
+  // Flat blue placeholder shown immediately; swapped for a real Earth
+  // photo texture once it loads (see below) — never left blocking globe
+  // render on a slow/unreachable CDN, and degrades gracefully to the
+  // placeholder colour if the texture fails to load at all.
+  const earthMaterial = new THREE.MeshPhongMaterial({ color: 0x123a5e, shininess: 6, specular: 0x223344 });
+  const earth = new THREE.Mesh(new THREE.SphereGeometry(GLOBE_RADIUS, 64, 48), earthMaterial);
   scene.add(earth);
+  new THREE.TextureLoader().load(
+    "https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_atmos_2048.jpg",
+    (tex) => {
+      earthMaterial.map = tex;
+      earthMaterial.color.set(0xffffff);
+      earthMaterial.needsUpdate = true;
+    },
+    undefined,
+    () => {} // texture unreachable: keep the flat-colour fallback already on screen
+  );
+
+  // Soft atmospheric haze at the limb, replacing the previous wireframe
+  // grid overlay — a plain colour shell reads far closer to a real photo
+  // of Earth from orbit than a technical-looking grid does.
   scene.add(
     new THREE.Mesh(
-      new THREE.SphereGeometry(GLOBE_RADIUS * 1.003, 24, 16),
-      new THREE.MeshBasicMaterial({ color: 0x5eead4, wireframe: true, transparent: true, opacity: 0.1 })
+      new THREE.SphereGeometry(GLOBE_RADIUS * 1.02, 48, 32),
+      new THREE.MeshBasicMaterial({ color: 0x6ab7ff, transparent: true, opacity: 0.12, side: THREE.BackSide })
     )
   );
 
@@ -370,8 +651,8 @@ function initGlobeScene() {
   // faces the viewer). Deliberately NOT positioned to represent the real
   // sun direction, so it never contradicts the server-computed day/night
   // colouring on the track itself, which is the one authoritative signal.
-  scene.add(new THREE.AmbientLight(0x8fa5ff, 0.55));
-  const keyLight = new THREE.DirectionalLight(0xffffff, 0.9);
+  scene.add(new THREE.AmbientLight(0x8fa5ff, 0.45));
+  const keyLight = new THREE.DirectionalLight(0xffffff, 1.0);
   camera.add(keyLight);
   scene.add(camera);
 
@@ -462,12 +743,13 @@ function renderGlobe(orbit) {
   }
   const group = new THREE.Group();
   const track = orbit.track;
-  splitDaylightSegments(track).forEach((segment) => {
-    if (segment.length < 2) return;
-    const pts = segment.map((p) => latLonAltToVec3(p.lat, p.lon, p.alt_km));
-    const curve = new THREE.CatmullRomCurve3(pts, false);
-    const tube = new THREE.TubeGeometry(curve, Math.max(4, segment.length * 2), 0.014, 6, false);
-    group.add(new THREE.Mesh(tube, new THREE.MeshBasicMaterial({ color: segment[0].is_daylight ? 0xfbbf24 : 0x3355c4 })));
+  splitWrapRuns(track, false).forEach((run) => {
+    buildDayNightPieces3D(run).forEach((piece) => {
+      if (piece.points.length < 2) return;
+      const curve = new THREE.CatmullRomCurve3(piece.points, false, "catmullrom", 0.5);
+      const tube = new THREE.TubeGeometry(curve, Math.max(2, piece.points.length * 2), 0.014, 8, false);
+      group.add(new THREE.Mesh(tube, new THREE.MeshBasicMaterial({ color: piece.color })));
+    });
   });
   if (track.length) {
     const first = track[0], last = track[track.length - 1];
@@ -509,33 +791,6 @@ function renderWindows(data) {
       <td>${(w.daylight_fraction * 100).toFixed(0)}%</td>
       <td>${badge}</td>`;
     tbody.appendChild(tr);
-  });
-
-  const ctx = document.getElementById("windows-chart");
-  const labels = data.windows.map((w, i) => `#${i + 1} ${fmt(w.start).slice(5, 16)}`);
-  const factorNames = [...new Set(data.windows.flatMap((w) => w.factor_contributions.map((c) => c.factor)))];
-  const colors = { space_weather: "#f5c451", conjunction_mmod: "#c9a8ff" };
-  const datasets = factorNames.map((f) => ({
-    label: f === "space_weather" ? "Космическая погода" : "Сближения/MMOD",
-    data: data.windows.map((w) => {
-      const c = w.factor_contributions.find((c) => c.factor === f);
-      return c ? c.time_weighted_severity : 0;
-    }),
-    backgroundColor: colors[f] || "#bfe6ff",
-  }));
-
-  if (state.chart) state.chart.destroy();
-  state.chart = new Chart(ctx, {
-    type: "bar",
-    data: { labels, datasets },
-    options: {
-      responsive: true,
-      scales: {
-        x: { stacked: true, ticks: { color: "#9fb7d6" } },
-        y: { stacked: true, beginAtZero: true, max: 1, ticks: { color: "#9fb7d6" } },
-      },
-      plugins: { legend: { labels: { color: "#f3f8ff" } } },
-    },
   });
 }
 
@@ -638,6 +893,125 @@ async function runExperiment() {
     `;
   } catch (e) {
     content.textContent = "Не удалось выполнить эксперимент: " + e.message;
+  }
+}
+
+function windowSummaryHtml(result, idx, isWinner, isWorst) {
+  const w = result.windows[idx];
+  const factorLines = w.factor_contributions
+    .map((c) => {
+      const label = { space_weather: "Космическая погода", conjunction_mmod: "Сближения/MMOD" }[c.factor] || c.factor;
+      const driving = c.driving_signals.length ? c.driving_signals.join("; ") : "значимых сигналов нет";
+      return `<li><b>${label}:</b> ${driving} (пересечение ${c.overlap_minutes.toFixed(0)} мин, серьёзность до ${(c.max_severity * 100).toFixed(0)}%)</li>`;
+    })
+    .join("");
+  const score = w.combined_score === null || w.combined_score === undefined ? "нет оценки (недостаточно данных)" : w.combined_score.toFixed(2);
+  const cls = isWinner ? "compare-window-winner" : isWorst ? "compare-window-worst" : "";
+  const badge = isWinner
+    ? '<span class="badge rec">Лучший вариант</span>'
+    : isWorst
+    ? '<span class="badge worst">Худший вариант</span>'
+    : "";
+  return `
+    <div class="compare-window ${cls}">
+      ${badge}
+      <p><b>Окно:</b> ${fmt(w.start)} — ${fmt(w.end)}</p>
+      <p><b>Совокупная оценка риска:</b> ${score} · <b>Полнота данных:</b> ${confidenceLabel(w.data_completeness)}</p>
+      <ul>${factorLines}</ul>
+    </div>`;
+}
+
+// Worst = highest combined_score across BOTH dates' windows (the backend
+// already picks the cross-date best via _recommend/winning_date/
+// winning_window_index; this mirrors that for the other end of the range).
+// Returns null if there's no real spread (worst ties with best), so a
+// uniformly-quiet or uniformly-scored comparison doesn't show a
+// contradictory "best"+"worst" badge on the same window.
+function findWorstWindow(resultA, resultB, bestDate, bestIdx) {
+  const entries = [];
+  resultA.windows.forEach((w, i) => entries.push({ w, date: "a", idx: i }));
+  resultB.windows.forEach((w, i) => entries.push({ w, date: "b", idx: i }));
+  const scored = entries.filter((e) => e.w.combined_score !== null && e.w.combined_score !== undefined);
+  if (!scored.length) return null;
+  let worst = scored[0];
+  for (const e of scored) if (e.w.combined_score > worst.w.combined_score) worst = e;
+  if (bestDate && worst.date === bestDate && worst.idx === bestIdx) return null;
+  return worst;
+}
+
+async function runCompareDates() {
+  const panel = $("#compare-dates-panel");
+  const content = $("#compare-dates-content");
+  panel.hidden = false;
+  content.textContent = "Выполняется…";
+
+  const dateAVal = $("#compare_date_a").value;
+  const dateBVal = $("#compare_date_b").value;
+  if (!dateAVal || !dateBVal) {
+    content.textContent = "Укажите обе даты для сравнения.";
+    return;
+  }
+  const { disabled, frozen } = collectDisabledFrozen();
+  const req = {
+    mode: state.mode,
+    date_a: isoUtc(dateAVal),
+    date_b: isoUtc(dateBVal),
+    duration_hours: parseFloat($("#duration_hours").value),
+    search_period_hours: parseFloat($("#search_period_hours").value),
+    step_minutes: parseFloat($("#step_minutes").value),
+    disabled_sources: disabled,
+    frozen_sources: frozen,
+    force_refresh: $("#force_refresh").checked,
+  };
+
+  setCompareLoading(true);
+  try {
+    const res = await fetch(`${API}/compare-dates`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `Ошибка сервера (${res.status})`);
+    }
+    const data = await res.json();
+
+    const bestIdxA = data.winning_date === "a" ? data.winning_window_index : null;
+    const bestIdxB = data.winning_date === "b" ? data.winning_window_index : null;
+    const worst = findWorstWindow(data.result_a, data.result_b, data.winning_date, data.winning_window_index);
+    const worstIdxA = worst && worst.date === "a" ? worst.idx : null;
+    const worstIdxB = worst && worst.date === "b" ? worst.idx : null;
+    const windowsA = data.result_a.windows
+      .map((_, i) => windowSummaryHtml(data.result_a, i, i === bestIdxA, i === worstIdxA))
+      .join("");
+    const windowsB = data.result_b.windows
+      .map((_, i) => windowSummaryHtml(data.result_b, i, i === bestIdxB, i === worstIdxB))
+      .join("");
+
+    const winningWindow =
+      data.winning_date === "a" ? data.result_a.windows[data.winning_window_index] :
+      data.winning_date === "b" ? data.result_b.windows[data.winning_window_index] :
+      null;
+    const v = verdictForWindow(data.overall_recommendation, winningWindow);
+
+    content.innerHTML = `
+      <div class="compare-verdict">${verdictBadgeHtml(v)}</div>
+      <div class="compare-grid">
+        <div class="compare-col">
+          <h3>Дата А — ${fmt(data.result_a.request.reference_time)}${data.winning_date === "a" ? " ✓" : ""}</h3>
+          ${windowsA}
+        </div>
+        <div class="compare-col">
+          <h3>Дата Б — ${fmt(data.result_b.request.reference_time)}${data.winning_date === "b" ? " ✓" : ""}</h3>
+          ${windowsB}
+        </div>
+      </div>
+    `;
+  } catch (e) {
+    content.textContent = "Не удалось сравнить даты: " + e.message;
+  } finally {
+    setCompareLoading(false);
   }
 }
 
