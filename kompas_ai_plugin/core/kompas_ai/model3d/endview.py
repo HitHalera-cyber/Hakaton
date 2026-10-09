@@ -36,6 +36,8 @@ class FlangeSpec:
     radius: float  # how far the outline reaches from the axis
     inner: float = 0.0  # how close to the axis the outline comes (a flat)
     bore: float = 0.0  # radius of the hole through the flange (from the profile)
+    cut_extra: float = 0.0  # the milling runs on this far past the flange (a fillet)
+    holes: list = None  # HoleSpec: angled holes seen as ellipses in the end view
 
     def summary(self) -> str:
         kinds = {}
@@ -44,6 +46,23 @@ class FlangeSpec:
         return (f"Фланец по виду с торца: толщина {self.x1 - self.x0:.2f} мм, "
                 f"контур {kinds.get('line', 0)} отрезков и {kinds.get('arc', 0)} дуг, "
                 f"наибольший радиус {self.radius:.2f} мм")
+
+
+@dataclass
+class HoleSpec:
+    """A drilled hole seen in the end view as an ellipse: it starts on the
+    flange face at (u, v) and runs at ``tilt`` degrees to the axis, leaning
+    towards (mu, mv) — the major axis of the ellipse, away from the centre.
+    ``into`` is −1 when it goes from the face at x1 towards x0, +1 the
+    other way."""
+
+    u: float
+    v: float
+    radius: float
+    tilt: float
+    mu: float
+    mv: float
+    into: int
 
 
 def _centres(drawing) -> list[tuple[float, float]]:
@@ -132,8 +151,29 @@ def find_flange(drawing: ir.Drawing, profile: RevolveProfile, loops) -> FlangeSp
                 else:
                     sg[1] = (_snap(sg[1][0]), _snap(sg[1][1]))
                     sg[2] = (_snap(sg[2][0]), _snap(sg[2][1]))
+            # the end view shows the end facing it: a view right of the main
+            # one is the view from the left (ГОСТ 2.305) — the sheet-left face
+            right_of_main = c[0] > (ax + bx) / 2
+            left_face_is_x1 = along[0] < 0  # model x runs to the sheet's left
+            face_x1 = right_of_main == left_face_is_x1
+            holes = []
+            for e in drawing.of_type(ir.Ellipse):
+                if not outline.contains(Point(e.center)) or e.b <= 0:
+                    continue
+                u, v = model(e.center)
+                t = math.radians(e.angle)
+                m = model((c[0] + math.cos(t), c[1] + math.sin(t)))
+                n = math.hypot(*m) or 1.0
+                mu, mv = m[0] / n, m[1] / n
+                if mu * u + mv * v < 0:
+                    mu, mv = -mu, -mv
+                tilt = math.degrees(math.acos(min(1.0, e.b / e.a)))
+                if abs(tilt - 5 * round(tilt / 5)) <= 1.0:  # drilled at a round angle
+                    tilt = 5.0 * round(tilt / 5)
+                holes.append(HoleSpec(_snap(u), _snap(v), _snap(e.b / k), tilt,
+                                      mu, mv, -1 if face_x1 else 1))
             return FlangeSpec([tuple(s) for s in close_loop(segs)], x0, x1, max(dists), min(dists),
-                              _bore(loops, x0, x1))
+                              _bore(loops, x0, x1), holes=holes)
     return None
 
 

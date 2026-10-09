@@ -127,7 +127,13 @@ class RevolveJob(QObject):
                     self.progress.emit(flange.summary())
                     from ..model3d.endview import fillets_after_milling
 
-                    loops, fillets = fillets_after_milling(loops, flange)
+                    # the milling runs through the fillets at the flange faces
+                    _, cut = fillets_after_milling(loops, flange)
+                    flange.cut_extra = max((f.radius for f in cut), default=0.0)
+                    for h in flange.holes or []:
+                        self.progress.emit(
+                            f"Отверстие Ø{2 * h.radius:g} под {h.tilt:.0f}° к оси "
+                            f"из точки ({h.u:g}; {h.v:g}) торца")
                     # the flange in the middle of the YOZ plane (see Api5Backend._flange)
                     shift = -(flange.x0 + flange.x1) / 2
                     loops = shift_loops(loops, shift)
@@ -136,10 +142,6 @@ class RevolveJob(QObject):
                         t.x += shift
                     for f in fillets:
                         f.x += shift
-                ellipses = len(self.drawing.of_type(ir.Ellipse))
-                if ellipses:
-                    self.progress.emit(f"Отверстий под углом (эллипсов на чертеже): {ellipses} — "
-                                       "в модели пока не строятся")
                 saved = backend.revolve_part(loops, str(self.out), threads,
                                              log=self.progress.emit, flange=flange,
                                              fillets=fillets)

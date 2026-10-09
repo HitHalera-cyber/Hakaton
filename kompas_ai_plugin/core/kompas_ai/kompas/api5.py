@@ -386,34 +386,66 @@ class Api5Backend:
         return self._drawing7
 
     def linear_dim(self, p1, p2, offset, kind, text, text_right=False, line_point=None,
-                   text_offset=None):
-        """``text_right``: the value goes on the dimension line extended past the
-        right extension line, like on the source (API7 ShelfDirection = 1,
-        api_test12 variant I) — for small sizes whose value does not fit."""
-        if text_right and line_point is not None and kind == LINEAR_HORIZONTAL \
-                and not text.diameter_sign:
+                   text_offset=None, text_at=None):
+        """``text_at``: where the value starts, as on the source — set through
+        API7 IDimension2D.SetTextPosition (api_test15). Without it (or when it
+        fails): ``text_right`` puts the value right of a small size (API7
+        ShelfDirection = 1, api_test12 I), ``text_offset`` along the line from
+        the first point (ksDimDrawingParam.textPos)."""
+        if line_point is not None and (text_at is not None or text_right) \
+                and kind in (LINEAR_HORIZONTAL, LINEAR_VERTICAL) \
+                and not (text.diameter_sign and text.auto):
             try:
-                ref = self._linear7(p1, p2, line_point, text)
+                ref = self._linear7(p1, p2, line_point, text, kind, text_right, text_at)
                 if ref:
                     return ref
             except Exception as exc:
-                self.log(f"  размер с текстом справа через API7: {exc!r} — строю через API5")
+                self._once("linear7", f"  размер через API7: {exc!r} — строю через API5")
         return self._linear5(p1, p2, offset, kind, text, text_offset)
 
-    def _linear7(self, p1, p2, line_point, text):
+    def _once(self, key, message):
+        seen = self.__dict__.setdefault("_logged", set())
+        if key not in seen:
+            seen.add(key)
+            self.log(message)
+
+    def _place_text(self, dim, text_at) -> None:
+        from win32com.client import CastTo
+
+        try:
+            CastTo(dim, "IDimension2D").SetTextPosition(text_at[0], text_at[1])
+            dim.Update()
+        except Exception as exc:
+            self._once("place_text", f"  положение текста размера: {exc!r}")
+
+    def _api7_text(self, dim, text, prefix=""):
+        """Manual value of an API7 dimension (Unicode: Ø and × as they are)."""
+        from win32com.client import CastTo
+
+        if text.auto:
+            return
+        t = CastTo(dim, "IDimensionText")
+        t.AutoNominalValue = False
+        t.NominalText.Str = prefix + text.value
+
+    def _linear7(self, p1, p2, line_point, text, kind=LINEAR_HORIZONTAL, text_right=True,
+                 text_at=None):
         from win32com.client import CastTo
 
         symbols = CastTo(self._api7_view(), "ISymbols2DContainer")
         dim = symbols.LineDimensions.Add()
         dim.X1, dim.Y1, dim.X2, dim.Y2 = p1[0], p1[1], p2[0], p2[1]
         dim.X3, dim.Y3 = line_point
-        dim.Orientation = self.constants.ksLinDHorizontal
-        CastTo(dim, "IDimensionParams").ShelfDirection = 1
-        if not text.auto:
-            t = CastTo(dim, "IDimensionText")
-            t.AutoNominalValue = False
-            t.NominalText.Str = kompas_text(text.value)
-        return dim if dim.Update() else None
+        dim.Orientation = self.constants.ksLinDHorizontal if kind == LINEAR_HORIZONTAL \
+            else self.constants.ksLinDVertical
+        if text_right and text_at is None:
+            CastTo(dim, "IDimensionParams").ShelfDirection = 1
+        self._api7_text(dim, text, "Ø" if text.diameter_sign else "")
+        if not dim.Update():
+            return None
+        if text_at is not None:
+            self._place_text(dim, text_at)
+        return dim
 
     def _linear5(self, p1, p2, offset, kind, text, text_offset=None):
         """``text_offset``: where the value stands along the dimension line,
@@ -436,7 +468,27 @@ class Api5Backend:
             ref = self.doc.ksLinDimension(par)
         return ref
 
-    def radial_dim(self, center, radius, angle, diameter, text, text_dist=None):
+    def radial_dim(self, center, radius, angle, diameter, text, text_dist=None, text_at=None):
+        if text_at is not None:
+            try:
+                from win32com.client import CastTo
+
+                symbols = CastTo(self._api7_view(), "ISymbols2DContainer")
+                coll = symbols.DiametralDimensions if diameter else symbols.RadialDimensions
+                dim = coll.Add()
+                dim.Xc, dim.Yc, dim.Radius, dim.Angle = center[0], center[1], radius, angle
+                if not text.auto:  # KOMPAS writes R / Ø itself
+                    t = CastTo(dim, "IDimensionText")
+                    t.AutoNominalValue = False
+                    t.NominalText.Str = text.value.lstrip("RØ")
+                if dim.Update():
+                    self._place_text(dim, text_at)
+                    return dim
+            except Exception as exc:
+                self._once("radial7", f"  радиус через API7: {exc!r} — строю через API5")
+        return self._radial5(center, radius, angle, diameter, text, text_dist)
+
+    def _radial5(self, center, radius, angle, diameter, text, text_dist=None):
         """``text_dist``: distance in sheet mm from the arrow on the arc to the
         value along the dimension line (ksRDimDrawingParam.textPos), so the
         value stands where the source drawing has it, off the part. API7
@@ -552,9 +604,10 @@ class Api5Backend:
         both are made to both sides by half the thickness."""
         c, m = self.constants, self.m
         half = (flange.x1 - flange.x0) / 2
-        # In a sketch on YOZ the sketch x is taken as Z and y as Y; the outline's
-        # first coordinate lies in the section plane (Y), so the coordinates swap.
-        outline = [_swap_xy(sg) for sg in flange.loop]
+        # In a sketch on YOZ the sketch x runs along Y and y along Z (read off the
+        # cube of api_test15); the outline's first coordinate lies in the
+        # section plane XOY, i.e. along Y.
+        outline = list(flange.loop)
         r = flange.radius + 10.0
         square = [("line", (-r, -r), (r, -r)), ("line", (r, -r), (r, r)),
                   ("line", (r, r), (-r, r)), ("line", (-r, r), (-r, -r))]
@@ -569,11 +622,61 @@ class Api5Backend:
             d = getattr(m, interface)(op.GetDefinition())
             if entity == c.o3d_cutExtrusion:
                 d.cut = True
+            depth = half + (flange.cut_extra if entity == c.o3d_cutExtrusion else 0.0)
             d.directionType = c.dtBoth
-            d.SetSideParam(True, c.etBlind, half, 0.0, False)
-            d.SetSideParam(False, c.etBlind, half, 0.0, False)
+            d.SetSideParam(True, c.etBlind, depth, 0.0, False)
+            d.SetSideParam(False, c.etBlind, depth, 0.0, False)
             d.SetSketch(sketch)
             log(f"Фланец: {name} — {'выполнено' if op.Create() else 'не выполнено'}")
+        for h in flange.holes or []:
+            try:
+                log(f"Отверстие Ø{2 * h.radius:g} под {h.tilt:.0f}°: "
+                    f"{'выполнено' if self._angled_hole(part, flange, h) else 'не выполнено'}")
+            except Exception as exc:
+                log(f"Отверстие Ø{2 * h.radius:g}: {exc!r}")
+
+    def _angled_hole(self, part, flange, h) -> bool:
+        """A hole from the flange face at (x_face, u→Y, v→Z) leaning in the
+        X–Z plane: a circle on a plane at angle α to YOZ around the Y axis
+        (sketch x along Y, y along (sin α·X + cos α·Z) — api_test15), cut
+        through everything both ways."""
+        c, m = self.constants, self.m
+        if abs(h.mu) > 0.05:
+            raise RuntimeError("наклон не в плоскости XZ — пока не строится")
+        beta = math.radians(h.tilt)
+        s = -float(h.into)  # +1: from the face at x1 towards x0
+        dx, dz = -s * math.cos(beta), h.mv * math.sin(beta)
+        x_face = flange.x1 if h.into < 0 else flange.x0
+        alpha = math.atan2(-dz, dx)  # plane normal (cos α, 0, −sin α) along the hole
+        if math.cos(alpha) < 0:
+            alpha += math.pi
+            alpha = (alpha + math.pi) % (2 * math.pi) - math.pi
+        sx, sy, sz = x_face, h.u, h.v
+        t = sx * dx + sz * dz
+        px, py, pz = sx - t * dx, sy, sz - t * dz
+        local = (py, px * math.sin(alpha) + pz * math.cos(alpha))
+        plane = part.NewEntity(c.o3d_planeAngle)
+        pd = m.ksPlaneAngleDefinition(plane.GetDefinition())
+        pd.SetPlane(part.GetDefaultEntity(c.o3d_planeYOZ))
+        pd.SetAxis(part.GetDefaultEntity(c.o3d_axisOY))
+        pd.angle = math.degrees(alpha)
+        if not plane.Create():
+            raise RuntimeError("плоскость под углом не создана")
+        sketch = part.NewEntity(c.o3d_sketch)
+        sdef = m.ksSketchDefinition(sketch.GetDefinition())
+        sdef.SetPlane(plane)
+        sketch.Create()
+        d2 = sdef.BeginEdit()
+        d2.ksCircle(local[0], local[1], h.radius, 1)
+        sdef.EndEdit()
+        cut = part.NewEntity(c.o3d_cutExtrusion)
+        cd = m.ksCutExtrusionDefinition(cut.GetDefinition())
+        cd.cut = True
+        cd.directionType = c.dtBoth
+        cd.SetSideParam(True, c.etThroughAll, 0.0, 0.0, False)
+        cd.SetSideParam(False, c.etThroughAll, 0.0, 0.0, False)
+        cd.SetSketch(sketch)
+        return bool(cut.Create())
 
     def _fillet_after_milling(self, part, flange, f) -> bool:
         """Round the corner edge left where the profile's fillet was taken out

@@ -141,13 +141,17 @@ class DrawingWriter:
     def _constraints(self, drawing: ir.Drawing, refs) -> tuple[int, int]:
         """Relations found on the drawing → KOMPAS constraints (parametric mode)."""
         jobs = []
+        ents = {e.id: e for e in drawing.entities}
         for c in drawing.constraints:
             if c.type == "coincident":
                 continue  # set below with the exact end points, lines and arcs alike
-            if c.a in refs and (c.b is None or c.b in refs):
+            # only what the geometry already satisfies exactly: KOMPAS would
+            # otherwise move lines to meet it, away from their hatch and dimensions
+            if c.a in refs and (c.b is None or c.b in refs) and _exact(c, ents):
                 jobs.append((c.type, refs[c.a], refs.get(c.b) if c.b else None, None, None))
         jobs += [("coincident", refs[a], refs[b], ia, ib)
-                 for a, ia, b, ib in _shared_ends(drawing) if a in refs and b in refs]
+                 for a, ia, b, ib in _shared_ends(drawing, tol=1e-6)
+                 if a in refs and b in refs]
         made = 0
         for kind, a, b, ia, ib in jobs:
             try:
@@ -251,6 +255,17 @@ class DrawingWriter:
                 kind, offset = LINEAR_VERTICAL, (line[0] - q1[0], 0.0)
             else:
                 kind, offset = LINEAR_PARALLEL, (line[0] - q1[0], line[1] - q1[1])
+            if kind in (LINEAR_HORIZONTAL, LINEAR_VERTICAL) and d.text_pos \
+                    and "text_at" in _params(self.b.linear_dim):
+                mid = ((d.p1[0] + d.p2[0]) / 2, (d.p1[1] + d.p2[1]) / 2)
+                lp = (mid[0], line[1]) if kind == LINEAR_HORIZONTAL else (line[0], mid[1])
+                extra = {}
+                if kind == LINEAR_HORIZONTAL and d.text_center:
+                    extra["text_right"] = d.text_center[0] > max(d.p1[0], d.p2[0]) + 1.0
+                    if d.text_center[0] < min(d.p1[0], d.p2[0]) - 1.0:
+                        extra["text_offset"] = _text_offset(d)
+                return self.b.linear_dim(p1, p2, offset, kind, text, line_point=self._p(lp),
+                                         text_at=self._p(d.text_pos), **extra)
             if kind == LINEAR_HORIZONTAL and d.text_center and d.line_point \
                     and "text_right" in _params(self.b.linear_dim):
                 # a small size whose value stands right of it on the source
@@ -282,10 +297,14 @@ class DrawingWriter:
                 out = (d.text_pos[0] - d.p1[0]) * (d.p1[0] - d.center[0]) \
                     + (d.text_pos[1] - d.p1[1]) * (d.p1[1] - d.center[1])
                 dist = math.dist(d.p1, d.text_pos) * (1 if out >= 0 else -1)
+                extra = {"text_at": self._p(d.text_pos)} \
+                    if "text_at" in _params(self.b.radial_dim) else {}
                 return self.b.radial_dim(self._p(d.center), self._len(d.radius), angle, False,
-                                         text, text_dist=round(dist, 2))
+                                         text, text_dist=round(dist, 2), **extra)
+            extra = {"text_at": self._p(d.text_pos)} \
+                if d.text_pos and "text_at" in _params(self.b.radial_dim) else {}
             return self.b.radial_dim(self._p(d.center), self._len(d.radius), angle,
-                                     d.dim_type == "diameter", text)
+                                     d.dim_type == "diameter", text, **extra)
         if d.dim_type == "angular" and d.center and d.p1 and d.p2:
             if min(math.dist(d.center, d.p1), math.dist(d.center, d.p2)) < 1e-3:
                 return None  # a side point at the vertex has no direction
@@ -362,6 +381,32 @@ def spread_dimension_lines(dims) -> int:
                     moved += 1
                 placed.append((level, lo, hi))
     return moved
+
+
+def _exact(c: ir.Constraint, ents, tol: float = 1e-6) -> bool:
+    a, b = ents.get(c.a), ents.get(c.b) if c.b else None
+
+    def direction(line):
+        return math.atan2(line.p2[1] - line.p1[1], line.p2[0] - line.p1[0])
+
+    if c.type == "horizontal":
+        return abs(a.p1[1] - a.p2[1]) <= tol
+    if c.type == "vertical":
+        return abs(a.p1[0] - a.p2[0]) <= tol
+    if c.type in ("parallel", "perpendicular") and b is not None:
+        diff = abs(math.sin(direction(a) - direction(b)))
+        return diff <= tol if c.type == "parallel" else abs(diff - 1.0) <= tol
+    if c.type == "concentric" and b is not None:
+        return math.dist(a.center, b.center) <= tol
+    if c.type == "tangent" and b is not None:
+        line, curve = (a, b) if isinstance(a, ir.Line) else (b, a)
+        (x1, y1), (x2, y2) = line.p1, line.p2
+        n = math.hypot(x2 - x1, y2 - y1)
+        if n == 0:
+            return False
+        dist = abs((x2 - x1) * (y1 - curve.center[1]) - (x1 - curve.center[0]) * (y2 - y1)) / n
+        return abs(dist - curve.radius) <= 1e-4
+    return False
 
 
 def _ends(e) -> list[tuple[int, tuple[float, float]]]:

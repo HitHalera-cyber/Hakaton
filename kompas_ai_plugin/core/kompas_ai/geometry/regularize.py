@@ -254,3 +254,124 @@ def snap_annotations(drawing: ir.Drawing, tol: float = SNAP_ANNOTATION) -> int:
                     ring[i] = (round(q[0], 6), round(q[1], 6))
                     moved += 1
     return moved
+
+
+STRAIGHT_DEG = 2.0  # a line this close to horizontal/vertical is meant to be so
+JOIN = 0.25  # sheet mm: ends this close are one point of the contour
+CROSS_MOVE = 0.08  # sheet mm a joint may move to the crossing of its curves
+
+
+def close_contour(drawing: ir.Drawing) -> tuple[int, int]:
+    """Make the contour exact, so a hatch fills it and KOMPAS constraints
+    hold without moving anything:
+      * lines within STRAIGHT_DEG of horizontal/vertical become exactly so
+        (a slant that small is never meant; real slopes carry an angle);
+      * ends that nearly meet are put on one point — where the lines (and
+        circles) of the meeting objects cross;
+      * an end that stops at another line is put onto that line.
+    Returns (lines straightened, ends joined)."""
+    from ..model3d.endview import _meet
+
+    straightened = 0
+    for line in drawing.of_type(ir.Line):
+        (x1, y1), (x2, y2) = line.p1, line.p2
+        ang = math.degrees(math.atan2(y2 - y1, x2 - x1)) % 180.0
+        if 0 < min(ang, 180.0 - ang) <= STRAIGHT_DEG and y1 != y2:
+            y = (y1 + y2) / 2
+            line.p1, line.p2 = (x1, y), (x2, y)
+            straightened += 1
+        elif 0 < abs(ang - 90.0) <= STRAIGHT_DEG and x1 != x2:
+            x = (x1 + x2) / 2
+            line.p1, line.p2 = (x, y1), (x, y2)
+            straightened += 1
+
+    # the contour only: thin lines (thread roots, hatch-free marks) meet the
+    # contour where they please
+    pieces = [e for e in drawing.entities if isinstance(e, (ir.Line, ir.Arc))
+              and e.style == ir.STYLE_MAIN]
+
+    def seg(e):
+        if isinstance(e, ir.Line):
+            return ("line", tuple(e.p1), tuple(e.p2))
+        return ("arc", tuple(e.center), e.radius, e.start_angle, e.end_angle)
+
+    def end(e, k):
+        if isinstance(e, ir.Line):
+            return tuple(e.p1 if k == 0 else e.p2)
+        a = math.radians(e.start_angle if k == 0 else e.end_angle)
+        return (e.center[0] + e.radius * math.cos(a), e.center[1] + e.radius * math.sin(a))
+
+    def put(e, k, p):
+        if isinstance(e, ir.Line):
+            if k == 0:
+                e.p1 = (round(p[0], 6), round(p[1], 6))
+            else:
+                e.p2 = (round(p[0], 6), round(p[1], 6))
+        else:
+            a = round(math.degrees(math.atan2(p[1] - e.center[1], p[0] - e.center[0])) % 360.0, 6)
+            if k == 0:
+                e.start_angle = a
+            else:
+                e.end_angle = a
+
+    # clusters of ends
+    nodes: list[list[tuple]] = []
+    for e in pieces:
+        for k in (0, 1):
+            p = end(e, k)
+            for node in nodes:
+                if math.dist(node[0][2], p) <= JOIN:
+                    node.append((e, k, p))
+                    break
+            else:
+                nodes.append([(e, k, p)])
+    joined = 0
+    for node in nodes:
+        if len(node) < 2:
+            continue
+        if all(math.dist(node[0][2], m[2]) < 1e-9 for m in node):
+            continue
+        # lines first (horizontals/verticals fix a coordinate), then arcs
+        order = sorted(node, key=lambda m: 0 if isinstance(m[0], ir.Line) else 1)
+        a, b = order[0], order[1]
+        near = tuple(sum(m[2][i] for m in node) / len(node) for i in (0, 1))
+        target = _meet(seg(a[0]), seg(b[0]), near) if a[0] is not b[0] else near
+        if math.dist(target, near) > CROSS_MOVE:
+            # a line nearly tangent to the arc crosses its circle far off:
+            # the joint stays where it is, on the arc when there is one
+            arcs = [m[0] for m in node if isinstance(m[0], ir.Arc)]
+            target = near
+            if arcs:
+                c, r = arcs[0].center, arcs[0].radius
+                d = math.dist(c, near) or 1.0
+                target = (c[0] + (near[0] - c[0]) * r / d, c[1] + (near[1] - c[1]) * r / d)
+        for e, k, _ in node:
+            put(e, k, target)
+        joined += 1
+
+    # an end resting on another line (a T joint) goes onto it
+    lines = [e for e in pieces if isinstance(e, ir.Line)]
+    for node in nodes:
+        if len(node) != 1:
+            continue
+        e, k, p = node[0]
+        for other in lines:
+            if other is e:
+                continue
+            (ax, ay), (bx, by) = other.p1, other.p2
+            dx, dy = bx - ax, by - ay
+            n2 = dx * dx + dy * dy
+            if n2 < 1e-12:
+                continue
+            t = ((p[0] - ax) * dx + (p[1] - ay) * dy) / n2
+            if not 0.0 < t < 1.0:
+                continue
+            q = (ax + t * dx, ay + t * dy)
+            gap = math.dist(p, q)
+            if 1e-9 < gap <= JOIN:
+                target = _meet(seg(e), seg(other), q)
+                if math.dist(target, q) <= JOIN:
+                    put(e, k, target)
+                    joined += 1
+                break
+    return straightened, joined
