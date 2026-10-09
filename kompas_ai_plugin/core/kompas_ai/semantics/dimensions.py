@@ -92,7 +92,8 @@ def parse_dim_text(t: RawText) -> DimText | None:
 
 
 def find_dimensions(texts: list[DimText], arrows: list[Arrow], thin: list[Primitive],
-                    curves: list[Primitive], axes: list[Primitive] = ()) -> list[FoundDimension]:
+                    curves: list[Primitive], axes: list[Primitive] = (),
+                    lines: list[Primitive] = ()) -> list[FoundDimension]:
     """Match each dimension text with its dimension line and arrows.
 
     ``thin`` are thin lines/arcs (dimension and extension line candidates),
@@ -101,7 +102,7 @@ def find_dimensions(texts: list[DimText], arrows: list[Arrow], thin: list[Primit
     """
     found = []
     for dt in texts:
-        dim = _angular(dt, arrows, thin) if dt.angular \
+        dim = _angular(dt, arrows, thin, lines) if dt.angular \
             else _linear(dt, arrows, thin, curves, axes)
         if dim is not None:
             found.append(dim)
@@ -373,7 +374,7 @@ def _attach_extension_lines(dim: FoundDimension, dim_line: Primitive, thin) -> N
 # --- angular ----------------------------------------------------------------------
 
 
-def _angular(dt: DimText, arrows, thin) -> FoundDimension | None:
+def _angular(dt: DimText, arrows, thin, lines=()) -> FoundDimension | None:
     best = None
     for arc in thin:
         if arc.kind != "arc":
@@ -395,8 +396,21 @@ def _angular(dt: DimText, arrows, thin) -> FoundDimension | None:
     a1 = math.atan2(t1[1] - arc.center[1], t1[0] - arc.center[0])
     a2 = math.atan2(t2[1] - arc.center[1], t2[0] - arc.center[0])
     angle = abs(math.degrees((a2 - a1 + math.pi) % (2 * math.pi) - math.pi))
-    dim = FoundDimension("angular", dt, angle, p1=t1, p2=t2, center=arc.center,
-                         radius=arc.radius, line_point=_arc_mid(arc), tips=2, used=[arc])
+    center = arc.center
+    sides = [_side_line(tip, arc.center, list(thin) + list(lines)) for tip in (t1, t2)]
+    if all(sides):
+        # Both sides are drawn lines: the vertex is their intersection and the
+        # angle theirs — exact, unlike tips read from filled arrowheads.
+        vertex = _line_cross(*sides)
+        if vertex is not None and math.dist(vertex, arc.center) <= 1.0:
+            center = vertex
+            t1, t2 = (_project(t, *line) for t, line in zip((t1, t2), sides))
+            a1 = math.atan2(t1[1] - center[1], t1[0] - center[0])
+            a2 = math.atan2(t2[1] - center[1], t2[0] - center[0])
+            angle = abs(math.degrees((a2 - a1 + math.pi) % (2 * math.pi) - math.pi))
+    dim = FoundDimension("angular", dt, angle, p1=t1, p2=t2, center=center,
+                         radius=math.dist(center, t1), line_point=_arc_mid(arc), tips=2,
+                         used=[arc])
     # Extension lines run radially from the vertex through the tips. They are
     # consumed, but p1/p2 stay at the tips: an extension line may start at the
     # vertex itself, where the direction of the side is undefined.
@@ -407,6 +421,36 @@ def _angular(dt: DimText, arrows, thin) -> FoundDimension | None:
                 dim.used.append(ext)
                 break
     return dim
+
+
+def _side_line(tip, vertex, lines):
+    """The longest line through the tip that also passes near the vertex."""
+    best = None
+    for ln in lines:
+        if ln.kind != "line" or ln.length < 1.0:
+            continue
+        if point_line_distance(tip, ln.p1, ln.p2) <= EXT_ON_TIP \
+                and point_line_distance(vertex, ln.p1, ln.p2) <= 1.0 \
+                and (best is None or ln.length > best.length):
+            best = ln
+    return (best.p1, best.p2) if best else None
+
+
+def _line_cross(l1, l2):
+    (x1, y1), (x2, y2) = l1
+    (x3, y3), (x4, y4) = l2
+    den = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
+    if abs(den) < 1e-9:
+        return None
+    a = x1 * y2 - y1 * x2
+    b = x3 * y4 - y3 * x4
+    return ((a * (x3 - x4) - (x1 - x2) * b) / den, (a * (y3 - y4) - (y1 - y2) * b) / den)
+
+
+def _project(p, a, b):
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy)
+    return (a[0] + dx * t, a[1] + dy * t)
 
 
 def _arc_mid(arc: Primitive):

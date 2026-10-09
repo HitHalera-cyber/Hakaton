@@ -181,8 +181,11 @@ def _dimensions(name, refs, ours: list[ir.Dimension]) -> Metric:
             measured = d.measured
             ref_value = value
             if angular:
-                ref_value = min(value % 360, 360 - value % 360)
-            err = abs(measured - ref_value)
+                # the same angle may be stored as its complement to 180° or 360°
+                v = value % 360
+                err = min(abs(measured - x) for x in (v, 360 - v, abs(180 - v)))
+            else:
+                err = abs(measured - ref_value)
             if err <= (1.0 if angular else 0.3) and (best is None or err < best[0]):
                 best = (err, i)
         if best is None:

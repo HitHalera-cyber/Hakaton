@@ -38,6 +38,15 @@ def _touch(b1, b2, tol=TOUCH_TOLERANCE) -> bool:
                 b1[3] + tol < b2[1] or b2[3] + tol < b1[1])
 
 
+def _same_arrow(b1, b2) -> bool:
+    """Halves of one arrow lie side by side: together they are no longer than
+    the longer half. Two chain arrows touching tip to tip are twice as long."""
+    def longest(b):
+        return max(b[2] - b[0], b[3] - b[1])
+    union = (min(b1[0], b2[0]), min(b1[1], b2[1]), max(b1[2], b2[2]), max(b1[3], b2[3]))
+    return longest(union) <= 1.3 * max(longest(b1), longest(b2)) + 0.05
+
+
 def find_arrows(fills: list[RawFill]) -> list[Arrow]:
     groups: list[list[tuple[float, float]]] = []
     boxes: list[tuple] = []
@@ -52,7 +61,7 @@ def find_arrows(fills: list[RawFill]) -> list[Arrow]:
             continue
         box = _bbox(f.points)
         for i, b in enumerate(boxes):
-            if _touch(b, box):
+            if _touch(b, box) and _same_arrow(b, box):
                 groups[i].extend(f.points)
                 boxes[i] = _bbox(groups[i])
                 break

@@ -40,3 +40,20 @@ def test_slot_line_arc_line():
 def test_corner_is_two_lines():
     prims = segment_chain(Chain([(0, 0), (10, 0), (10, 10)], 0.6, closed=False))
     assert [p.kind for p in prims] == ["line", "line"]
+
+
+def test_small_fillet_with_two_chords_is_an_arc():
+    """A line, an R2 fillet drawn with two chords, a 45° chamfer (KOMPAS PDF)."""
+    import math
+
+    from kompas_ai.geometry.chains import Chain
+    from kompas_ai.geometry.segmentation import segment_chain
+
+    c, r = (134.38, 362.25), 2.0
+    fillet = [(c[0] + r * math.cos(math.radians(a)), c[1] + r * math.sin(math.radians(a)))
+              for a in (270.0, 251.5, 233.0)]
+    end = fillet[-1]
+    pts = [(149.6, c[1] - r)] + fillet + [(end[0] - 4.0, end[1] + 4.0)]
+    prims = segment_chain(Chain(pts, 0.6, False))
+    arcs = [p for p in prims if p.kind == "arc"]
+    assert len(arcs) == 1 and abs(arcs[0].radius - r) < 0.1 and math.dist(arcs[0].center, c) < 0.1

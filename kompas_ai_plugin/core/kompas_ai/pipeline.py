@@ -83,7 +83,8 @@ def recognize_pdf(pdf_path: str | Path, page: int = 0, exact: bool = True) -> ir
     thin_free = [p for p in prims if is_thin(p) and not p.tags & {"axial", "dashed"}]
     main_curves = [p for p in prims if not is_thin(p) and p.kind in ("circle", "arc")]
     axes = [p for p in prims if "axial" in p.tags]
-    found = find_dimensions(dim_texts, arrows, thin_free, main_curves, axes)
+    main_lines = [p for p in prims if not is_thin(p) and p.kind == "line"]
+    found = find_dimensions(dim_texts, arrows, thin_free, main_curves, axes, main_lines)
     used = {id(p) for d in found for p in d.used}
     matched_texts = {id(d.text) for d in found}
     suspicious: set[int] = set()
