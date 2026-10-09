@@ -115,3 +115,13 @@ def test_indexed_text_falls_back_to_parts():
     rich = FakeBackend()
     DrawingWriter(rich).write(d)
     assert rich.of("rich_text")[0][1] == [("p", "normal"), ("кав", "sub"), ("=3,38", "normal")]
+
+
+def test_index_item_sequence():
+    """Order confirmed on KOMPAS v23 (prototype/api_test8.py, variant 3)."""
+    from kompas_ai.kompas.api5 import index_items
+
+    assert index_items([("P", "normal"), ("кав", "sub"), ("=3,38", "normal")]) == [
+        ("P", 0), ("", 7), ("", 8), ("кав", 9), ("", 16), ("=3,38", 0)]
+    assert index_items([("D", "normal"), ("2", "sup")]) == [
+        ("D", 0), ("", 7), ("2", 8), ("", 9), ("", 16)]

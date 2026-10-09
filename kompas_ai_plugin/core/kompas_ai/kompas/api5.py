@@ -20,10 +20,24 @@ from .backend import DimText, Point
 
 FORMAT_DOC_SHEET = 1  # ksDocumentParam.type: drawing with a standard sheet
 
-# ksTextItemParam.type values for an index: (start of the index, end of it)
-# per kind. Not confirmed yet (prototype/api_test5.py) — until then texts with
-# indices are written as separate texts at their places.
-INDEX_ITEM_TYPES: dict[str, tuple[int, int]] | None = None
+# API7 ITextItem.ItemType values (KOMPAS v23 with a licence, prototype/api_test8.py).
+# An index is written as: base "" → upper → lower → end, right after the text it
+# belongs to (variant 3 of api_test8 draws «P» with «кав» below it and «=3,38»
+# after the index). API5 ignores the item type, so indices need API7.
+ITEM_STRING, ITEM_BASE, ITEM_UPPER, ITEM_LOWER, ITEM_END = 0, 7, 8, 9, 16
+
+
+def index_items(parts: list[tuple[str, str]]) -> list[tuple[str, int]]:
+    """[(text, "normal"|"sub"|"sup")] → [(string, ItemType)] for one text line."""
+    items = []
+    for text, kind in parts:
+        if kind == "sub":
+            items += [("", ITEM_BASE), ("", ITEM_UPPER), (text, ITEM_LOWER), ("", ITEM_END)]
+        elif kind == "sup":
+            items += [("", ITEM_BASE), (text, ITEM_UPPER), ("", ITEM_LOWER), ("", ITEM_END)]
+        else:
+            items.append((text, ITEM_STRING))
+    return items
 
 
 def _find_kompas_typelibs() -> list[tuple[str, int, int, str]]:
@@ -89,6 +103,7 @@ class Api5Backend:
             module.KompasObject.CLSID, pythoncom.IID_IDispatch))
         self.kompas.Visible = visible
         self.doc = None
+        self._drawing7 = None  # API7 container of the active view, for texts with indices
 
     # --- helpers ------------------------------------------------------------------
 
@@ -133,6 +148,7 @@ class Api5Backend:
         if not doc.ksCreateDocument(par):
             raise RuntimeError(f"КОМПАС не создал документ (код {self.last_error()})")
         self.doc = doc
+        self._drawing7 = None
 
     def open_view(self, origin: Point, scale: float, name: str) -> bool:
         par = self._param("ko_ViewParam", "ksViewParam")
@@ -140,6 +156,7 @@ class Api5Backend:
         par.x, par.y, par.scale_, par.name = origin[0], origin[1], scale, name
         ref = self.doc.ksCreateSheetView(par, 1)
         ok = ref[0] if isinstance(ref, tuple) else ref
+        self._drawing7 = None  # the new view is the active one now
         return bool(ok)
 
     def line(self, p1, p2, style):
@@ -158,28 +175,35 @@ class Api5Backend:
         return self.doc.ksText(p[0], p[1], angle, height, 1.0, 0, value)
 
     def rich_text(self, p, parts, height, angle):
-        if INDEX_ITEM_TYPES is None:
-            raise NotImplementedError("тип элемента текста для индекса не подтверждён")
-        par = self._param("ko_ParagraphParam", "ksParagraphParam")
-        par.Init()
-        par.x, par.y, par.ang = p[0], p[1], angle
-        self.doc.ksParagraph(par)
-        line = self._param("ko_TextLineParam", "ksTextLineParam")
-        line.Init()
-        arr = self._sub("ksDynamicArray", line.GetTextItemArr())
-        for text, kind in parts:
-            types = [0] if kind == "normal" else list(INDEX_ITEM_TYPES[kind])
-            values = [text] if kind == "normal" else [text, ""]
-            for value, item_type in zip(values, types):
-                item = self._param("ko_TextItemParam", "ksTextItemParam")
-                item.Init()
-                font = self._sub("ksTextItemFont", item.GetItemFont())
-                font.Init()
-                font.height, font.ksu = height, 1.0
-                item.s, item.type = value, item_type
-                arr.ksAddArrayItem(-1, item)
-        self.doc.ksTextLine(line)
-        return self.doc.ksEndObj()
+        # Through API7 on the active view of the same document (the scaled view
+        # when one was opened). Height and angle of API7 texts are not confirmed
+        # yet: a turned text is left to the per-part fallback.
+        if abs(angle) > 0.01:
+            raise NotImplementedError("текст с индексом под углом")
+        drawing = self._api7_drawing()
+        obj = drawing.DrawingTexts.Add()
+        if obj is None:
+            raise NotImplementedError("API7 недоступен (нет лицензии)")
+        obj.X, obj.Y = p
+        from win32com.client import CastTo
+
+        line = CastTo(obj, "IText").Add()
+        for value, kind in index_items(parts):
+            item = line.Add()
+            item.ItemType = kind
+            item.Str = value
+            item.Update()
+        return bool(obj.Update())
+
+    def _api7_drawing(self):
+        if self._drawing7 is None:
+            from win32com.client import CastTo, gencache
+
+            app = gencache.EnsureDispatch("Kompas.Application.7")
+            doc2d = CastTo(app.ActiveDocument, "IKompasDocument2D")
+            view = doc2d.ViewsAndLayersManager.Views.ActiveView
+            self._drawing7 = CastTo(view, "IDrawingContainer")
+        return self._drawing7
 
     def linear_dim(self, p1, p2, offset, kind, text):
         par = self._param("ko_LDimParam", "ksLDimParam")

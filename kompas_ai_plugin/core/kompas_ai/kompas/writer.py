@@ -130,7 +130,7 @@ class DrawingWriter:
                                    self._len(e.height), e.angle)
             if ref:
                 return ref
-        except NotImplementedError:
+        except Exception:  # no API7 / no licence / COM error: write the parts separately
             pass
         refs = [self.b.text(self._p((x, y)), t, self._len(h), e.angle)
                 for t, _, x, y, h in e.parts if t.strip()]

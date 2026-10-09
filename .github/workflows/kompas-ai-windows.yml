@@ -48,6 +48,7 @@ jobs:
 
       - name: Build installer
         run: |
+          Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vc_redist.x64.exe" -OutFile packaging\vc_redist.x64.exe
           choco install innosetup -y --no-progress
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVersion=0.1.${{ github.run_number }} packaging\installer.iss
 
