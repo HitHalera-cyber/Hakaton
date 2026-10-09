@@ -17,7 +17,10 @@ Point = tuple[float, float]
 STYLE_IDS = {"main": 1, "thin": 2, "axial": 3, "dashed": 4}
 
 # ksDimSourceParam.ps
-LINEAR_PARALLEL, LINEAR_VERTICAL, LINEAR_HORIZONTAL = 0, 1, 2
+# ksLDimSourceParam.ps (= API7 ksLinDHorizontal/Vertical/Parallel). The first tests ran
+# on a horizontal segment, where 0 and 2 look the same; the shtutser in a 4:1 view
+# showed 2 is the aligned (parallel) dimension.
+LINEAR_HORIZONTAL, LINEAR_VERTICAL, LINEAR_PARALLEL = 0, 1, 2
 
 
 @dataclass

@@ -316,6 +316,15 @@ def _icon_path() -> Path | None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    if sys.platform == "win32":
+        # Own taskbar identity: without it Windows groups the window under the
+        # python/launcher icon instead of the application's own icon.
+        import ctypes
+
+        try:
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("KompasAI.App")
+        except (AttributeError, OSError):
+            pass
     app = QApplication(argv if argv is not None else sys.argv)
     app.setApplicationName(APP_NAME)
     icon = _icon_path()

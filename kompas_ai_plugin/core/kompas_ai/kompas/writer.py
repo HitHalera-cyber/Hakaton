@@ -15,6 +15,7 @@ Two ways to handle the drawing scale:
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass, field
 
 from .. import ir
@@ -46,6 +47,9 @@ class WriteReport:
         return "\n".join(out)
 
 
+PLAIN_VALUE_RE = re.compile(r"^\d+(?:[.,]\d+)?°?$")
+
+
 class DrawingWriter:
     def __init__(self, backend: Backend, mode: str = "sheet", with_dimensions: bool = True):
         self.b = backend
@@ -64,6 +68,8 @@ class DrawingWriter:
         return (p[0], p[1])
 
     def _len(self, v: float) -> float:
+        """Sheet mm → view mm for geometry. Text heights and hatch steps are not
+        scaled: KOMPAS keeps them in sheet millimetres in any view."""
         return v / self.scale if self.mode == "view" else v
 
     # --- entry point -------------------------------------------------------------------
@@ -116,12 +122,12 @@ class DrawingWriter:
         if isinstance(e, ir.Text):
             if e.parts and any(part[1] != "normal" for part in e.parts):
                 return self._indexed_text(e)
-            return self.b.text(self._p(e.position), e.text, self._len(e.height), e.angle)
+            return self.b.text(self._p(e.position), e.text, e.height, e.angle)
         if isinstance(e, ir.Hatch):
             if not e.contours:
                 return None
             contours = [[self._p(p) for p in ring] for ring in e.contours]
-            return self.b.hatch(contours, e.angle, self._len(e.spacing))
+            return self.b.hatch(contours, e.angle, e.spacing)
         if isinstance(e, ir.Dimension):
             return self._dimension(e)
         return False
@@ -130,12 +136,12 @@ class DrawingWriter:
         """One text with indices if KOMPAS can, else each part at its own place."""
         try:
             ref = self.b.rich_text(self._p(e.position), [(t, k) for t, k, *_ in e.parts],
-                                   self._len(e.height), e.angle)
+                                   e.height, e.angle)
             if ref:
                 return ref
         except Exception:  # no API7 / no licence / COM error: write the parts separately
             pass
-        refs = [self.b.text(self._p((x, y)), t, self._len(h), e.angle)
+        refs = [self.b.text(self._p((x, y)), t, h, e.angle)
                 for t, _, x, y, h in e.parts if t.strip()]
         return refs[0] if refs and all(refs) else None
 
@@ -148,7 +154,10 @@ class DrawingWriter:
         # The value written on the source drawing is exact; KOMPAS' own measure
         # is used only where the geometry is in model units (a scaled view) or
         # for angles (their sides are set to the written value).
-        if d.dim_type == "angular" or self.mode == "view":
+        # An automatic value would drop tolerances, fits and thread pitches
+        # (R1±0,5*, Ø26h12, M22×1,5): those keep the text of the source.
+        plain = PLAIN_VALUE_RE.match(written) is not None
+        if plain and (d.dim_type == "angular" or self.mode == "view"):
             return DimText(auto=True, diameter_sign=diameter and d.dim_type != "diameter")
         return DimText(auto=False, value=written, diameter_sign=diameter)
 
