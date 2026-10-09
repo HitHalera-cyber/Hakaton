@@ -26,6 +26,10 @@ Name: "ru"; MessagesFile: "compiler:Languages\Russian.isl"
 [Tasks]
 Name: "desktopicon"; Description: "Ярлык на рабочем столе"; Flags: unchecked
 
+[InstallDelete]
+; Libraries of an older version must not mix with the new ones.
+Type: filesandordirs; Name: "{app}\_internal"
+
 [Files]
 Source: "..\dist\KompasAI\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
 

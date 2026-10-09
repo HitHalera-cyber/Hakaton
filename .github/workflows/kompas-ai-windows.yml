@@ -39,6 +39,13 @@ jobs:
           python -c "import sys; sys.path.insert(0, 'tests'); from synthetic import plate_with_hole; from pathlib import Path; plate_with_hole(Path('plate.pdf'))"
           python -m kompas_ai.cli plate.pdf -o plate_result --no-preview
 
+      - name: Self-test of the packaged KompasAI.exe
+        run: |
+          pip freeze
+          $p = Start-Process -FilePath "dist\KompasAI\KompasAI.exe" -ArgumentList "--selftest", "$PWD\selftest.txt" -Wait -PassThru
+          Get-Content selftest.txt
+          if ($p.ExitCode -ne 0) { throw "KompasAI.exe self-test failed ($($p.ExitCode))" }
+
       - name: Build installer
         run: |
           choco install innosetup -y --no-progress
