@@ -249,3 +249,39 @@ class Api5Backend:
 
     def save(self, path):
         return bool(self.doc.ksSaveDocument(path))
+
+    # --- 3D -----------------------------------------------------------------------------
+
+    def revolve_part(self, rings, path: str) -> bool:
+        """A part made by revolving closed profile loops 360° around the X axis.
+
+        Calls confirmed by prototype/api_test9.py (KOMPAS v23): Document3D.Create,
+        sketch on the XOY plane, ksBaseRotatedDefinition, SaveAs. ``rings`` are
+        in model mm: x along the axis, y the radius (≥ 0).
+        """
+        m, c = self.m, self.constants
+        doc3d = self.kompas.Document3D()
+        if not doc3d.Create(False, True):
+            raise RuntimeError(f"КОМПАС не создал деталь (код {self.last_error()})")
+        part = doc3d.GetPart(c.pTop_Part)
+        sketch = part.NewEntity(c.o3d_sketch)
+        sdef = m.ksSketchDefinition(sketch.GetDefinition())
+        sdef.SetPlane(part.GetDefaultEntity(c.o3d_planeXOY))
+        sketch.Create()
+        d2 = sdef.BeginEdit()
+        xs = [x for ring in rings for x, _ in ring]
+        for ring in rings:
+            for a, b in zip(ring, ring[1:]):
+                if math.dist(a, b) > 1e-6:
+                    d2.ksLineSeg(a[0], a[1], b[0], b[1], 1)
+        # the axis of revolution: an axial line in the sketch
+        d2.ksLineSeg(min(xs) - 5.0, 0.0, max(xs) + 5.0, 0.0, 3)
+        sdef.EndEdit()
+        rot = part.NewEntity(c.o3d_baseRotated)
+        rdef = m.ksBaseRotatedDefinition(rot.GetDefinition())
+        rdef.SetSideParam(True, 360.0)
+        rdef.SetSketch(sketch)
+        if not rot.Create():
+            raise RuntimeError(f"Операция вращения не выполнена (код {self.last_error()})")
+        return bool(doc3d.SaveAs(path))
+

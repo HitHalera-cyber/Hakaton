@@ -20,7 +20,7 @@ from .. import ir
 from ..export.dxf_writer import write_dxf
 from ..report.preview import sheet_to_pixel
 from ..report.summary import TYPE_NAMES, summary_text
-from .workers import PREVIEW_DPI, KompasJob, RecognizeJob
+from .workers import PREVIEW_DPI, KompasJob, RecognizeJob, RevolveJob
 
 APP_NAME = "КОМПАС-AI"
 MODES = [("Точно по размерам", True), ("Как в PDF (без выравнивания)", False)]
@@ -145,6 +145,11 @@ class MainWindow(QMainWindow):
             self.build_act.setToolTip("Доступно в Windows с установленным КОМПАС-3D")
         bar.addAction(self.build_act)
 
+        self.model_act = QAction("3D-модель (тело вращения)", self)
+        self.model_act.setToolTip("Деталь КОМПАС-3D: профиль над осью (разрез) вращается на 360°")
+        self.model_act.triggered.connect(self.build_3d)
+        bar.addAction(self.model_act)
+
         self.dxf_act = QAction("Сохранить DXF…", self)
         self.dxf_act.triggered.connect(self.save_dxf)
         bar.addAction(self.dxf_act)
@@ -160,10 +165,11 @@ class MainWindow(QMainWindow):
         self._set_ready(False)
 
     def _set_ready(self, ready: bool) -> None:
-        for act in (self.build_act, self.dxf_act, self.report_act):
+        for act in (self.build_act, self.model_act, self.dxf_act, self.report_act):
             act.setEnabled(ready)
         if sys.platform != "win32":
             self.build_act.setEnabled(False)
+            self.model_act.setEnabled(False)
 
     # --- open / recognise -----------------------------------------------------------------
 
@@ -241,6 +247,22 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage("Строю чертёж в КОМПАС…")
         job = KompasJob(self.drawing, Path(name), BUILD_MODES[self.build_mode.currentIndex()][1],
                         with_dimensions=self.dims_box.isChecked())
+        job.progress.connect(self._log)
+        job.finished.connect(self.on_built)
+        job.failed.connect(self.on_failed)
+        self._start(job)
+
+    def build_3d(self) -> None:
+        if self.drawing is None or self._busy():
+            return
+        out = self.pdf.with_name(self.pdf.stem + "_kompas.m3d")
+        name, _ = QFileDialog.getSaveFileName(self, "Сохранить деталь КОМПАС", str(out),
+                                              "Деталь КОМПАС (*.m3d)")
+        if not name:
+            return
+        self._set_ready(False)
+        self.statusBar().showMessage("Строю 3D-модель в КОМПАС…")
+        job = RevolveJob(self.drawing, Path(name))
         job.progress.connect(self._log)
         job.finished.connect(self.on_built)
         job.failed.connect(self.on_failed)

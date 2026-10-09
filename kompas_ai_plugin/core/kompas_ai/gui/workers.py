@@ -73,3 +73,45 @@ class KompasJob(QObject):
                 pythoncom.CoUninitialize()
         except Exception:
             self.failed.emit(traceback.format_exc())
+
+
+class RevolveJob(QObject):
+    """3D part (body of revolution) from the recognised drawing."""
+
+    progress = Signal(str)
+    finished = Signal(str)
+    failed = Signal(str)
+
+    def __init__(self, drawing, out_m3d: Path):
+        super().__init__()
+        self.drawing, self.out = drawing, out_m3d
+
+    def run(self) -> None:
+        if sys.platform != "win32":
+            self.failed.emit("Построение в КОМПАС возможно только в Windows с установленным КОМПАС-3D.")
+            return
+        try:
+            from ..model3d.revolve import find_revolve_profile
+
+            profile = find_revolve_profile(self.drawing)
+            if profile is None:
+                self.failed.emit("Не найден профиль тела вращения: нужна осевая линия вдоль детали "
+                                 "и контур (лучше — разрез со штриховкой) по одну сторону от неё.")
+                return
+            self.progress.emit(profile.summary())
+            import pythoncom
+
+            pythoncom.CoInitialize()
+            try:
+                from ..kompas.api5 import Api5Backend
+
+                self.progress.emit("Подключение к КОМПАС…")
+                backend = Api5Backend(log=self.progress.emit)
+                self.progress.emit("Эскиз профиля и операция вращения…")
+                saved = backend.revolve_part(profile.rings, str(self.out))
+                self.finished.emit(profile.summary() + "\n" + (
+                    f"3D-деталь сохранена: {self.out}" if saved else f"Не удалось сохранить {self.out}"))
+            finally:
+                pythoncom.CoUninitialize()
+        except Exception:
+            self.failed.emit(traceback.format_exc())
