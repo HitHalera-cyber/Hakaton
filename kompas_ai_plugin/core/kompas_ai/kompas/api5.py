@@ -90,6 +90,7 @@ class Api5Backend:
         # parametric: geometry through API7 so that constraints can be set on it
         self.parametric = parametric
         self._arc7_broken = False
+        self._swapped_arcs: dict[int, object] = {}  # arcs stored end → start (see _arc7)
         import pythoncom
         from win32com.client import Dispatch, constants, gencache
 
@@ -200,10 +201,28 @@ class Api5Backend:
         container = dynamic.Dispatch(self._api7_drawing()._oleobj_)
         a = container.Arcs.Add()
         a.Xc, a.Yc, a.Radius = center[0], center[1], radius
-        # Direction = True is clockwise (api_test13: a 270°→360° arc came out as
-        # the three-quarter one); our arcs run counter-clockwise from start to end
+        # Our arcs run counter-clockwise from start to end; Direction = True is
+        # clockwise. KOMPAS may also store the angles the other way round (arcs
+        # through 0° came out as the remaining three quarters of the circle), so
+        # the stored arc is read back: a wrong side is turned over, and when the
+        # stored Angle1 is our end the point indices of the constraints swap.
         a.Angle1, a.Angle2, a.Direction, a.Style = start, end, False, style
-        return a if a.Update() else None
+        if not a.Update():
+            return None
+        try:
+            for _ in range(2):
+                state = arc_state(start, end, float(a.Angle1), float(a.Angle2), bool(a.Direction))
+                if state != "flip":
+                    break
+                a.Direction = not bool(a.Direction)
+                a.Update()
+            if state == "flip":
+                self.log(f"  дуга R{radius:g}: КОМПАС строит её с другой стороны")
+            elif state == "swapped":
+                self._swapped_arcs[id(a)] = a  # kept alive: the id stays unique
+        except Exception as exc:  # no read-back: keep the arc as made
+            self.log(f"  дуга: не удалось проверить направление ({exc!r})")
+        return a
 
     # --- parametric constraints (API7, prototype/api_test10.py) ---------------------
 
@@ -226,11 +245,11 @@ class Api5Backend:
             return False
         c.ConstraintType = getattr(self.constants, name)
         if index is not None:
-            c.Index = index
+            c.Index = 1 - index if id(a) in self._swapped_arcs else index
         if b is not None:
             c.Partner = b
         if partner_index is not None:
-            c.PartnerIndex = partner_index
+            c.PartnerIndex = 1 - partner_index if id(b) in self._swapped_arcs else partner_index
         return bool(c.Create())
 
     def point(self, p):
@@ -457,10 +476,18 @@ class Api5Backend:
             made, failed = 0, {}
             for job in jobs:
                 b = objs[job.b] if job.b is not None else None
-                try:
-                    ok = bool(self.constrain(job.kind, objs[job.a], b, job.ia, job.ib))
-                except Exception:
-                    ok = False
+                ok = False
+                # a tangency is tried without point indices first (api_test10),
+                # then at the shared ends
+                tries = [(None, None), (job.ia, job.ib)] if job.kind == "tangent" \
+                    else [(job.ia, job.ib)]
+                for ia, ib in tries:
+                    try:
+                        ok = bool(self.constrain(job.kind, objs[job.a], b, ia, ib))
+                    except Exception:
+                        ok = False
+                    if ok:
+                        break
                 made += ok
                 if not ok:
                     failed[job.kind] = failed.get(job.kind, 0) + 1
@@ -504,6 +531,20 @@ class Api5Backend:
         tdef.outside = t.outside
         tdef.SetBaseObject(faces.First())
         return bool(thread.Create())
+
+
+def _same_angle(a: float, b: float, tol: float = 0.01) -> bool:
+    return abs((a - b + 180.0) % 360.0 - 180.0) <= tol
+
+
+def arc_state(start, end, angle1, angle2, clockwise) -> str:
+    """How KOMPAS stored the counter-clockwise arc start → end: "ok", "swapped"
+    (the same arc, but Angle1 is our end: point indices 0/1 swap) or "flip"
+    (the other part of the circle: the direction has to be turned)."""
+    f, t = (angle2, angle1) if clockwise else (angle1, angle2)  # counter-clockwise f → t
+    if _same_angle(f, start) and _same_angle(t, end):
+        return "ok" if _same_angle(angle1, start) else "swapped"
+    return "flip"
 
 
 def _interface(obj, name: str):

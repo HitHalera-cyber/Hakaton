@@ -64,6 +64,13 @@ def sketch_fixing(ctx) -> None:
         arc.Xc, arc.Yc, arc.Radius = 20.0, 6.0, 1.0
         arc.Angle1, arc.Angle2, arc.Direction, arc.Style = 270.0, 360.0, False, 1  # False = CCW
         result("дуга (позднее связывание)", arc.Update())
+        log(f"      хранится: Angle1={arc.Angle1}, Angle2={arc.Angle2}, Direction={arc.Direction}")
+        cross = dynamic.Dispatch(drawing._oleobj_).Arcs.Add()
+        cross.Xc, cross.Yc, cross.Radius = 40.0, 6.0, 1.0
+        cross.Angle1, cross.Angle2, cross.Direction, cross.Style = 300.0, 30.0, False, 1
+        cross.Update()
+        log(f"      дуга через 0° (300→30): Angle1={cross.Angle1}, Angle2={cross.Angle2}, "
+            f"Direction={cross.Direction}")
         for name, fn in [
             ("объединение точек отрезок–дуга", lambda: constrain(seg, "ksCMergePoints", Index=1,
                                                                  Partner=arc, PartnerIndex=0)),

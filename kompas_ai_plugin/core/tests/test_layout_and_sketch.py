@@ -55,3 +55,15 @@ def test_revolve_sketch_fully_defined_without_redundant_constraints():
     assert {"coincident", "tangent", "horizontal", "vertical", "fixed_point"} <= kinds
     # joints first: the loop stays closed whatever else KOMPAS refuses
     assert [j.kind for j in jobs[:2]] == ["coincident", "coincident"]
+
+
+def test_arc_state_read_back_from_kompas():
+    from kompas_ai.kompas.api5 import arc_state
+
+    assert arc_state(10.0, 80.0, 10.0, 80.0, False) == "ok"
+    # stored clockwise from our start: the other three quarters
+    assert arc_state(10.0, 80.0, 10.0, 80.0, True) == "flip"
+    # an arc through 0° with its angles sorted by KOMPAS
+    assert arc_state(270.87, 4.736, 4.736, 270.87, False) == "flip"
+    assert arc_state(270.87, 4.736, 4.736, 270.87, True) == "swapped"
+    assert arc_state(270.0, 360.0, 270.0, 0.0, False) == "ok"

@@ -155,7 +155,7 @@ def candidates(loops, axis_index: int | None = None) -> tuple[list, list[Job], l
             ia, ib = _ends_meet(a, b)
             structural.append(Job("coincident", i, j, ia, ib))
             if {a[0], b[0]} == {"line", "arc"} and _tangent(a, b):
-                structural.append(Job("tangent", i, j))
+                structural.append(Job("tangent", i, j, ia, ib))  # ends: a retry with indices
         for k in range(n):
             i = start + k
             if segments[i][0] == "line":
