@@ -51,6 +51,8 @@ PLAIN_VALUE_RE = re.compile(r"^\d+(?:[.,]\d+)?°?$")
 
 
 MIN_ANGULAR_RADIUS = 12.0  # sheet mm
+ANG_TEXT_INSIDE = 2.75  # sheet mm from a KOMPAS angular dimension arc to the middle of its value
+EXT_OVERSHOOT = 2.0  # sheet mm an extension line goes past the dimension line
 
 
 def _params(func) -> set[str]:
@@ -70,6 +72,7 @@ class DrawingWriter:
         self.with_dimensions = with_dimensions
         self.scale = 1.0
         self.origin = (0.0, 0.0)  # sheet point of the view origin (view mode)
+        self._drawing: ir.Drawing | None = None
 
     # --- coordinate handling --------------------------------------------------------
 
@@ -87,6 +90,7 @@ class DrawingWriter:
     # --- entry point -------------------------------------------------------------------
 
     def write(self, drawing: ir.Drawing) -> WriteReport:
+        self._drawing = drawing
         report = WriteReport(mode=self.mode)
         sheet = drawing.sheet
         fmt = FORMAT_INDEX.get(sheet.format)
@@ -214,6 +218,14 @@ class DrawingWriter:
                 kind, offset = LINEAR_VERTICAL, (line[0] - q1[0], 0.0)
             else:
                 kind, offset = LINEAR_PARALLEL, (line[0] - q1[0], line[1] - q1[1])
+            if kind == LINEAR_HORIZONTAL and d.text_center and d.line_point \
+                    and "text_right" in _params(self.b.linear_dim):
+                # a small size whose value stands right of it on the source
+                # (0,5×45° next to 3,2H12 and 4,5±0,1): KOMPAS would put it on
+                # the left over the neighbours
+                right = d.text_center[0] > max(d.p1[0], d.p2[0]) + 1.0
+                return self.b.linear_dim(p1, p2, offset, kind, text, text_right=right,
+                                         line_point=self._p(((d.p1[0] + d.p2[0]) / 2, line[1])))
             return self.b.linear_dim(p1, p2, offset, kind, text)
         if d.dim_type in ("diameter", "radius") and d.center and d.radius:
             angle = 45.0
@@ -221,10 +233,12 @@ class DrawingWriter:
                 angle = math.degrees(math.atan2(d.p1[1] - d.center[1], d.p1[0] - d.center[0]))
             if d.dim_type == "radius" and not text.auto:
                 text.value = "R" + text.value.lstrip("R")
-            shelf = self._p(d.text_pos) if d.text_pos and d.dim_type == "radius" else None
-            if shelf is not None and "shelf" in _params(self.b.radial_dim):
-                return self.b.radial_dim(self._p(d.center), self._len(d.radius), angle,
-                                         False, text, shelf=shelf)
+            if d.dim_type == "radius" and d.text_pos and d.p1 \
+                    and "text_dist" in _params(self.b.radial_dim):
+                # the value goes where the source has it: usually on the far
+                # side of the centre, off a small fillet
+                return self.b.radial_dim(self._p(d.center), self._len(d.radius), angle, False,
+                                         text, text_dist=round(math.dist(d.p1, d.text_pos), 2))
             return self.b.radial_dim(self._p(d.center), self._len(d.radius), angle,
                                      d.dim_type == "diameter", text)
         if d.dim_type == "angular" and d.center and d.p1 and d.p2:
@@ -243,8 +257,28 @@ class DrawingWriter:
                 a1, a2 = (mid - d.nominal / 2) % 360.0, (mid + d.nominal / 2) % 360.0
             # the radius of the dimension arc is in sheet mm as well
             # never smaller than MIN_ANGULAR_RADIUS: a tiny arc is unreadable
-            return self.b.angular_dim(self._p(d.center), a1, a2,
-                                      max(d.radius or 20.0, MIN_ANGULAR_RADIUS), text)
+            radius = max(d.radius or 20.0, MIN_ANGULAR_RADIUS)
+            if d.text_center:
+                # KOMPAS writes the value inside the arc (api_test12): the arc
+                # goes out far enough for the value to stand where the source
+                # has it, clear of the dimensions inside the angle.
+                radius = max(radius, math.dist(d.center, d.text_center) + ANG_TEXT_INSIDE)
+            if "extension" not in _params(self.b.angular_dim):
+                return self.b.angular_dim(self._p(d.center), a1, a2, radius, text)
+            # KOMPAS draws extension lines from the vertex (on a cone they meet
+            # at the apex on the axis). They are drawn here instead, from the
+            # end of each side on the part out past the arc (ГОСТ 2.307).
+            ref = self.b.angular_dim(self._p(d.center), a1, a2, radius, text, extension=False)
+            if ref:
+                for a in (a1, a2):
+                    start = _side_extent(self._drawing, d.center, a)
+                    if start < radius - 0.5:
+                        u = (math.cos(math.radians(a)), math.sin(math.radians(a)))
+                        p = (d.center[0] + u[0] * start, d.center[1] + u[1] * start)
+                        q = (d.center[0] + u[0] * (radius + EXT_OVERSHOOT),
+                             d.center[1] + u[1] * (radius + EXT_OVERSHOOT))
+                        self.b.line(self._p(p), self._p(q), STYLE_IDS["thin"])
+            return ref
         return None
 
 
@@ -313,6 +347,28 @@ def _shared_ends(drawing: ir.Drawing, tol: float = 0.01):
             if a != b:
                 out.append((a, ia, b, ib))
     return out
+
+
+def _side_extent(drawing: ir.Drawing, center, angle: float, tol: float = 0.3) -> float:
+    """How far from the vertex the drawn side of an angle reaches along the
+    ray at ``angle`` (sheet mm); 0 when no line lies on that ray."""
+    if drawing is None:
+        return 0.0
+    u = (math.cos(math.radians(angle)), math.sin(math.radians(angle)))
+    reach = 0.0
+    for e in drawing.of_type(ir.Line):
+        if e.style == ir.STYLE_AXIAL:
+            continue
+        ts = []
+        for q in (e.p1, e.p2):
+            dx, dy = q[0] - center[0], q[1] - center[1]
+            if abs(-dx * u[1] + dy * u[0]) > tol:
+                break
+            ts.append(dx * u[0] + dy * u[1])
+        else:
+            if max(ts) > 0.5 and min(ts) > -0.5:
+                reach = max(reach, max(ts))
+    return reach
 
 
 def _polar(center, p) -> float:

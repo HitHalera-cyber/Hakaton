@@ -191,13 +191,16 @@ def bounding_box(rings) -> Polygon:
     return box(min(xs), min(ys), max(xs), max(ys))
 
 
-def profile_segments(profile: RevolveProfile) -> list[list[tuple]]:
+def profile_segments(profile: RevolveProfile, radii=()) -> list[list[tuple]]:
     """Each loop as sketch segments in model mm: ("line", p1, p2) or
     ("arc", center, r, a1, a2), arcs counter-clockwise from a1 to a2 (degrees).
 
     Lines and arcs are recognised on the sheet geometry (where the fitting
     tolerances belong) and then moved to model mm, so fillets come back as
-    true arcs with their exact radii; ends are joined exactly."""
+    true arcs with their exact radii; ends are joined exactly. The profile
+    starts at x = 0; faces and cylinders are put on a GRID mm grid, fillets
+    get the radius written on the drawing (``radii``, model mm) and are made
+    tangent to their lines again."""
     from ..geometry.chains import Chain
     from ..geometry.segmentation import segment_chain
 
@@ -230,11 +233,23 @@ def profile_segments(profile: RevolveProfile) -> list[list[tuple]]:
                 if mirrored:
                     b1, b2 = b2, b1
                 segs.append(["arc", model(p.center), p.radius / k, b1, b2])
-        out.append([tuple(s) for s in _join_ends(_straighten(segs))])
-    return out
+        out.append(segs)
+    if out:
+        x0 = min(min(_seg_ends(sg)[0][0], _seg_ends(sg)[1][0]) for loop in out for sg in loop)
+        x0 = round(x0 / GRID) * GRID  # whole steps, so the grid stays the drawing's
+        for loop in out:
+            for sg in loop:
+                if sg[0] == "line":
+                    sg[1], sg[2] = (sg[1][0] - x0, sg[1][1]), (sg[2][0] - x0, sg[2][1])
+                else:
+                    sg[1] = (sg[1][0] - x0, sg[1][1])
+    return [[tuple(sg) for sg in _join_ends(_refillet(_straighten(loop), radii))]
+            for loop in out]
 
 
 STRAIGHT = 0.02  # model mm
+GRID = 0.05  # model mm: faces and cylinders of a turned part sit on it
+SNAP = 0.015  # model mm a coordinate may be moved onto the grid
 
 
 def _straighten(segs):
@@ -246,10 +261,10 @@ def _straighten(segs):
             continue
         (x1, y1), (x2, y2) = s[1], s[2]
         if abs(y2 - y1) <= STRAIGHT and abs(x2 - x1) > STRAIGHT:
-            y = (y1 + y2) / 2
+            y = _snap((y1 + y2) / 2)
             s[1], s[2] = (x1, y), (x2, y)
         elif abs(x2 - x1) <= STRAIGHT and abs(y2 - y1) > STRAIGHT:
-            x = (x1 + x2) / 2
+            x = _snap((x1 + x2) / 2)
             s[1], s[2] = (x, y1), (x, y2)
     # line–line joints: both ends to the intersection of the two lines
     n = len(segs)
@@ -260,6 +275,77 @@ def _straighten(segs):
             if p is not None and math.dist(p, a[2]) <= 0.05 and math.dist(p, b[1]) <= 0.05:
                 a[2] = b[1] = p
     return segs
+
+
+def _snap(v: float) -> float:
+    g = round(v / GRID) * GRID
+    return round(g, 6) if abs(g - v) <= SNAP else v
+
+
+def _snap_radius(r: float, radii) -> float:
+    """The radius written on the drawing when the fitted one is close to it,
+    else the fitted one on the grid when it is close to that."""
+    near = [q for q in radii if abs(q - r) <= 0.25 * q]
+    if near:
+        return min(near, key=lambda q: abs(q - r))
+    return _snap(r)
+
+
+def _refillet(segs, radii=()):
+    """An arc between two lines is a fillet: rebuilt tangent to both lines
+    with its exact radius, the lines trimmed to the tangent points. The
+    fitted arc ends are a few micrometres off, which left the neighbouring
+    lines slanted after the ends were joined."""
+    n = len(segs)
+    for i in range(n):
+        arc, a, b = segs[i], segs[i - 1], segs[(i + 1) % n]
+        if arc[0] != "arc" or a[0] != "line" or b[0] != "line" or n < 3:
+            continue
+        c, r = arc[1], _snap_radius(arc[2], radii)
+        ia = _near_end(a, _seg_ends(arc))
+        ib = _near_end(b, _seg_ends(arc))
+        center = _fillet_center(a, b, c, r)
+        if center is None or math.dist(center, c) > max(0.1, r):
+            continue
+        ta, tb = _foot(center, a), _foot(center, b)
+        s1, s2 = _seg_ends(arc)
+        first_on_a = math.dist(s1, a[ia]) <= math.dist(s2, a[ia])
+        p1, p2 = (ta, tb) if first_on_a else (tb, ta)
+        a1 = math.degrees(math.atan2(p1[1] - center[1], p1[0] - center[0])) % 360.0
+        a2 = math.degrees(math.atan2(p2[1] - center[1], p2[0] - center[0])) % 360.0
+        arc[1], arc[2], arc[3], arc[4] = center, r, a1, a2
+        a[ia], b[ib] = ta, tb
+    return segs
+
+
+def _near_end(line, points) -> int:
+    """Index (1 or 2) of the line end that touches one of ``points``."""
+    return min((1, 2), key=lambda k: min(math.dist(line[k], q) for q in points))
+
+
+def _fillet_center(a, b, c, r):
+    """Centre at distance r from both lines, on the side of ``c``."""
+    def offset(line):
+        (x1, y1), (x2, y2) = line[1], line[2]
+        n = math.hypot(x2 - x1, y2 - y1)
+        if n < 1e-9:
+            return None
+        nx, ny = -(y2 - y1) / n, (x2 - x1) / n
+        if (c[0] - x1) * nx + (c[1] - y1) * ny < 0:
+            nx, ny = -nx, -ny
+        return (x1 + nx * r, y1 + ny * r), (x2 + nx * r, y2 + ny * r)
+
+    oa, ob = offset(a), offset(b)
+    if oa is None or ob is None:
+        return None
+    return _cross(oa[0], oa[1], ob[0], ob[1])
+
+
+def _foot(p, line):
+    (x1, y1), (x2, y2) = line[1], line[2]
+    dx, dy = x2 - x1, y2 - y1
+    t = ((p[0] - x1) * dx + (p[1] - y1) * dy) / (dx * dx + dy * dy)
+    return (x1 + t * dx, y1 + t * dy)
 
 
 def _cross(p1, p2, p3, p4):
@@ -343,3 +429,9 @@ def thread_specs(drawing: ir.Drawing, profile: RevolveProfile, loops) -> list[Th
         outside = region is not None and region.contains(Point(x, r - 0.05))
         out.append(ThreadSpec(dia, pitch, x, r, outside))
     return out
+
+
+def drawing_radii(drawing: ir.Drawing) -> list[float]:
+    """Radii written on the drawing (R1, R0,5…), model mm: fillets get them exactly."""
+    return sorted({d.nominal for d in drawing.of_type(ir.Dimension)
+                   if d.dim_type == "radius" and d.nominal})

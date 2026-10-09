@@ -16,7 +16,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from .backend import DimText, Point
+from .backend import LINEAR_HORIZONTAL, DimText, Point
 
 FORMAT_DOC_SHEET = 1  # ksDocumentParam.type: drawing with a standard sheet
 
@@ -208,17 +208,18 @@ class Api5Backend:
     CONSTRAINTS = {"horizontal": "ksCHorizontal", "vertical": "ksCVertical",
                    "coincident": "ksCMergePoints", "tangent": "ksCTangentTwoCurves",
                    "parallel": "ksCParallel", "perpendicular": "ksCPerpendicular",
-                   "concentric": "ksCConcentricity"}
+                   "concentric": "ksCConcentricity", "fixed_point": "ksCFixedPoint",
+                   "fixed_length": "ksCFixedLenght", "fixed_angle": "ksCFixedAngle"}
 
     def constrain(self, kind, a, b=None, index=None, partner_index=None) -> bool:
         """A KOMPAS constraint on objects returned by line/circle/arc in
         parametric mode. ``index``/``partner_index``: 0 = start, 1 = end point."""
-        from win32com.client import CastTo
-
         name = self.CONSTRAINTS.get(kind)
         if name is None or not hasattr(self.constants, name):
             return False
-        c = CastTo(a, "IDrawingObject1").NewConstraint()
+        if isinstance(a, int) or isinstance(b, int):
+            return False  # an API5 object (int reference) takes no API7 constraint
+        c = _interface(a, "IDrawingObject1").NewConstraint()
         if c is None:
             return False
         c.ConstraintType = getattr(self.constants, name)
@@ -272,7 +273,36 @@ class Api5Backend:
             self._drawing7 = CastTo(self._api7_view(), "IDrawingContainer")
         return self._drawing7
 
-    def linear_dim(self, p1, p2, offset, kind, text):
+    def linear_dim(self, p1, p2, offset, kind, text, text_right=False, line_point=None):
+        """``text_right``: the value goes on the dimension line extended past the
+        right extension line, like on the source (API7 ShelfDirection = 1,
+        api_test12 variant I) — for small sizes whose value does not fit."""
+        if text_right and line_point is not None and kind == LINEAR_HORIZONTAL \
+                and not text.diameter_sign:
+            try:
+                ref = self._linear7(p1, p2, line_point, text)
+                if ref:
+                    return ref
+            except Exception as exc:
+                self.log(f"  размер с текстом справа через API7: {exc!r} — строю через API5")
+        return self._linear5(p1, p2, offset, kind, text)
+
+    def _linear7(self, p1, p2, line_point, text):
+        from win32com.client import CastTo
+
+        symbols = CastTo(self._api7_view(), "ISymbols2DContainer")
+        dim = symbols.LineDimensions.Add()
+        dim.X1, dim.Y1, dim.X2, dim.Y2 = p1[0], p1[1], p2[0], p2[1]
+        dim.X3, dim.Y3 = line_point
+        dim.Orientation = self.constants.ksLinDHorizontal
+        CastTo(dim, "IDimensionParams").ShelfDirection = 1
+        if not text.auto:
+            t = CastTo(dim, "IDimensionText")
+            t.AutoNominalValue = False
+            t.NominalText.Str = kompas_text(text.value)
+        return dim if dim.Update() else None
+
+    def _linear5(self, p1, p2, offset, kind, text):
         par = self._param("ko_LDimParam", "ksLDimParam")
         src = self._sub("ksLDimSourceParam", par.GetSPar())
         src.Init()
@@ -283,33 +313,11 @@ class Api5Backend:
         self._set_text(self._sub("ksDimTextParam", par.GetTPar()), text)
         return self.doc.ksLinDimension(par)
 
-    def radial_dim(self, center, radius, angle, diameter, text, shelf=None):
-        if self.parametric and shelf is not None and not diameter:
-            try:
-                ref = self._radial7(center, radius, angle, text, shelf)
-                if ref:
-                    return ref
-            except Exception as exc:
-                self.log(f"  радиус с полкой через API7: {exc!r} — строю через API5")
-        return self._radial5(center, radius, angle, diameter, text)
-
-    def _radial7(self, center, radius, angle, text, shelf):
-        """Radius with its value on a shelf where the source drawing has it
-        (API7 IRadialDimension.ShelfX/ShelfY, api_test9) — a small fillet's
-        value no longer lands on the part."""
-        from win32com.client import CastTo
-
-        symbols = CastTo(self._api7_view(), "ISymbols2DContainer")
-        dim = symbols.RadialDimensions.Add()
-        dim.Xc, dim.Yc, dim.Radius, dim.Angle = center[0], center[1], radius, angle
-        dim.ShelfX, dim.ShelfY = shelf
-        if not text.auto:
-            t = CastTo(dim, "IDimensionText")
-            t.AutoNominalValue = False
-            t.NominalText.Str = kompas_text(text.value.lstrip("R"))
-        return dim if dim.Update() else None
-
-    def _radial5(self, center, radius, angle, diameter, text):
+    def radial_dim(self, center, radius, angle, diameter, text, text_dist=None):
+        """``text_dist``: distance in sheet mm from the arrow on the arc to the
+        value along the dimension line (ksRDimDrawingParam.textPos), so the
+        value stands where the source drawing has it, off the part. API7
+        ShelfX/ShelfY are ignored by KOMPAS (api_test12, variants D–F)."""
         par = self._param("ko_RDimParam", "ksRDimParam")
         src = self._sub("ksRDimSourceParam", par.GetSPar())
         src.Init()
@@ -317,17 +325,28 @@ class Api5Backend:
         drw = self._sub("ksRDimDrawingParam", par.GetDPar())
         drw.Init()
         drw.ang = angle
+        if text_dist is not None and not diameter:
+            drw.textPos = text_dist
         self._set_text(self._sub("ksDimTextParam", par.GetTPar()), text)
         method = self.doc.ksDiamDimension if diameter else self.doc.ksRadDimension
-        return method(par)
+        ref = method(par)
+        if not ref and text_dist is not None and not diameter:
+            drw.textPos = 0  # KOMPAS refused the position: the default placement
+            ref = method(par)
+        return ref
 
-    def angular_dim(self, center, start, end, radius, text):
+    def angular_dim(self, center, start, end, radius, text, extension=True):
+        """``extension=False``: no extension lines (ksDimDrawingParam.pl1/pl2 = 1,
+        api_test12 variant C); the caller draws them from the sides."""
         par = self._param("ko_ADimParam", "ksADimParam")
         src = self._sub("ksADimSourceParam", par.GetSPar())
         src.Init()
         src.xc, src.yc, src.ang1, src.ang2, src.rad, src.dir = \
             center[0], center[1], start, end, radius, 1
-        self._sub("ksDimDrawingParam", par.GetDPar()).Init()
+        drw = self._sub("ksDimDrawingParam", par.GetDPar())
+        drw.Init()
+        if not extension:
+            drw.pl1, drw.pl2 = 1, 1
         self._set_text(self._sub("ksDimTextParam", par.GetTPar()), text)
         return self.doc.ksAngDimension(par)
 
@@ -369,7 +388,8 @@ class Api5Backend:
         d2 = sdef.BeginEdit()
         try:
             made, tried = self._sketch7(loops, d2)
-            log(f"Эскиз через API7: связей создано {made} из {tried}")
+            log(f"Эскиз через API7: связей создано {made} из {tried}"
+                + (" — все наложены" if made == tried else ""))
         except Exception as exc:
             log(f"Эскиз через API7 не удался ({exc!r}) — строю через API5, без связей")
             self._sketch5(d2, loops)
@@ -413,42 +433,41 @@ class Api5Backend:
         d2.ksLineSeg(x0 - 5.0, 0.0, x1 + 5.0, 0.0, 3)  # the axis of revolution
 
     def _sketch7(self, loops, d2) -> tuple[int, int]:
-        """Sketch objects through API7 + constraints: coincident joints,
-        horizontal/vertical lines, tangent line–arc joints."""
+        """Sketch objects through API7 + constraints that define the sketch
+        fully (model3d.sketch_dof): joints, horizontal/vertical lines, tangent
+        fillets, then fixed points and lengths for what is still free — each
+        only if it is not implied by the others (no over-definition)."""
+        from ..model3d.sketch_dof import full_definition
+
         saved = (self.parametric, self._drawing7)
         self.parametric, self._drawing7 = True, None  # the active document: the sketch
         try:
-            jobs = []
-            for loop in loops:
-                objs = []
-                for seg in loop:
-                    if seg[0] == "line":
-                        objs.append(self.line(seg[1], seg[2], 1))
-                    else:
-                        objs.append(self._sketch_arc(d2, seg))
-                if not all(objs):
-                    raise RuntimeError("не все объекты эскиза созданы")
-                n = len(loop)
-                for i in range(n):
-                    a, b = loop[i], loop[(i + 1) % n]
-                    ia, ib = _joint_indices(a, b)
-                    jobs.append(("coincident", objs[i], objs[(i + 1) % n], ia, ib))
-                    if {a[0], b[0]} == {"line", "arc"} and _tangent(a, b):
-                        jobs.append(("tangent", objs[i], objs[(i + 1) % n], None, None))
-                    if a[0] == "line":
-                        if abs(a[1][1] - a[2][1]) < 1e-9:
-                            jobs.append(("horizontal", objs[i], None, None, None))
-                        elif abs(a[1][0] - a[2][0]) < 1e-9:
-                            jobs.append(("vertical", objs[i], None, None, None))
             x0, x1 = self._sketch_extent(loops)
-            self.line((x0 - 5.0, 0.0), (x1 + 5.0, 0.0), 3)  # the axis of revolution
-            made = 0
-            jobs = [j for j in jobs if not isinstance(j[1], int) and not isinstance(j[2], int)]
-            for kind, a, b, ia, ib in jobs:
+            axis = ((x0 - 5.0, 0.0), (x1 + 5.0, 0.0))
+            segments, jobs, left = full_definition(loops, axis)
+            objs = []
+            for seg in segments[:-1]:
+                objs.append(self.line(seg[1], seg[2], 1) if seg[0] == "line"
+                            else self._sketch_arc(d2, seg))
+            objs.append(self.line(axis[0], axis[1], 3))  # the axis of revolution
+            if not all(objs):
+                raise RuntimeError("не все объекты эскиза созданы")
+            made, failed = 0, {}
+            for job in jobs:
+                b = objs[job.b] if job.b is not None else None
                 try:
-                    made += bool(self.constrain(kind, a, b, ia, ib))
+                    ok = bool(self.constrain(job.kind, objs[job.a], b, job.ia, job.ib))
                 except Exception:
-                    pass
+                    ok = False
+                made += ok
+                if not ok:
+                    failed[job.kind] = failed.get(job.kind, 0) + 1
+            if failed:
+                self.log("  не наложены: " + ", ".join(f"{k} {v}" for k, v in failed.items()))
+            if left:
+                self.log(f"  эскиз недоопределён: свободных степеней {left}")
+            elif not failed:
+                self.log("  по расчёту эскиз полностью определён (степеней свободы 0)")
             return made, len(jobs)
         finally:
             self.parametric, self._drawing7 = saved
@@ -483,6 +502,26 @@ class Api5Backend:
         tdef.outside = t.outside
         tdef.SetBaseObject(faces.First())
         return bool(thread.Create())
+
+
+def _interface(obj, name: str):
+    """``obj`` seen through the API7 interface ``name``. Objects made through
+    late binding (arcs, see _arc7) are not known to the generated wrapper, so
+    CastTo can fail on them; the interface is then asked for directly."""
+    from win32com.client import CastTo
+
+    try:
+        return CastTo(obj, name)
+    except Exception:
+        import pythoncom
+        from win32com.client import dynamic, gencache
+
+        mod = gencache.GetModuleForTypelib(API7_TYPELIB, 0, 1, 0)
+        iid = mod.NamesToIIDMap[name]
+        return dynamic.Dispatch(obj._oleobj_.QueryInterface(iid, pythoncom.IID_IDispatch))
+
+
+API7_TYPELIB = "{69AC2981-37C0-4379-84FD-5DD2F3C0A520}"
 
 
 def _seg_end(seg, which):

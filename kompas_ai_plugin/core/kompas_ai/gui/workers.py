@@ -110,9 +110,9 @@ class RevolveJob(QObject):
                 self.progress.emit("Подключение к КОМПАС…")
                 backend = Api5Backend(log=self.progress.emit)
                 self.progress.emit("Эскиз профиля и операция вращения…")
-                from ..model3d.revolve import profile_segments, thread_specs
+                from ..model3d.revolve import drawing_radii, profile_segments, thread_specs
 
-                loops = profile_segments(profile)
+                loops = profile_segments(profile, drawing_radii(self.drawing))
                 threads = thread_specs(self.drawing, profile, loops)
                 saved = backend.revolve_part(loops, str(self.out), threads,
                                              log=self.progress.emit)

@@ -25,7 +25,8 @@ from .geometry.segmentation import Primitive, merge_cocircular, segment_chain, s
 from .pdf.vector_extractor import extract_page
 from .semantics.arrows import arrows_from_chains, find_arrows, merge_arrow_sources
 from .semantics.axes import mark_axis_lines
-from .semantics.dimensions import FoundDimension, find_dimensions, parse_dim_text
+from .semantics.dimensions import (FoundDimension, attach_deviations, find_dimensions,
+                                   parse_dim_text)
 from .semantics.hatch import detect_hatches
 from .semantics.regions import hatch_regions
 from .semantics.sheet import analyse_sheet, is_title_block_text, read_title_block
@@ -102,6 +103,7 @@ def recognize_pdf(pdf_path: str | Path, page: int = 0, exact: bool = True) -> ir
                 drawing.warnings.append(
                     f"Текст «{dt.raw.text}» похож на размер (рядом стрелки), "
                     "но размерная линия не найдена — добавлен как текст.")
+    plain_texts = attach_deviations(found, plain_texts)
 
     ratios = [d.measured / d.text.value for d in found
               if d.dim_type != "angular" and d.text.value > 0]
@@ -218,7 +220,17 @@ def _dimension_entity(d: FoundDimension, dim_id: str, ref_ids, scale: float) -> 
         measured=round(d.measured, 4), p1=_r(d.p1), p2=_r(d.p2), line_point=_r(d.line_point),
         center=_r(d.center), radius=round(d.radius, 4) if d.radius else None,
         orientation=d.orientation, ref=ref_ids.get(id(d.ref)) if d.ref is not None else None,
-        text_pos=_r(d.text.raw.origin))
+        text_pos=_r(d.text.raw.origin), text_center=_r(_text_center(d.text.raw)))
+
+
+def _text_center(t) -> tuple[float, float]:
+    """Middle of a (possibly turned) text: halfway between its first and last
+    character, half a character further on and half the height up."""
+    a = math.radians(t.angle)
+    end = t.last_origin or t.origin
+    along, up = 0.3 * t.height, 0.5 * t.height
+    return ((t.origin[0] + end[0]) / 2 + along * math.cos(a) - up * math.sin(a),
+            (t.origin[1] + end[1]) / 2 + along * math.sin(a) + up * math.cos(a))
 
 
 def _other_view_scale(d: FoundDimension, sheet_scale: float) -> str | None:

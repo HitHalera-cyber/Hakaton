@@ -116,6 +116,7 @@ class Dimension(Entity):
     ref: str | None = None  # id of the measured entity (circle/arc), if known
     text_id: str | None = None
     text_pos: Point | None = None  # where the value is written (start of the text)
+    text_center: Point | None = None  # middle of the value text on the sheet
 
 
 @dataclass

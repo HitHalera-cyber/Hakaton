@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import math
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from ..geometry.fitting import angle_diff, direction_deg, point_line_distance, point_segment_distance
 from ..geometry.segmentation import Primitive
@@ -89,6 +89,37 @@ def parse_dim_text(t: RawText) -> DimText | None:
     if count < 1:
         return None
     return DimText(t, prefix, value, decimals, angular, m.group("tail").strip(), count)
+
+
+DEVIATION_RE = re.compile(r"^[+\-−±]\s*\d+(?:[.,]\d+)?$")
+
+
+def attach_deviations(found: list[FoundDimension], texts: list[RawText]) -> list[RawText]:
+    """Deviations written as separate small texts after the value ("R3" and a
+    raised "+0,2") join their dimension: "R3+0,2". Returns the texts left over."""
+    left = []
+    for t in texts:
+        best, best_dist = None, None
+        if DEVIATION_RE.match(t.text.strip()):
+            for d in found:
+                raw = d.text.raw
+                if angle_diff(raw.angle, t.angle, 360.0) > 3.0:
+                    continue
+                end = raw.last_origin or raw.origin
+                a = math.radians(raw.angle)
+                dx, dy = t.origin[0] - end[0], t.origin[1] - end[1]
+                along = dx * math.cos(a) + dy * math.sin(a)
+                across = -dx * math.sin(a) + dy * math.cos(a)
+                if 0.0 < along <= 2.5 * raw.height and abs(across) <= 1.2 * raw.height:
+                    if best is None or along < best_dist:
+                        best, best_dist = d, along
+        if best is None:
+            left.append(t)
+            continue
+        dev = t.text.strip().replace("−", "-")
+        best.text = replace(best.text, raw=replace(best.text.raw, text=best.text.raw.text + dev),
+                            tail=(best.text.tail + dev).strip())
+    return left
 
 
 def find_dimensions(texts: list[DimText], arrows: list[Arrow], thin: list[Primitive],
