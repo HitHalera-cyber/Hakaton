@@ -55,6 +55,7 @@ def segment_chain(chain: Chain) -> list[Primitive]:
     pieces = _greedy(_smooth_dense_runs(chain.points), chain.width)
     pieces = _rebalance(pieces, chain.width)
     pieces = _merge_neighbours(pieces, chain.width, closed=chain.closed)
+    pieces = _fillets(pieces, chain.width)
     if chain.closed and len(pieces) == 1 and pieces[0].kind == "arc" \
             and (pieces[0].sweep or 0) >= FULL_CIRCLE:
         arc = pieces[0]
@@ -188,6 +189,21 @@ def _try_arc(points, width) -> Primitive | None:
     significant = [t for t in turns if abs(t) > 0.3]
     if significant and not (all(t > 0 for t in significant) or all(t < 0 for t in significant)):
         return None
+    # The chords of a tessellated arc are alike (an end chord may be shorter,
+    # cut at a junction). A long chord at an end is a line running into a
+    # small fillet; fitting all of it as one big arc would swallow the fillet.
+    chords = [math.dist(a, b) for a, b in zip(points, points[1:])]
+    if len(chords) >= 3:
+        inner = chords[1:-1]
+        if max(inner) > 2.5 * min(inner) + 0.1 \
+                or max(chords[0], chords[-1]) > 2.5 * max(inner) + 0.1:
+            return None
+    # With so few vertices a line + small fillet can look concyclic; the
+    # turns of a tessellated arc are alike (a cut end chord turns at least half).
+    if len(points) == 4:
+        mags = [abs(t) for t in turns]
+        if min(mags) < 0.55 * max(mags):
+            return None
     fit = fit_circle(points)
     if fit is None or fit.max_error > CIRCLE_TOLERANCE + 0.002 * fit.radius:
         return None
@@ -341,3 +357,146 @@ def _join_touching(group: list[Primitive]) -> list[Primitive]:
         prim.tags = set().union(*(m.tags for m in members))
         out.append(prim)
     return out
+
+
+ANCHOR_SWEEP = 150.0  # deg; arcs this long (and circles) have a reliable centre
+SHORT_ARC_SWEEP = 120.0
+
+
+def snap_concentric(prims: list[Primitive]) -> list[Primitive]:
+    """Give short arcs the exact centre of a concentric circle or long arc.
+
+    A short, flat arc (a 19° piece of an R80 contour) fixes its own centre
+    and radius poorly: the quantised PDF points let the fit drift by several
+    millimetres. Drawings are full of concentric outlines, so when the arc's
+    points lie on a circle around the centre of a reliable curve just as well
+    as on their own fit, that centre is taken and the radius re-measured.
+    """
+    anchors = [p.center for p in prims
+               if p.kind == "circle" or (p.kind == "arc" and p.sweep >= ANCHOR_SWEEP)]
+    out = []
+    for p in prims:
+        if p.kind != "arc" or p.sweep >= SHORT_ARC_SWEEP or not anchors:
+            out.append(p)
+            continue
+        best = None
+        for c in anchors:
+            if math.dist(c, p.center) > max(1.0, 0.1 * p.radius) or c == p.center:
+                continue
+            dists = [math.dist(q, c) for q in p.points]
+            r = sum(dists) / len(dists)
+            err = max(abs(d - r) for d in dists)
+            if err <= max(CIRCLE_TOLERANCE, p.error + 0.02) and (best is None or err < best[0]):
+                best = (err, c, r)
+        if best is None:
+            out.append(p)
+            continue
+        err, c, r = best
+        snapped = _make_arc(p.points, p.width, c, r, err)
+        snapped.tags = set(p.tags)
+        out.append(snapped)
+    return out
+
+
+FILLET_MAX_PIECE = 1.5  # mm; chords of a small fillet
+FILLET_MAX_TOTAL = 4.0
+FILLET_TOLERANCE = 0.1
+FILLET_MAX_RADIUS = 6.0  # mm
+
+
+def _fillets(pieces: list[Primitive], width) -> list[Primitive]:
+    """Small fillets drawn with two or three chords are too short for an arc
+    fit (MIN_ARC_POINTS) and come out as a tiny line between two lines. When a
+    circle tangent to both neighbouring lines at the ends of that tiny
+    polyline passes through all its points, it is a fillet: make it an arc.
+    One single chord is left alone — it may as well be a small chamfer."""
+    out = list(pieces)
+    i = 0
+    while i < len(out) - 2:
+        first = out[i]
+        if first.kind != "line":
+            i += 1
+            continue
+        j = i + 1
+        while j < len(out) and out[j].kind == "line" and out[j].length <= FILLET_MAX_PIECE:
+            j += 1
+        if j >= len(out) or j == i + 1 or out[j].kind != "line":
+            i += 1
+            continue
+        middle = out[i + 1:j]
+        last = out[j]
+        points = [first.points[-1]] + [q for m in middle for q in m.points[1:]]
+        total = sum(m.length for m in middle)
+        # The first chord of a fillet barely turns and may have been taken by
+        # the neighbouring line: give such end chords back to the fillet.
+        if len(points) < 3:
+            first, last, points = _peel_end_chords(first, last, points, width)
+        arc = _tangent_fillet(first, last, points, width) \
+            if len(points) >= 3 and total <= FILLET_MAX_TOTAL else None
+        if arc is None:
+            i += 1
+            continue
+        out[i:j + 1] = [first, arc, last]
+        i += 2
+    return out
+
+
+def _peel_end_chords(first, last, points, width):
+    if len(first.points) >= 3 and math.dist(first.points[-2], first.points[-1]) <= FILLET_MAX_PIECE:
+        shorter = _try_line(first.points[:-1], width)
+        if shorter is not None:
+            first, points = shorter, [first.points[-2]] + points
+    if len(points) < 3 and len(last.points) >= 3 \
+            and math.dist(last.points[0], last.points[1]) <= FILLET_MAX_PIECE:
+        shorter = _try_line(last.points[1:], width)
+        if shorter is not None:
+            last, points = shorter, points + [last.points[1]]
+    return first, last, points
+
+
+def _tangent_fillet(l1: Primitive, l2: Primitive, points, width) -> Primitive | None:
+    a, b = points[0], points[-1]
+    d1 = _unit(l1.p1, l1.p2)
+    d2 = _unit(l2.p1, l2.p2)
+    turn = math.atan2(d1[0] * d2[1] - d1[1] * d2[0], d1[0] * d2[0] + d1[1] * d2[1])
+    if not math.radians(10) < abs(turn) < math.radians(170):
+        return None
+    side = 1.0 if turn > 0 else -1.0
+    candidates = []
+    # Tangent to both lines …
+    r = math.dist(a, b) / (2 * math.sin(abs(turn) / 2))
+    c1 = (a[0] - side * d1[1] * r, a[1] + side * d1[0] * r)
+    c2 = (b[0] - side * d2[1] * r, b[1] + side * d2[0] * r)
+    if math.dist(c1, c2) <= FILLET_TOLERANCE:
+        candidates.append((((c1[0] + c2[0]) / 2, (c1[1] + c2[1]) / 2), r))
+    # … or to one of them (a fillet that runs into a chamfer stops short of
+    # being tangent to it): the centre is on the normal at that end.
+    for end, d, others in ((a, d1, points[1:]), (b, d2, points[:-1])):
+        n = (-side * d[1], side * d[0])
+        # |q - end|² = 2·r·(n·(q - end)) for points on the circle; least
+        # squares lets the far points (well conditioned) dominate.
+        num = den = 0.0
+        for q in others:
+            v = (q[0] - end[0], q[1] - end[1])
+            proj = n[0] * v[0] + n[1] * v[1]
+            num += (v[0] ** 2 + v[1] ** 2) * proj
+            den += 2 * proj * proj
+        if den > 1e-9:
+            rr = num / den
+            candidates.append(((end[0] + n[0] * rr, end[1] + n[1] * rr), rr))
+    best = None
+    for c, rr in candidates:
+        if not 0.05 < rr <= FILLET_MAX_RADIUS:
+            continue
+        err = max(abs(math.dist(q, c) - rr) for q in points)
+        if err <= FILLET_TOLERANCE and (best is None or err < best[2]):
+            best = (c, rr, err)
+    if best is None:
+        return None
+    return _make_arc(points, width, best[0], best[1], best[2])
+
+
+def _unit(p, q):
+    dx, dy = q[0] - p[0], q[1] - p[1]
+    n = math.hypot(dx, dy) or 1.0
+    return dx / n, dy / n

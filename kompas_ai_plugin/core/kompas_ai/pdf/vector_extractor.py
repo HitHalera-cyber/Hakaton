@@ -31,6 +31,7 @@ SYMBOL_FONT_MAP = {
 SYMBOL_FONTS = ("symbol_a", "symbol_b", "symbol")
 
 BEZIER_STEPS = 16
+MULTIPLY_RE = re.compile(r"(?<=[\dA-Za-zА-Яа-я])\s*[•∙·]\s*(?=\d)")
 
 
 @dataclass
@@ -290,6 +291,10 @@ def _extract_text(page: pymupdf.Page, conv: _Converter, content: PageContent) ->
                     last_origin=conv.pt(pymupdf.Point(last)),
                 ))
     content.texts = merge_text_runs(spans)
+    for t in content.texts:
+        # KOMPAS writes the multiplication sign of "M22×1,5" and "1×45°" with
+        # its symbol font, which comes out of the PDF as a bullet.
+        t.text = MULTIPLY_RE.sub("×", t.text)
 
 
 def merge_text_runs(spans: list[RawText]) -> list[RawText]:

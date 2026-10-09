@@ -29,8 +29,9 @@ DIM_TEXT_RE = re.compile(
 # a thread pitch (×1,5) or a chamfer angle (×45°). Anything else ("2u", "1m",
 # "130 R, мм", two numbers) is ordinary text, not a dimension.
 TAIL_RE = re.compile(
-    r"^(|±\s*\d+(?:[.,]\d+)?|[+\-−]\s*\d+(?:[.,]\d+)?(?:\s*[+\-−]\s*\d+(?:[.,]\d+)?)?"
-    r"|\(?[A-Za-z]{1,2}\d{1,2}\)?|[x×]\s*\d+(?:[.,]\d+)?°?)$")
+    r"^(|±\s*\d+(?:[.,]\d+)?°?|[+\-−]\s*\d+(?:[.,]\d+)?(?:\s*[+\-−]\s*\d+(?:[.,]\d+)?)?"
+    r"|\(?[A-Za-z]{1,2}\d{1,2}\)?|[x×]\s*\d+(?:[.,]\d+)?°?)"
+    r"\s*\*?$")  # "*" marks a size ensured by the tool (ГОСТ 2.307)
 TIP_ON_LINE = 0.35  # mm
 PARALLEL_TOLERANCE = 3.0  # deg
 EXT_ON_TIP = 0.35  # mm
