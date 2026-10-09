@@ -69,6 +69,20 @@ class Arc(Entity):
 
 
 @dataclass
+class Ellipse(Entity):
+    """Semi-axes ``a`` ≥ ``b``; ``angle`` of the ``a`` axis (degrees).
+    ``arcs``: the arcs it was drawn with in the source, (center, r, a1, a2) —
+    a fallback where an ellipse cannot be made."""
+
+    center: Point = (0.0, 0.0)
+    a: float = 0.0
+    b: float = 0.0
+    angle: float = 0.0
+    style: str = STYLE_MAIN
+    arcs: list = field(default_factory=list)
+
+
+@dataclass
 class PointMark(Entity):
     position: Point = (0.0, 0.0)
 
@@ -215,7 +229,7 @@ class Drawing:
         return cls.from_dict(json.loads(Path(path).read_text(encoding="utf-8")))
 
 
-ENTITY_TYPES = (Line, Circle, Arc, PointMark, Text, Hatch, Dimension)
+ENTITY_TYPES = (Line, Circle, Arc, Ellipse, PointMark, Text, Hatch, Dimension)
 
 
 def _tuples(value):

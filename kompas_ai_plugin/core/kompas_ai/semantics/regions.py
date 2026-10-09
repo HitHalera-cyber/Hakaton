@@ -68,8 +68,9 @@ def _on_curve(c: Primitive, angle: float) -> tuple[float, float]:
             c.center[1] + c.radius * math.sin(math.radians(angle)))
 
 
-def contour_faces(contour: list[Primitive]) -> list[Polygon]:
-    """Polygonise the contour into its smallest faces."""
+def contour_faces(contour: list[Primitive], grid: float | None = None) -> list[Polygon]:
+    """Polygonise the contour into its smallest faces. ``grid``: coordinates
+    are rounded to it first, so ends of two arcs a micrometre apart meet."""
     curves = [p for p in contour if p.kind in ("circle", "arc")]
     extra: dict[int, list[float]] = {id(c): [] for c in curves}
     lines = []
@@ -101,6 +102,10 @@ def contour_faces(contour: list[Primitive]) -> list[Polygon]:
     if not lines:
         return []
     noded = unary_union(lines)
+    if grid:
+        from shapely import set_precision
+
+        noded = unary_union(set_precision(noded, grid))
     return [f for f in polygonize(noded) if f.area >= MIN_FACE_AREA]
 
 

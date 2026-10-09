@@ -323,7 +323,7 @@ class MainWindow(QMainWindow):
 def _anchor(e: ir.Entity):
     if isinstance(e, ir.Line):
         return ((e.p1[0] + e.p2[0]) / 2, (e.p1[1] + e.p2[1]) / 2)
-    if isinstance(e, (ir.Circle, ir.Arc)):
+    if isinstance(e, (ir.Circle, ir.Arc, ir.Ellipse)):
         return e.center
     if isinstance(e, ir.Dimension):
         return e.line_point or e.p1 or e.center

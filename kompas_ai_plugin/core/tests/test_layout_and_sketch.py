@@ -67,3 +67,60 @@ def test_arc_state_read_back_from_kompas():
     assert arc_state(270.87, 4.736, 4.736, 270.87, False) == "flip"
     assert arc_state(270.87, 4.736, 4.736, 270.87, True) == "swapped"
     assert arc_state(270.0, 360.0, 270.0, 0.0, False) == "ok"
+
+
+def test_ellipse_fit_and_merge_from_arcs():
+    import math
+
+    import numpy as np
+
+    from kompas_ai.geometry.ellipses import fit_ellipse, merge_ellipses
+
+    t = np.linspace(0, 2 * math.pi, 50)
+    pts = np.column_stack([10 + 4 * np.cos(t), 20 + 3 * np.sin(t)])
+    (cx, cy), a, b, angle, err = fit_ellipse(pts)
+    assert abs(cx - 10) < 1e-6 and abs(a - 4) < 1e-6 and abs(b - 3) < 1e-6 and err < 1e-6
+    assert angle % 180 < 1e-6 or abs(angle % 180 - 180) < 1e-6
+
+    # an ellipse 4×3 drawn as four arcs (osculating circles at the vertices
+    # stretched to meet): the merge only needs a closed smooth loop near it
+    d = ir.Drawing()
+    k = 0
+    for start in (0, 90, 180, 270):
+        mid = math.radians(start + 45)
+        k += 1
+        # each quarter by the circle through its ends and its middle point
+        p = [(4 * math.cos(math.radians(a)), 3 * math.sin(math.radians(a)))
+             for a in (start, start + 45, start + 90)]
+        (x1, y1), (x2, y2), (x3, y3) = p
+        dd = 2 * (x1 * (y2 - y3) + x2 * (y3 - y1) + x3 * (y1 - y2))
+        ux = ((x1 * x1 + y1 * y1) * (y2 - y3) + (x2 * x2 + y2 * y2) * (y3 - y1)
+              + (x3 * x3 + y3 * y3) * (y1 - y2)) / dd
+        uy = ((x1 * x1 + y1 * y1) * (x3 - x2) + (x2 * x2 + y2 * y2) * (x1 - x3)
+              + (x3 * x3 + y3 * y3) * (x2 - x1)) / dd
+        r = math.dist((ux, uy), p[0])
+        a1 = math.degrees(math.atan2(y1 - uy, x1 - ux)) % 360
+        a2 = math.degrees(math.atan2(y3 - uy, x3 - ux)) % 360
+        d.entities.append(ir.Arc(f"A{k}", center=(ux, uy), radius=r, start_angle=a1, end_angle=a2))
+        _ = mid
+    ids = iter(range(1, 10))
+    assert merge_ellipses(d, lambda prefix: f"{prefix}{next(ids)}") == 1
+    (e,) = d.of_type(ir.Ellipse)
+    assert abs(e.a - 4) < 0.1 and abs(e.b - 3) < 0.1 and not d.of_type(ir.Arc)
+
+
+def test_flange_outline_closed_exactly():
+    import math
+
+    from kompas_ai.model3d.endview import _ends_of, close_loop
+
+    # a flat at y = 9 between two arcs of R20, ends a few hundredths off
+    a = math.degrees(math.asin(9 / 20))
+    segs = [["line", (-17.85, 9.01), (17.87, 8.99)],
+            ["arc", (0.0, 0.0), 20.0, -a, a + 0.05],
+            ["line", (17.85, -9.0), (-17.85, -9.02)],
+            ["arc", (0.0, 0.0), 20.0, 180 - a - 0.03, 180 + a]]
+    out = close_loop(segs)
+    for s, t in zip(out, out[1:] + out[:1]):
+        gap = min(math.dist(p, q) for p in _ends_of(s) for q in _ends_of(t))
+        assert gap < 1e-9

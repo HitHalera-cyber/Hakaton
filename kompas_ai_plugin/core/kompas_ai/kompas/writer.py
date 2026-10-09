@@ -52,6 +52,7 @@ PLAIN_VALUE_RE = re.compile(r"^\d+(?:[.,]\d+)?°?$")
 
 MIN_ANGULAR_RADIUS = 12.0  # sheet mm
 ANG_TEXT_INSIDE = 2.75  # sheet mm from a KOMPAS angular dimension arc to the middle of its value
+ANG_GROWTH = 1.4  # the dimension arc grows at most this much over the source one
 EXT_OVERSHOOT = 2.0  # sheet mm an extension line goes past the dimension line
 
 
@@ -108,7 +109,7 @@ class DrawingWriter:
         elif self.mode == "view":
             self.mode = report.mode = "sheet"
 
-        order = (ir.Hatch, ir.Line, ir.Circle, ir.Arc, ir.PointMark, ir.Text) \
+        order = (ir.Hatch, ir.Line, ir.Circle, ir.Arc, ir.Ellipse, ir.PointMark, ir.Text) \
             + ((ir.Dimension,) if self.with_dimensions else ())
         if self.with_dimensions:
             moved = spread_dimension_lines(drawing.of_type(ir.Dimension))
@@ -160,6 +161,8 @@ class DrawingWriter:
         if isinstance(e, ir.Arc):
             return self.b.arc(self._p(e.center), self._len(e.radius), e.start_angle, e.end_angle,
                               STYLE_IDS.get(e.style, 1))
+        if isinstance(e, ir.Ellipse):
+            return self._ellipse(e)
         if isinstance(e, ir.PointMark):
             return self.b.point(self._p(e.position))
         if isinstance(e, ir.Text):
@@ -174,6 +177,26 @@ class DrawingWriter:
         if isinstance(e, ir.Dimension):
             return self._dimension(e)
         return False
+
+    def _ellipse(self, e: ir.Ellipse):
+        style = STYLE_IDS.get(e.style, 1)
+        if hasattr(self.b, "ellipse"):
+            try:
+                ref = self.b.ellipse(self._p(e.center), self._len(e.a), self._len(e.b), e.angle,
+                                     style)
+                if ref:
+                    return ref
+            except Exception:
+                pass
+        # no ellipse in this KOMPAS: the arcs and lines of the source
+        refs = []
+        for piece in e.arcs:
+            if piece[0] == "line":
+                refs.append(self.b.line(self._p(piece[1]), self._p(piece[2]), style))
+            else:
+                refs.append(self.b.arc(self._p(piece[1]), self._len(piece[2]), piece[3], piece[4],
+                                       style))
+        return refs[0] if refs and all(refs) else None
 
     def _indexed_text(self, e: ir.Text):
         """One text with indices if KOMPAS can, else each part at its own place."""
@@ -224,6 +247,13 @@ class DrawingWriter:
                 # (0,5×45° next to 3,2H12 and 4,5±0,1): KOMPAS would put it on
                 # the left over the neighbours
                 right = d.text_center[0] > max(d.p1[0], d.p2[0]) + 1.0
+                left = d.text_center[0] < min(d.p1[0], d.p2[0]) - 1.0
+                if left and "text_offset" in _params(self.b.linear_dim):
+                    # the value left of a small size, as on the source (KOMPAS
+                    # would put it on the right, over its neighbours)
+                    mid = (d.p1[0] + d.p2[0]) / 2
+                    return self.b.linear_dim(p1, p2, offset, kind, text,
+                                             text_offset=round(d.text_center[0] - mid, 2))
                 return self.b.linear_dim(p1, p2, offset, kind, text, text_right=right,
                                          line_point=self._p(((d.p1[0] + d.p2[0]) / 2, line[1])))
             return self.b.linear_dim(p1, p2, offset, kind, text)
@@ -237,8 +267,14 @@ class DrawingWriter:
                     and "text_dist" in _params(self.b.radial_dim):
                 # the value goes where the source has it: usually on the far
                 # side of the centre, off a small fillet
+                # KOMPAS moves the value outwards from the arc for a positive
+                # textPos (api_test13); a value written on the centre's side of
+                # the arrow gets a negative one
+                out = (d.text_pos[0] - d.p1[0]) * (d.p1[0] - d.center[0]) \
+                    + (d.text_pos[1] - d.p1[1]) * (d.p1[1] - d.center[1])
+                dist = math.dist(d.p1, d.text_pos) * (1 if out >= 0 else -1)
                 return self.b.radial_dim(self._p(d.center), self._len(d.radius), angle, False,
-                                         text, text_dist=round(math.dist(d.p1, d.text_pos), 2))
+                                         text, text_dist=round(dist, 2))
             return self.b.radial_dim(self._p(d.center), self._len(d.radius), angle,
                                      d.dim_type == "diameter", text)
         if d.dim_type == "angular" and d.center and d.p1 and d.p2:
@@ -262,7 +298,10 @@ class DrawingWriter:
                 # KOMPAS writes the value inside the arc (api_test12): the arc
                 # goes out far enough for the value to stand where the source
                 # has it, clear of the dimensions inside the angle.
-                radius = max(radius, math.dist(d.center, d.text_center) + ANG_TEXT_INSIDE)
+                wanted = math.dist(d.center, d.text_center) + ANG_TEXT_INSIDE
+                # not much past the source arc: two small angles side by side
+                # (45° and 45° at a chamfer) would run into each other
+                radius = max(radius, min(wanted, ANG_GROWTH * (d.radius or radius)))
             if "extension" not in _params(self.b.angular_dim):
                 return self.b.angular_dim(self._p(d.center), a1, a2, radius, text)
             # KOMPAS draws extension lines from the vertex (on a cone they meet

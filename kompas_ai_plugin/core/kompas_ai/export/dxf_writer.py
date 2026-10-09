@@ -42,6 +42,10 @@ def write_dxf(drawing: ir.Drawing, path: str | Path) -> None:
             msp.add_line(e.p1, e.p2, dxfattribs={"layer": _layer(e.style)})
         elif isinstance(e, ir.Circle):
             msp.add_circle(e.center, e.radius, dxfattribs={"layer": _layer(e.style)})
+        elif isinstance(e, ir.Ellipse):
+            t = math.radians(e.angle)
+            msp.add_ellipse(e.center, major_axis=(e.a * math.cos(t), e.a * math.sin(t)),
+                            ratio=e.b / e.a, dxfattribs={"layer": _layer(e.style)})
         elif isinstance(e, ir.Arc):
             msp.add_arc(e.center, e.radius, e.start_angle, e.end_angle,
                         dxfattribs={"layer": _layer(e.style)})

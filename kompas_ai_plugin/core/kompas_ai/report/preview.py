@@ -106,6 +106,16 @@ def _draw_entity(shape, e: ir.Entity, pt) -> None:
         color = COLORS[ir.STYLE_AXIAL] if e.style == ir.STYLE_AXIAL else COLORS["curve"]
         _polyline(shape, _arc_points(e.center, e.radius, start, sweep, pt), color, 1.6)
         anchor = e.center
+    elif isinstance(e, ir.Ellipse):
+        t = math.radians(e.angle)
+        pts = []
+        for k in range(73):
+            u = math.radians(5 * k)
+            x, y = e.a * math.cos(u), e.b * math.sin(u)
+            pts.append(pt((e.center[0] + x * math.cos(t) - y * math.sin(t),
+                           e.center[1] + x * math.sin(t) + y * math.cos(t))))
+        _polyline(shape, pts, COLORS["curve"], 1.6)
+        anchor = e.center
     elif isinstance(e, ir.Dimension):
         color = COLORS["dim"]
         pts = [p for p in (e.p1, e.p2) if p]

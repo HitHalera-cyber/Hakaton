@@ -280,6 +280,23 @@ class Api5Backend:
             raise RuntimeError(f"найдено только {found}")
         return {0: found["start"], 1: found["end"]}
 
+    def ellipse(self, center, a, b, angle, style):
+        """API7 ellipse (late binding, as the arcs), else API5 ksEllipse."""
+        try:
+            from win32com.client import dynamic
+
+            e = dynamic.Dispatch(self._api7_drawing()._oleobj_).Ellipses.Add()
+            e.Xc, e.Yc, e.SemiAxisA, e.SemiAxisB, e.Angle, e.Style = \
+                center[0], center[1], a, b, angle, style
+            if e.Update():
+                return e
+        except Exception as exc:
+            self.log(f"  эллипс через API7: {exc!r} — пробую API5")
+        par = self._param("ko_EllipseParam", "ksEllipseParam")
+        par.Init()
+        par.xc, par.yc, par.a, par.b, par.ang, par.style = center[0], center[1], a, b, angle, style
+        return self.doc.ksEllipse(par)
+
     # --- parametric constraints (API7, prototype/api_test10.py) ---------------------
 
     CONSTRAINTS = {"horizontal": "ksCHorizontal", "vertical": "ksCVertical",
@@ -351,7 +368,8 @@ class Api5Backend:
             self._drawing7 = CastTo(self._api7_view(), "IDrawingContainer")
         return self._drawing7
 
-    def linear_dim(self, p1, p2, offset, kind, text, text_right=False, line_point=None):
+    def linear_dim(self, p1, p2, offset, kind, text, text_right=False, line_point=None,
+                   text_offset=None):
         """``text_right``: the value goes on the dimension line extended past the
         right extension line, like on the source (API7 ShelfDirection = 1,
         api_test12 variant I) — for small sizes whose value does not fit."""
@@ -363,7 +381,7 @@ class Api5Backend:
                     return ref
             except Exception as exc:
                 self.log(f"  размер с текстом справа через API7: {exc!r} — строю через API5")
-        return self._linear5(p1, p2, offset, kind, text)
+        return self._linear5(p1, p2, offset, kind, text, text_offset)
 
     def _linear7(self, p1, p2, line_point, text):
         from win32com.client import CastTo
@@ -380,16 +398,26 @@ class Api5Backend:
             t.NominalText.Str = kompas_text(text.value)
         return dim if dim.Update() else None
 
-    def _linear5(self, p1, p2, offset, kind, text):
+    def _linear5(self, p1, p2, offset, kind, text, text_offset=None):
+        """``text_offset``: where the value stands along the dimension line,
+        sheet mm from its middle (ksDimDrawingParam.textPos, like the radius
+        in api_test13; to be confirmed by api_test14)."""
         par = self._param("ko_LDimParam", "ksLDimParam")
         src = self._sub("ksLDimSourceParam", par.GetSPar())
         src.Init()
         src.x1, src.y1, src.x2, src.y2 = p1[0], p1[1], p2[0], p2[1]
         src.dx, src.dy = offset
         src.basePoint, src.ps = 1, kind
-        self._sub("ksDimDrawingParam", par.GetDPar()).Init()
+        drw = self._sub("ksDimDrawingParam", par.GetDPar())
+        drw.Init()
+        if text_offset is not None:
+            drw.textPos = text_offset
         self._set_text(self._sub("ksDimTextParam", par.GetTPar()), text)
-        return self.doc.ksLinDimension(par)
+        ref = self.doc.ksLinDimension(par)
+        if not ref and text_offset is not None:
+            drw.textPos = 0
+            ref = self.doc.ksLinDimension(par)
+        return ref
 
     def radial_dim(self, center, radius, angle, diameter, text, text_dist=None):
         """``text_dist``: distance in sheet mm from the arrow on the arc to the
@@ -442,7 +470,7 @@ class Api5Backend:
 
     # --- 3D -----------------------------------------------------------------------------
 
-    def revolve_part(self, loops, path: str, threads=(), log=None) -> bool:
+    def revolve_part(self, loops, path: str, threads=(), log=None, flange=None) -> bool:
         """A part made by revolving closed profile loops 360° around the X axis.
 
         Calls confirmed by prototype/api_test9.py and api_test11.py (KOMPAS v23):
@@ -478,6 +506,11 @@ class Api5Backend:
         rdef.SetSketch(sketch)
         if not rot.Create():
             raise RuntimeError(f"Операция вращения не выполнена (код {self.last_error()})")
+        if flange is not None:
+            try:
+                self._flange(part, flange, log)
+            except Exception as exc:
+                log(f"Фланец по виду с торца: {exc!r}")
         for t in threads:
             try:
                 ok = self._thread(part, t)
@@ -485,6 +518,59 @@ class Api5Backend:
             except Exception as exc:
                 log(f"Резьба {t.text()}: {exc!r}")
         return bool(doc3d.SaveAs(path))
+
+    def _flange(self, part, flange, log) -> None:
+        """The flange outline of the end view (model3d.endview.FlangeSpec): the
+        outline extruded over the flange (adds what reaches past the revolved
+        disc) and everything outside it cut away there (flats, notches). The
+        flange is centred on the YOZ plane (the caller shifts the profile), so
+        both are made to both sides by half the thickness."""
+        c, m = self.constants, self.m
+        half = (flange.x1 - flange.x0) / 2
+        # In a sketch on YOZ the sketch x is taken as Z and y as Y; the outline's
+        # first coordinate lies in the section plane (Y), so the coordinates swap.
+        outline = [_swap_xy(sg) for sg in flange.loop]
+        r = flange.radius + 10.0
+        square = [("line", (-r, -r), (r, -r)), ("line", (r, -r), (r, r)),
+                  ("line", (r, r), (-r, r)), ("line", (-r, r), (-r, -r))]
+        for name, loops, entity, interface in (
+                ("выдавливание контура", [outline], c.o3d_bossExtrusion,
+                 "ksBossExtrusionDefinition"),
+                ("вырез вокруг контура", [square, outline], c.o3d_cutExtrusion,
+                 "ksCutExtrusionDefinition")):
+            sketch = self._plane_sketch(part, c.o3d_planeYOZ, loops)
+            op = part.NewEntity(entity)
+            d = getattr(m, interface)(op.GetDefinition())
+            if entity == c.o3d_cutExtrusion:
+                d.cut = True
+            d.directionType = c.dtBoth
+            d.SetSideParam(True, c.etBlind, half, 0.0, False)
+            d.SetSideParam(False, c.etBlind, half, 0.0, False)
+            d.SetSketch(sketch)
+            log(f"Фланец: {name} — {'выполнено' if op.Create() else 'не выполнено'}")
+
+    def _plane_sketch(self, part, plane, loops):
+        m = self.m
+        sketch = part.NewEntity(self.constants.o3d_sketch)
+        sdef = m.ksSketchDefinition(sketch.GetDefinition())
+        sdef.SetPlane(part.GetDefaultEntity(plane))
+        sketch.Create()
+        d2 = sdef.BeginEdit()
+        self._draw5(d2, loops)
+        sdef.EndEdit()
+        return sketch
+
+    @staticmethod
+    def _draw5(d2, loops):
+        for loop in loops:
+            for seg in loop:
+                if seg[0] == "line":
+                    (ax, ay), (bx, by) = seg[1], seg[2]
+                    if math.hypot(bx - ax, by - ay) > 1e-6:
+                        d2.ksLineSeg(ax, ay, bx, by, 1)
+                else:
+                    (cx, cy), r, a1, a2 = seg[1], seg[2], seg[3], seg[4]
+                    d2.ksArcByAngle(cx, cy, r, a1, a2, 1, 1)
 
     @staticmethod
     def _sketch_extent(loops):
@@ -588,6 +674,15 @@ class Api5Backend:
         tdef.outside = t.outside
         tdef.SetBaseObject(faces.First())
         return bool(thread.Create())
+
+
+def _swap_xy(seg):
+    """The segment mirrored in the line y = x (x and y swap); an arc keeps
+    running counter-clockwise."""
+    if seg[0] == "line":
+        return ("line", (seg[1][1], seg[1][0]), (seg[2][1], seg[2][0]))
+    (cx, cy), r, a1, a2 = seg[1], seg[2], seg[3], seg[4]
+    return ("arc", (cy, cx), r, (90.0 - a2) % 360.0, (90.0 - a1) % 360.0)
 
 
 def _same_angle(a: float, b: float, tol: float = 0.01) -> bool:

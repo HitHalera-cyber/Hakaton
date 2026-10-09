@@ -13,6 +13,7 @@ from pathlib import Path
 import pymupdf
 from PySide6.QtCore import QObject, Signal
 
+from .. import ir
 from ..pipeline import recognize_pdf
 from ..report.preview import render_preview_png
 
@@ -110,12 +111,31 @@ class RevolveJob(QObject):
                 self.progress.emit("Подключение к КОМПАС…")
                 backend = Api5Backend(log=self.progress.emit)
                 self.progress.emit("Эскиз профиля и операция вращения…")
-                from ..model3d.revolve import drawing_radii, profile_segments, thread_specs
+                from ..model3d.endview import find_flange
+                from ..model3d.revolve import (drawing_radii, profile_segments, shift_loops,
+                                               thread_specs)
 
                 loops = profile_segments(profile, drawing_radii(self.drawing))
                 threads = thread_specs(self.drawing, profile, loops)
+                flange = None
+                try:
+                    flange = find_flange(self.drawing, profile, loops)
+                except Exception as exc:
+                    self.progress.emit(f"Вид с торца не разобран: {exc!r}")
+                if flange is not None:
+                    self.progress.emit(flange.summary())
+                    # the flange in the middle of the YOZ plane (see Api5Backend._flange)
+                    shift = -(flange.x0 + flange.x1) / 2
+                    loops = shift_loops(loops, shift)
+                    flange.x0, flange.x1 = flange.x0 + shift, flange.x1 + shift
+                    for t in threads:
+                        t.x += shift
+                ellipses = len(self.drawing.of_type(ir.Ellipse))
+                if ellipses:
+                    self.progress.emit(f"Отверстий под углом (эллипсов на чертеже): {ellipses} — "
+                                       "в модели пока не строятся")
                 saved = backend.revolve_part(loops, str(self.out), threads,
-                                             log=self.progress.emit)
+                                             log=self.progress.emit, flange=flange)
                 self.finished.emit(profile.summary() + "\n" + (
                     f"3D-деталь сохранена: {self.out}" if saved else f"Не удалось сохранить {self.out}"))
             finally:

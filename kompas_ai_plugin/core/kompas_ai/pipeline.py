@@ -18,6 +18,7 @@ from pathlib import Path
 from . import ir
 from .geometry.chains import build_chains
 from .geometry.constraints import find_constraints
+from .geometry.ellipses import merge_ellipses
 from .geometry.linetypes import merge_dashed
 from .geometry.regularize import regularize
 from .geometry.scaling import check_dimension, resolve_scale, scale_text, snap_scale
@@ -185,6 +186,9 @@ def _build_entities(drawing, geometry, is_thin, found, plain_texts, regions, orp
         drawing.entities.append(ir.Hatch(
             new_id("H"), 0.5, ["Граница штриховки не найдена"], angle=round(g.angle, 2),
             spacing=round(g.spacing, 3), contours=[], line_count=len(g.lines)))
+    merged = merge_ellipses(drawing, new_id)
+    if merged:
+        drawing.processing.append(f"Эллипсов собрано из дуг: {merged}")
 
 
 def _geometry_confidence(p: Primitive) -> tuple[float, list[str]]:

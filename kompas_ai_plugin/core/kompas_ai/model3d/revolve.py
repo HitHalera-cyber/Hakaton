@@ -124,6 +124,13 @@ def _within_axis_span(poly, axis) -> bool:
 def _view_half(drawing, axis, side):
     """The faces of the outline on one side of the axis that are connected to
     the axis — one half of the view, without the other views of the sheet."""
+    prims = main_primitives(drawing)
+    prims.append(Primitive("line", list(axis), 0.25, 0.0, p1=axis[0], p2=axis[1]))
+    return _connected_half(prims, axis, side)
+
+
+def main_primitives(drawing) -> list[Primitive]:
+    """The main (contour) lines, circles and arcs of the drawing as primitives."""
     prims = []
     for e in drawing.entities:
         if isinstance(e, ir.Line) and e.style == ir.STYLE_MAIN:
@@ -135,7 +142,10 @@ def _view_half(drawing, axis, side):
             prims.append(Primitive("arc", [], 0.5, 0.0, center=e.center, radius=e.radius,
                                    start_angle=e.start_angle, end_angle=e.end_angle,
                                    sweep=sweep))
-    prims.append(Primitive("line", list(axis), 0.25, 0.0, p1=axis[0], p2=axis[1]))
+    return prims
+
+
+def _connected_half(prims, axis, side):
     half = _half_plane(axis, side)
     faces = [f for f in contour_faces(prims) if f.intersection(half).area >= 0.95 * f.area
              and _within_axis_span(f, axis)]
@@ -435,3 +445,17 @@ def drawing_radii(drawing: ir.Drawing) -> list[float]:
     """Radii written on the drawing (R1, R0,5…), model mm: fillets get them exactly."""
     return sorted({d.nominal for d in drawing.of_type(ir.Dimension)
                    if d.dim_type == "radius" and d.nominal})
+
+
+def shift_loops(loops, dx: float):
+    """The loops moved by dx along the axis."""
+    out = []
+    for loop in loops:
+        moved = []
+        for s in loop:
+            if s[0] == "line":
+                moved.append(("line", (s[1][0] + dx, s[1][1]), (s[2][0] + dx, s[2][1])))
+            else:
+                moved.append(("arc", (s[1][0] + dx, s[1][1]), s[2], s[3], s[4]))
+        out.append(moved)
+    return out
