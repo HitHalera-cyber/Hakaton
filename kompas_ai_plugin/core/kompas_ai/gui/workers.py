@@ -43,9 +43,10 @@ class KompasJob(QObject):
     finished = Signal(str)  # report text
     failed = Signal(str)
 
-    def __init__(self, drawing, out_cdw: Path, mode: str):
+    def __init__(self, drawing, out_cdw: Path, mode: str, with_dimensions: bool = True):
         super().__init__()
         self.drawing, self.out, self.mode = drawing, out_cdw, mode
+        self.with_dimensions = with_dimensions
 
     def run(self) -> None:
         if sys.platform != "win32":
@@ -62,7 +63,8 @@ class KompasJob(QObject):
                 self.progress.emit("Подключение к КОМПАС (первый раз — до пары минут)…")
                 backend = Api5Backend(log=self.progress.emit)
                 self.progress.emit("Построение объектов…")
-                report = DrawingWriter(backend, mode=self.mode).write(self.drawing)
+                report = DrawingWriter(backend, mode=self.mode,
+                                       with_dimensions=self.with_dimensions).write(self.drawing)
                 saved = backend.save(str(self.out))
                 text = report.text() + ("\n" + (f"Сохранено: {self.out}" if saved
                                                  else f"Не удалось сохранить {self.out}"))

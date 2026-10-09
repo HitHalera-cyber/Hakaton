@@ -47,9 +47,11 @@ class WriteReport:
 
 
 class DrawingWriter:
-    def __init__(self, backend: Backend, mode: str = "sheet"):
+    def __init__(self, backend: Backend, mode: str = "sheet", with_dimensions: bool = True):
         self.b = backend
         self.mode = mode
+        # False: a plain drawing (lines, arcs, texts, hatches) without dimensions
+        self.with_dimensions = with_dimensions
         self.scale = 1.0
         self.origin = (0.0, 0.0)  # sheet point of the view origin (view mode)
 
@@ -84,7 +86,8 @@ class DrawingWriter:
         elif self.mode == "view":
             self.mode = report.mode = "sheet"
 
-        order = (ir.Hatch, ir.Line, ir.Circle, ir.Arc, ir.PointMark, ir.Text, ir.Dimension)
+        order = (ir.Hatch, ir.Line, ir.Circle, ir.Arc, ir.PointMark, ir.Text) \
+            + ((ir.Dimension,) if self.with_dimensions else ())
         for cls in order:
             for e in drawing.of_type(cls):
                 try:

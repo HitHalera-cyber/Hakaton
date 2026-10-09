@@ -11,7 +11,7 @@ from pathlib import Path
 from PySide6.QtCore import QSettings, Qt, QThread
 from PySide6.QtGui import (QAction, QBrush, QColor, QFont, QIcon, QKeySequence, QPainter, QPen,
                            QPixmap)
-from PySide6.QtWidgets import (QApplication, QComboBox, QFileDialog, QGraphicsEllipseItem,
+from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog, QGraphicsEllipseItem,
                                QGraphicsScene, QGraphicsView, QLabel, QListWidget,
                                QListWidgetItem, QMainWindow, QMessageBox, QPlainTextEdit,
                                QSplitter, QToolBar, QVBoxLayout, QWidget)
@@ -24,6 +24,7 @@ from .workers import PREVIEW_DPI, KompasJob, RecognizeJob
 
 APP_NAME = "КОМПАС-AI"
 MODES = [("Точно по размерам", True), ("Как в PDF (без выравнивания)", False)]
+BUILD_MODES = [("Вид с масштабом чертежа", "view"), ("В миллиметрах листа", "sheet")]
 
 
 class PreviewView(QGraphicsView):
@@ -125,6 +126,19 @@ class MainWindow(QMainWindow):
         bar.addWidget(self.mode)
         bar.addSeparator()
 
+        self.build_mode = QComboBox()
+        for name, _ in BUILD_MODES:
+            self.build_mode.addItem(name)
+        self.build_mode.setToolTip(
+            "Вид с масштабом: деталь в настоящих размерах, КОМПАС сам считает размеры "
+            "(нужна лицензия, иначе — мм листа).\nВ миллиметрах листа: как на PDF, "
+            "числа размеров вписываются из PDF.")
+        bar.addWidget(self.build_mode)
+        self.dims_box = QCheckBox("Размеры")
+        self.dims_box.setChecked(True)
+        self.dims_box.setToolTip("Снимите, чтобы построить просто чертёж — без размеров")
+        bar.addWidget(self.dims_box)
+
         self.build_act = QAction("Построить в КОМПАС", self)
         self.build_act.triggered.connect(self.build_in_kompas)
         if sys.platform != "win32":
@@ -225,7 +239,8 @@ class MainWindow(QMainWindow):
             return
         self._set_ready(False)
         self.statusBar().showMessage("Строю чертёж в КОМПАС…")
-        job = KompasJob(self.drawing, Path(name), "sheet")
+        job = KompasJob(self.drawing, Path(name), BUILD_MODES[self.build_mode.currentIndex()][1],
+                        with_dimensions=self.dims_box.isChecked())
         job.progress.connect(self._log)
         job.finished.connect(self.on_built)
         job.failed.connect(self.on_failed)
