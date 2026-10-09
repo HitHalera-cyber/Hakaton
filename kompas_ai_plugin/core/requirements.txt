@@ -1,5 +1,5 @@
 pymupdf>=1.24
-numpy>=1.24
+numpy>=1.24,<2.4  # 2.5 fails to initialise on some PCs ("DLL initialization routine failed")
 ezdxf>=1.1
 shapely>=2.0
 pytest>=7
