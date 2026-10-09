@@ -217,7 +217,8 @@ def _dimension_entity(d: FoundDimension, dim_id: str, ref_ids, scale: float) -> 
         dim_id, conf, notes, dim_type=d.dim_type, text=d.text.raw.text, nominal=d.text.value,
         measured=round(d.measured, 4), p1=_r(d.p1), p2=_r(d.p2), line_point=_r(d.line_point),
         center=_r(d.center), radius=round(d.radius, 4) if d.radius else None,
-        orientation=d.orientation, ref=ref_ids.get(id(d.ref)) if d.ref is not None else None)
+        orientation=d.orientation, ref=ref_ids.get(id(d.ref)) if d.ref is not None else None,
+        text_pos=_r(d.text.raw.origin))
 
 
 def _other_view_scale(d: FoundDimension, sheet_scale: float) -> str | None:

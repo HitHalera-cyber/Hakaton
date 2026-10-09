@@ -55,3 +55,26 @@ def test_profile_segments_close_and_keep_arcs():
                 (c[0] + r * math.cos(math.radians(a2)), c[1] + r * math.sin(math.radians(a2))))
     for s1, s2 in zip(loop, loop[1:] + loop[:1]):
         assert min(math.dist(a, b) for a in ends(s1) for b in ends(s2)) < 1e-6
+
+
+def test_thread_from_metric_dimension():
+    d = ir.Drawing(source="synthetic")
+    d.scale = ir.Scale(value=2.0, text="2:1", source="title_block")
+    y0, k = 100.0, 2.0
+    pts = [(0, 10), (30, 10), (30, 15), (70, 15), (70, -15), (30, -15), (30, -10), (0, -10)]
+    pts = [(50 + x * k, y0 + y * k) for x, y in pts]
+    d.entities = [_line(i, a, b) for i, (a, b) in enumerate(zip(pts, pts[1:] + pts[:1]))]
+    d.entities.append(_line(99, (40.0, y0), (200.0, y0), ir.STYLE_AXIAL))
+    d.entities.append(ir.Dimension("D1", 0.95, [], dim_type="linear", text="M20×1,5"))
+    from kompas_ai.model3d.revolve import profile_segments, thread_specs
+
+    p = find_revolve_profile(d)
+    (t,) = thread_specs(d, p, profile_segments(p))
+    assert (t.diameter, t.pitch, t.outside) == (20.0, 1.5, True)
+    assert abs(t.radius - 10.0) < 1e-6 and 0.0 < t.x < 30.0
+
+
+def test_multiplication_sign_for_kompas():
+    from kompas_ai.kompas.api5 import kompas_text
+
+    assert kompas_text("1×45°") == "1x45°" and kompas_text("M22×1,5") == "M22x1,5"

@@ -13,9 +13,10 @@ start, y the distance from the axis (≥ 0).
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass
 
-from shapely.geometry import LineString, Polygon, box
+from shapely.geometry import LineString, Point, Polygon, box
 from shapely.ops import unary_union
 
 from .. import ir
@@ -229,8 +230,46 @@ def profile_segments(profile: RevolveProfile) -> list[list[tuple]]:
                 if mirrored:
                     b1, b2 = b2, b1
                 segs.append(["arc", model(p.center), p.radius / k, b1, b2])
-        out.append([tuple(s) for s in _join_ends(segs)])
+        out.append([tuple(s) for s in _join_ends(_straighten(segs))])
     return out
+
+
+STRAIGHT = 0.02  # model mm
+
+
+def _straighten(segs):
+    """Lines within STRAIGHT of horizontal/vertical become exactly so (the
+    drawing's geometry carries a few micrometres of noise); the neighbours
+    follow the moved ends."""
+    for s in segs:
+        if s[0] != "line":
+            continue
+        (x1, y1), (x2, y2) = s[1], s[2]
+        if abs(y2 - y1) <= STRAIGHT and abs(x2 - x1) > STRAIGHT:
+            y = (y1 + y2) / 2
+            s[1], s[2] = (x1, y), (x2, y)
+        elif abs(x2 - x1) <= STRAIGHT and abs(y2 - y1) > STRAIGHT:
+            x = (x1 + x2) / 2
+            s[1], s[2] = (x, y1), (x, y2)
+    # line–line joints: both ends to the intersection of the two lines
+    n = len(segs)
+    for i in range(n):
+        a, b = segs[i], segs[(i + 1) % n]
+        if a[0] == "line" and b[0] == "line":
+            p = _cross(a[1], a[2], b[1], b[2])
+            if p is not None and math.dist(p, a[2]) <= 0.05 and math.dist(p, b[1]) <= 0.05:
+                a[2] = b[1] = p
+    return segs
+
+
+def _cross(p1, p2, p3, p4):
+    d = (p1[0] - p2[0]) * (p3[1] - p4[1]) - (p1[1] - p2[1]) * (p3[0] - p4[0])
+    if abs(d) < 1e-12:
+        return None
+    a = p1[0] * p2[1] - p1[1] * p2[0]
+    b = p3[0] * p4[1] - p3[1] * p4[0]
+    return ((a * (p3[0] - p4[0]) - (p1[0] - p2[0]) * b) / d,
+            (a * (p3[1] - p4[1]) - (p1[1] - p2[1]) * b) / d)
 
 
 def _seg_ends(s):
@@ -254,3 +293,53 @@ def _join_ends(segs):
                 if math.dist(best, s[k]) <= 0.05:
                     s[k] = best
     return segs
+
+
+COARSE_PITCH = {3: 0.5, 4: 0.7, 5: 0.8, 6: 1.0, 8: 1.25, 10: 1.5, 12: 1.75, 14: 2.0, 16: 2.0,
+                18: 2.5, 20: 2.5, 22: 2.5, 24: 3.0, 27: 3.0, 30: 3.5, 36: 4.0, 42: 4.5, 48: 5.0}
+
+
+@dataclass
+class ThreadSpec:
+    diameter: float  # nominal, mm
+    pitch: float
+    x: float  # a point on the threaded cylinder: along the axis …
+    radius: float  # … and its radius (model mm)
+    outside: bool  # external thread (on a shaft) or internal (in a bore)
+
+    def text(self) -> str:
+        return f"M{self.diameter:g}×{self.pitch:g}".replace(".", ",") + \
+            (" наружная" if self.outside else " внутренняя")
+
+
+def thread_specs(drawing: ir.Drawing, profile: RevolveProfile, loops) -> list[ThreadSpec]:
+    """Threads from the «M22×1,5» dimensions: the cylinder of the profile with
+    that diameter (outer or bore)."""
+    region = unary_union([Polygon(r) for r in profile.rings]) if profile.rings else None
+    out = []
+    for d in drawing.of_type(ir.Dimension):
+        m = re.match(r"^M(\d+(?:[.,]\d+)?)(?:\s*[x×]\s*(\d+(?:[.,]\d+)?))?", d.text.strip())
+        if not m:
+            continue
+        dia = float(m.group(1).replace(",", "."))
+        pitch = float(m.group(2).replace(",", ".")) if m.group(2) \
+            else COARSE_PITCH.get(int(round(dia)), 1.5)
+        best = None
+        for loop in loops:
+            for s in loop:
+                if s[0] != "line" or abs(s[1][1] - s[2][1]) > STRAIGHT:
+                    continue
+                r = s[1][1]
+                # a thread is drawn at the major diameter outside, the minor in a bore
+                if abs(2 * r - dia) <= max(0.25 * pitch * 2, 0.6):
+                    length = abs(s[2][0] - s[1][0])
+                    if best is None or length > best[0]:
+                        best = (length, s)
+        if best is None:
+            continue
+        s = best[1]
+        x = (s[1][0] + s[2][0]) / 2
+        r = s[1][1]
+        outside = region is not None and region.contains(Point(x, r - 0.05))
+        out.append(ThreadSpec(dia, pitch, x, r, outside))
+    return out

@@ -50,6 +50,18 @@ class WriteReport:
 PLAIN_VALUE_RE = re.compile(r"^\d+(?:[.,]\d+)?°?$")
 
 
+MIN_ANGULAR_RADIUS = 12.0  # sheet mm
+
+
+def _params(func) -> set[str]:
+    import inspect
+
+    try:
+        return set(inspect.signature(func).parameters)
+    except (TypeError, ValueError):
+        return set()
+
+
 class DrawingWriter:
     def __init__(self, backend: Backend, mode: str = "sheet", with_dimensions: bool = True):
         self.b = backend
@@ -205,6 +217,10 @@ class DrawingWriter:
                 angle = math.degrees(math.atan2(d.p1[1] - d.center[1], d.p1[0] - d.center[0]))
             if d.dim_type == "radius" and not text.auto:
                 text.value = "R" + text.value.lstrip("R")
+            shelf = self._p(d.text_pos) if d.text_pos and d.dim_type == "radius" else None
+            if shelf is not None and "shelf" in _params(self.b.radial_dim):
+                return self.b.radial_dim(self._p(d.center), self._len(d.radius), angle,
+                                         False, text, shelf=shelf)
             return self.b.radial_dim(self._p(d.center), self._len(d.radius), angle,
                                      d.dim_type == "diameter", text)
         if d.dim_type == "angular" and d.center and d.p1 and d.p2:
@@ -222,7 +238,9 @@ class DrawingWriter:
                 mid = a1 + sweep / 2
                 a1, a2 = (mid - d.nominal / 2) % 360.0, (mid + d.nominal / 2) % 360.0
             # the radius of the dimension arc is in sheet mm as well
-            return self.b.angular_dim(self._p(d.center), a1, a2, d.radius or 20.0, text)
+            # never smaller than MIN_ANGULAR_RADIUS: a tiny arc is unreadable
+            return self.b.angular_dim(self._p(d.center), a1, a2,
+                                      max(d.radius or 20.0, MIN_ANGULAR_RADIUS), text)
         return None
 
 
