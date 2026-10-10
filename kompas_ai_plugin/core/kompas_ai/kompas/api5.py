@@ -16,7 +16,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from .backend import LINEAR_HORIZONTAL, DimText, Point
+from .backend import LINEAR_HORIZONTAL, LINEAR_VERTICAL, DimText, Point
 
 FORMAT_DOC_SHEET = 1  # ksDocumentParam.type: drawing with a standard sheet
 
@@ -553,6 +553,12 @@ class Api5Backend:
         """
         log = log or self.log
         m, c = self.m, self.constants
+        if flange is not None:  # sketch axes of the planes used, found on a test part
+            self._plane_axes(0.0, log)
+            for h in flange.holes or []:
+                alpha = _hole_geometry(flange, h)[0]
+                self._plane_axes(alpha, log)
+                self._plane_axes(-alpha, log)
         doc3d = self.kompas.Document3D()
         if not doc3d.Create(False, True):
             raise RuntimeError(f"КОМПАС не создал деталь (код {self.last_error()})")
@@ -604,10 +610,11 @@ class Api5Backend:
         both are made to both sides by half the thickness."""
         c, m = self.constants, self.m
         half = (flange.x1 - flange.x0) / 2
-        # In a sketch on YOZ the sketch x runs along Y and y along Z (read off the
-        # cube of api_test15); the outline's first coordinate lies in the
-        # section plane XOY, i.e. along Y.
-        outline = list(flange.loop)
+        # The outline's first coordinate lies along Y (the section plane XOY),
+        # the second along Z; the sketch axes on YOZ were found by _plane_axes.
+        ex, ey = self._plane_axes(0.0, log)
+        outline = _map_loop(flange.loop, lambda p: (p[0] * ex[1] + p[1] * ex[2],
+                                                    p[0] * ey[1] + p[1] * ey[2]))
         r = flange.radius + 10.0
         square = [("line", (-r, -r), (r, -r)), ("line", (r, -r), (r, r)),
                   ("line", (r, r), (-r, r)), ("line", (-r, r), (-r, -r))]
@@ -638,30 +645,23 @@ class Api5Backend:
     def _angled_hole(self, part, flange, h) -> bool:
         """A hole from the flange face at (x_face, u→Y, v→Z) leaning in the
         X–Z plane: a circle on a plane at angle α to YOZ around the Y axis
-        (sketch x along Y, y along (sin α·X + cos α·Z) — api_test15), cut
-        through everything both ways."""
+        (its sketch axes found by _plane_axes), cut over the hole's length."""
         c, m = self.constants, self.m
-        if abs(h.mu) > 0.05:
-            raise RuntimeError("наклон не в плоскости XZ — пока не строится")
-        beta = math.radians(h.tilt)
-        s = -float(h.into)  # +1: from the face at x1 towards x0
-        dx, dz = -s * math.cos(beta), h.mv * math.sin(beta)
-        x_face = flange.x1 if h.into < 0 else flange.x0
-        alpha = math.atan2(-dz, dx)  # plane normal (cos α, 0, −sin α) along the hole
-        if math.cos(alpha) < 0:
-            alpha += math.pi
-            alpha = (alpha + math.pi) % (2 * math.pi) - math.pi
-        sx, sy, sz = x_face, h.u, h.v
-        t = sx * dx + sz * dz
-        px, py, pz = sx - t * dx, sy, sz - t * dz
-        local = (py, px * math.sin(alpha) + pz * math.cos(alpha))
-        plane = part.NewEntity(c.o3d_planeAngle)
-        pd = m.ksPlaneAngleDefinition(plane.GetDefinition())
-        pd.SetPlane(part.GetDefaultEntity(c.o3d_planeYOZ))
-        pd.SetAxis(part.GetDefaultEntity(c.o3d_axisOY))
-        pd.angle = math.degrees(alpha)
-        if not plane.Create():
-            raise RuntimeError("плоскость под углом не создана")
+        alpha, point, reach, direction = _hole_geometry(flange, h)
+        for kompas_angle in (alpha, -alpha):  # KOMPAS may turn the plane the other way
+            ex, ey = self._plane_axes(kompas_angle, self.log)
+            normal = (ex[1] * ey[2] - ex[2] * ey[1], ex[2] * ey[0] - ex[0] * ey[2],
+                      ex[0] * ey[1] - ex[1] * ey[0])
+            if abs(sum(a * b for a, b in zip(normal, direction))) > 0.99:
+                alpha = kompas_angle
+                break
+        else:
+            raise RuntimeError("плоскость поперёк отверстия не найдена")
+        local = (sum(a * b for a, b in zip(point, ex)), sum(a * b for a, b in zip(point, ey)))
+        if abs(alpha) < 1e-9:
+            plane = part.GetDefaultEntity(c.o3d_planeYOZ)
+        else:
+            plane = self._angle_plane(part, alpha)
         sketch = part.NewEntity(c.o3d_sketch)
         sdef = m.ksSketchDefinition(sketch.GetDefinition())
         sdef.SetPlane(plane)
@@ -673,37 +673,117 @@ class Api5Backend:
         cd = m.ksCutExtrusionDefinition(cut.GetDefinition())
         cd.cut = True
         cd.directionType = c.dtBoth
-        cd.SetSideParam(True, c.etThroughAll, 0.0, 0.0, False)
-        cd.SetSideParam(False, c.etThroughAll, 0.0, 0.0, False)
+        # only as far as the hole goes (through everything it pierced the part
+        # elsewhere when the sketch axes were guessed wrong)
+        cd.SetSideParam(True, c.etBlind, reach, 0.0, False)
+        cd.SetSideParam(False, c.etBlind, reach, 0.0, False)
         cd.SetSketch(sketch)
         return bool(cut.Create())
 
-    def _fillet_after_milling(self, part, flange, f) -> bool:
-        """Round the corner edge left where the profile's fillet was taken out
-        (model3d.endview.fillets_after_milling) — only where the flange still
-        stands, i.e. along the section plane, not on the flats."""
+    def _angle_plane(self, part, alpha):
         c, m = self.constants, self.m
-        # which axis the flats face: a point on a flat (the flange's middle,
-        # at the flats' distance) finds a face on it
-        faces = part.EntityCollection(c.o3d_face)
-        faces.SelectByPoint(0.0, 0.0, flange.inner)
-        along_y = faces.GetCount() > 0  # flats square to Z: the flange stands along Y
-        op = part.NewEntity(c.o3d_fillet)
-        d = m.ksFilletDefinition(op.GetDefinition())
-        d.radius = f.radius
-        d.tangent = True
-        arr = d.array()
-        found = 0
-        for sign in (1.0, -1.0):
-            edges = part.EntityCollection(c.o3d_edge)
-            p = (f.x, sign * f.y, 0.0) if along_y else (f.x, 0.0, sign * f.y)
-            edges.SelectByPoint(*p)
-            if edges.GetCount():
-                arr.Add(edges.First())
-                found += 1
-        if not found:
-            raise RuntimeError("ребро не найдено")
-        return bool(op.Create())
+        plane = part.NewEntity(c.o3d_planeAngle)
+        pd = m.ksPlaneAngleDefinition(plane.GetDefinition())
+        pd.SetPlane(part.GetDefaultEntity(c.o3d_planeYOZ))
+        pd.SetAxis(part.GetDefaultEntity(c.o3d_axisOY))
+        pd.angle = alpha
+        if not plane.Create():
+            raise RuntimeError("плоскость под углом не создана")
+        return plane
+
+    def _plane_axes(self, alpha, log=None):
+        """3D directions of the sketch x and y axes on the plane at ``alpha``
+        degrees to YOZ around the Y axis (0: YOZ itself). Found on a test part:
+        a cube is cut by a circle R1 at sketch (10, 0) and R2 at (0, 10), and
+        the walls of the holes are looked for at the candidate places
+        (the first reading of api_test15 by eye was wrong)."""
+        cache = self.__dict__.setdefault("_axes", {})
+        key = round(alpha, 3)
+        if key in cache:
+            return cache[key]
+        a = math.radians(alpha)
+        y_axis, w = (0.0, 1.0, 0.0), (math.sin(a), 0.0, math.cos(a))
+        try:
+            found = self._probe_plane_axes(alpha, y_axis, w)
+            (log or self.log)(f"  оси эскиза на плоскости {alpha:.1f}°: x = {_vec(found[0])}, "
+                              f"y = {_vec(found[1])}")
+        except Exception as exc:
+            found = (y_axis, w)
+            (log or self.log)(f"  оси эскиза на плоскости {alpha:.1f}° не найдены ({exc!r}) — "
+                              "беру x = Y")
+        cache[key] = found
+        return found
+
+    def _probe_plane_axes(self, alpha, y_axis, w):
+        c, m = self.constants, self.m
+        doc = self.kompas.Document3D()
+        if not doc.Create(False, True):
+            raise RuntimeError("пробная деталь не создана")
+        try:
+            part = doc.GetPart(c.pTop_Part)
+            sk = part.NewEntity(c.o3d_sketch)
+            sd = m.ksSketchDefinition(sk.GetDefinition())
+            sd.SetPlane(part.GetDefaultEntity(c.o3d_planeXOY))
+            sk.Create()
+            d2 = sd.BeginEdit()
+            for x1, y1, x2, y2 in ((-30, -30, 30, -30), (30, -30, 30, 30), (30, 30, -30, 30),
+                                   (-30, 30, -30, -30)):
+                d2.ksLineSeg(x1, y1, x2, y2, 1)
+            sd.EndEdit()
+            ext = part.NewEntity(c.o3d_baseExtrusion)
+            ed = m.ksBaseExtrusionDefinition(ext.GetDefinition())
+            ed.directionType = c.dtBoth
+            ed.SetSideParam(True, c.etBlind, 30.0, 0.0, False)
+            ed.SetSideParam(False, c.etBlind, 30.0, 0.0, False)
+            ed.SetSketch(sk)
+            if not ext.Create():
+                raise RuntimeError("пробный куб не создан")
+            plane = part.GetDefaultEntity(c.o3d_planeYOZ) if abs(alpha) < 1e-9 \
+                else self._angle_plane(part, alpha)
+            sk2 = part.NewEntity(c.o3d_sketch)
+            sd2 = m.ksSketchDefinition(sk2.GetDefinition())
+            sd2.SetPlane(plane)
+            sk2.Create()
+            d3 = sd2.BeginEdit()
+            d3.ksCircle(10.0, 0.0, 1.0, 1)
+            d3.ksCircle(0.0, 10.0, 2.0, 1)
+            sd2.EndEdit()
+            cut = part.NewEntity(c.o3d_cutExtrusion)
+            cd = m.ksCutExtrusionDefinition(cut.GetDefinition())
+            cd.cut = True
+            cd.directionType = c.dtBoth
+            cd.SetSideParam(True, c.etBlind, 20.0, 0.0, False)
+            cd.SetSideParam(False, c.etBlind, 20.0, 0.0, False)
+            cd.SetSketch(sk2)
+            if not cut.Create():
+                raise RuntimeError("пробный вырез не выполнен")
+
+            def wall(direction, r):
+                # a point on the wall of a hole of radius r centred 10 mm along
+                # direction: off the centre square to the direction, in the plane
+                sides = [y_axis] if abs(direction[1]) < 0.5 else [w, w2]
+                for side in sides:
+                    p = [10.0 * direction[k] + r * side[k] for k in range(3)]
+                    faces = part.EntityCollection(c.o3d_face)
+                    faces.SelectByPoint(*p)
+                    if faces.GetCount() > 0:
+                        return True
+                return False
+
+            w2 = (-w[0], w[1], w[2])
+            cands = [y_axis, tuple(-v for v in y_axis), w, tuple(-v for v in w)]
+            if abs(w[0]) > 1e-6:  # the plane may turn either way around Y
+                cands += [w2, tuple(-v for v in w2)]
+            ex = [v for v in cands if wall(v, 1.0)]
+            ey = [v for v in cands if wall(v, 2.0)]
+            if len(ex) != 1 or len(ey) != 1:
+                raise RuntimeError(f"неоднозначно: x {len(ex)}, y {len(ey)}")
+            return ex[0], ey[0]
+        finally:
+            try:
+                doc.close()
+            except Exception:
+                pass
 
     def _plane_sketch(self, part, plane, loops):
         m = self.m
@@ -836,6 +916,53 @@ class Api5Backend:
             pass
         tdef.SetBaseObject(faces.First())
         return bool(thread.Create())
+
+
+def _vec(v) -> str:
+    names = ("X", "Y", "Z")
+    parts = [f"{'-' if x < 0 else '+'}{abs(x):.2f}{n}" for x, n in zip(v, names) if abs(x) > 1e-6]
+    return "".join(parts).lstrip("+") or "0"
+
+
+def _map_loop(loop, f):
+    """Segments through the linear map f of the plane (arcs turned so they
+    still run counter-clockwise when f mirrors)."""
+    a, b = f((1.0, 0.0)), f((0.0, 1.0))
+    mirrored = a[0] * b[1] - a[1] * b[0] < 0
+    out = []
+    for seg in loop:
+        if seg[0] == "line":
+            out.append(("line", f(seg[1]), f(seg[2])))
+            continue
+        (cx, cy), r, a1, a2 = seg[1], seg[2], seg[3], seg[4]
+        c = f((cx, cy))
+
+        def ang(t):
+            p = f((cx + math.cos(math.radians(t)), cy + math.sin(math.radians(t))))
+            return math.degrees(math.atan2(p[1] - c[1], p[0] - c[0])) % 360.0
+
+        b1, b2 = ang(a1), ang(a2)
+        out.append(("arc", c, r, b2, b1) if mirrored else ("arc", c, r, b1, b2))
+    return out
+
+
+def _hole_geometry(flange, h):
+    """(alpha, point, reach) of an angled hole: the plane angle to YOZ around
+    the Y axis (degrees), the point of the hole's axis on that plane through
+    the origin (X, Y, Z) and how far the cut must reach both ways."""
+    beta = math.radians(h.tilt)
+    s = -float(h.into)  # +1: from the face at x1 towards x0
+    dx, dz = -s * math.cos(beta), h.mv * math.sin(beta)
+    x_face = flange.x1 if h.into < 0 else flange.x0
+    alpha = math.atan2(-dz, dx)  # plane normal (cos α, 0, −sin α) along the hole
+    if math.cos(alpha) < 0:
+        alpha = math.atan2(dz, -dx)
+    t = x_face * dx + h.v * dz
+    point = (x_face - t * dx, h.u, h.v - t * dz)
+    # the hole: from the face (t) to where it leaves the flats, and a margin
+    length = max(0.5, (flange.inner - abs(h.v)) / max(math.sin(beta), 1e-6))
+    reach = max(abs(t), abs(t + length)) + 0.5
+    return math.degrees(alpha), point, reach, (dx, 0.0, dz)
 
 
 def _swap_xy(seg):

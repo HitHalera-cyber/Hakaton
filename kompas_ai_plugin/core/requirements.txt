@@ -4,3 +4,4 @@ ezdxf>=1.1
 shapely>=2.0
 pytest>=7
 pywin32>=306; sys_platform == "win32"
+pyflakes>=3  # tests: names used but never defined
