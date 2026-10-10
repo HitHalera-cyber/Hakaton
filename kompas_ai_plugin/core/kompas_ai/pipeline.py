@@ -192,9 +192,40 @@ def _build_entities(drawing, geometry, is_thin, found, plain_texts, regions, orp
         drawing.entities.append(ir.Hatch(
             new_id("H"), 0.5, ["Граница штриховки не найдена"], angle=round(g.angle, 2),
             spacing=round(g.spacing, 3), contours=[], line_count=len(g.lines)))
+    tails = _drop_arrow_tails(drawing)
+    if tails:
+        drawing.processing.append(f"Хвосты стрелок угловых размеров убраны: {tails}")
     merged = merge_ellipses(drawing, new_id)
     if merged:
         drawing.processing.append(f"Эллипсов собрано из дуг: {merged}")
+
+
+def _drop_arrow_tails(drawing, tol: float = 0.3, max_angle: float = 25.0) -> int:
+    """Thin lines that run on from the tip of an angular dimension's arrow
+    along its arc (arrows drawn outside a small angle): KOMPAS draws them
+    itself, as separate lines they are strays."""
+    tips = []
+    for d in drawing.of_type(ir.Dimension):
+        if d.dim_type == "angular" and d.center:
+            for p in (d.p1, d.p2):
+                if p:
+                    tips.append((tuple(p), tuple(d.center)))
+    drop = set()
+    for line in drawing.of_type(ir.Line):
+        if line.style != ir.STYLE_THIN:
+            continue
+        for tip, c in tips:
+            for a, b in ((line.p1, line.p2), (line.p2, line.p1)):
+                if math.dist(a, tip) > tol:
+                    continue
+                radial = math.atan2(tip[1] - c[1], tip[0] - c[0])
+                along = math.atan2(b[1] - a[1], b[0] - a[0])
+                # square to the radius = along the arc's tangent
+                off = abs((math.degrees(along - radial) % 180.0) - 90.0)
+                if off <= max_angle:
+                    drop.add(line.id)
+    drawing.entities = [e for e in drawing.entities if e.id not in drop]
+    return len(drop)
 
 
 def _geometry_confidence(p: Primitive) -> tuple[float, list[str]]:
