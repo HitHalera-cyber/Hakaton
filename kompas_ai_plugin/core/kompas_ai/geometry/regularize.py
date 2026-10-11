@@ -573,6 +573,7 @@ def solve_contour(drawing: ir.Drawing) -> dict:
     Of all positions keeping these, the one nearest the drawing is taken
     (least squares, Gauss–Newton). One rule at a time undid the others:
     joining two ends tilted the horizontal that had just been made exact."""
+    _SKIPPED.clear()
     pieces = [e for e in drawing.entities if isinstance(e, (ir.Line, ir.Arc))
               and e.style == ir.STYLE_MAIN]
     axes = [e for e in drawing.of_type(ir.Line) if e.style == ir.STYLE_AXIAL]
@@ -659,7 +660,7 @@ def solve_contour(drawing: ir.Drawing) -> dict:
 
     x, dropped = x0.copy(), 0
     for _ in range(4):
-        x = _gauss_newton(conds, x0, size)
+        x = _solve_parts(conds, x0, size)
         shift = np.hypot((x - x0)[0::2], (x - x0)[1::2])
         far = {i for i in range(len(shift)) if shift[i] > MAX_NODE_SHIFT}
         if not far:
@@ -673,7 +674,9 @@ def solve_contour(drawing: ir.Drawing) -> dict:
         x = x0.copy()  # no consistent set found: the drawing stays as it is
 
     moved = float(np.abs(x - x0).max())
-    return _write_back(drawing, nodes, arcs, arc_var, x, end, moved, n, len(direction), dropped)
+    result = _write_back(drawing, nodes, arcs, arc_var, x, end, moved, n, len(direction), dropped)
+    result["left_as_drawn"] = list(_SKIPPED)
+    return result
 
 
 MAX_NODE_SHIFT = 0.15  # sheet mm
@@ -688,6 +691,63 @@ def _cond_vars(cond) -> set:
     if kind == "online":
         return {cond[1], cond[2], cond[3]}
     return {cond[1]}
+
+
+MAX_GROUP = 400  # points of one connected outline the fitting takes on
+_SKIPPED: list = []  # sizes of the outlines left as drawn (read by solve_contour)
+
+
+def _point_slots(cond) -> list[int]:
+    """Positions in the condition tuple that hold point indices."""
+    kind = cond[0]
+    if kind == "dir":
+        return [1, 2]
+    if kind in ("circle", "tangent"):
+        return [1, 2]
+    if kind == "online":
+        return [1, 2, 3]
+    return [1]
+
+
+def _solve_parts(conds, x0, size):
+    """The contour's conditions fall apart into groups that share no point
+    (the parts of an assembly, the views of a sheet): each group is solved on
+    its own — the same answer, without one huge system for the whole sheet."""
+    parent = list(range(size // 2))
+
+    def find(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    for c in conds:
+        pts = [c[k] for k in _point_slots(c)]
+        for p in pts[1:]:
+            a, b = find(pts[0]), find(p)
+            if a != b:
+                parent[a] = b
+    groups: dict[int, list] = {}
+    for c in conds:
+        groups.setdefault(find(c[_point_slots(c)[0]]), []).append(c)
+    x = x0.copy()
+    for group in groups.values():
+        points = sorted({c[k] for c in group for k in _point_slots(c)})
+        if len(points) > MAX_GROUP:
+            # an assembly's tangle of lines: too big to fit as one part, it
+            # stays as drawn (the fitting is for the drawings of parts)
+            _SKIPPED.append(len(points))
+            continue
+        local = {p: j for j, p in enumerate(points)}
+        sub = []
+        for c in group:
+            c = list(c)
+            for k in _point_slots(c):
+                c[k] = local[c[k]]
+            sub.append(tuple(c))
+        idx = np.array([v for p in points for v in (2 * p, 2 * p + 1)])
+        x[idx] = _gauss_newton(sub, x0[idx], len(idx))
+    return x
 
 
 def _gauss_newton(conds, x0, size):

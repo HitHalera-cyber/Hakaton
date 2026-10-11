@@ -146,6 +146,10 @@ def recognize_pdf(pdf_path: str | Path, page: int = 0, exact: bool = True,
         drawing.processing.append(
             f"Контур решён как система: узлов {solved.get('nodes', 0)}, направлений задано "
             f"{solved.get('directions', 0)}, наибольший сдвиг {solved.get('moved', 0.0):.3f} мм")
+        if solved.get("left_as_drawn"):
+            drawing.warnings.append(
+                "Слишком сложная связка линий (сборочный чертёж?) — оставлена как в PDF, без "
+                f"выравнивания: узлов {', '.join(map(str, solved['left_as_drawn']))}")
         rebuilt = _rebuild_hatches(drawing)
         if rebuilt:
             drawing.processing.append(f"Штриховки построены заново по точному контуру: {rebuilt}")
