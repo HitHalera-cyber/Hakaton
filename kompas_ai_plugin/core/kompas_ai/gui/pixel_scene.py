@@ -1,16 +1,17 @@
 """The waiting screen: a pixel-art room at dawn, 384 × 216 pixels.
 
-The room and the man resting with his feet on the window sill are the
-concept picture (assets/, made by prototype/room_assets.py): the room
-without him, and him with his chair cut out. He only breathes: his head and
-shoulders rise a pixel and settle, slowly (moving parts of a cut-out apart
-by single pixels looked like a glitch).
+All from the concept picture and its edited versions (assets/, made by
+prototype/room_assets.py): the room without the man, and the man with his
+chair in five poses — feet on the window sill (the concept), sitting by the
+window with a cup, working at the computer (twice), stretching. He holds a
+pose and fades into the next: a 20-second story whose last frame is its
+first. The room is the same in every pose, so only he changes.
 
 Quiet movements over the still room: the windows of the city flicker, the
 sun's path on the water shimmers, the screen glows, its cursor blinks, the
 keyboard breathes, the tower's lights blink, steam rises from the mug.
-LOOP seconds, the last frame being the first.
 """
+
 from __future__ import annotations
 
 import math
@@ -44,10 +45,15 @@ _A: dict = {}
 def _assets() -> dict:
     if not _A:
         d = _asset_dir()
-        got = {name: QImage(str(d / f"{name}.png")).convertToFormat(QImage.Format_ARGB32)
-               for name in ("room_bg", "room_man")}
+        got = {"room_bg": QImage(str(d / "room_bg.png")).convertToFormat(QImage.Format_ARGB32)}
         got["lights"] = _city_lights(got["room_bg"])
-        got["parts"] = _parts(got["room_man"])
+        layers = {}
+        for name in POSES:
+            path = d / ("room_man.png" if name == "man" else f"pose_{name}.png")
+            v = _view(QImage(str(path)).convertToFormat(QImage.Format_ARGB32)).astype(np.float32)
+            v[:, :, 3] /= 255.0
+            layers[name] = v  # BGR and the share of the pose, 0 or 1
+        got["layers"] = layers
         _A.update(got)  # all or nothing
     return _A
 
@@ -75,18 +81,24 @@ def _city_lights(bg: QImage):
     return out
 
 
-# --- the man ---------------------------
+# --- the man and his poses ---------------------------------------------------------------
 
-BREATH = 4.0  # seconds of one breath
-LEGS_X, UPPER_Y = 158, 118  # his head and shoulders: left of LEGS_X, above UPPER_Y
+# (pose, start, end): he holds a pose, then fades into the next one
+STORY = [("man", 0.0, 4.5), ("sit", 5.2, 7.5), ("work1", 8.2, 10.0), ("work2", 10.4, 12.0),
+         ("work1", 12.4, 13.6), ("stretch", 14.3, 16.0), ("sit", 16.7, 17.6), ("man", 18.4, 20.0)]
+POSES = ("man", "sit", "work1", "work2", "stretch")
 
 
-def _parts(man: QImage) -> dict:
-    """The part of the cut-out that breathes: head and shoulders."""
-    ys, xs = np.mgrid[0:H, 0:W]
-    img = man.copy()
-    _view(img)[~((ys < UPPER_Y) & (xs < LEGS_X)), 3] = 0
-    return {"upper": img}
+def story(t: float) -> tuple[str, str, float]:
+    """(this pose, the next one, how far the fade into it has gone)."""
+    t %= LOOP
+    for (a, _, end), (b, start, _) in zip(STORY, STORY[1:]):
+        if t < end:
+            return a, a, 0.0
+        if t < start:
+            k = (t - end) / (start - end)
+            return a, b, k * k * (3 - 2 * k)
+    return STORY[-1][0], STORY[-1][0], 0.0
 
 
 def paint(img: QImage, t: float) -> None:
@@ -98,11 +110,16 @@ def paint(img: QImage, t: float) -> None:
     p.setRenderHint(QPainter.SmoothPixmapTransform, False)
     p.drawImage(0, 0, a["room_bg"])
     _ambient(p, a, t)
-    p.drawImage(0, 0, a["room_man"])
-    # he breathes: head and shoulders rise a pixel, slowly, and settle
-    if (t % BREATH) < BREATH * 0.45:
-        p.drawImage(0, -1, a["parts"]["upper"])
     p.end()
+    now, nxt, k = story(t)
+    out = _view(img)
+    la, lb = a["layers"][now], a["layers"][nxt]
+    if now == nxt:
+        wa, wb = la[:, :, 3:4], 0.0
+    else:  # fading: his old pose gives way to the room and the new one
+        wa, wb = la[:, :, 3:4] * (1.0 - k), lb[:, :, 3:4] * k
+    mix = out[:, :, :3] * (1.0 - wa - wb) + la[:, :, :3] * wa + lb[:, :, :3] * wb
+    out[:, :, :3] = mix.astype(np.uint8)
 
 
 def _ambient(p: QPainter, a: dict, t: float) -> None:
