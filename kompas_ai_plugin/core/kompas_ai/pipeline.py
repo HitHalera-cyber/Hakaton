@@ -201,6 +201,9 @@ def _build_entities(drawing, geometry, is_thin, found, plain_texts, regions, orp
         drawing.entities.append(ir.Hatch(
             new_id("H"), 0.5, ["Граница штриховки не найдена"], angle=round(g.angle, 2),
             spacing=round(g.spacing, 3), contours=[], line_count=len(g.lines)))
+    branches = _radius_branches(drawing)
+    if branches:
+        drawing.processing.append(f"Дополнительные выноски радиусов: {branches}")
     tails = _drop_arrow_tails(drawing)
     if tails:
         drawing.processing.append(f"Хвосты стрелок угловых размеров убраны: {tails}")
@@ -231,8 +234,10 @@ def _rebuild_hatches(drawing) -> int:
         old = Polygon(h.contours[0], h.contours[1:]).buffer(0)
         if old.is_empty:
             continue
-        zone = old.buffer(0.3)
-        mine = [f for f in faces if zone.contains(f.representative_point())]
+        # a face is the hatch's when most of it lies in the hatch as read (a
+        # small neighbour touching it with its inner point is not)
+        mine = [f for f in faces if f.area > 0
+                and f.intersection(old).area >= 0.7 * f.area]
         if not mine:
             continue
         new = unary_union(mine)
@@ -242,6 +247,39 @@ def _rebuild_hatches(drawing) -> int:
         h.contours = [[(float(x), float(y)) for x, y in r.coords] for r in rings]
         done += 1
     return done
+
+
+def _radius_branches(drawing, near_leader: float = 3.0, on_arc: float = 0.3) -> int:
+    """A thin line from a radius value's leader to another arc of the same
+    radius is a second leader of that value (one «R1» for two fillets): it
+    becomes a branch of the dimension instead of a loose line."""
+    arcs = drawing.of_type(ir.Arc)
+    made = 0
+    drop = set()
+    for d in drawing.of_type(ir.Dimension):
+        if d.dim_type != "radius" or not (d.p1 and d.text_pos and d.radius):
+            continue
+        (ax, ay), (bx, by) = d.p1, d.text_pos
+        L = math.hypot(bx - ax, by - ay) or 1.0
+        for line in drawing.of_type(ir.Line):
+            if line.style != ir.STYLE_THIN or line.id in drop:
+                continue
+            for start, tip in ((line.p1, line.p2), (line.p2, line.p1)):
+                off = abs((bx - ax) * (start[1] - ay) - (by - ay) * (start[0] - ax)) / L
+                along = ((start[0] - ax) * (bx - ax) + (start[1] - ay) * (by - ay)) / L
+                if off > near_leader or not 0.0 <= along <= L + 5.0:
+                    continue
+                arc = next((a for a in arcs if abs(a.radius - d.radius) <= 0.3 * d.radius
+                            and abs(math.dist(tip, a.center) - a.radius) <= on_arc
+                            and math.dist(a.center, d.center) > 0.5), None)
+                if arc is None:
+                    continue
+                d.branches.append([tuple(arc.center), arc.radius, tuple(tip), tuple(start)])
+                drop.add(line.id)
+                made += 1
+                break
+    drawing.entities = [e for e in drawing.entities if e.id not in drop]
+    return made
 
 
 def _drop_arrow_tails(drawing, tol: float = 0.3, max_angle: float = 25.0) -> int:

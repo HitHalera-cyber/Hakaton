@@ -419,14 +419,21 @@ class Api5Backend:
             self._once("place_text", f"  положение текста размера: {exc!r}")
 
     def _api7_text(self, dim, text, prefix=""):
-        """Manual value of an API7 dimension (Unicode: Ø and × as they are)."""
+        """Manual value of an API7 dimension. Strings reach KOMPAS in cp1251
+        as through API5 (Ø came out as «Ш», × as «Ч»): × goes as x and the
+        diameter sign as the dimension's Sign, never as a character."""
         from win32com.client import CastTo
 
+        t = CastTo(dim, "IDimensionText")
+        if text.diameter_sign:
+            try:
+                t.Sign = 1  # the diameter sign, as txt.sign = 1 in API5
+            except Exception as exc:
+                self._once("dim_sign", f"  знак диаметра через API7: {exc!r}")
         if text.auto:
             return
-        t = CastTo(dim, "IDimensionText")
         t.AutoNominalValue = False
-        t.NominalText.Str = prefix + text.value
+        t.NominalText.Str = kompas_text(text.value)
 
     def _linear7(self, p1, p2, line_point, text, kind=LINEAR_HORIZONTAL, text_right=True,
                  text_at=None):
@@ -440,7 +447,7 @@ class Api5Backend:
             else self.constants.ksLinDVertical
         if text_right and text_at is None:
             CastTo(dim, "IDimensionParams").ShelfDirection = 1
-        self._api7_text(dim, text, "Ø" if text.diameter_sign else "")
+        self._api7_text(dim, text)
         if not dim.Update():
             return None
         if text_at is not None:
@@ -468,7 +475,11 @@ class Api5Backend:
             ref = self.doc.ksLinDimension(par)
         return ref
 
-    def radial_dim(self, center, radius, angle, diameter, text, text_dist=None, text_at=None):
+    def radial_dim(self, center, radius, angle, diameter, text, text_dist=None, text_at=None,
+                   branches=()):
+        """``branches``: more arcs of the same value — [center, radius, arrow,
+        leader start]: added to the dimension as leaders where KOMPAS takes
+        them (IRadialDimension.AddBranchByArcParam), else drawn as thin lines."""
         if text_at is not None:
             try:
                 from win32com.client import CastTo
@@ -480,13 +491,34 @@ class Api5Backend:
                 if not text.auto:  # KOMPAS writes R / Ø itself
                     t = CastTo(dim, "IDimensionText")
                     t.AutoNominalValue = False
-                    t.NominalText.Str = text.value.lstrip("RØ")
+                    t.NominalText.Str = kompas_text(text.value.lstrip("RØ"))
                 if dim.Update():
                     self._place_text(dim, text_at)
+                    for b in branches:
+                        if not self._branch(dim, b):
+                            self.line(b[3], b[2], 2)
                     return dim
             except Exception as exc:
                 self._once("radial7", f"  радиус через API7: {exc!r} — строю через API5")
-        return self._radial5(center, radius, angle, diameter, text, text_dist)
+        ref = self._radial5(center, radius, angle, diameter, text, text_dist)
+        for b in branches:
+            self.line(b[3], b[2], 2)
+        return ref
+
+    def _branch(self, dim, b) -> bool:
+        (cx, cy), r, tip, _ = b
+        ang = math.degrees(math.atan2(tip[1] - cy, tip[0] - cx))
+        last = "False"
+        for args in ((cx, cy, r, ang), (cx, cy, r)):
+            try:
+                ok = dim.AddBranchByArcParam(*args)
+                if ok is not False:
+                    dim.Update()
+                    return True
+            except Exception as exc:
+                last = exc
+        self._once("branch", f"  вторая выноска радиуса: {last!r} — рисую линией")
+        return False
 
     def _radial5(self, center, radius, angle, diameter, text, text_dist=None):
         """``text_dist``: distance in sheet mm from the arrow on the arc to the
@@ -510,7 +542,7 @@ class Api5Backend:
             ref = method(par)
         return ref
 
-    def angular_dim(self, center, start, end, radius, text, extension=True):
+    def angular_dim(self, center, start, end, radius, text, extension=True, shelf=None):
         """``extension=False``: no extension lines (ksDimDrawingParam.pl1/pl2 = 1,
         api_test12 variant C); the caller draws them from the sides."""
         par = self._param("ko_ADimParam", "ksADimParam")
@@ -522,8 +554,15 @@ class Api5Backend:
         drw.Init()
         if not extension:
             drw.pl1, drw.pl2 = 1, 1
+        if shelf is not None:
+            # the value on a leader with a shelf: (direction ±1, leader angle, length)
+            drw.shelfDir, drw.ang, drw.lenght = shelf
         self._set_text(self._sub("ksDimTextParam", par.GetTPar()), text)
-        return self.doc.ksAngDimension(par)
+        ref = self.doc.ksAngDimension(par)
+        if not ref and shelf is not None:
+            drw.shelfDir, drw.ang, drw.lenght = 0, 0.0, 0.0
+            ref = self.doc.ksAngDimension(par)
+        return ref
 
     def hatch(self, contours, angle, step):
         # ksHatch opens a hatch; objects created until ksEndObj are its boundary.
@@ -971,8 +1010,11 @@ def _hole_geometry(flange, h):
     t = x_face * dx + h.v * dz
     point = (x_face - t * dx, h.u, h.v - t * dz)
     # the hole: from the face (t) to where it leaves the flats, and a margin
-    length = max(0.5, (flange.inner - abs(h.v)) / max(math.sin(beta), 1e-6))
-    reach = max(abs(t), abs(t + length)) + 0.5
+    sb = max(math.sin(beta), 1e-6)
+    length = max(0.5, (flange.inner - abs(h.v)) / sb)
+    # the hole's far side leaves the flat r/tan β further, and leaves room
+    margin = h.radius * (1.0 / sb + math.cos(beta) / sb) + 1.0
+    reach = max(abs(t), abs(t + length)) + margin
     return math.degrees(alpha), point, reach, (dx, 0.0, dz)
 
 

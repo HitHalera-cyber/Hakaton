@@ -75,6 +75,7 @@ class DrawingWriter:
         self.scale = 1.0
         self.origin = (0.0, 0.0)  # sheet point of the view origin (view mode)
         self._drawing: ir.Drawing | None = None
+        self._angular_shelves: dict = {}
 
     # --- coordinate handling --------------------------------------------------------
 
@@ -94,6 +95,7 @@ class DrawingWriter:
     def write(self, drawing: ir.Drawing) -> WriteReport:
         self._drawing = drawing
         self._ovals = 0
+        self._angular_shelves = angular_shelves(drawing.of_type(ir.Dimension))
         report = WriteReport(mode=self.mode)
         sheet = drawing.sheet
         fmt = FORMAT_INDEX.get(sheet.format)
@@ -292,6 +294,11 @@ class DrawingWriter:
                                          line_point=self._p(((d.p1[0] + d.p2[0]) / 2, line[1])))
             return self.b.linear_dim(p1, p2, offset, kind, text)
         if d.dim_type in ("diameter", "radius") and d.center and d.radius:
+            curve = next((e for e in self._drawing.entities if e.id == d.ref), None) \
+                if self._drawing is not None and d.ref else None
+            if isinstance(curve, (ir.Arc, ir.Circle)) and abs(curve.radius - d.radius) < 0.5:
+                # the arc as the contour solver left it: the arrow lands on it
+                d.center, d.radius = tuple(curve.center), curve.radius
             angle = 45.0
             if d.p1:
                 angle = math.degrees(math.atan2(d.p1[1] - d.center[1], d.p1[0] - d.center[0]))
@@ -309,6 +316,9 @@ class DrawingWriter:
                 dist = math.dist(d.p1, d.text_pos) * (1 if out >= 0 else -1)
                 extra = {"text_at": self._p(d.text_pos)} \
                     if "text_at" in _params(self.b.radial_dim) else {}
+                if d.branches and "branches" in _params(self.b.radial_dim):
+                    extra["branches"] = [[self._p(c), self._len(r), self._p(t), self._p(s0)]
+                                         for c, r, t, s0 in d.branches]
                 return self.b.radial_dim(self._p(d.center), self._len(d.radius), angle, False,
                                          text, text_dist=round(dist, 2), **extra)
             extra = {"text_at": self._p(d.text_pos)} \
@@ -345,7 +355,10 @@ class DrawingWriter:
             # KOMPAS draws extension lines from the vertex (on a cone they meet
             # at the apex on the axis). They are drawn here instead, from the
             # end of each side on the part out past the arc (ГОСТ 2.307).
-            ref = self.b.angular_dim(self._p(d.center), a1, a2, radius, text, extension=False)
+            shelf = self._angular_shelves.get(d.id)
+            extra = {"shelf": shelf} if shelf and "shelf" in _params(self.b.angular_dim) else {}
+            ref = self.b.angular_dim(self._p(d.center), a1, a2, radius, text, extension=False,
+                                     **extra)
             if ref:
                 for a in (a1, a2):
                     start = _side_extent(self._drawing, d.center, a)
@@ -451,6 +464,30 @@ def _shared_ends(drawing: ir.Drawing, tol: float = 0.01):
         for (a, ia), (b, ib) in zip(members, members[1:]):
             if a != b:
                 out.append((a, ia, b, ib))
+    return out
+
+
+ANGULAR_CLASH = 12.0  # sheet mm between the values of two angular dimensions
+SHELF_LENGTH = 10.0  # sheet mm
+
+
+def angular_shelves(dims) -> dict:
+    """Angular dimensions whose values would stand on each other (the two 45°
+    of a groove): each value goes out on a leader with a shelf, away from
+    the other — (direction ±1, leader angle, length) by dimension id."""
+    ang = [d for d in dims if d.dim_type == "angular" and d.text_center and d.center]
+    out = {}
+    for i, a in enumerate(ang):
+        for b in ang[i + 1:]:
+            # their arcs (at least MIN_ANGULAR_RADIUS) reach into each other
+            ra = max(a.radius or 0.0, MIN_ANGULAR_RADIUS)
+            rb = max(b.radius or 0.0, MIN_ANGULAR_RADIUS)
+            near = max(ra, rb) < 25.0 and math.dist(a.center, b.center) < ra + rb + 4.0
+            if not near and math.dist(a.text_center, b.text_center) > ANGULAR_CLASH:
+                continue
+            left, right = (a, b) if a.text_center[0] <= b.text_center[0] else (b, a)
+            out[left.id] = (-1, 135.0, SHELF_LENGTH)
+            out[right.id] = (1, 45.0, SHELF_LENGTH)
     return out
 
 

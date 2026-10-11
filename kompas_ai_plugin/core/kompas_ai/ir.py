@@ -131,6 +131,9 @@ class Dimension(Entity):
     text_id: str | None = None
     text_pos: Point | None = None  # where the value is written (start of the text)
     text_center: Point | None = None  # middle of the value text on the sheet
+    # more leaders of one radius value (R1 for two fillets): [center, radius,
+    # arrow point, leader start] each
+    branches: list = field(default_factory=list)
 
 
 @dataclass
