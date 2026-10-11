@@ -1,73 +1,104 @@
-"""The waiting screen: a pixel-art room at dawn, 320 × 180 pixels.
+"""The waiting screen: a pixel-art room at dawn, 384 × 216 pixels.
 
-A young man in a gaming chair, seen from behind, rests his feet on a wide
-window sill and rocks slowly, watching the sun rise over a city by the
-water; then takes his feet down, turns, rolls to the desk and works, sips
-coffee, stretches, rolls back, turns to the window and puts his feet up
-again. The story is LOOP seconds long and its last frame is its first.
+The room and the man resting with his feet on the window sill come from the
+concept picture (assets/, made by prototype/room_assets.py): the room
+without him, and him with his chair cut out. He rocks there; then — drawn
+here in the same silhouette, lit at its edges by the window — takes his feet
+down, turns, rolls to the desk, types, drinks from the mug, stretches, rolls
+back, turns and puts his feet up again, where the cut-out takes over. The
+change between the two is a pixel dissolve. The story is LOOP seconds and
+its last frame is its first.
 
-Built from layers: a sky with ordered dithering, clouds, the sun, a hazy
-and a near city, water with the sun's path (cached where nothing moves),
-the room with a transparent window, the small movements (city lights,
-steam, the computer's LED, the cat breathing), then the man and his chair
-drawn as a dark silhouette, its edges lit by the window (orange) and, at
-the desk, by the monitor (blue). No smoothing anywhere: everything is
-whole pixels, scaled up by the caller without filtering.
+Small movements over the still room: the clouds drift, the windows of the
+city flicker, the water ripples, the screen flickers, the tower's lights
+blink, the keyboard glows, steam rises from the mug.
 """
 
 from __future__ import annotations
 
 import math
-import random
+import sys
+from pathlib import Path
 
 import numpy as np
 from PySide6.QtCore import QPoint, QPointF, QRect, Qt
 from PySide6.QtGui import QColor, QImage, QPainter, QPen, QPolygon
 
-W, H = 320, 180
+W, H = 384, 216
 LOOP = 20.0
 
-GLASS = QRect(124, 10, 152, 94)  # the window opening
-HORIZON = 84
-SUN = (222, 72)
-
-SKY = ["#2b2a86", "#3c2f98", "#5634a4", "#7c3aa8", "#a8409e", "#d4508a", "#f06a6c",
-       "#ff8a52", "#ffac56", "#ffcc6e"]
-
-# the man and the chair
-HAIR = "#110d22"
-JACKET, JACKET_FOLD = "#1b1739", "#25204c"
-PANTS = "#15122f"
-SHOE = "#2c2862"
-HAND = "#3b2340"
-CHAIR, CHAIR_SEAM, CHAIR_MARK = "#100e22", "#3b1631", "#2a2660"
-RIM_SUN, RIM_SUN2 = (255, 140, 74), (122, 48, 96)
-RIM_SCREEN = (110, 140, 255)
+BODY, BODY_FOLD = "#020318", "#0e0d35"
+CHAIR, CHAIR_SIDE, CHAIR_MARK = "#010213", "#091050", "#2429a7"
+SHOE = "#101661"
+RIM, RIM_TOP = (250, 117, 71), (203, 68, 113)
+RIM_SCREEN = (120, 140, 255)
+FEET = (205, 112)  # he rocks about them
+BASE_Y = 170  # below it the chair's base stays put
+SCREEN = QRect(0, 71, 42, 38)
+KEYS = QRect(18, 114, 40, 8)
+TOWER = QRect(64, 85, 7, 24)
+SKY = QRect(137, 12, 194, 50)  # the clouds over the city
+WATER = QRect(137, 104, 194, 21)
+DESK_FRONT = QRect(0, 121, 101, 95)  # stands in front of his legs at the desk
 
 BAYER = np.array([[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]]) / 16.0
 
 
-def _c(hex_or_color, alpha=255) -> QColor:
-    c = QColor(hex_or_color)
-    c.setAlpha(alpha)
-    return c
+def _asset_dir() -> Path:
+    here = Path(__file__).resolve().parent / "assets"
+    if here.is_dir():
+        return here
+    return Path(getattr(sys, "_MEIPASS", "")) / "kompas_ai" / "gui" / "assets"
+
+
+_A: dict = {}
+
+
+def _assets() -> dict:
+    if not _A:
+        d = _asset_dir()
+        for name in ("room_bg", "room_nomug", "room_man"):
+            _A[name] = QImage(str(d / f"{name}.png")).convertToFormat(QImage.Format_ARGB32)
+        _A["lights"] = _city_lights(_A["room_bg"])
+        _A["man_upper"] = _clip(_A["room_man"], True)
+        _A["man_base"] = _clip(_A["room_man"], False)
+    return _A
 
 
 def _view(img: QImage) -> np.ndarray:
-    """The pixels of an ARGB32 image as a (H, W, 4) BGRA array (writable)."""
     a = np.frombuffer(img.bits(), np.uint8, img.sizeInBytes())
     return a.reshape(img.height(), img.bytesPerLine() // 4, 4)[:, :img.width()]
 
 
-def _new(transparent: bool = True) -> QImage:
-    img = QImage(W, H, QImage.Format_ARGB32)
-    img.fill(Qt.transparent if transparent else QColor("#000000"))
-    return img
+def _city_lights(bg: QImage):
+    """The lit windows of the city: small bright warm pixels among darker ones."""
+    a = _view(bg).astype(int)
+    out = []
+    for y in range(64, 104):
+        for x in range(138, 330):
+            if abs(x - 266) < 14:
+                continue  # not the sun's column
+            b, g, r = a[y, x, 0], a[y, x, 1], a[y, x, 2]
+            if r > 200 and g > 120 and b < 150:
+                around = a[y, x - 1, :3].sum() + a[y, x + 1, :3].sum()
+                if around < 2 * (r + g + b) * 0.8:
+                    out.append((x, y, ((x * 7 + y * 13) % 17) / 17.0,
+                                QColor(int(a[y, x - 1, 2]), int(a[y, x - 1, 1]),
+                                       int(a[y, x - 1, 0]))))
+    return out
+
+
+def _clip(img: QImage, upper: bool) -> QImage:
+    out = QImage(W, H, QImage.Format_ARGB32)
+    out.fill(Qt.transparent)
+    q = QPainter(out)
+    q.setClipRect(QRect(0, 0, W, BASE_Y) if upper else QRect(0, BASE_Y, W, H - BASE_Y))
+    q.drawImage(0, 0, img)
+    q.end()
+    return out
 
 
 class _Pen:
-    """Rectangles, polygons and thick lines in whole pixels."""
-
     def __init__(self, img: QImage):
         self.p = QPainter(img)
         self.p.setRenderHint(QPainter.Antialiasing, False)
@@ -75,294 +106,56 @@ class _Pen:
     def end(self):
         self.p.end()
 
-    def rect(self, x, y, w, h, c, alpha=255):
-        self.p.fillRect(QRect(round(x), round(y), round(w), round(h)), _c(c, alpha))
+    def rect(self, x, y, w, h, c):
+        self.p.fillRect(QRect(round(x), round(y), round(w), round(h)), QColor(c))
 
-    def poly(self, pts, c, alpha=255):
+    def poly(self, pts, c):
         self.p.setPen(Qt.NoPen)
-        self.p.setBrush(_c(c, alpha))
+        self.p.setBrush(QColor(c))
         self.p.drawPolygon(QPolygon([QPoint(round(x), round(y)) for x, y in pts]))
 
-    def line(self, a, b, width, c, alpha=255):
-        self.p.setPen(QPen(_c(c, alpha), width, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+    def line(self, a, b, width, c):
+        self.p.setPen(QPen(QColor(c), width, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
         self.p.drawLine(QPointF(*a), QPointF(*b))
 
-    def disc(self, cx, cy, rx, c, ry=None, alpha=255):
+    def disc(self, cx, cy, rx, c, ry=None):
         self.p.setPen(Qt.NoPen)
-        self.p.setBrush(_c(c, alpha))
+        self.p.setBrush(QColor(c))
         self.p.drawEllipse(QPointF(cx, cy), rx, ry if ry is not None else rx)
 
 
-# --- the still layers ---------------------------------------------------------------------
+# --- poses (the man drawn) -------------------------------------------------------------------
 
-def _sky() -> QImage:
-    """The sky behind the glass: bands of a few colours, dithered between."""
-    img = _new(False)
-    a = _view(img)
-    y0, y1 = GLASS.top(), HORIZON
-    pal = np.array([[QColor(c).blue(), QColor(c).green(), QColor(c).red()] for c in SKY])
-    ys = np.arange(H)[:, None]
-    xs = np.arange(W)[None, :]
-    v = np.clip((ys - y0) / (y1 - y0), 0, 1) * (len(SKY) - 1)
-    # the sky is brighter towards the sun
-    v = np.clip(v + np.maximum(0, 1 - np.hypot(xs - SUN[0], (ys - SUN[1]) * 1.6) / 70) * 1.2,
-                0, len(SKY) - 1)
-    i = np.floor(v).astype(int)
-    frac = v - i
-    up = frac > BAYER[ys % 4, xs % 4]
-    idx = np.clip(np.where(up, i + 1, i), 0, len(SKY) - 1)
-    a[:, :, :3] = pal[idx]
-    a[:, :, 3] = 255
-    return img
-
-
-def _clouds_layout():
-    """Streaky clouds: rows of pixel bars, darker up high, lit near the sun."""
-    rnd = random.Random(7)
-    out = []
-    for y in (13, 17, 20, 24, 28, 31, 35, 40, 44, 49, 54, 58, 63):
-        k = (y - 10) / (HORIZON - 10)
-        for _ in range(rnd.randint(3, 5)):
-            x = rnd.randint(GLASS.left() - 30, GLASS.right() + 10)
-            w = rnd.randint(8, 34)
-            if k < 0.3:
-                body, lit = "#3a2d8e", "#6a3ea8"
-            elif k < 0.55:
-                body, lit = "#7a3a9e", "#d0508a"
-            else:
-                body, lit = "#c84a86", "#ff8a5a"
-            out.append((x, y, w, rnd.choice((2, 2, 3)), body, lit, rnd.uniform(0.6, 1.4)))
-    return out
-
-
-CLOUDS = _clouds_layout()
-
-
-def _city() -> QImage:
-    """A hazy far city, a near one with lit windows, a spire, a bridge."""
-    img = _new()
-    d = _Pen(img)
-    rnd = random.Random(3)
-    x = GLASS.left() - 4
-    while x < GLASS.right():  # far, in the haze
-        w = rnd.randint(5, 11)
-        h = rnd.randint(8, 22) if abs(x + w / 2 - SUN[0]) > 16 else rnd.randint(2, 5)
-        d.rect(x, HORIZON - h, w, h, "#6a3c9c")
-        x += w + rnd.randint(0, 3)
-    x = GLASS.left() - 2
-    near = []
-    while x < GLASS.right():
-        w = rnd.randint(6, 12)
-        h = rnd.randint(10, 30) if abs(x + w / 2 - SUN[0]) > 18 else rnd.randint(3, 6)
-        near.append((x, w, h))
-        x += w + rnd.randint(1, 4)
-    for x, w, h in near:
-        d.rect(x, HORIZON - h, w, h, "#2c2468")
-        d.rect(x + w - 1, HORIZON - h, 1, h, "#4a3488")  # the side towards the sun
-    # landmarks: a tall tower left, a spire right
-    d.rect(150, HORIZON - 44, 9, 44, "#2c2468")
-    d.rect(152, HORIZON - 48, 5, 4, "#2c2468")
-    d.rect(158, HORIZON - 44, 1, 44, "#4a3488")
-    d.rect(258, HORIZON - 40, 8, 40, "#2c2468")
-    d.rect(260, HORIZON - 50, 4, 10, "#2c2468")
-    d.rect(261, HORIZON - 58, 2, 8, "#2c2468")
-    d.rect(262, HORIZON - 63, 1, 5, "#2c2468")
-    d.rect(265, HORIZON - 40, 1, 40, "#4a3488")
-    # the bridge over the water
-    d.rect(196, HORIZON + 1, 74, 1, "#241c58")
-    for px in range(200, 270, 12):
-        d.rect(px, HORIZON + 1, 1, 3, "#241c58")
-    d.end()
-    return img
-
-
-def _windows_of_city():
-    """Positions of the lit windows of the near city (they flicker)."""
-    rnd = random.Random(11)
-    out = []
-    for _ in range(70):
-        x = rnd.randint(GLASS.left(), GLASS.right() - 2)
-        if abs(x - SUN[0]) < 12:
-            continue
-        y = rnd.randint(HORIZON - 26, HORIZON - 3)
-        out.append((x, y, rnd.choice(("#ffb35a", "#ffd27a", "#ff8a5a")), rnd.random()))
-    return out
-
-
-CITY_LIGHTS = _windows_of_city()
-
-
-def _room() -> QImage:
-    """Everything indoors; the window glass left transparent."""
-    img = _new()
-    d = _Pen(img)
-    d.rect(0, 0, W, H, "#15123c")
-    # walls a shade lighter near the window, darker in the corners
-    d.rect(0, 0, 24, 150, "#110e32")
-    d.rect(300, 0, 20, 150, "#110e32")
-    # window: frame, top band, the thick left pillar, the glass cut out
-    d.rect(108, 3, 176, 107, "#0d0b25")
-    d.rect(108, 3, 176, 2, "#24205a")
-    d.rect(112, 6, 168, 4, "#1d1950")
-    d.rect(112, 6, 20, 98, "#100d2c")
-    d.rect(131, 10, 1, 94, "#ff8a52", 120)  # the pillar's edge in the light
-    d.p.setCompositionMode(QPainter.CompositionMode_Clear)
-    d.p.fillRect(QRect(132, 10, 144, 94), Qt.transparent)
-    d.p.setCompositionMode(QPainter.CompositionMode_SourceOver)
-    d.rect(196, 10, 3, 94, "#0d0b25")  # a mullion
-    d.rect(196, 10, 1, 94, "#ff8a52", 90)
-    # the wide sill
-    d.rect(104, 104, 186, 2, "#ff9a5a")
-    d.rect(104, 106, 186, 3, "#5a2a5c")
-    d.rect(104, 109, 186, 2, "#0d0b25")
-    # the wall under the window: panels, a socket
-    d.rect(112, 111, 140, 38, "#120f34")
-    for x in (150, 200):
-        d.rect(x, 114, 1, 32, "#1a1648")
-    d.rect(165, 128, 6, 6, "#1d1950")
-    d.rect(173, 128, 6, 6, "#1d1950")
-    # floor: planks, warm light from the window lying across them
-    d.rect(0, 150, W, 30, "#0f0c2a")
-    for y in (156, 164, 173):
-        d.rect(0, y, W, 1, "#151238")
-    d.poly([(140, 150), (250, 150), (290, 180), (150, 180)], "#3a1d4a")
-    d.poly([(165, 150), (220, 150), (250, 180), (185, 180)], "#5a2852")
-    for x in range(170, 250, 9):
-        d.rect(x, 152 + (x % 3) * 8, 6, 1, "#7a345a")
-
-    _shelves(d)
-    _desk(d)
-    _right_side(d)
-    # hanging plants from the top corners of the window
-    for x0, length in ((116, 34), (284, 40)):
-        for k in range(length):
-            x = x0 + round(math.sin(k / 4.0) * 2)
-            d.rect(x, 4 + k, 2, 1, "#1d4a3a" if k % 5 else "#2e6a4a")
-            if k % 4 == 0:
-                d.rect(x + (1 if k % 8 else -2), 4 + k, 2, 2, "#2e6a4a")
-    d.end()
-    return img
-
-
-def _shelves(d: _Pen) -> None:
-    for y in (30, 56):
-        d.rect(0, y, 60, 3, "#2a2050")
-        d.rect(0, y, 60, 1, "#3e2f6a")
-    rnd = random.Random(5)
-    x = 2
-    for _ in range(9):
-        w, h = rnd.randint(3, 5), rnd.randint(11, 17)
-        d.rect(x, 30 - h, w, h, rnd.choice(("#3a2a6a", "#5a2a5a", "#2a3a6a", "#6a3a4a",
-                                            "#2e4a5a")))
-        d.rect(x, 32 - h, w, 1, "#120f30")
-        x += w + 1
-    # lower shelf: books lying, a plant, a cat figurine
-    d.rect(3, 50, 16, 3, "#3a2a6a")
-    d.rect(4, 47, 14, 3, "#5a2a5a")
-    d.rect(26, 48, 7, 8, "#6a3a3a")  # pot
-    for k in range(6):
-        d.rect(24 + k * 2, 40 + (k % 3) * 2, 2, 8 - (k % 3) * 2, "#2e6a4a")
-    d.rect(40, 47, 9, 9, "#c8b8c8")  # the cat figurine
-    d.rect(40, 45, 2, 2, "#c8b8c8")
-    d.rect(47, 45, 2, 2, "#c8b8c8")
-    d.rect(42, 49, 1, 1, "#2a2050")
-    d.rect(46, 49, 1, 1, "#2a2050")
-    # posters and notes between the shelves and the window
-    d.rect(68, 14, 24, 32, "#1d1950")
-    d.poly([(70, 42), (80, 22), (90, 42)], "#3a3488")
-    d.poly([(76, 30), (80, 22), (84, 30)], "#c8c8e8")
-    d.rect(79, 18, 3, 3, "#c04a6a")
-    d.rect(66, 52, 10, 12, "#24205a")
-    d.rect(80, 50, 9, 9, "#2a2660")
-    d.rect(94, 58, 10, 10, "#1d1950")
-    d.rect(68, 55, 6, 1, "#3e3a7a")
-    d.rect(68, 58, 6, 1, "#3e3a7a")
-
-
-def _desk(d: _Pen) -> None:
-    # top, drawers, legs
-    d.rect(0, 100, 90, 4, "#2a2050")
-    d.rect(0, 100, 90, 1, "#4a3a7a")
-    d.rect(44, 104, 36, 46, "#1b1744")
-    for y in (118, 133):
-        d.rect(46, y, 32, 1, "#100d2c")
-    for y in (110, 125, 140):
-        d.rect(58, y, 8, 1, "#3e3a7a")
-    d.rect(2, 104, 3, 46, "#1b1744")
-    d.rect(18, 138, 20, 12, "#3a2440")  # a box on the floor
-    d.rect(18, 138, 20, 1, "#5a3450")
-    # monitor and tower
-    d.rect(0, 58, 38, 36, "#0b0a1a")
-    d.rect(16, 94, 6, 6, "#0b0a1a")
-    d.rect(10, 99, 18, 1, "#0b0a1a")
-    d.rect(50, 70, 11, 30, "#0e0c22")
-    d.rect(51, 71, 9, 1, "#2a2660")
-    for y in (76, 80, 84):
-        d.rect(52, y, 3, 2, "#4a3a8a")
-    # books, headphones on the desk
-    d.rect(64, 94, 18, 3, "#3a2a6a")
-    d.rect(65, 91, 16, 3, "#5a2a5a")
-    d.rect(64, 88, 17, 3, "#2a3a6a")
-    d.rect(66, 89, 14, 1, "#ff8a52")  # lit by the window
-    d.rect(84, 96, 4, 4, "#0e0c22")
-
-
-def _right_side(d: _Pen) -> None:
-    # a plant on the sill, a little box with a green light
-    d.rect(286, 92, 12, 12, "#8a4a3a")
-    d.rect(286, 92, 12, 2, "#b0604a")
-    for k, (dx, h) in enumerate(((0, 14), (3, 20), (6, 16), (9, 12), (-2, 10))):
-        d.rect(288 + dx, 92 - h, 2, h, "#2e6a4a" if k % 2 else "#3e8a5a")
-        d.rect(287 + dx, 92 - h, 2, 2, "#3e8a5a")
-    d.rect(252, 96, 22, 8, "#2a2660")
-    d.rect(252, 96, 22, 1, "#ff9a5a")
-    # the night table and the bed
-    d.rect(240, 110, 64, 40, "#1b1744")
-    d.rect(240, 110, 64, 1, "#3e3a7a")
-    d.rect(262, 126, 16, 1, "#3e3a7a")
-    d.poly([(258, 180), (268, 128), (320, 120), (320, 180)], "#24307a")
-    d.poly([(268, 128), (320, 120), (320, 126), (266, 136)], "#3a4a9a")
-    for y in range(140, 180, 7):
-        d.rect(262, y, 58, 1, "#1d2766")
-    d.rect(304, 20, 14, 18, "#1d1950")  # a moon poster
-    d.disc(311, 29, 4, "#c8c8e8")
-    d.disc(313, 28, 4, "#1d1950")
-
-
-# --- the man and his chair ------------------------------------------------------------------
-
-KEYS = ("seat", "back", "head", "shoulder", "elbow", "hand", "elbow2", "hand2",
-        "hip", "knee", "ankle", "toe", "knee2", "ankle2", "toe2")
+POSE_KEYS = ("seat", "back", "head", "shoulder", "elbow", "hand", "elbow2", "hand2",
+             "hip", "knee", "ankle", "toe", "knee2", "ankle2", "toe2")
 
 RECLINE = dict(
-    seat=(124, 133), back=((88, 84), (111, 79), (124, 134), (101, 140)), head=(107, 72),
-    shoulder=(117, 90), elbow=(126, 108), hand=(134, 117), elbow2=(100, 104), hand2=(98, 118),
-    hip=(128, 128), knee=(152, 112), ankle=(171, 101), toe=(176, 93),
-    knee2=(150, 117), ankle2=(170, 104), toe2=(178, 98))
-SIT_W = dict(RECLINE, back=((92, 82), (114, 80), (122, 134), (100, 138)), head=(108, 73),
-             knee=(146, 128), ankle=(146, 148), toe=(152, 150),
-             knee2=(142, 130), ankle2=(141, 149), toe2=(147, 151))
+    seat=(145, 166), back=((103, 96), (127, 92), (146, 160), (110, 188)), head=(124, 88),
+    shoulder=(136, 112), elbow=(152, 132), hand=(166, 139), elbow2=(118, 128), hand2=(116, 146),
+    hip=(150, 148), knee=(178, 117), ankle=(201, 113), toe=(206, 100),
+    knee2=(176, 124), ankle2=(200, 121), toe2=(207, 109))
+SIT_W = dict(RECLINE, back=((106, 96), (130, 94), (144, 164), (112, 182)), head=(126, 88),
+             knee=(170, 160), ankle=(172, 190), toe=(181, 194),
+             knee2=(166, 163), ankle2=(166, 191), toe2=(175, 195))
 BACK = dict(
-    seat=(108, 133), back=((96, 80), (120, 80), (120, 136), (96, 136)), head=(108, 71),
-    shoulder=(122, 92), elbow=(124, 110), hand=(124, 120), elbow2=(94, 110), hand2=(94, 120),
-    hip=(108, 130), knee=(108, 134), ankle=(108, 148), toe=(108, 150),
-    knee2=(108, 134), ankle2=(108, 148), toe2=(108, 150))
+    seat=(132, 166), back=((114, 94), (150, 94), (150, 172), (114, 172)), head=(132, 85),
+    shoulder=(150, 112), elbow=(158, 140), hand=(158, 156), elbow2=(108, 140), hand2=(108, 156),
+    hip=(132, 160), knee=(132, 168), ankle=(132, 190), toe=(132, 194),
+    knee2=(132, 168), ankle2=(132, 190), toe2=(132, 194))
 DESK_OUT = dict(
-    seat=(100, 133), back=((104, 82), (114, 84), (114, 136), (104, 136)), head=(94, 73),
-    shoulder=(96, 88), elbow=(84, 102), hand=(70, 100), elbow2=(90, 104), hand2=(76, 104),
-    hip=(98, 128), knee=(82, 127), ankle=(80, 147), toe=(74, 150),
-    knee2=(84, 130), ankle2=(84, 148), toe2=(78, 150))
+    seat=(124, 166), back=((128, 96), (146, 98), (146, 174), (128, 174)), head=(112, 89),
+    shoulder=(116, 108), elbow=(100, 126), hand=(84, 120), elbow2=(108, 128), hand2=(92, 124),
+    hip=(120, 160), knee=(100, 158), ankle=(98, 190), toe=(90, 194),
+    knee2=(104, 162), ankle2=(103, 191), toe2=(95, 195))
 DESK = dict(
-    seat=(90, 133), back=((96, 82), (106, 84), (106, 136), (96, 136)), head=(84, 74),
-    shoulder=(86, 88), elbow=(72, 100), hand=(56, 97), elbow2=(80, 102), hand2=(62, 99),
-    hip=(88, 128), knee=(72, 127), ankle=(70, 147), toe=(64, 150),
-    knee2=(74, 130), ankle2=(74, 148), toe2=(68, 150))
-GRAB = dict(DESK, elbow=(68, 98), hand=(56, 92))
-SIP = dict(DESK, head=(85, 73), elbow=(74, 96), hand=(80, 80))
-STRETCH = dict(DESK, head=(86, 72), elbow=(80, 62), hand=(76, 52), elbow2=(92, 64),
-               hand2=(90, 53))
-
-MUG_ON_DESK = (55, 92)
+    seat=(114, 166), back=((118, 96), (136, 98), (136, 174), (118, 174)), head=(100, 90),
+    shoulder=(104, 108), elbow=(84, 124), hand=(58, 117), elbow2=(94, 126), hand2=(66, 119),
+    hip=(110, 160), knee=(90, 158), ankle=(88, 190), toe=(80, 194),
+    knee2=(94, 162), ankle2=(93, 191), toe2=(85, 195))
+GRAB = dict(DESK, elbow=(84, 120), hand=(68, 112))
+SIP = dict(DESK, head=(101, 89), elbow=(88, 112), hand=(94, 96))
+STRETCH = dict(DESK, head=(102, 88), elbow=(90, 76), hand=(80, 60), elbow2=(118, 76),
+               hand2=(126, 60))
 
 
 def _ease(k):
@@ -373,26 +166,26 @@ def _ease(k):
 def _mix(a, b, k):
     k = _ease(k)
     out = {}
-    for key in KEYS:
-        va, vb = a[key], b[key]
+    for key in POSE_KEYS:
         if key == "back":
             out[key] = tuple((pa[0] + (pb[0] - pa[0]) * k, pa[1] + (pb[1] - pa[1]) * k)
-                             for pa, pb in zip(va, vb))
+                             for pa, pb in zip(a[key], b[key]))
         else:
-            out[key] = (va[0] + (vb[0] - va[0]) * k, va[1] + (vb[1] - va[1]) * k)
+            out[key] = (a[key][0] + (b[key][0] - a[key][0]) * k,
+                        a[key][1] + (b[key][1] - a[key][1]) * k)
     return out
 
 
-# (start, end, from, to); the man holds the last pose between the steps
 STORY = [(4.0, 5.0, RECLINE, SIT_W), (5.0, 5.8, SIT_W, BACK), (5.8, 6.8, BACK, DESK_OUT),
          (6.8, 7.6, DESK_OUT, DESK), (11.0, 11.5, DESK, GRAB), (11.5, 12.1, GRAB, SIP),
          (12.9, 13.5, SIP, GRAB), (13.5, 14.0, GRAB, DESK), (14.0, 14.8, DESK, STRETCH),
          (14.8, 15.5, STRETCH, DESK_OUT), (15.5, 16.3, DESK_OUT, BACK),
          (16.3, 17.1, BACK, SIT_W), (17.1, 18.1, SIT_W, RECLINE)]
+CUT_OUT = (3.6, 4.0)  # the concept's man dissolves into the drawn one
+CUT_IN = (18.1, 18.5)  # and back
 
 
-def story(t: float):
-    """(pose, rocking degrees, at the desk 0..1, typing, the mug in hand)."""
+def story(t: float) -> dict:
     t %= LOOP
     pose = RECLINE
     for t0, t1, a, b in STORY:
@@ -403,226 +196,215 @@ def story(t: float):
             break
         else:
             break
-    if t < 4.0:
-        rock_env = 1.0
-    elif t > 17.6:
-        rock_env = _ease((t - 17.6) / 1.0)
+    env = 1.0 if t < 4.0 else (_ease((t - 17.6) / 1.0) if t > 17.6 else 0.0)
+    rock = 1.0 * math.sin(2 * math.pi * t / 4.0) * env
+    if t < CUT_OUT[0] or t >= CUT_IN[1]:
+        drawn = 0.0
+    elif t < CUT_OUT[1]:
+        drawn = (t - CUT_OUT[0]) / (CUT_OUT[1] - CUT_OUT[0])
+    elif t < CUT_IN[0]:
+        drawn = 1.0
     else:
-        rock_env = 0.0
-    rock = 1.6 * math.sin(2 * math.pi * t / 4.0) * rock_env
-    desk = _ease((t - 5.8) / 1.0) if t < 11 else (1.0 - _ease((t - 14.8) / 1.0))
-    desk = max(0.0, min(1.0, desk if 5.8 <= t <= 15.8 else 0.0))
-    typing = 7.6 <= t < 11.0 or 14.0 > t >= 13.8
-    mug = 11.3 <= t < 13.3
-    return pose, rock, desk, typing, mug
+        drawn = 1.0 - (t - CUT_IN[0]) / (CUT_IN[1] - CUT_IN[0])
+    desk = 0.0
+    if 5.8 <= t < 7.6:
+        desk = _ease((t - 5.8) / 1.8)
+    elif 7.6 <= t < 14.8:
+        desk = 1.0
+    elif 14.8 <= t < 16.3:
+        desk = 1.0 - _ease((t - 14.8) / 1.5)
+    return dict(pose=pose, rock=rock, drawn=drawn, desk=desk,
+                typing=7.6 <= t < 11.0, mug=11.4 <= t < 13.4, t=t)
 
 
-def _man(t: float) -> tuple[QImage, float]:
-    pose, rock, desk, typing, mug = story(t)
-    img = _new()
+def _draw_man(s: dict, upper: bool) -> QImage:
+    """The drawn man and his chair: the part above BASE_Y, or the base."""
+    img = QImage(W, H, QImage.Format_ARGB32)
+    img.fill(Qt.transparent)
     d = _Pen(img)
-    if abs(rock) > 1e-3:  # rocking about the feet on the sill; the base stays
-        d.p.translate(174, 100)
-        d.p.rotate(rock)
-        d.p.translate(-174, -100)
-    p = dict(pose)
-    if typing:
-        j = int(t * 10) % 2
+    p = dict(s["pose"])
+    if not upper:
+        sx = p["seat"][0]
+        d.rect(sx - 3, BASE_Y, 6, 22, CHAIR)
+        d.rect(sx - 34, 191, 68, 4, CHAIR)
+        d.rect(sx - 34, 191, 68, 1, CHAIR_SIDE)
+        for dx in (-36, -4, 28):
+            d.rect(sx + dx, 195, 8, 5, "#000008")
+        d.end()
+        return img
+    d.p.setClipRect(QRect(0, 0, W, BASE_Y))
+    if s["typing"]:
+        j = int(s["t"] * 10) % 2
         p["hand"] = (p["hand"][0] + j, p["hand"][1] - (1 - j))
-        p["hand2"] = (p["hand2"][0] + (1 - j), p["hand2"][1] - j * 0.5)
+        p["hand2"] = (p["hand2"][0] + (1 - j), p["hand2"][1] - j)
     sx, sy = p["seat"]
-    # legs: the far one first
     for knee, ankle, toe in (("knee2", "ankle2", "toe2"), ("knee", "ankle", "toe")):
-        d.line(p["hip"], p[knee], 8, PANTS)
-        d.line(p[knee], p[ankle], 7, PANTS)
-        d.line(p[ankle], p[toe], 5, SHOE)
-    # seat and the far armrest
-    d.rect(sx - 15, sy - 3, 30, 6, CHAIR)
-    # body, head, hair, headphones
-    d.line(p["hip"], p["shoulder"], 17, JACKET)
-    d.line((p["hip"][0] + 3, p["hip"][1] - 4), (p["shoulder"][0] + 3, p["shoulder"][1] + 4), 2,
-           JACKET_FOLD)
+        d.line(p["hip"], p[knee], 15, BODY)
+        d.line(p[knee], p[ankle], 12, BODY)
+        d.line(p[ankle], p[toe], 9, SHOE)
+    d.rect(sx - 30, sy - 6, 60, 10, CHAIR)  # the seat
+    d.rect(sx - 30, sy - 6, 60, 1, CHAIR_SIDE)
+    (hpx, hpy), (spx, spy) = p["hip"], p["shoulder"]
+    ux, uy = spx - hpx, spy - hpy
+    n = math.hypot(ux, uy) or 1.0
+    nx, ny = -uy / n, ux / n
+    d.poly([(hpx + nx * 12, hpy + ny * 12), (spx + nx * 16, spy + ny * 16 + 3),
+            (spx - nx * 16, spy - ny * 16 + 3), (hpx - nx * 12, hpy - ny * 12)], BODY)
+    d.disc(spx, spy + 2, 15, BODY, 8)  # the shoulders under the hood
     hx, hy = p["head"]
-    d.line(p["shoulder"], (hx, hy + 6), 9, JACKET)  # neck and hood
-    d.disc(hx, hy, 7, HAIR, 7.5)
-    sway = 1 if (t % 2.0) > 1.0 else 0  # the hair stirs a little
-    for dx, dy, h in ((-5, -5, 3), (-2, -7, 3), (2, -7, 3 + sway), (5, -4, 2), (6, -1, 2)):
-        d.rect(hx + dx, hy + dy - h + 1, 2, h, HAIR)
-    d.line((hx - 6, hy - 2), (hx + 5, hy - 6), 1, "#0a0816")
-    d.rect(hx - 7, hy - 1, 3, 5, "#0a0816")
-    led = "#c070ff" if (t % 1.0) < 0.8 else "#6a3a9a"
-    d.rect(hx - 7, hy + 1, 1, 1, led)
-    # the chair's back with its seam and mark
+    d.line(p["shoulder"], (hx, hy + 8), 15, BODY)
+    d.disc(hx, hy, 11, BODY, 12)
+    sway = 1 if (s["t"] % 2.0) > 1.0 else 0  # the hair stirs a little
+    for dx, dy, r in ((-8, -6, 5), (-3, -10, 5), (3, -10, 5), (8, -6, 4.5), (-11, 0, 4),
+                      (10, 0, 3.5), (-6, -13, 3), (5, -13 - sway, 3)):
+        d.disc(hx + dx, hy + dy, r, BODY)
+    # headphones: the band over the hair, the cups with a little light
+    d.p.setPen(QPen(QColor("#141640"), 2))
+    d.p.setBrush(Qt.NoBrush)
+    d.p.drawArc(QRect(round(hx - 12), round(hy - 14), 24, 24), 20 * 16, 140 * 16)
+    for side in (-1, 1):
+        d.disc(hx + side * 11, hy + 2, 3.5, "#0a0a26", 4.5)
+    d.rect(hx - 12, hy + 2, 1, 2, "#c070ff" if (s["t"] % 1.0) < 0.8 else "#5a2a8a")
+    # the chair's back with its seams and mark
     back = p["back"]
+    (ax, ay), (bx, by) = back[0], back[1]
+    d.poly([(ax + 2, ay - 6), (bx - 2, by - 6), (bx, by), (ax, ay)], CHAIR)  # headrest
     d.poly(back, CHAIR)
     (ax, ay), (bx, by), (cx, cy), (ex, ey) = back
-    mid_top = ((ax + bx) / 2, (ay + by) / 2)
-    mid_bot = ((cx + ex) / 2, (cy + ey) / 2)
-    d.line((ax + 2, ay + 3), (ex + 2, ey - 3), 1, CHAIR_SEAM)
-    d.line((bx - 2, by + 3), (cx - 2, cy - 3), 1, CHAIR_SEAM)
-    mx, my = mid_top[0] + (mid_bot[0] - mid_top[0]) * 0.22, mid_top[1] + (mid_bot[1] - mid_top[1]) * 0.22
-    width = math.dist((ax, ay), (bx, by))
-    if width > 14:
-        d.line((mx - 3, my - 2), (mx + 3, my + 2), 1, CHAIR_MARK)
-        d.line((mx - 3, my + 2), (mx + 3, my - 2), 1, CHAIR_MARK)
-    # arms and hands, the mug when he drinks
+    d.line((ax + 3, ay + 4), (ex + 3, ey - 4), 2, CHAIR_SIDE)
+    d.line((bx - 3, by + 4), (cx - 3, cy - 4), 2, CHAIR_SIDE)
+    if math.dist((ax, ay), (bx, by)) > 20:
+        mx, my = ax + (bx - ax) / 2 + (ex - ax) * 0.18, ay + (by - ay) / 2 + (ey - ay) * 0.18
+        d.line((mx - 5, my - 4), (mx + 5, my + 4), 2, CHAIR_MARK)
+        d.line((mx - 5, my + 4), (mx + 5, my - 4), 2, CHAIR_MARK)
+    # arms and hands
     for el, ha in (("elbow2", "hand2"), ("elbow", "hand")):
-        d.line(p["shoulder"], p[el], 7, JACKET)
-        d.line(p[el], p[ha], 6, JACKET)
-        d.rect(p[ha][0] - 1, p[ha][1] - 1, 3, 3, HAND)
-    if min(p["hand"][1], p["hand2"][1]) < hy - 4:  # arms up: the head in front
-        d.disc(hx, hy, 7, HAIR, 7.5)
-        d.rect(hx - 7, hy - 1, 3, 5, "#0a0816")
-    if mug:
+        d.line(p["shoulder"], p[el], 11, BODY)
+        d.line(p[el], p[ha], 9, BODY)
+        d.disc(p[ha][0], p[ha][1], 3, "#1a1240")
+    if min(p["hand"][1], p["hand2"][1]) < hy - 6:  # arms up: the head in front
+        d.disc(hx, hy, 12, BODY, 13)
+    if s["mug"]:
         mx, my = p["hand"]
-        d.rect(mx - 3, my - 5, 6, 7, "#c8b8d8")
-        d.rect(mx + 3, my - 3, 2, 3, "#c8b8d8")
+        d.rect(mx - 6, my - 10, 11, 13, "#2429a7")
+        d.rect(mx + 5, my - 7, 3, 6, "#2429a7")
+        d.rect(mx - 6, my - 10, 11, 2, "#6a7ae0")
     d.end()
-    return img, desk
+    return img
 
 
 def _rim(img: QImage, desk: float, t: float) -> None:
-    """Light the edges of the silhouette: the window (right and up), the
-    monitor (left) while he works at the desk."""
+    """Light the edges: from the window (right and up), from the screen
+    (left) while he works at the desk."""
     a = _view(img)
     m = a[:, :, 3] > 0
     right = np.zeros_like(m)
     right[:, :-1] = m[:, :-1] & ~m[:, 1:]
     top = np.zeros_like(m)
     top[1:, :] = m[1:, :] & ~m[:-1, :]
-    window_side = np.arange(W)[None, :] > 60
-    diag = np.zeros_like(m)  # a slanting edge facing up and right
+    diag = np.zeros_like(m)
     diag[1:, :-1] = m[1:, :-1] & ~m[:-1, 1:]
-    right |= diag & ~top
-    a[top & window_side, 0:3] = RIM_SUN2[::-1]
-    a[right & window_side, 0:3] = RIM_SUN[::-1]
+    edge = right | (diag & ~top)
+    checker = BAYER[np.arange(H)[:, None] % 4, np.arange(W)[None, :] % 4]
+    for dist, color, share in ((2, RIM_TOP, 0.6), (3, (19, 15, 62), 0.6), (4, (19, 15, 62), 0.3)):
+        band = np.zeros_like(m)
+        band[:, :-dist] = m[:, :-dist] & ~m[:, dist:]
+        band &= ~edge & (checker < share)
+        a[band, 0:3] = color[::-1]
+    a[top, 0:3] = RIM_TOP[::-1]
+    a[edge, 0:3] = RIM[::-1]
     if desk > 0.05:
         left = np.zeros_like(m)
         left[:, 1:] = m[:, 1:] & ~m[:, :-1]
-        flicker = 0.85 + 0.15 * ((int(t * 12) * 7) % 5) / 4
-        k = desk * flicker
-        sel = left & (np.arange(H)[:, None] < 120)
-        a[sel, 0:3] = (np.array(RIM_SCREEN[::-1]) * k
-                       + a[sel, 0:3].astype(float) * (1 - k)).astype(np.uint8)
+        k = desk * (0.8 + 0.2 * ((int(t * 12) * 7) % 5) / 4)
+        sel = left & (np.arange(H)[:, None] < 150)
+        a[sel, 0:3] = (np.array(RIM_SCREEN[::-1]) * k + a[sel, 0:3] * (1 - k)).astype(np.uint8)
 
 
-def _chair_base(d: _Pen, t: float) -> None:
-    pose = story(t)[0]
-    sx = pose["seat"][0]
-    d.rect(sx - 2, 136, 4, 18, CHAIR)
-    d.rect(sx - 20, 154, 40, 3, CHAIR)
-    d.rect(sx - 20, 154, 40, 1, "#2a2660")
-    for dx in (-20, -2, 16):
-        d.rect(sx + dx, 157, 4, 3, "#0a0816")
+def _dissolve(a: QImage, b: QImage, k: float) -> QImage:
+    """Pixels of ``b`` where the ordered threshold is below k, else of ``a``."""
+    va, vb = _view(a), _view(b)
+    take_b = BAYER[np.arange(H)[:, None] % 4, np.arange(W)[None, :] % 4] < k
+    out = QImage(W, H, QImage.Format_ARGB32)
+    _view(out)[:] = np.where(take_b[..., None], vb, va)
+    return out
 
 
-# --- frames -----------------------------------------------------------------------------
-
-_CACHE: dict = {}
-
-
-def _still():
-    if not _CACHE:
-        _CACHE["sky"] = _sky()
-        _CACHE["city"] = _city()
-        _CACHE["room"] = _room()
-    return _CACHE
+def _rocked(p: QPainter, img: QImage, rock: float) -> None:
+    """The upper part turned about the feet (the base is drawn as it is)."""
+    p.save()
+    if abs(rock) > 1e-3:
+        p.translate(*FEET)
+        p.rotate(rock)
+        p.translate(-FEET[0], -FEET[1])
+    p.drawImage(0, 0, img)
+    p.restore()
 
 
 def paint(img: QImage, t: float) -> None:
-    """Frame at ``t`` seconds of the loop onto ``img`` (W × H, ARGB32)."""
-    t %= LOOP
-    s = _still()
+    """Frame at ``t`` seconds onto ``img`` (W × H, ARGB32)."""
+    a = _assets()
+    s = story(t)
+    t = s["t"]
+    room = a["room_nomug"] if s["mug"] else a["room_bg"]
     p = QPainter(img)
     p.setRenderHint(QPainter.Antialiasing, False)
-    p.drawImage(0, 0, s["sky"])
-    d = _Pen.__new__(_Pen)
-    d.p = p
-    p.setClipRect(GLASS)
-    # the clouds drift a little to and fro (and come back for the loop)
-    for x, y, w, h, body, lit, speed in CLOUDS:
-        dx = 4 * speed * math.sin(2 * math.pi * t / LOOP)
-        d.rect(x + dx, y, w, h, body)
-        d.rect(x + dx + 2, y + h - 1, w - 3, 1, lit)
-    # the sun, a soft halo of two rings
-    d.disc(SUN[0], SUN[1], 11, "#ffb060", alpha=90)
-    d.disc(SUN[0], SUN[1], 8, "#ffd27a")
-    d.disc(SUN[0], SUN[1], 6, "#fff0b8")
-    p.drawImage(0, 0, s["city"])
-    for x, y, c, phase in CITY_LIGHTS:  # windows going on and off
-        if (math.sin(2 * math.pi * (t / LOOP * 4 + phase)) + 1) / 2 > 0.25:
-            d.rect(x, y, 1, 1, c)
-    _water(d, t)
-    p.setClipping(False)
-    p.drawImage(0, 0, s["room"])
-    _small_things(d, t)
-    _chair_base(d, t)
-    man, desk = _man(t)
-    _rim(man, desk, t)
-    p.drawImage(0, 0, man)
-    # the desk's drawers stand in front of his legs when he sits at it
-    p.drawImage(QRect(40, 104, 42, 46), s["room"], QRect(40, 104, 42, 46))
+    p.setRenderHint(QPainter.SmoothPixmapTransform, False)
+    p.drawImage(0, 0, room)
+    _ambient(p, a, t, mug_on_desk=not s["mug"])
+    if s["drawn"] <= 0:
+        upper, base = a["man_upper"], a["man_base"]
+    else:
+        upper = _draw_man(s, True)
+        _rim(upper, s["desk"], t)
+        base = _draw_man(s, False)
+        if s["drawn"] < 1:  # the concept's man and the drawn one, dissolving
+            upper = _dissolve(a["man_upper"], upper, s["drawn"])
+            base = _dissolve(a["man_base"], base, s["drawn"])
+    p.drawImage(0, 0, base)
+    _rocked(p, upper, s["rock"])
+    if s["desk"] > 0:  # the desk stands in front of his knees
+        p.drawImage(DESK_FRONT, room, DESK_FRONT)
     p.end()
 
 
-def _water(d: _Pen, t: float) -> None:
-    for y in range(HORIZON + 1, GLASS.bottom() + 1):
-        k = (y - HORIZON) / (GLASS.bottom() - HORIZON)
-        d.rect(GLASS.left(), y, GLASS.width(), 1, "#3a2c86" if k < 0.4 else "#2a2068")
-    rnd = random.Random(int(t * 4) % 80)  # shimmer: 4 changes a second, 80 per loop
-    for _ in range(26):  # the sky in the ripples
-        y = rnd.randint(HORIZON + 2, GLASS.bottom())
-        x = rnd.randint(GLASS.left(), GLASS.right() - 8)
-        d.rect(x, y, rnd.randint(3, 9), 1, rnd.choice(("#c04a8a", "#6a3aa0", "#e0607a")))
-    for y in range(HORIZON + 1, GLASS.bottom() + 1, 2):  # the sun's path
-        spread = 3 + (y - HORIZON) * 0.25
-        w = max(2, round(spread * 2 * (0.6 + 0.4 * rnd.random())))
-        c = "#ffe08a" if y < HORIZON + 8 else ("#ffb060" if y < HORIZON + 14 else "#ff8a52")
-        d.rect(SUN[0] - w // 2 + rnd.randint(-1, 1), y, w, 1, c)
-
-
-def _small_things(d: _Pen, t: float) -> None:
-    # the screen: windows of a program, a slight flicker
-    flick = 235 + (int(t * 12) * 37) % 20
-    d.rect(1, 59, 36, 33, "#2a3ea8", flick)
-    d.rect(1, 59, 36, 3, "#1a2470")
-    d.rect(2, 63, 8, 28, "#1d2a80")
-    for k in range(6):
-        d.rect(3, 64 + k * 4, 6, 2, "#5a6ad8")
-    d.rect(12, 64, 23, 12, "#3a5ad8")
-    d.rect(13, 65, 10, 1, "#c8d0ff")
-    d.rect(13, 68, 18, 1, "#8aa0ff")
-    d.rect(13, 71, 14, 1, "#8aa0ff")
-    d.rect(12, 79, 23, 11, "#2a46c0")
-    for k in range(3):
-        d.rect(14, 81 + k * 3, 4, 2, "#c86ad8")
-        d.rect(20, 81 + k * 3, 12, 1, "#8aa0ff")
-    # the screen lights the desk; the keyboard glows
-    d.rect(0, 100, 40, 1, "#4a5ad8")
-    glow = "#9a5aff" if int(t * 2) % 2 else "#8a4af0"
-    d.rect(14, 96, 34, 3, "#2a2060")
-    for x in range(15, 47, 3):
-        d.rect(x, 96 + (x // 3) % 2, 2, 1, glow)
-    d.rect(40, 97, 4, 2, "#3a2a70")  # mouse
-    # the tower's LED blinks
-    d.rect(57, 72, 2, 2, "#5aff9a" if (t % 1.0) < 0.5 else "#1d4a3a")
-    # the mug and its steam (unless he holds it)
-    _, _, _, _, mug = story(t)
-    if not mug:
-        mx, my = MUG_ON_DESK
-        d.rect(mx - 3, my, 6, 8, "#c8b8d8")
-        d.rect(mx + 3, my + 2, 2, 3, "#c8b8d8")
-        d.rect(mx - 3, my, 6, 1, "#ffe0f0")
-        for k in range(3):
-            ph = (t / 1.25 + k / 3) % 1.0
-            sx = mx + round(math.sin((ph + k) * 6) * 1.5)
-            d.rect(sx, my - 2 - ph * 10, 1, 1, "#c8b8e8", int(200 * (1 - ph)))
-    # the cat asleep on the bed, breathing
-    breath = 1 if (t % 2.5) > 1.25 else 0
-    d.disc(300, 132 - breath * 0.5, 11, "#b8b8d0", 5 + breath * 0.5)
-    d.disc(296, 131, 5, "#4a4a6a", 3)
-    d.disc(289, 130, 4, "#d0d0e8", 3.5)
-    d.rect(286, 125, 2, 3, "#d0d0e8")
-    d.rect(291, 125, 2, 3, "#d0d0e8")
-    d.rect(308, 135, 7, 2, "#8a8aa8")
-    d.rect(300, 127 - breath, 8, 1, "#ff9a6a")  # the window's light on its back
+def _ambient(p: QPainter, a: dict, t: float, mug_on_desk: bool) -> None:
+    bg = a["room_bg"]
+    # clouds: the sky band slides a few pixels to and fro (and back for the loop)
+    for y0, y1, amp in ((12, 36, 3.0), (36, 60, 1.6)):
+        dx = round(amp * math.sin(2 * math.pi * t / LOOP))
+        if dx:
+            band = QRect(SKY.left(), y0, SKY.width(), y1 - y0)
+            p.save()
+            p.setClipRect(band)
+            p.drawImage(band.translated(dx, 0), bg, band)
+            p.restore()
+    # the city's windows go on and off
+    for x, y, phase, dark in a["lights"]:
+        if math.sin(2 * math.pi * (t / LOOP * 3 + phase)) > 0.55:
+            p.fillRect(x, y, 1, 1, dark)
+    # ripples: rows of the water shift by a pixel, now one way, now the other
+    for y in range(WATER.top(), WATER.bottom() + 1):
+        r = (int(t * 3) + y) % 3
+        dx = 1 if r == 0 else (-1 if r == 1 else 0)
+        if dx:
+            row = QRect(WATER.left(), y, WATER.width(), 1)
+            p.save()
+            p.setClipRect(row)
+            p.drawImage(row.translated(dx, 0), bg, row)
+            p.restore()
+    # the screen flickers a little, the cursor blinks
+    p.fillRect(SCREEN, QColor(120, 150, 255, 10 + (int(t * 12) * 37) % 18))
+    if int(t * 2) % 2:
+        p.fillRect(30, 96, 3, 1, QColor("#c8d0ff"))
+    # the keyboard breathes, the tower's lights blink
+    p.fillRect(KEYS, QColor(170, 80, 255, 25 + round(20 * (1 + math.sin(2 * math.pi * t / 2.5)))))
+    for k, y in enumerate(range(TOWER.top() + 3, TOWER.bottom(), 5)):
+        if (int(t * 2) + k) % 3 == 0:
+            p.fillRect(TOWER.left() + 2, y, 3, 2, QColor("#0a0a30"))
+    # steam from the mug
+    if mug_on_desk:
+        for k in range(4):
+            ph = (t / 1.25 + k / 4) % 1.0
+            sx = 66 + k % 2 * 3 + round(math.sin((ph + k) * 6) * 1.5)
+            p.fillRect(sx, round(106 - ph * 14), 1, 1, QColor(200, 200, 240, int(150 * (1 - ph))))

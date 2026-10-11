@@ -61,8 +61,8 @@ class DraftingLoader(QWidget):
         paint(scene, now)
         # the scene alone, as large as fits above a line of status
         k = min(w / W, (h - 64) / H)
-        if k >= 1:
-            k = int(k)  # whole pixels where it fits
+        if k >= 3:
+            k = int(k)  # whole pixels where the window is large; else as large as fits
         sw, sh = int(W * k), int(H * k)
         x, y = (w - sw) // 2, max(0, (h - 64 - sh) // 2)
         p.fillRect(self.rect(), QColor("#0b0a1a"))

@@ -17,7 +17,9 @@ if sys.platform == "win32":
 a = Analysis(
     [str(ROOT / "packaging" / "kompas_ai_app.py")],
     pathex=[str(CORE)],
-    datas=collect_data_files("ezdxf") + [(str(ROOT / "packaging" / "icon" / "kompas_ai.png"), "kompas_ai")],
+    datas=collect_data_files("ezdxf") + [(str(ROOT / "packaging" / "icon" / "kompas_ai.png"), "kompas_ai"),
+                                          (str(ROOT / "core" / "kompas_ai" / "gui" / "assets"),
+                                           "kompas_ai/gui/assets")],
     hiddenimports=hidden,
     excludes=["tkinter", "matplotlib", "PIL", "pytest", "IPython",
               # Qt parts the window does not use
