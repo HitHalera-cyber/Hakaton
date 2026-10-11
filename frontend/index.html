@@ -45,19 +45,37 @@
 
     <button type="button" id="analyze-btn" class="primary-btn">Рассчитать</button>
 
+    <div class="control-group compare-dates-group">
+      <label>Сравнить два сценария ВКД</label>
+      <p class="hint">Сравнивает две разные даты (не время старта в пределах одной, для этого выше есть «Период поиска начала») и указывает более безопасный вариант.</p>
+      <label for="compare_date_a">Дата А (UTC)</label>
+      <input type="datetime-local" id="compare_date_a" step="60" />
+      <label for="compare_date_b">Дата Б (UTC)</label>
+      <input type="datetime-local" id="compare_date_b" step="60" />
+      <button type="button" id="compare-dates-btn" class="primary-btn">Сравнить даты</button>
+      <p class="hint" id="compare-dates-status" hidden></p>
+    </div>
+
     <details class="control-group advanced-panel">
-      <summary>Дополнительно (для проверки надёжности и методики)</summary>
+      <summary>Дополнительно</summary>
       <div class="control-group">
-        <label for="step_minutes">Шаг сравнения окон, мин</label>
+        <label for="step_minutes">Шаг перебора окон, мин</label>
         <input type="number" id="step_minutes" min="5" max="120" step="5" value="30" />
-        <p class="hint">Не требуется заданием — подбирается автоматически; меняйте только если нужен более точный/грубый перебор.</p>
+        <p class="hint">Подбирается автоматически. Меняйте, только если нужен более точный или более грубый перебор.</p>
       </div>
       <div class="control-group">
-        <label>Источники данных — заморозка / отключение</label>
-        <p class="hint">Критерий Т6: способ проверить, что сервис не выдаёт ложное «риска нет» при отказе источника.</p>
+        <label>Источники данных</label>
+        <p class="hint">Заморозить или отключить отдельный источник — проверить, как сервис ведёт себя при его недоступности.</p>
         <div id="sources-toggle-list" class="sources-toggle-list"></div>
       </div>
-      <button type="button" id="experiment-btn" class="ghost-btn">Эксперимент: метод команды vs. базовый подход (критерий Т5)</button>
+      <div class="control-group">
+        <label class="checkbox-label" for="force_refresh">
+          <input type="checkbox" id="force_refresh" />
+          Обновить данные источников сейчас (не использовать кеш)
+        </label>
+        <p class="hint">Игнорирует срок годности кеша и заново запрашивает все источники — полезно, если данные явно устарели.</p>
+      </div>
+      <button type="button" id="experiment-btn" class="ghost-btn">Эксперимент: метод команды vs. базовый подход</button>
     </details>
 
     <div id="status-banner" class="status-banner" hidden></div>
@@ -68,6 +86,14 @@
     <div id="error-banner" class="error-banner" hidden></div>
 
     <div id="results-content" hidden>
+      <div class="panel verdict-panel" id="verdict-panel">
+        <div class="verdict-badge" id="verdict-badge">
+          <span class="verdict-title" id="verdict-title"></span>
+        </div>
+        <p class="verdict-detail" id="verdict-detail"></p>
+        <p class="hint">Оценка учитывает только два отслеживаемых внешних фактора — космическую погоду и сближения с объектами. Она не заменяет общий риск ВКД (техника, действия экипажа, необнаруживаемые микрочастицы), который есть всегда, и не заменяет решение уполномоченных специалистов.</p>
+      </div>
+
       <div class="panel" id="historical-panel" hidden>
         <h2>Режим и отсечение по времени</h2>
         <p id="historical-note"></p>
@@ -82,7 +108,7 @@
           </div>
         </div>
         <p id="orbit-meta" class="meta-line"></p>
-        <p class="hint" id="view-hint">Жёлтая линия — станция освещена Солнцем (день), тёмно-синяя — станция в тени Земли (ночь). Зелёная метка — начало показанного периода, оранжевая — конец. Карта автоматически приближена к участку трассы.</p>
+        <p class="hint" id="view-hint">Золотистая линия — станция освещена Солнцем (день), тёмно-фиолетовая — станция в тени Земли (ночь). Зелёная метка — начало показанного периода, оранжевая — конец. Карта автоматически приближена к участку трассы.</p>
         <div id="map" class="map"></div>
         <div id="globe-box" class="map" hidden>
           <canvas id="globe-canvas"></canvas>
@@ -93,7 +119,6 @@
       <div class="panel">
         <h2>Сравнение окон ВКД</h2>
         <p id="recommendation-text" class="recommendation"></p>
-        <canvas id="windows-chart" height="140"></canvas>
         <div class="table-wrap">
           <table id="windows-table">
             <thead>
@@ -127,6 +152,11 @@
       <h2>Эксперимент: метод команды vs. базовый подход</h2>
       <div id="experiment-content"></div>
     </div>
+
+    <div class="panel" id="compare-dates-panel" hidden>
+      <h2>Сравнение дат</h2>
+      <div id="compare-dates-content"></div>
+    </div>
   </section>
 </main>
 
@@ -135,7 +165,6 @@
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="js/app.js"></script>
 </body>

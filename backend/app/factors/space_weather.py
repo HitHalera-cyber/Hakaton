@@ -1,8 +1,13 @@
 """Space-weather factor: solar radiation storms (S-scale/SEP — the dominant
 driver of extra astronaut radiation dose during EVA), geomagnetic storms
-(G-scale) and radio blackouts (R-scale) as contextual signals, and
-DONKI-based historical notifications for the required "forecast from the
-past" replay mode.
+(G-scale) and radio blackouts (R-scale) as contextual signals, plus NASA
+DONKI notifications — used both for the required historical "forecast from
+the past" replay (strict cutoff by messageIssueTime) and, since DONKI is a
+second, independently-operated public source with its own event typing
+(SEP/GST/RBE/IPS/CME/FLR), also in current mode alongside NOAA SWPC: NOAA's
+noaa-scales.json only gives day-granularity "today"/"tomorrow" buckets,
+while DONKI's dated, typed notifications add coverage across the whole
+requested EVA window rather than just the current day.
 
 Rule summary (documented here so O2/T3 reviewers can audit it in one place):
   - S-scale (and DONKI SEP notifications) is the PRIMARY driver of severity,
@@ -14,6 +19,14 @@ Rule summary (documented here so O2/T3 reviewers can audit it in one place):
     event linkage when available, otherwise by overlapping issue time
     windows). This directly implements the requirement that "связанные
     сигналы не увеличивают риск автоматически несколько раз".
+  - DONKI notifications in current mode are each typed and severity-scored
+    the same way as in historical mode (see _DONKI_TYPE_SEVERITY), but are
+    NOT deduplicated against NOAA's S/G/R signals: DONKI and SWPC are two
+    independently operated sources that may legitimately both report the
+    same underlying solar event from their own editorial process. Per T1
+    ("не менее 2 независимых факторов риска") the intent is cross-checkable
+    coverage, not a single merged number, so both are surfaced with their
+    own source/time/rule/confidence rather than silently merged.
   - Missing/unavailable sub-scores lower confidence, they are never treated
     as "0 risk".
 """
@@ -30,9 +43,11 @@ from ..models import ConfidenceLevel, FactorAssessment, FactorKind, Provenance, 
 
 SWPC_SCALES_CACHE = "swpc_scales"
 SWPC_ALERTS_CACHE = "swpc_alerts"
+DONKI_CURRENT_CACHE = "donki_notifications_current"
 
 registry.register(SWPC_SCALES_CACHE, settings.swpc_scales_url, settings.current_data_ttl_seconds)
 registry.register(SWPC_ALERTS_CACHE, settings.swpc_alerts_url, settings.current_data_ttl_seconds)
+registry.register(DONKI_CURRENT_CACHE, settings.donki_base_url, settings.current_data_ttl_seconds)
 
 _CONTEXT_CAP = 0.15  # max additive contribution from G/R scales, see module docstring
 
@@ -55,7 +70,7 @@ _DONKI_TYPE_LABEL = {
 
 
 def _apply_overrides(disabled: list[str], frozen: list[str]) -> None:
-    for name in (SWPC_SCALES_CACHE, SWPC_ALERTS_CACHE):
+    for name in (SWPC_SCALES_CACHE, SWPC_ALERTS_CACHE, DONKI_CURRENT_CACHE):
         cache = registry.get(name)
         (cache.disable if name in disabled else cache.enable)()
         (cache.freeze if name in frozen else cache.unfreeze)()
@@ -75,6 +90,7 @@ async def assess_current(
     window_end: datetime,
     disabled_sources: list[str],
     frozen_sources: list[str],
+    force_refresh: bool = False,
 ) -> FactorAssessment:
     _apply_overrides(disabled_sources, frozen_sources)
     signals: list[Signal] = []
@@ -82,11 +98,24 @@ async def assess_current(
 
     scales_cache = registry.get(SWPC_SCALES_CACHE)
     alerts_cache = registry.get(SWPC_ALERTS_CACHE)
+    donki_cache = registry.get(DONKI_CURRENT_CACHE)
+
+    # Look back far enough to catch a notification issued a few days ago
+    # that is still describing an ongoing/expected event, and forward to
+    # cover the requested window even if it extends past "today" (DONKI
+    # simply returns nothing for dates it has no notifications for yet).
+    donki_query_start = (datetime.now(timezone.utc) - timedelta(days=7)).date()
+    donki_query_end = max(window_end, datetime.now(timezone.utc)).date()
 
     # Independent sources, fetched concurrently rather than one after the
-    # other — halves the worst-case wait when one of them is slow/down.
-    scales_result, alerts_result = await asyncio.gather(
-        scales_cache.get(swpc.fetch_scales), alerts_cache.get(swpc.fetch_alerts), return_exceptions=True
+    # other — reduces the worst-case wait when one of them is slow/down.
+    scales_result, alerts_result, donki_result = await asyncio.gather(
+        scales_cache.get(swpc.fetch_scales, force_refresh=force_refresh),
+        alerts_cache.get(swpc.fetch_alerts, force_refresh=force_refresh),
+        donki_cache.get(
+            lambda: donki.fetch_notifications(donki_query_start, donki_query_end), force_refresh=force_refresh
+        ),
+        return_exceptions=True,
     )
 
     scales_ok = True
@@ -104,6 +133,14 @@ async def assess_current(
         alerts, alerts_status = [], alerts_cache.status
     else:
         alerts, alerts_status, _ = alerts_result
+
+    donki_ok = True
+    if isinstance(donki_result, SourceUnavailable):
+        donki_ok = False
+        notes_parts.append(f"NASA DONKI недоступен: {donki_result.reason}.")
+        donki_raw = []
+    else:
+        donki_raw, _donki_status, _ = donki_result
 
     # Determine which forecast-horizon day-buckets ("0" = today ... "3") this
     # window overlaps. NOAA publishes day-granularity scales, coarser than
@@ -204,7 +241,22 @@ async def assess_current(
                 severity=0.3,
                 provenance=Provenance.observation,
                 observed_or_expected_start=issued,
-                observed_or_expected_end=None,
+                # Same fix as the DONKI signals below: an alert can be up
+                # to 48h old (see the lookback check above) and still be
+                # surfaced as active context, but a bare 30-minute default
+                # span would make it "expire" for scoring purposes long
+                # before any window being compared today. Anchored to "now"
+                # (not window_end — see the DONKI comment for why that was
+                # wrong) so it stays a fixed, realistic duration regardless
+                # of how wide the user's comparison range is.
+                observed_or_expected_end=(
+                    max(
+                        issued + timedelta(hours=settings.forecast_horizon_hours),
+                        datetime.now(timezone.utc) + timedelta(hours=settings.forecast_horizon_hours),
+                    )
+                    if issued
+                    else None
+                ),
                 is_time_uncertain=issued is None,
                 value=None,
                 unit=None,
@@ -218,7 +270,87 @@ async def assess_current(
             )
         )
 
-    data_sufficient = scales_ok or alerts_ok
+    seen_message_ids: set[str] = set()
+    for item in donki_raw or []:
+        msg_type_raw = str(item.get("messageType", ""))
+        msg_type = next((k for k in _DONKI_TYPE_SEVERITY if msg_type_raw.upper().startswith(k)), None)
+        if msg_type is None:
+            continue
+        # DONKI notifications are keyed by messageID, but the same message can
+        # legitimately appear more than once in one response (e.g. an update
+        # to an already-issued notification, or overlap between adjacent
+        # query pages) — without dedup this double-counted the same event as
+        # two separate signals, inflating severity (T1: "дубли сообщений").
+        message_id = str(item.get("messageID", "")).strip()
+        if message_id:
+            if message_id in seen_message_ids:
+                continue
+            seen_message_ids.add(message_id)
+        issued = parse_utc_datetime(item.get("messageIssueTime"))
+        body = str(item.get("messageBody", ""))[:400]
+        is_forecast_wording = any(w in body.lower() for w in ("predicted", "expected", "forecast", "likely"))
+        signals.append(
+            Signal(
+                factor=FactorKind.space_weather,
+                label=f"{_DONKI_TYPE_LABEL[msg_type]} — уведомление DONKI",
+                description=body or item.get("messageID", ""),
+                severity=_DONKI_TYPE_SEVERITY[msg_type],
+                provenance=Provenance.external_forecast if is_forecast_wording else Provenance.observation,
+                observed_or_expected_start=issued,
+                # Two problems fixed here, not one. (1) Without an explicit
+                # end, _score_factor_for_window's fallback treats this as a
+                # 30-minute point event (_DEFAULT_SIGNAL_SPAN) — far too
+                # short for how long a real solar/geomagnetic event's
+                # elevated-risk period actually lasts. (2) Fixing just that
+                # (issued + forecast_horizon_hours) still wasn't enough here:
+                # this query deliberately looks back up to 7 days (see
+                # donki_query_start above) to keep surfacing a notification
+                # that's "still describing an ongoing/expected event" — but
+                # a notification issued, say, 3 days ago would have its
+                # 6-hour span end 3 days ago too, long before "now" or any
+                # window being compared today. The signal then showed up
+                # with real severity in the factors list while silently
+                # never contributing to any window's score — exactly what
+                # was reported. FIRST attempt at a fix extended the end to
+                # window_end (the far edge of the whole compared range) —
+                # wrong: for a wide search period that blankets EVERY
+                # compared window with the identical severity, collapsing
+                # all of them to the same score and defeating the entire
+                # point of comparing windows (reported live: a flat,
+                # undifferentiated chart and an unclear "best" pick).
+                # Anchored to "now" instead — a fixed, realistic duration
+                # regardless of how wide the comparison range is, so
+                # windows further into the future correctly show reduced
+                # risk from this signal again.
+                observed_or_expected_end=(
+                    max(
+                        issued + timedelta(hours=settings.forecast_horizon_hours),
+                        datetime.now(timezone.utc) + timedelta(hours=settings.forecast_horizon_hours),
+                    )
+                    if issued
+                    else None
+                ),
+                is_time_uncertain=True,
+                value=None,
+                unit=None,
+                source_name="NASA DONKI notifications",
+                source_url=settings.donki_base_url,
+                published_at=issued,
+                rule_applied=(
+                    f"фиксированная значимость по типу уведомления DONKI ({msg_type}="
+                    f"{_DONKI_TYPE_SEVERITY[msg_type]}); независимый источник, дополняющий NOAA SWPC "
+                    "(без отсечения по времени — это не режим прогноза из прошлого)"
+                ),
+                limitations=(
+                    "DONKI-уведомление не даёт точной числовой интенсивности; момент относится к "
+                    "публикации уведомления, а не обязательно к пику события."
+                ),
+                confidence=ConfidenceLevel.medium,
+                confidence_rationale="Официальное уведомление NASA DONKI с указанным временем публикации.",
+            )
+        )
+
+    data_sufficient = scales_ok or alerts_ok or donki_ok
     overall_confidence = ConfidenceLevel.insufficient_data if not data_sufficient else (
         ConfidenceLevel.medium if signals else ConfidenceLevel.high
     )
@@ -229,8 +361,9 @@ async def assess_current(
         factor=FactorKind.space_weather,
         title="Космическая погода (радиация, геомагнитная обстановка)",
         mechanism_description=(
-            "Оценивает риск повышенной дозы облучения и связанных возмущений среды "
-            "во время ВКД по данным NOAA SWPC (текущая обстановка и краткосрочный прогноз)."
+            "Оценивает риск повышенной дозы облучения и связанных возмущений среды во время ВКД "
+            "по данным NOAA SWPC (текущая обстановка и краткосрочный прогноз) и NASA DONKI "
+            "(типизированные уведомления о солнечных/геомагнитных событиях на весь запрошенный период)."
         ),
         data_sufficient=data_sufficient,
         signals=signals,
@@ -243,6 +376,7 @@ async def assess_historical(
     cutoff: datetime,
     window_start: datetime,
     window_end: datetime,
+    force_refresh: bool = False,
 ) -> FactorAssessment:
     """Strict 'forecast from the past' replay: only DONKI notifications with
     messageIssueTime <= cutoff are used. This directly satisfies T4."""
@@ -271,13 +405,16 @@ async def assess_historical(
     notes_parts: list[str] = []
     data_sufficient = True
     try:
-        raw, _status, _fresh = await cache.get(lambda: donki.fetch_notifications(query_start, query_end))
+        raw, _status, _fresh = await cache.get(
+            lambda: donki.fetch_notifications(query_start, query_end), force_refresh=force_refresh
+        )
     except SourceUnavailable as exc:
         data_sufficient = False
         raw = []
         notes_parts.append(f"NASA DONKI недоступен: {exc.reason}.")
 
-    kept, dropped_future = 0, 0
+    kept, dropped_future, dropped_duplicate = 0, 0, 0
+    seen_message_ids: set[str] = set()
     for item in raw or []:
         issued = parse_utc_datetime(item.get("messageIssueTime"))
         if issued is None:
@@ -289,6 +426,12 @@ async def assess_historical(
         msg_type = next((k for k in _DONKI_TYPE_SEVERITY if msg_type_raw.upper().startswith(k)), None)
         if msg_type is None:
             continue
+        message_id = str(item.get("messageID", "")).strip()
+        if message_id:
+            if message_id in seen_message_ids:
+                dropped_duplicate += 1
+                continue
+            seen_message_ids.add(message_id)
         body = str(item.get("messageBody", ""))[:500]
         is_forecast_wording = any(w in body.lower() for w in ("predicted", "expected", "forecast", "likely"))
         kept += 1
@@ -300,7 +443,11 @@ async def assess_historical(
                 severity=_DONKI_TYPE_SEVERITY[msg_type],
                 provenance=Provenance.external_forecast if is_forecast_wording else Provenance.observation,
                 observed_or_expected_start=issued,
-                observed_or_expected_end=None,
+                # See the matching comment in assess_current: an unset end
+                # falls back to a 30-minute default, far shorter than a
+                # real event's actual persistence, so windows more than
+                # ~30 minutes past cutoff never saw this signal at all.
+                observed_or_expected_end=issued + timedelta(hours=settings.forecast_horizon_hours),
                 is_time_uncertain=True,
                 value=None,
                 unit=None,
@@ -317,9 +464,11 @@ async def assess_historical(
             )
         )
 
+    dup_note = f" Обнаружено и исключено {dropped_duplicate} дублей сообщений." if dropped_duplicate else ""
     notes_parts.append(
         f"Прогноз из прошлого: учтено {kept} уведомлений, опубликованных не позже {cutoff.isoformat()}; "
         f"{dropped_future} более поздних уведомлений исключены из расчёта и доступны только для проверки."
+        f"{dup_note}"
     )
 
     overall_confidence = ConfidenceLevel.insufficient_data if not data_sufficient else (

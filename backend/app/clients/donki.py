@@ -17,6 +17,30 @@ from ..config import settings
 from ..http import new_client
 
 
+class DonkiRateLimited(Exception):
+    """Raised specifically for NASA's 429, with guidance tailored to
+    whether it was the shared DEMO_KEY or a personal key: DEMO_KEY's low
+    hourly quota is shared across every anonymous api.nasa.gov user at
+    once, not just this deployment, so it can be exhausted by traffic that
+    has nothing to do with this site — a personal key (free, instant,
+    email-only signup) fixes it completely."""
+
+
+async def _get_or_raise(client, url: str):
+    resp = await client.get(url)
+    if resp.status_code == 429:
+        if settings.nasa_api_key == "DEMO_KEY":
+            raise DonkiRateLimited(
+                "превышен лимит общего DEMO_KEY (его делят между собой все анонимные "
+                "пользователи api.nasa.gov, а не только этот сайт) — получите бесплатный "
+                "личный ключ на api.nasa.gov (мгновенно, нужен только email) и укажите "
+                "его в переменной EVA_NASA_API_KEY"
+            )
+        raise DonkiRateLimited("превышен лимит запросов для настроенного личного ключа NASA API")
+    resp.raise_for_status()
+    return resp
+
+
 async def fetch_notifications(start: date, end: date, msg_type: str = "all") -> list[dict]:
     url = (
         f"{settings.donki_base_url}/notifications"
@@ -24,8 +48,7 @@ async def fetch_notifications(start: date, end: date, msg_type: str = "all") -> 
         f"&type={msg_type}&api_key={settings.nasa_api_key}"
     )
     async with new_client() as client:
-        resp = await client.get(url)
-        resp.raise_for_status()
+        resp = await _get_or_raise(client, url)
         return resp.json()
 
 
@@ -39,8 +62,7 @@ async def fetch_gst(start: date, end: date) -> list[dict]:
         f"&api_key={settings.nasa_api_key}"
     )
     async with new_client() as client:
-        resp = await client.get(url)
-        resp.raise_for_status()
+        resp = await _get_or_raise(client, url)
         return resp.json()
 
 
@@ -53,6 +75,5 @@ async def fetch_sep(start: date, end: date) -> list[dict]:
         f"&api_key={settings.nasa_api_key}"
     )
     async with new_client() as client:
-        resp = await client.get(url)
-        resp.raise_for_status()
+        resp = await _get_or_raise(client, url)
         return resp.json()

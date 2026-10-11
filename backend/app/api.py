@@ -10,10 +10,18 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 
 from . import experiments, export
-from .analysis import run_analysis
+from .analysis import compare_dates, run_analysis
 from .cache import registry
 from .config import settings
-from .models import AnalyzeRequest, AnalyzeResponse, ExperimentResult, Mode, SourceStatus
+from .models import (
+    AnalyzeRequest,
+    AnalyzeResponse,
+    CompareDatesRequest,
+    CompareDatesResponse,
+    ExperimentResult,
+    Mode,
+    SourceStatus,
+)
 
 logger = logging.getLogger("eva.api")
 router = APIRouter(prefix="/api")
@@ -39,24 +47,41 @@ async def config() -> dict:
     }
 
 
+def _check_historical_range(reference_time) -> None:
+    hist_start = settings.historical_start
+    hist_end = settings.historical_end
+    if not (hist_start <= reference_time.isoformat() <= hist_end):
+        raise HTTPException(
+            status_code=422,
+            detail=f"Историческая дата должна быть в диапазоне {hist_start[:10]}..{hist_end[:10]}",
+        )
+
+
 @router.post("/analyze", response_model=AnalyzeResponse)
 async def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
     if req.mode == Mode.historical:
-        hist_start = settings.historical_start
-        hist_end = settings.historical_end
-        if not (hist_start <= req.reference_time.isoformat() <= hist_end):
-            raise HTTPException(
-                status_code=422,
-                detail=(
-                    f"Историческая дата должна быть в диапазоне {hist_start[:10]}..{hist_end[:10]}"
-                ),
-            )
+        _check_historical_range(req.reference_time)
     try:
         resp = await run_analysis(req)
     except Exception as exc:  # noqa: BLE001 - convert to a clean user-facing error, never a silent "all clear"
         logger.exception("analysis failed")
         raise HTTPException(status_code=502, detail=f"Не удалось выполнить расчёт: {exc}") from exc
     export.save_result(resp)
+    return resp
+
+
+@router.post("/compare-dates", response_model=CompareDatesResponse)
+async def compare_dates_route(req: CompareDatesRequest) -> CompareDatesResponse:
+    if req.mode == Mode.historical:
+        _check_historical_range(req.date_a)
+        _check_historical_range(req.date_b)
+    try:
+        resp = await compare_dates(req)
+    except Exception as exc:  # noqa: BLE001 - convert to a clean user-facing error, never a silent "all clear"
+        logger.exception("date comparison failed")
+        raise HTTPException(status_code=502, detail=f"Не удалось сравнить даты: {exc}") from exc
+    export.save_result(resp.result_a)
+    export.save_result(resp.result_b)
     return resp
 
 

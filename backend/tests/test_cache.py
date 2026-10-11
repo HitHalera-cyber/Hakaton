@@ -23,6 +23,30 @@ async def test_fetch_success_then_serves_cache_within_ttl():
     assert calls["n"] == 1  # second call served from cache, no refetch
 
 
+async def test_force_refresh_bypasses_a_still_fresh_cache():
+    """User-triggered forced update ('Предусмотрено принудительное обновление
+    пользователем') must re-fetch even when the TTL has not expired yet."""
+    calls = {"n": 0}
+
+    async def fetch():
+        calls["n"] += 1
+        return {"value": calls["n"]}
+
+    cache = SourceCache("t1b", "http://example.test", ttl_seconds=3600)
+    payload, status, fresh = await cache.get(fetch)
+    assert calls["n"] == 1
+    assert fresh is True
+
+    payload2, status2, fresh2 = await cache.get(fetch)
+    assert calls["n"] == 1  # still within TTL, served from cache
+    assert fresh2 is False
+
+    payload3, status3, fresh3 = await cache.get(fetch, force_refresh=True)
+    assert calls["n"] == 2  # force_refresh bypasses the still-valid TTL
+    assert fresh3 is True
+    assert payload3 == {"value": 2}
+
+
 async def test_transient_failure_recovers_on_retry_within_same_get_call():
     """A source that fails once (e.g. a dropped connection) then succeeds
     should recover within a single .get() call, not be treated as an
