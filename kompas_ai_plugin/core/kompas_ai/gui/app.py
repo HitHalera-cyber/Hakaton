@@ -175,8 +175,12 @@ class MainWindow(QMainWindow):
         self.page_height = 0.0
         self.thread: QThread | None = None
         self.job = None
+        self.pending: Path | None = None
+        self.model_ok: bool | None = None
 
         self.preview = PreviewView()
+        self.preview.setAcceptDrops(False)  # a PDF dropped on the drawing reaches the window
+        self.preview.viewport().setAcceptDrops(False)
         self.summary = QPlainTextEdit(readOnly=True, objectName="report")
         self.summary.setLineWrapMode(QPlainTextEdit.NoWrap)
         self.review = QListWidget()
@@ -342,9 +346,10 @@ class MainWindow(QMainWindow):
 
         model, lay = _card("cardAccent")
         lay.addWidget(_label("3D-модель", "cardTitle"))
-        lay.addWidget(_label("Тело вращения: профиль над осью вращается на 360°, "
-                             "лыски, отверстия, резьба", "sub"))
-        lay.itemAt(lay.count() - 1).widget().setWordWrap(True)
+        self.model_note = _label("Тело вращения: профиль над осью вращается на 360°, "
+                                 "лыски, отверстия, резьба", "sub")
+        self.model_note.setWordWrap(True)
+        lay.addWidget(self.model_note)
         lay.addStretch(1)
         self.model_button = QPushButton("Построить модель", objectName="secondary")
         self.model_button.setCursor(Qt.PointingHandCursor)
@@ -390,6 +395,8 @@ class MainWindow(QMainWindow):
     def _set_ready(self, ready: bool) -> None:
         for button in (self.build_button, self.model_button, self.dxf_button, self.report_button):
             button.setEnabled(ready)
+        if self.model_ok is False:
+            self.model_button.setEnabled(False)  # only the drawing for this part
         if sys.platform != "win32":
             self.build_button.setEnabled(False)
             self.model_button.setEnabled(False)
@@ -414,7 +421,17 @@ class MainWindow(QMainWindow):
                 break
 
     def open_file(self, path: Path) -> None:
+        if self._busy():
+            # after the running job: a drawing opened meanwhile is not lost
+            self.pending = path
+            self._log(f"Откроется после текущей операции: {path.name}")
+            self.statusBar().showMessage(f"{path.name} откроется, когда закончится текущая операция")
+            return
+        self.pending = None
         self.pdf = path
+        self.drawing = None
+        self.model_ok = None
+        self.show_page(0)
         self.settings.setValue("last_dir", str(path.parent))
         self.setWindowTitle(f"{APP_NAME} — {path.name}")
         self.title.setText(path.name)
@@ -443,11 +460,37 @@ class MainWindow(QMainWindow):
             item.setData(Qt.UserRole, e.id)
             self.review.addItem(item)
         self._show_results(drawing)
+        self._judge_model(drawing)
+        for w in drawing.warnings:
+            if w.startswith("Точный режим"):
+                self._log(w)
         counts = drawing.summary()
         self.statusBar().showMessage(
             f"Готово: {len(drawing.entities)} объектов, требуют проверки {counts['review']}")
         self._log("Распознавание завершено")
         self._set_ready(True)
+
+    def _judge_model(self, drawing: ir.Drawing) -> None:
+        """Whether a body of revolution can be made: if not, only the drawing."""
+        try:
+            from ..model3d.revolve import find_revolve_profile, revolve_verdict
+
+            ok, why = revolve_verdict(drawing)
+            if ok is not False and find_revolve_profile(drawing) is None:
+                ok, why = False, "не найден профиль над осевой линией"
+        except Exception as exc:  # the drawing stays usable whatever happens here
+            ok, why = None, f"не удалось проверить: {exc!r}"
+        self.model_ok = ok
+        if ok is False:
+            self.model_note.setText(f"Не тело вращения — будет только чертёж. {why[:1].upper() + why[1:]}.")
+            self.model_note.setObjectName("subWarn")
+            self._log(f"3D-модель не строится: {why}")
+        else:
+            self.model_note.setText("Тело вращения: " + why + (
+                "" if ok else ". Проверьте модель после построения") + ".")
+            self.model_note.setObjectName("sub")
+        self.model_note.style().unpolish(self.model_note)
+        self.model_note.style().polish(self.model_note)
 
     def _show_results(self, drawing: ir.Drawing) -> None:
         self.sheet_chip.setText(f"{drawing.sheet.format} · {drawing.scale.text}")
@@ -571,7 +614,13 @@ class MainWindow(QMainWindow):
         self.thread.started.connect(job.run)
         for signal in (job.finished, job.failed):
             signal.connect(self.thread.quit)
+        self.thread.finished.connect(self._after_job)
         self.thread.start()
+
+    def _after_job(self) -> None:
+        if self.pending is not None:
+            path, self.pending = self.pending, None
+            self.open_file(path)
 
 
 def _broken_rules(drawing: ir.Drawing) -> int:

@@ -49,6 +49,8 @@ def find_revolve_profile(drawing: ir.Drawing) -> RevolveProfile | None:
     scale = drawing.scale.value or 1.0
     best = None
     for axis in _axes(drawing):
+        if _end_view(drawing, axis):
+            continue  # a circle seen from the end: its half is no profile
         on_axis = None
         for side in (1, -1):
             faces = _view_half(drawing, axis, side)
@@ -75,6 +77,60 @@ def find_revolve_profile(drawing: ir.Drawing) -> RevolveProfile | None:
     sheet_rings = [[tuple(p) for p in ring.coords] for part in _polygons(region)
                    for ring in [part.exterior] + list(part.interiors)]
     return RevolveProfile(rings, axis, source, region.area / scale ** 2, sheet_rings, side, scale)
+
+
+def _along(p, axis):
+    """(distance off the axis line, signed; position along it from its start)."""
+    (x1, y1), (x2, y2) = axis
+    dx, dy = x2 - x1, y2 - y1
+    n = math.hypot(dx, dy)
+    return ((p[0] - x1) * dy - (p[1] - y1) * dx) / n, ((p[0] - x1) * dx + (p[1] - y1) * dy) / n
+
+
+def diameters_across(drawing: ir.Drawing, axis) -> list[float]:
+    """Diameter sizes (Ø…) measured straight across the axis, their ends at
+    equal distances on both sides of it: the sign of a body of revolution."""
+    length = math.dist(*axis)
+    out = []
+    for d in drawing.of_type(ir.Dimension):
+        if d.dim_type != "linear" or not d.p1 or not d.p2 or "Ø" not in (d.text or ""):
+            continue
+        (s1, t1), (s2, t2) = _along(d.p1, axis), _along(d.p2, axis)
+        if s1 * s2 < 0 and abs(abs(s1) - abs(s2)) <= 0.2 + 0.02 * max(abs(s1), abs(s2)) \
+                and -2.0 <= t1 <= length + 2.0 and -2.0 <= t2 <= length + 2.0:
+            out.append(abs(s1) + abs(s2))
+    return out
+
+
+def _end_view(drawing: ir.Drawing, axis) -> bool:
+    """The axis is a centre line of a view along the axis of the part: the
+    biggest outline around it is a circle centred on it."""
+    length = math.dist(*axis)
+    for c in drawing.of_type(ir.Circle):
+        if c.style != ir.STYLE_MAIN:
+            continue
+        off, at = _along(c.center, axis)
+        if abs(off) < 0.2 and 0 < at < length and 2 * c.radius >= 0.7 * length:
+            return True
+    return False
+
+
+def revolve_verdict(drawing: ir.Drawing) -> tuple[bool | None, str]:
+    """Can a body of revolution be made from the drawing?
+
+    True: diameters are dimensioned across a centre line (Ø sizes on a view
+    of a turned part). False: there is no centre line along a view, or the
+    drawing has dimensions and none of them is a diameter across an axis (a
+    plate, a bracket). None: nothing to judge by (no dimensions)."""
+    axes = [a for a in _axes(drawing) if not _end_view(drawing, a)]
+    if not axes:
+        return False, "нет осевой линии вдоль вида детали"
+    across = max((len(diameters_across(drawing, a)) for a in axes), default=0)
+    if across:
+        return True, f"размеров Ø поперёк оси: {across}"
+    if drawing.of_type(ir.Dimension):
+        return False, "ни один диаметр не задан поперёк осевой — деталь не тело вращения"
+    return None, "размеров нет — тело вращения не подтверждено"
 
 
 def _axes(drawing: ir.Drawing):

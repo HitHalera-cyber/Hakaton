@@ -30,7 +30,16 @@ class RecognizeJob(QObject):
 
     def run(self) -> None:
         try:
-            drawing = recognize_pdf(self.pdf, self.page, exact=self.exact)
+            try:
+                drawing = recognize_pdf(self.pdf, self.page, exact=self.exact)
+            except Exception:
+                if not self.exact:
+                    raise
+                # the drawing opens anyway: as in the PDF, without the exact fitting
+                error = traceback.format_exc().strip().splitlines()[-1]
+                drawing = recognize_pdf(self.pdf, self.page, exact=False)
+                drawing.warnings.insert(0, "Точный режим не удался, чертёж открыт как в PDF "
+                                           f"(без выравнивания): {error}")
             png = render_preview_png(drawing, self.pdf, self.page, PREVIEW_DPI, legend=False)
             with pymupdf.open(str(self.pdf)) as doc:
                 height = doc[self.page].rect.height

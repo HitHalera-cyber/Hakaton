@@ -78,3 +78,26 @@ def test_multiplication_sign_for_kompas():
     from kompas_ai.kompas.api5 import kompas_text
 
     assert kompas_text("1×45°") == "1x45°" and kompas_text("M22×1,5") == "M22x1,5"
+
+
+def test_revolve_verdict():
+    from kompas_ai import ir
+    from kompas_ai.model3d.revolve import revolve_verdict
+
+    axis = ir.Line("L1", p1=(0, 50), p2=(100, 50), style=ir.STYLE_AXIAL)
+    d = ir.Drawing(entities=[axis, ir.Dimension("D1", text="40", p1=(0, 30), p2=(100, 30))])
+    assert revolve_verdict(d)[0] is False  # a plate: sizes, none a diameter across the axis
+    d.entities.append(ir.Dimension("D2", text="Ø20", p1=(30, 40), p2=(30, 60)))
+    assert revolve_verdict(d)[0] is True
+    assert revolve_verdict(ir.Drawing(entities=[axis]))[0] is None
+
+
+def test_end_view_is_no_profile_axis():
+    from kompas_ai import ir
+    from kompas_ai.model3d.revolve import _end_view
+
+    axis = ((0.0, 50.0), (100.0, 50.0))
+    d = ir.Drawing(entities=[ir.Circle("C1", center=(50, 50), radius=45)])
+    assert _end_view(d, axis)
+    d = ir.Drawing(entities=[ir.Circle("C1", center=(50, 50), radius=5)])
+    assert not _end_view(d, axis)
