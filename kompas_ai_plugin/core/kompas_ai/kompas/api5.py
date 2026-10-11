@@ -673,6 +673,7 @@ class Api5Backend:
         doc3d = self.kompas.Document3D()
         if not doc3d.Create(False, True):
             raise RuntimeError(f"КОМПАС не создал деталь (код {self.last_error()})")
+        self._doc3d = doc3d
         part = doc3d.GetPart(c.pTop_Part)
         sketch = part.NewEntity(c.o3d_sketch)
         sdef = m.ksSketchDefinition(sketch.GetDefinition())
@@ -800,29 +801,75 @@ class Api5Backend:
     def _channel(self, part, ch, log) -> bool:
         """A channel across the axis: a circle on the plane through the axis
         across the channel (XOZ for one along Y, XOY for one along Z), cut
-        from there outwards past the outside."""
+        from there outwards past the outside.
+
+        The sketch axes and the forward side come from the test part; if the
+        cut is refused (it missed the part) or its wall is not where the
+        channel should be, the other ways round are tried, and a wrong cut
+        is taken back."""
         c, m = self.constants, self.m
         ex, ey, normal = self._default_plane_axes(ch.along, log)
         point = (ch.x, 0.0, ch.offset) if ch.along == 1 else (ch.x, ch.offset, 0.0)
-        local = (sum(a * b for a, b in zip(point, ex)), sum(a * b for a, b in zip(point, ey)))
         outwards = [0.0, 0.0, 0.0]
         outwards[ch.along] = float(ch.sign)
         forward = sum(a * b for a, b in zip(normal, outwards)) > 0
-        plane = part.GetDefaultEntity(c.o3d_planeXOZ if ch.along == 1 else c.o3d_planeXOY)
-        sketch = part.NewEntity(c.o3d_sketch)
-        sdef = m.ksSketchDefinition(sketch.GetDefinition())
-        sdef.SetPlane(plane)
-        sketch.Create()
-        d2 = sdef.BeginEdit()
-        d2.ksCircle(local[0], local[1], ch.radius, 1)
-        sdef.EndEdit()
-        cut = part.NewEntity(c.o3d_cutExtrusion)
-        cd = m.ksCutExtrusionDefinition(cut.GetDefinition())
-        cd.cut = True
-        cd.directionType = c.dtNormal if forward else c.dtReverse
-        cd.SetSideParam(forward, c.etBlind, ch.length, 0.0, False)
-        cd.SetSketch(sketch)
-        return bool(cut.Create())
+        local = (sum(a * b for a, b in zip(point, ex)), sum(a * b for a, b in zip(point, ey)))
+        # a point on the channel's wall, well out along it
+        wall = [point[k] + outwards[k] * 0.6 * ch.length for k in range(3)]
+        wall[0] += ch.radius
+        tries = [(sx, sy, fw) for fw in (forward, not forward)
+                 for sx, sy in ((1, 1), (-1, 1), (1, -1), (-1, -1))]
+        accepted = None  # the first way KOMPAS took, if no wall is ever found
+        for n in range(len(tries) + 1):
+            if n < len(tries):
+                sx, sy, fw = tries[n]
+            else:
+                if accepted is None:
+                    return False
+                sx, sy, fw = accepted
+                log("  стенку канала проверить не удалось — оставляю первый принятый вырез")
+            plane = part.GetDefaultEntity(c.o3d_planeXOZ if ch.along == 1 else c.o3d_planeXOY)
+            sketch = part.NewEntity(c.o3d_sketch)
+            sdef = m.ksSketchDefinition(sketch.GetDefinition())
+            sdef.SetPlane(plane)
+            sketch.Create()
+            d2 = sdef.BeginEdit()
+            d2.ksCircle(sx * local[0], sy * local[1], ch.radius, 1)
+            sdef.EndEdit()
+            cut = part.NewEntity(c.o3d_cutExtrusion)
+            cd = m.ksCutExtrusionDefinition(cut.GetDefinition())
+            cd.cut = True
+            cd.directionType = c.dtNormal if fw else c.dtReverse
+            cd.SetSideParam(fw, c.etBlind, ch.length, 0.0, False)
+            cd.SetSketch(sketch)
+            made = bool(cut.Create())
+            if made and n == len(tries):
+                return True
+            if made and accepted is None:
+                accepted = (sx, sy, fw)
+            if made and self._face_at(part, wall):
+                if n:
+                    log(f"  канал вырезан с {n + 1}-й попытки (оси эскиза {sx:+d}/{sy:+d}, "
+                        f"{'вперёд' if fw else 'назад'})")
+                return True
+            for obj in ((cut, sketch) if made else (sketch,)):
+                self._take_back(part, obj)
+        return False
+
+    def _face_at(self, part, p) -> bool:
+        faces = part.EntityCollection(self.constants.o3d_face)
+        faces.SelectByPoint(*p)
+        return faces.GetCount() > 0
+
+    def _take_back(self, part, obj) -> None:
+        """Remove a feature that went wrong (a cut on the wrong side)."""
+        for owner in (getattr(self, "_doc3d", None), part):
+            try:
+                if owner is not None and owner.DeleteObject(obj):
+                    return
+            except Exception:
+                pass
+        self._once("take_back", "  неудачный вырез не удалён из дерева")
 
     def _default_plane_axes(self, along: int, log=None):
         """For the plane across a channel along Y (1: XOZ) or Z (2: XOY): the 3D
