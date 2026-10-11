@@ -331,12 +331,31 @@ def close_contour(drawing: ir.Drawing) -> tuple[int, int]:
             continue
         if all(math.dist(node[0][2], m[2]) < 1e-9 for m in node):
             continue
-        # lines first (horizontals/verticals fix a coordinate), then arcs
-        order = sorted(node, key=lambda m: 0 if isinstance(m[0], ir.Line) else 1)
-        a, b = order[0], order[1]
         near = tuple(sum(m[2][i] for m in node) / len(node) for i in (0, 1))
-        target = _meet(seg(a[0]), seg(b[0]), near) if a[0] is not b[0] else near
-        if math.dist(target, near) > CROSS_MOVE:
+        # a horizontal fixes y, a vertical x: they stay exact whatever meets them
+        hy = [m[0].p1[1] for m in node if isinstance(m[0], ir.Line) and m[0].p1[1] == m[0].p2[1]]
+        vx = [m[0].p1[0] for m in node if isinstance(m[0], ir.Line) and m[0].p1[0] == m[0].p2[0]]
+        arcs = [m[0] for m in node if isinstance(m[0], ir.Arc)]
+        if hy and vx:
+            target = (vx[0], hy[0])
+        elif (hy or vx) and arcs:
+            # the circle crossed by the horizontal (vertical) line
+            line = next(m[0] for m in node if isinstance(m[0], ir.Line)
+                        and (m[0].p1[1] == m[0].p2[1] if hy else m[0].p1[0] == m[0].p2[0]))
+            target = _meet(seg(line), seg(arcs[0]), near)
+        elif hy or vx:
+            target = (vx[0] if vx else near[0], hy[0] if hy else near[1])
+            others = [m[0] for m in node if isinstance(m[0], ir.Line)
+                      and m[0].p1[1] != m[0].p2[1] and m[0].p1[0] != m[0].p2[0]]
+            if others:  # a slanted line ends on the horizontal/vertical one
+                axis_line = next(m[0] for m in node if isinstance(m[0], ir.Line)
+                                 and (m[0].p1[1] == m[0].p2[1] or m[0].p1[0] == m[0].p2[0]))
+                target = _meet(seg(axis_line), seg(others[0]), near)
+        else:
+            order = sorted(node, key=lambda m: 0 if isinstance(m[0], ir.Line) else 1)
+            a, b = order[0], order[1]
+            target = _meet(seg(a[0]), seg(b[0]), near) if a[0] is not b[0] else near
+        if math.dist(target, near) > CROSS_MOVE and not (hy and vx):
             # a line nearly tangent to the arc crosses its circle far off:
             # the joint stays where it is, on the arc when there is one
             arcs = [m[0] for m in node if isinstance(m[0], ir.Arc)]
@@ -375,3 +394,218 @@ def close_contour(drawing: ir.Drawing) -> tuple[int, int]:
                     joined += 1
                 break
     return straightened, joined
+
+
+ANGLE_SNAP = 2.0  # degrees: a line this close to a standard angle runs at it
+STANDARD_ANGLES = (0.0, 15.0, 30.0, 45.0, 60.0, 75.0, 90.0, 105.0, 120.0, 135.0, 150.0, 165.0)
+
+
+def solve_contour(drawing: ir.Drawing) -> dict:
+    """The contour as one system of conditions, solved together (a sketch
+    solver in small). Unknowns: the nodes where ends meet and the centres of
+    the arcs (radii stay as the dimensions set them). Conditions:
+      * the ends of a node coincide exactly (they are one unknown);
+      * a line near horizontal, vertical or a standard angle (chamfer 45°,
+        cone 30°) runs exactly so;
+      * a node of an arc lies on its circle; a fillet that meets a line
+        nearly tangentially meets it exactly tangentially;
+      * an end resting on another line (or on an axis) lies on it.
+    Of all positions keeping these, the one nearest the drawing is taken
+    (least squares, Gauss–Newton). One rule at a time undid the others:
+    joining two ends tilted the horizontal that had just been made exact."""
+    pieces = [e for e in drawing.entities if isinstance(e, (ir.Line, ir.Arc))
+              and e.style == ir.STYLE_MAIN]
+    axes = [e for e in drawing.of_type(ir.Line) if e.style == ir.STYLE_AXIAL]
+
+    def end(e, k):
+        if isinstance(e, ir.Line):
+            return tuple(e.p1 if k == 0 else e.p2)
+        a = math.radians(e.start_angle if k == 0 else e.end_angle)
+        return (e.center[0] + e.radius * math.cos(a), e.center[1] + e.radius * math.sin(a))
+
+    nodes: list[list] = []
+    member_node = {}
+    for e in pieces:
+        for k in (0, 1):
+            p = end(e, k)
+            for i, node in enumerate(nodes):
+                if math.dist(node[0], p) <= JOIN:
+                    node[1].append((e, k))
+                    member_node[(id(e), k)] = i
+                    break
+            else:
+                member_node[(id(e), k)] = len(nodes)
+                nodes.append([p, [(e, k)]])
+    n = len(nodes)
+    if n == 0:
+        return {"nodes": 0}
+    arcs = [e for e in pieces if isinstance(e, ir.Arc)]
+    arc_var = {id(a): n + j for j, a in enumerate(arcs)}  # unknown index of the centre
+    size = 2 * (n + len(arcs))
+    x0 = np.array([c for node in nodes for c in node[0]]
+                  + [c for a in arcs for c in a.center], dtype=float)
+
+    lines = [e for e in pieces if isinstance(e, ir.Line)]
+    direction = {}
+    conds = []
+    for line in lines:
+        a, b = member_node[(id(line), 0)], member_node[(id(line), 1)]
+        if a == b:
+            continue
+        (x1, y1), (x2, y2) = line.p1, line.p2
+        ang = math.degrees(math.atan2(y2 - y1, x2 - x1)) % 180.0
+        best = min(STANDARD_ANGLES + (180.0,), key=lambda v: abs(ang - v))
+        if abs(ang - best) <= ANGLE_SNAP:
+            th = math.radians(best % 180.0)
+            conds.append(("dir", a, b, th))
+            direction[id(line)] = th
+    for arc in arcs:
+        for k in (0, 1):
+            i = member_node[(id(arc), k)]
+            conds.append(("circle", i, arc_var[id(arc)], arc.radius))
+            # a line leaving this node nearly along the arc's tangent: tangent
+            p = end(arc, k)
+            for e, kk in nodes[i][1]:
+                if not isinstance(e, ir.Line) or id(e) not in direction:
+                    continue
+                th = direction[id(e)]
+                rx, ry = p[0] - arc.center[0], p[1] - arc.center[1]
+                cosang = abs(rx * math.cos(th) + ry * math.sin(th)) / (math.hypot(rx, ry) or 1.0)
+                if cosang < math.sin(math.radians(5.0)):
+                    conds.append(("tangent", i, arc_var[id(arc)], th))
+    for i, (p, members) in enumerate(nodes):
+        if len(members) != 1:
+            continue
+        own = members[0][0]
+        for line in lines + axes:
+            if line is own:
+                continue
+            (ax, ay), (bx, by) = line.p1, line.p2
+            dx, dy = bx - ax, by - ay
+            n2 = dx * dx + dy * dy
+            if n2 < 1e-12:
+                continue
+            t = ((p[0] - ax) * dx + (p[1] - ay) * dy) / n2
+            q = (ax + t * dx, ay + t * dy)
+            if -0.02 < t < 1.02 and math.dist(p, q) <= JOIN:
+                if line.style == ir.STYLE_AXIAL:
+                    conds.append(("onfixed", i, (ax, ay), (bx, by)))
+                else:
+                    a, b = member_node[(id(line), 0)], member_node[(id(line), 1)]
+                    if i not in (a, b):
+                        conds.append(("online", i, a, b))
+                break
+
+    x, dropped = x0.copy(), 0
+    for _ in range(4):
+        x = _gauss_newton(conds, x0, size)
+        shift = np.hypot((x - x0)[0::2], (x - x0)[1::2])
+        far = {i for i in range(len(shift)) if shift[i] > MAX_NODE_SHIFT}
+        if not far:
+            break
+        # conditions that drag a point this far contradict the drawing (a
+        # slope that is not a standard one, a wrong contact): left out there
+        keep = [c for c in conds if not far & _cond_vars(c)]
+        dropped += len(conds) - len(keep)
+        conds = keep
+    else:
+        x = x0.copy()  # no consistent set found: the drawing stays as it is
+
+    moved = float(np.abs(x - x0).max())
+    return _write_back(drawing, nodes, arcs, arc_var, x, end, moved, n, len(direction), dropped)
+
+
+MAX_NODE_SHIFT = 0.15  # sheet mm
+
+
+def _cond_vars(cond) -> set:
+    kind = cond[0]
+    if kind == "dir":
+        return {cond[1], cond[2]}
+    if kind in ("circle", "tangent"):
+        return {cond[1], cond[2]}
+    if kind == "online":
+        return {cond[1], cond[2], cond[3]}
+    return {cond[1]}
+
+
+def _gauss_newton(conds, x0, size):
+    W = 1e6
+    x = x0.copy()
+    for _ in range(30):
+        rows, res = [], []
+        for cond in conds:
+            row = np.zeros(size)
+            kind = cond[0]
+            if kind == "dir":
+                _, a, b, th = cond
+                sn, cs = math.sin(th), math.cos(th)
+                val = (x[2 * b] - x[2 * a]) * sn - (x[2 * b + 1] - x[2 * a + 1]) * cs
+                row[2 * b], row[2 * a], row[2 * b + 1], row[2 * a + 1] = sn, -sn, -cs, cs
+            elif kind == "circle":
+                _, i, c, r = cond
+                dx, dy = x[2 * i] - x[2 * c], x[2 * i + 1] - x[2 * c + 1]
+                d = math.hypot(dx, dy) or 1.0
+                val = d - r
+                row[2 * i], row[2 * i + 1] = dx / d, dy / d
+                row[2 * c], row[2 * c + 1] = -dx / d, -dy / d
+            elif kind == "tangent":
+                _, i, c, th = cond
+                cs, sn = math.cos(th), math.sin(th)
+                val = (x[2 * i] - x[2 * c]) * cs + (x[2 * i + 1] - x[2 * c + 1]) * sn
+                row[2 * i], row[2 * i + 1], row[2 * c], row[2 * c + 1] = cs, sn, -cs, -sn
+            else:
+                if kind == "online":
+                    _, i, a, b = cond
+                    ax, ay, bx, by = x[2 * a], x[2 * a + 1], x[2 * b], x[2 * b + 1]
+                else:
+                    _, i, (ax, ay), (bx, by) = cond
+                px, py = x[2 * i], x[2 * i + 1]
+                L = math.hypot(bx - ax, by - ay) or 1.0
+                val = ((bx - ax) * (py - ay) - (by - ay) * (px - ax)) / L
+                row[2 * i] = -(by - ay) / L
+                row[2 * i + 1] = (bx - ax) / L
+                if kind == "online":
+                    row[2 * a] = (by - py) / L
+                    row[2 * a + 1] = (px - bx) / L
+                    row[2 * b] = (py - ay) / L
+                    row[2 * b + 1] = -(px - ax) / L
+            rows.append(W * row)
+            res.append(-W * val)
+        A = np.vstack(rows + [np.eye(size)]) if rows else np.eye(size)
+        rhs = np.concatenate([np.array(res), x0 - x]) if rows else x0 - x
+        step, *_ = np.linalg.lstsq(A, rhs, rcond=None)
+        x += step
+        if np.abs(step).max() < 1e-12:
+            break
+    return x
+
+
+def _write_back(drawing, nodes, arcs, arc_var, x, end, moved, n, directions, dropped):
+    for arc in arcs:
+        j = arc_var[id(arc)]
+        arc.center = (float(x[2 * j]), float(x[2 * j + 1]))
+    for i, (p, members) in enumerate(nodes):
+        q = (float(x[2 * i]), float(x[2 * i + 1]))
+        # where an arc meets the node, its own end point is the exact one
+        for e, k in members:
+            if isinstance(e, ir.Arc):
+                ang = math.degrees(math.atan2(q[1] - e.center[1], q[0] - e.center[0])) % 360.0
+                if k == 0:
+                    e.start_angle = ang
+                else:
+                    e.end_angle = ang
+                q = end(e, k)
+                break
+        for e, k in members:
+            if isinstance(e, ir.Arc):
+                ang = math.degrees(math.atan2(q[1] - e.center[1], q[0] - e.center[0])) % 360.0
+                if k == 0:
+                    e.start_angle = ang
+                else:
+                    e.end_angle = ang
+            elif k == 0:
+                e.p1 = q
+            else:
+                e.p2 = q
+    return {"nodes": n, "directions": directions, "moved": moved, "dropped": dropped}

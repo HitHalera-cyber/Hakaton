@@ -164,3 +164,202 @@ def merge_ellipses(drawing: ir.Drawing, new_id) -> int:
                   else ["arc", list(e.center), e.radius, e.start_angle, e.end_angle] for e in loop]))
         made += 1
     return made
+
+
+SHORT = 2.5  # sheet mm: pieces this short may be a fillet broken into chords
+
+
+def chords_to_arcs(drawing: ir.Drawing, new_id) -> int:
+    """A fillet sometimes comes out as a few short lines. A chain of short
+    main lines turning one way whose ends lie on a circle with a radius of
+    the drawing (R1, R0,5 — times the scale) becomes that arc."""
+    scale = drawing.scale.value or 1.0
+    radii = sorted({d.nominal * scale for d in drawing.of_type(ir.Dimension)
+                    if d.dim_type == "radius" and d.nominal})
+    if not radii:
+        return 0
+    lines = [e for e in drawing.of_type(ir.Line) if e.style == ir.STYLE_MAIN]
+    short = [l for l in lines if math.dist(l.p1, l.p2) <= SHORT]
+    used, made = set(), 0
+
+    def neighbours(l, p):
+        return [o for o in short if o is not l and o.id not in used
+                and min(math.dist(p, o.p1), math.dist(p, o.p2)) <= 0.05]
+
+    for start in short:
+        if start.id in used:
+            continue
+        # grow a chain both ways through ends shared by exactly one short line
+        chain = [start]
+        for end_pt in (start.p2, start.p1):
+            cur, p = start, end_pt
+            while True:
+                nb = [o for o in neighbours(cur, p) if o not in chain]
+                if len(nb) != 1:
+                    break
+                o = nb[0]
+                p = o.p2 if math.dist(p, o.p1) <= 0.05 else o.p1
+                chain.append(o) if end_pt is start.p2 else chain.insert(0, o)
+                cur = o
+        if len(chain) < 2:
+            continue
+        pts = []
+        for l in chain:
+            pts += [tuple(l.p1), tuple(l.p2)]
+        P = np.array(pts)
+        # circle through the points (algebraic least squares)
+        A = np.column_stack([2 * P[:, 0], 2 * P[:, 1], np.ones(len(P))])
+        b = (P ** 2).sum(axis=1)
+        (cx, cy, k), *_ = np.linalg.lstsq(A, b, rcond=None)
+        r = math.sqrt(max(k + cx * cx + cy * cy, 0.0))
+        err = float(np.abs(np.hypot(P[:, 0] - cx, P[:, 1] - cy) - r).max())
+        near = [q for q in radii if abs(q - r) <= 0.25 * q]
+        # the solver puts the ends on the circle afterwards: a fillet's first
+        # chord often starts a little along the straight line
+        if err > 0.3 or not near:
+            continue
+        # the chain's two free ends, in counter-clockwise order around the centre
+        ends = [p for p in pts if sum(math.dist(p, q) <= 0.05 for q in pts) == 1]
+        if len(ends) != 2:
+            continue
+        a1, a2 = (math.degrees(math.atan2(p[1] - cy, p[0] - cx)) % 360.0 for p in ends)
+        if (a2 - a1) % 360.0 > 180.0:
+            a1, a2 = a2, a1
+        used.update(l.id for l in chain)
+        drawing.entities = [e for e in drawing.entities if e.id not in {l.id for l in chain}]
+        # the fitted circle keeps the ends where they are; the radius of the
+        # drawing is set with the other radii and the solver joins the ends
+        drawing.entities.append(ir.Arc(new_id("A"), min(l.confidence for l in chain),
+                                       [f"Дуга из отрезков {', '.join(l.id for l in chain)}"],
+                                       center=(round(cx, 4), round(cy, 4)), radius=round(r, 4),
+                                       start_angle=round(a1, 3), end_angle=round(a2, 3)))
+        made += 1
+    return made
+
+
+
+def chord_fillets(drawing: ir.Drawing, new_id, max_chord: float = 1.5) -> int:
+    """A tiny fillet drawn as one chord between two lines (a chamfer and a
+    face): the chord becomes the arc tangent to both, with the drawing's
+    radius nearest to what the chord implies."""
+    scale = drawing.scale.value or 1.0
+    radii = sorted({d.nominal * scale for d in drawing.of_type(ir.Dimension)
+                    if d.dim_type == "radius" and d.nominal})
+    lines = [e for e in drawing.of_type(ir.Line) if e.style == ir.STYLE_MAIN]
+    made = 0
+    for chord in list(lines):
+        length = math.dist(chord.p1, chord.p2)
+        if length > max_chord or length < 1e-6:
+            continue
+        nbs, shared = [], []
+        cdir = math.atan2(chord.p2[1] - chord.p1[1], chord.p2[0] - chord.p1[0])
+        for p in (chord.p1, chord.p2):
+            hit = [l for l in lines if l is not chord and l.id != chord.id
+                   and min(math.dist(p, l.p1), math.dist(p, l.p2)) <= 0.05]
+            if not hit:
+                break
+            # where several lines meet, the fillet joins the one it turns least from
+            def turn(l):
+                d = math.atan2(l.p2[1] - l.p1[1], l.p2[0] - l.p1[0])
+                return abs((math.degrees(d - cdir) + 90.0) % 180.0 - 90.0)
+            nbs.append(min(hit, key=turn))
+            shared.append(len(hit) > 1)
+        if len(nbs) != 2 or nbs[0] is nbs[1]:
+            continue
+        a, b = nbs
+        (ax1, ay1), (ax2, ay2) = a.p1, a.p2
+        (bx1, by1), (bx2, by2) = b.p1, b.p2
+        den = (ax1 - ax2) * (by1 - by2) - (ay1 - ay2) * (bx1 - bx2)
+        if abs(den) < 1e-9:
+            continue
+        t1 = ax1 * ay2 - ay1 * ax2
+        t2 = bx1 * by2 - by1 * bx2
+        X = ((t1 * (bx1 - bx2) - (ax1 - ax2) * t2) / den, (t1 * (by1 - by2) - (ay1 - ay2) * t2) / den)
+
+        def away(line):  # unit direction from the corner along the line
+            far = line.p1 if math.dist(line.p1, X) > math.dist(line.p2, X) else line.p2
+            d = math.dist(far, X) or 1.0
+            return ((far[0] - X[0]) / d, (far[1] - X[1]) / d)
+
+        ua, ub = away(a), away(b)
+        if any(shared) and not all(shared):
+            # the chord starts where a third line meets (a corner that stays):
+            # the arc leaves that point along its line and touches the other
+            fixed_a = shared[0]
+            line_f, line_t = (a, b) if fixed_a else (b, a)
+            P = tuple(chord.p1 if fixed_a else chord.p2)
+            uf = away(line_f)
+            # normal of the fixed line, towards the chord's other end
+            nx, ny = -uf[1], uf[0]
+            Q = chord.p2 if fixed_a else chord.p1
+            if (Q[0] - P[0]) * nx + (Q[1] - P[1]) * ny < 0:
+                nx, ny = -nx, -ny
+            # centre P + r n at distance r from the other line
+            (tx1, ty1), (tx2, ty2) = line_t.p1, line_t.p2
+            L = math.hypot(tx2 - tx1, ty2 - ty1) or 1.0
+            sd = lambda x, y: ((tx2 - tx1) * (y - ty1) - (ty2 - ty1) * (x - tx1)) / L
+            s0, s1 = sd(*P), sd(P[0] + nx, P[1] + ny) - sd(*P)
+            sign = 1.0 if s0 > 0 else -1.0
+            # |s0 + r s1| = r with the centre staying on P's side
+            denom = sign - s1
+            if abs(denom) < 1e-9:
+                continue
+            r = abs(s0 / denom)
+            if r <= 0 or r > 10 * length:
+                continue
+            c = (P[0] + nx * r, P[1] + ny * r)
+            ddx, ddy = (tx2 - tx1) / L, (ty2 - ty1) / L
+            k2 = (c[0] - tx1) * ddx + (c[1] - ty1) * ddy
+            T = (tx1 + ddx * k2, ty1 + ddy * k2)
+            if math.dist(line_t.p1, T) < math.dist(line_t.p2, T) and \
+                    math.dist(line_t.p1, Q) < math.dist(line_t.p2, Q):
+                line_t.p1 = T
+            else:
+                line_t.p2 = T
+            a1 = math.degrees(math.atan2(P[1] - c[1], P[0] - c[0])) % 360.0
+            a2 = math.degrees(math.atan2(T[1] - c[1], T[0] - c[0])) % 360.0
+            if (a2 - a1) % 360.0 > 180.0:
+                a1, a2 = a2, a1
+            drawing.entities = [e for e in drawing.entities if e.id != chord.id]
+            lines.remove(chord)
+            drawing.entities.append(ir.Arc(new_id("A"), chord.confidence,
+                                           [f"Скругление вместо хорды {chord.id}"],
+                                           center=(round(c[0], 6), round(c[1], 6)),
+                                           radius=round(r, 6), start_angle=round(a1, 4),
+                                           end_angle=round(a2, 4)))
+            made += 1
+            continue
+        cos_full = max(-1.0, min(1.0, ua[0] * ub[0] + ua[1] * ub[1]))
+        full = math.acos(cos_full)  # angle between the lines at the corner
+        if not math.radians(20) < full < math.radians(170):
+            continue
+        half = full / 2
+        # the chord spans 2 r sin((π − full)/2) = 2 r cos(half)
+        r_est = length / (2 * math.cos(half))
+        r = min(radii, key=lambda q: abs(q - r_est)) if radii else r_est
+        if radii and not r_est / 2 <= r <= r_est * 2:
+            r = r_est
+        k = r / math.tan(half)
+        ta = (X[0] + ua[0] * k, X[1] + ua[1] * k)
+        tb = (X[0] + ub[0] * k, X[1] + ub[1] * k)
+        bis = (ua[0] + ub[0], ua[1] + ub[1])
+        n = math.hypot(*bis) or 1.0
+        dist = r / math.sin(half)
+        c = (X[0] + bis[0] / n * dist, X[1] + bis[1] / n * dist)
+        for line, t in ((a, ta), (b, tb)):
+            if math.dist(line.p1, X) < math.dist(line.p2, X):
+                line.p1 = t
+            else:
+                line.p2 = t
+        a1 = math.degrees(math.atan2(ta[1] - c[1], ta[0] - c[0])) % 360.0
+        a2 = math.degrees(math.atan2(tb[1] - c[1], tb[0] - c[0])) % 360.0
+        if (a2 - a1) % 360.0 > 180.0:
+            a1, a2 = a2, a1
+        drawing.entities = [e for e in drawing.entities if e.id != chord.id]
+        lines.remove(chord)
+        drawing.entities.append(ir.Arc(new_id("A"), chord.confidence,
+                                       [f"Скругление вместо хорды {chord.id}"],
+                                       center=(round(c[0], 6), round(c[1], 6)), radius=round(r, 6),
+                                       start_angle=round(a1, 4), end_angle=round(a2, 4)))
+        made += 1
+    return made

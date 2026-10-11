@@ -527,8 +527,19 @@ class Api5Backend:
 
     def hatch(self, contours, angle, step):
         # ksHatch opens a hatch; objects created until ksEndObj are its boundary.
+        # rings of points, or of ("line", p1, p2) / ("arc", c, r, a1, a2) segments
         self.doc.ksHatch(0, angle, step, 0.0, 0.0, 0.0)
         for ring in contours:
+            if ring and isinstance(ring[0][0], str):
+                for sg in ring:
+                    if sg[0] == "line":
+                        (ax, ay), (bx, by) = sg[1], sg[2]
+                        if math.hypot(bx - ax, by - ay) > 1e-6:
+                            self.doc.ksLineSeg(ax, ay, bx, by, 1)
+                    else:
+                        (cx, cy), r, a1, a2 = sg[1], sg[2], sg[3], sg[4]
+                        self.doc.ksArcByAngle(cx, cy, r, a1, a2, 1, 1)
+                continue
             for a, b in zip(ring, ring[1:]):
                 if math.dist(a, b) > 1e-6:
                     self.doc.ksLineSeg(a[0], a[1], b[0], b[1], 1)

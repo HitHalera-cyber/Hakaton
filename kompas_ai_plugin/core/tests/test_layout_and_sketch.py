@@ -124,3 +124,23 @@ def test_flange_outline_closed_exactly():
     for s, t in zip(out, out[1:] + out[:1]):
         gap = min(math.dist(p, q) for p in _ends_of(s) for q in _ends_of(t))
         assert gap < 1e-9
+
+
+def test_contour_solver_makes_the_rules_hold():
+    from kompas_ai.geometry.regularize import solve_contour
+    from kompas_ai.geometry.rules import check
+
+    d = ir.Drawing()
+    # a step with a chamfer, drawn as from a PDF: slopes of a few hundredths
+    # of a degree, ends a few hundredths apart, a 45° chamfer at 44.8°
+    d.entities += [
+        ir.Line("L1", p1=(0.0, 0.0), p2=(40.0, 0.01)),
+        ir.Line("L2", p1=(40.03, 0.0), p2=(40.0, 10.0)),
+        ir.Line("L3", p1=(40.02, 10.01), p2=(22.0, 10.02)),
+        ir.Line("L4", p1=(22.0, 10.0), p2=(20.03, 12.0)),   # the chamfer
+        ir.Line("L5", p1=(20.0, 12.02), p2=(0.02, 12.0)),
+        ir.Line("L6", p1=(0.0, 12.0), p2=(0.01, 0.02)),
+    ]
+    assert check(d)
+    report = solve_contour(d)
+    assert check(d) == [] and report["moved"] < 0.1

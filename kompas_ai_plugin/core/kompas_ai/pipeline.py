@@ -18,9 +18,10 @@ from pathlib import Path
 from . import ir
 from .geometry.chains import build_chains
 from .geometry.constraints import find_constraints
-from .geometry.ellipses import merge_ellipses
+from .geometry.ellipses import chord_fillets, chords_to_arcs, merge_ellipses
 from .geometry.linetypes import merge_dashed
-from .geometry.regularize import close_contour, regularize, snap_annotations
+from .geometry.regularize import regularize, snap_annotations, solve_contour
+from .geometry.rules import check as check_rules
 from .geometry.scaling import check_dimension, resolve_scale, scale_text, snap_scale
 from .geometry.segmentation import Primitive, merge_cocircular, segment_chain, snap_concentric
 from .pdf.vector_extractor import extract_page
@@ -120,9 +121,17 @@ def recognize_pdf(pdf_path: str | Path, page: int = 0, exact: bool = True) -> ir
                     suspicious)
     if exact:
         drawing.processing.append(regularize(drawing).text())
-        straightened, joined = close_contour(drawing)
-        drawing.processing.append(f"Контур замкнут: выпрямлено линий {straightened}, "
-                                  f"сведено концов {joined}")
+        solved = solve_contour(drawing)
+        drawing.processing.append(
+            f"Контур решён как система: узлов {solved.get('nodes', 0)}, направлений задано "
+            f"{solved.get('directions', 0)}, наибольший сдвиг {solved.get('moved', 0.0):.3f} мм")
+        rebuilt = _rebuild_hatches(drawing)
+        if rebuilt:
+            drawing.processing.append(f"Штриховки построены заново по точному контуру: {rebuilt}")
+        broken = check_rules(drawing)
+        if broken:
+            drawing.warnings.append(f"Правила контура не выполнены ({len(broken)}): "
+                                    + "; ".join(broken[:15]))
         snapped = snap_annotations(drawing)
         if snapped:
             drawing.processing.append(f"Точки размеров и штриховок притянуты к контуру: {snapped}")
@@ -195,9 +204,44 @@ def _build_entities(drawing, geometry, is_thin, found, plain_texts, regions, orp
     tails = _drop_arrow_tails(drawing)
     if tails:
         drawing.processing.append(f"Хвосты стрелок угловых размеров убраны: {tails}")
+    arcs = chords_to_arcs(drawing, new_id) + chord_fillets(drawing, new_id)
+    if arcs:
+        drawing.processing.append(f"Скругления, распознанные отрезками, заменены дугами: {arcs}")
     merged = merge_ellipses(drawing, new_id)
     if merged:
         drawing.processing.append(f"Эллипсов собрано из дуг: {merged}")
+
+
+def _rebuild_hatches(drawing) -> int:
+    """Hatch outlines from the faces of the final (exact) contour: the faces
+    whose inside lies in the hatch as it was read become its region. The
+    outline read from the PDF predates the corrections and stuck out of the
+    contour by hundredths."""
+    from shapely.geometry import Polygon
+    from shapely.ops import unary_union
+
+    from .model3d.revolve import main_primitives
+    from .semantics.regions import contour_faces
+
+    faces = contour_faces(main_primitives(drawing))
+    done = 0
+    for h in drawing.of_type(ir.Hatch):
+        if not h.contours:
+            continue
+        old = Polygon(h.contours[0], h.contours[1:]).buffer(0)
+        if old.is_empty:
+            continue
+        zone = old.buffer(0.3)
+        mine = [f for f in faces if zone.contains(f.representative_point())]
+        if not mine:
+            continue
+        new = unary_union(mine)
+        if new.geom_type != "Polygon" or abs(new.area - old.area) > 0.1 * old.area:
+            continue
+        rings = [new.exterior] + list(new.interiors)
+        h.contours = [[(float(x), float(y)) for x, y in r.coords] for r in rings]
+        done += 1
+    return done
 
 
 def _drop_arrow_tails(drawing, tol: float = 0.3, max_angle: float = 25.0) -> int:

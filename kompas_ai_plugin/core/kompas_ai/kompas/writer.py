@@ -181,7 +181,12 @@ class DrawingWriter:
         if isinstance(e, ir.Hatch):
             if not e.contours:
                 return None
-            contours = [[self._p(p) for p in ring] for ring in e.contours]
+            curves = [c for c in drawing.entities if isinstance(c, (ir.Arc, ir.Circle))
+                      and c.style == ir.STYLE_MAIN]
+            contours = []
+            for ring in e.contours:
+                segs = ring_segments(ring, curves)
+                contours.append([self._seg_p(sg) for sg in segs])
             return self.b.hatch(contours, e.angle, e.spacing)
         if isinstance(e, ir.Dimension):
             return self._dimension(e)
@@ -204,6 +209,11 @@ class DrawingWriter:
             self._ovals += 1
             return False  # drawn, but not as an ellipse (noted in the report)
         return None
+
+    def _seg_p(self, sg):
+        if sg[0] == "line":
+            return ("line", self._p(sg[1]), self._p(sg[2]))
+        return ("arc", self._p(sg[1]), self._len(sg[2]), sg[3], sg[4])
 
     def _indexed_text(self, e: ir.Text):
         """One text with indices if KOMPAS can, else each part at its own place."""
@@ -442,6 +452,53 @@ def _shared_ends(drawing: ir.Drawing, tol: float = 0.01):
             if a != b:
                 out.append((a, ia, b, ib))
     return out
+
+
+def ring_segments(ring, curves, tol: float = 1e-4):
+    """A hatch outline (points) as lines and arcs: runs of points on one arc
+    or circle of the drawing become that arc, so the hatch boundary is the
+    contour itself and not chords inside or outside it."""
+    pts = [tuple(p) for p in ring]
+    if len(pts) > 1 and math.dist(pts[0], pts[-1]) < 1e-9:
+        pts = pts[:-1]
+    n = len(pts)
+    if n < 3:
+        return []
+
+    def on(c, p):
+        return abs(math.dist(p, c.center) - c.radius) <= tol
+
+    def curve_of(i):
+        a, b = pts[i], pts[(i + 1) % n]
+        for c in curves:
+            if on(c, a) and on(c, b) and math.dist(a, b) < 2 * c.radius:
+                return c
+        return None
+
+    marks = [curve_of(i) for i in range(n)]
+    # start where a run begins, so no run is cut by the wrap-around
+    start = next((i for i in range(n) if marks[i] is not marks[i - 1]), 0)
+    segs, i = [], 0
+    while i < n:
+        k = (start + i) % n
+        c = marks[k]
+        j = i
+        while j + 1 < n and marks[(start + j + 1) % n] is c and c is not None:
+            j += 1
+        a, b = pts[k], pts[(start + j + 1) % n]
+        if c is None:
+            segs.append(("line", a, b))
+        else:
+            mid = pts[(k + 1) % n] if j > i else ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
+            ang = [math.degrees(math.atan2(p[1] - c.center[1], p[0] - c.center[0])) % 360.0
+                   for p in (a, mid, b)]
+            # counter-clockwise from a to b must pass the middle point
+            if (ang[1] - ang[0]) % 360.0 <= (ang[2] - ang[0]) % 360.0:
+                segs.append(("arc", tuple(c.center), c.radius, ang[0], ang[2]))
+            else:
+                segs.append(("arc", tuple(c.center), c.radius, ang[2], ang[0]))
+        i = j + 1
+    return segs
 
 
 def oval_arcs(center, a, b, angle):
