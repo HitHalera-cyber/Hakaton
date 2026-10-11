@@ -9,7 +9,7 @@ import re
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QSettings, Qt, QThread
+from PySide6.QtCore import QEvent, QSettings, Qt, QThread
 from PySide6.QtGui import (QAction, QBrush, QColor, QIcon, QImage, QKeySequence, QPainter, QPen,
                            QPixmap)
 from PySide6.QtWidgets import (QApplication, QButtonGroup, QCheckBox, QComboBox, QFileDialog,
@@ -22,8 +22,10 @@ from .. import ir
 from ..export.dxf_writer import write_dxf
 from ..report.preview import sheet_to_pixel
 from ..report.summary import TYPE_NAMES, summary_text
+from ..pipeline import STAGES
+from .loader import DraftingLoader
 from .theme import THEMES, style_sheet
-from .workers import PREVIEW_DPI, KompasJob, RecognizeJob, RevolveJob
+from .workers import PREVIEW_DPI, PREVIEW_STAGE, KompasJob, RecognizeJob, RevolveJob
 
 APP_NAME = "КОМПАС-AI"
 MODES = [("Точно по размерам", True), ("Как в PDF (без выравнивания)", False)]
@@ -305,6 +307,9 @@ class MainWindow(QMainWindow):
         lay.addLayout(top)
         lay.addWidget(self.preview, 1)
         grid.addWidget(sheet, 0, 0, 2, 2)
+        self.sheet_card = sheet
+        self.loader = DraftingLoader(sheet)
+        sheet.installEventFilter(self)
 
         self.rules_card = StatCard("Правила контура")
         grid.addWidget(self.rules_card, 0, 2)
@@ -379,6 +384,11 @@ class MainWindow(QMainWindow):
         lay.addWidget(self.log, 1)
         return frame
 
+    def eventFilter(self, obj, event):
+        if obj is self.sheet_card and event.type() == QEvent.Resize:
+            self.loader.setGeometry(self.sheet_card.rect())
+        return super().eventFilter(obj, event)
+
     # --- theme ----------------------------------------------------------------------------
 
     def apply_theme(self, name: str) -> None:
@@ -386,6 +396,7 @@ class MainWindow(QMainWindow):
         colors = THEMES[self.theme]
         self.setStyleSheet(style_sheet(colors))
         self.preview.set_colors(colors)
+        self.loader.set_colors(colors)
         self.theme_button.setText("☾  Тёмная тема" if self.theme == "light" else "☀  Светлая тема")
         self.settings.setValue("theme", self.theme)
 
@@ -444,11 +455,16 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"Распознаю {self.pdf.name}…")
         self._log(f"Распознавание: {self.pdf}")
         job = RecognizeJob(self.pdf, exact=MODES[self.mode.currentIndex()][1])
+        exact = MODES[self.mode.currentIndex()][1]
+        stages = [s for s in STAGES if exact or s not in STAGES[5:]] + [PREVIEW_STAGE]
+        self.loader.start(f"Читаю {self.pdf.name}", stages)
+        job.stage.connect(self.loader.stage)
         job.finished.connect(self.on_recognized)
         job.failed.connect(self.on_failed)
         self._start(job)
 
     def on_recognized(self, drawing: ir.Drawing, png: bytes, page_height: float) -> None:
+        self.loader.stop()
         self.drawing, self.page_height = drawing, page_height
         self.preview.show_png(png)
         self.summary.setPlainText(summary_text(drawing))
@@ -476,6 +492,10 @@ class MainWindow(QMainWindow):
             from ..model3d.revolve import find_revolve_profile, revolve_verdict
 
             ok, why = revolve_verdict(drawing)
+            if ok is False and not MODES[self.mode.currentIndex()][1] \
+                    and find_revolve_profile(drawing) is not None:
+                # without the fitting the model follows the lines, whatever the sizes say
+                ok, why = None, "режим без выравнивания: модель строится по линиям чертежа"
             if ok is not False and find_revolve_profile(drawing) is None:
                 ok, why = False, "не найден профиль над осевой линией"
         except Exception as exc:  # the drawing stays usable whatever happens here
@@ -559,7 +579,7 @@ class MainWindow(QMainWindow):
         self._set_ready(False)
         self.statusBar().showMessage("Строю 3D-модель в КОМПАС…")
         self.show_page(PAGES.index("Журнал"))
-        job = RevolveJob(self.drawing, Path(name))
+        job = RevolveJob(self.drawing, Path(name), exact=MODES[self.mode.currentIndex()][1])
         job.progress.connect(self._log)
         job.finished.connect(self.on_built)
         job.failed.connect(self.on_failed)
@@ -595,6 +615,7 @@ class MainWindow(QMainWindow):
     # --- helpers --------------------------------------------------------------------------------
 
     def on_failed(self, message: str) -> None:
+        self.loader.stop()
         self._log(message)
         self.statusBar().showMessage("Ошибка — подробности в журнале")
         self._set_ready(self.drawing is not None)

@@ -194,7 +194,9 @@ def _linear(dt: DimText, arrows, thin, curves, axes=()) -> FoundDimension | None
     if circle is None:
         # … or a diameter on a half view: the line runs past the axis and
         # only one arrow is drawn. The size is twice the tip–axis distance.
-        cross = _axis_crossing(line, axes) if dt.prefix == "Ø" else None
+        # (the Ø sign is sometimes forgotten: a bare number on such a line is
+        # a diameter all the same)
+        cross = _axis_crossing(line, axes) if dt.prefix in ("Ø", "") else None
         if cross is None:
             return None
         mirror = (2 * cross[0] - tip[0], 2 * cross[1] - tip[1])

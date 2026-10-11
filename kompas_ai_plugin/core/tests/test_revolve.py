@@ -101,3 +101,38 @@ def test_end_view_is_no_profile_axis():
     assert _end_view(d, axis)
     d = ir.Drawing(entities=[ir.Circle("C1", center=(50, 50), radius=5)])
     assert not _end_view(d, axis)
+
+
+def test_forgotten_diameter_sign():
+    from kompas_ai import ir
+    from kompas_ai.pipeline import implied_diameters
+
+    axis = ir.Line("L1", p1=(0, 50), p2=(100, 50), style=ir.STYLE_AXIAL)
+    signed = ir.Dimension("D1", text="Ø20", p1=(30, 40), p2=(30, 60))
+    bare = ir.Dimension("D2", text="30", p1=(60, 35), p2=(60, 65))
+    d = ir.Drawing(entities=[axis, signed, bare])
+    assert implied_diameters(d) == ["Ø30"] and bare.text == "Ø30"
+
+    # no Ø anywhere, but the same diameter is a circle on the end view
+    bare = ir.Dimension("D2", text="30", p1=(60, 35), p2=(60, 65))
+    end = ir.Circle("C1", center=(200, 50), radius=15)
+    d = ir.Drawing(entities=[axis, bare, end])
+    assert implied_diameters(d) == ["Ø30"]
+
+    # a symmetric width with nothing round about it stays as written
+    bare = ir.Dimension("D2", text="30", p1=(60, 35), p2=(60, 65))
+    d = ir.Drawing(entities=[axis, bare])
+    assert implied_diameters(d) == [] and bare.text == "30"
+
+
+def test_width_across_a_round_view_is_no_diameter():
+    from kompas_ai import ir
+    from kompas_ai.pipeline import implied_diameters
+
+    # the end view: centre lines through a circle, a width of flats across them
+    axis = ir.Line("L1", p1=(0, 50), p2=(60, 50), style=ir.STYLE_AXIAL)
+    rim = ir.Circle("C1", center=(30, 50), radius=25)
+    flats = ir.Dimension("D1", text="32", p1=(20, 34), p2=(20, 66))
+    other = ir.Dimension("D2", text="Ø40", p1=(25, 30), p2=(25, 70))
+    d = ir.Drawing(entities=[axis, rim, flats, other, ir.Circle("C2", center=(0, 0), radius=16)])
+    assert implied_diameters(d) == []

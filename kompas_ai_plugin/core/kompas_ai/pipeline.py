@@ -34,9 +34,19 @@ from .semantics.regions import hatch_regions
 from .semantics.sheet import analyse_sheet, is_title_block_text, read_title_block
 
 
-def recognize_pdf(pdf_path: str | Path, page: int = 0, exact: bool = True) -> ir.Drawing:
+# what recognize_pdf reports through ``progress``, in this order
+STAGES = ["Читаю PDF", "Рамка и основная надпись", "Линии, дуги и стрелки", "Размеры",
+          "Контур и штриховки", "Выравниваю по размерам", "Замыкаю контур",
+          "Привязываю размеры"]
+
+
+def recognize_pdf(pdf_path: str | Path, page: int = 0, exact: bool = True,
+                  progress=None) -> ir.Drawing:
     """Recognise one PDF page. ``exact`` corrects the geometry to the written
-    dimensions (see geometry/regularize.py); False keeps the measured PDF values."""
+    dimensions (see geometry/regularize.py); False keeps the measured PDF values.
+    ``progress(stage)`` is called with each of STAGES as it starts."""
+    step = progress or (lambda stage: None)
+    step(STAGES[0])
     content = extract_page(pdf_path, page)
     drawing = ir.Drawing(source=str(pdf_path))
     if not content.is_vector:
@@ -51,10 +61,12 @@ def recognize_pdf(pdf_path: str | Path, page: int = 0, exact: bool = True) -> ir
             "Геометрия распознана, но размеры, масштаб и тексты — нет (масштаб принят 1:1). "
             "Если возможно, сохраните PDF заново с выводом текста как текста (шрифты TrueType, "
             "без «текст в кривые»).")
+    step(STAGES[1])
     layout = analyse_sheet(content)
     drawing.sheet = layout.sheet
     title_scale = read_title_block(content, layout)
 
+    step(STAGES[2])
     chains = build_chains(content.segments)
     outline_arrows, chains = arrows_from_chains(chains)
     arrows = merge_arrow_sources(outline_arrows, find_arrows(content.fills))
@@ -87,6 +99,7 @@ def recognize_pdf(pdf_path: str | Path, page: int = 0, exact: bool = True) -> ir
     main_curves = [p for p in prims if not is_thin(p) and p.kind in ("circle", "arc")]
     axes = [p for p in prims if "axial" in p.tags]
     main_lines = [p for p in prims if not is_thin(p) and p.kind == "line"]
+    step(STAGES[3])
     found = find_dimensions(dim_texts, arrows, thin_free, main_curves, axes, main_lines)
     used = {id(p) for d in found for p in d.used}
     matched_texts = {id(d.text) for d in found}
@@ -112,6 +125,7 @@ def recognize_pdf(pdf_path: str | Path, page: int = 0, exact: bool = True) -> ir
     drawing.scale = resolve_scale(title_scale, ratios)
     drawing.warnings.extend(drawing.scale.conflicts)
 
+    step(STAGES[4])
     geometry = [p for p in prims if id(p) not in used]
     contour = [p for p in geometry if not is_thin(p)]
     mark_axis_lines([p for p in geometry if is_thin(p)], contour)
@@ -119,8 +133,15 @@ def recognize_pdf(pdf_path: str | Path, page: int = 0, exact: bool = True) -> ir
 
     _build_entities(drawing, geometry, is_thin, found, plain_texts, regions, orphan_groups,
                     suspicious)
+    implied = implied_diameters(drawing)
+    if implied:
+        drawing.warnings.append(
+            "Знак Ø не поставлен, но размер стоит поперёк оси симметрично — понят как диаметр: "
+            + ", ".join(implied))
     if exact:
+        step(STAGES[5])
         drawing.processing.append(regularize(drawing).text())
+        step(STAGES[6])
         solved = solve_contour(drawing)
         drawing.processing.append(
             f"Контур решён как система: узлов {solved.get('nodes', 0)}, направлений задано "
@@ -132,6 +153,7 @@ def recognize_pdf(pdf_path: str | Path, page: int = 0, exact: bool = True) -> ir
         if broken:
             drawing.warnings.append(f"Правила контура не выполнены ({len(broken)}): "
                                     + "; ".join(broken[:15]))
+        step(STAGES[7])
         snapped = snap_annotations(drawing)
         if snapped:
             drawing.processing.append(f"Точки размеров и штриховок притянуты к контуру: {snapped}")
@@ -140,6 +162,69 @@ def recognize_pdf(pdf_path: str | Path, page: int = 0, exact: bool = True) -> ir
         drawing.warnings.append(
             "Неизвестные символы шрифта: " + " ".join(sorted(content.unknown_symbols)))
     return drawing
+
+
+def implied_diameters(drawing: ir.Drawing) -> list[str]:
+    """A size across the axis of a turned part is a diameter even when the Ø
+    sign was forgotten: the sign is added (the number stays as written).
+
+    Symmetry alone is not enough (the width of a channel, a developed blade
+    are symmetric too), so the axis must be a turned part's: another size
+    across it carries the Ø sign, or the same diameter is a circle elsewhere
+    on the sheet (the end view). Never across the centre lines of a circular
+    view or section (widths of flats, keyways), nor on a drawing that marks
+    squares (□)."""
+    texts = [t.text for t in drawing.of_type(ir.Text)] + \
+        [d.text for d in drawing.of_type(ir.Dimension)]
+    if any("□" in (t or "") for t in texts):
+        return []
+    circles = [c for c in drawing.of_type(ir.Circle) if c.style == ir.STYLE_MAIN]
+
+    def round_view(a, b):
+        n = math.dist(a, b)
+        for c in circles:
+            s, t = _across(c.center, a, b)
+            if abs(s) < 0.2 and -0.1 * n < t < 1.1 * n and 2 * c.radius >= 0.4 * n:
+                return True
+        return False
+
+    axes = [(l.p1, l.p2) for l in drawing.of_type(ir.Line)
+            if l.style == ir.STYLE_AXIAL and math.dist(l.p1, l.p2) >= 20.0
+            and not round_view(l.p1, l.p2)]
+
+    def across(d, a, b):
+        (s1, t1), (s2, t2) = _across(d.p1, a, b), _across(d.p2, a, b)
+        n = math.dist(a, b)
+        return s1 * s2 < 0 and abs(t1 - t2) <= 0.2 and -2.0 <= t1 <= n + 2.0 \
+            and abs(abs(s1) - abs(s2)) <= 0.2 + 0.02 * max(abs(s1), abs(s2))
+
+    linear = [d for d in drawing.of_type(ir.Dimension)
+              if d.dim_type == "linear" and d.p1 and d.p2]
+    out = []
+    for d in linear:
+        text = (d.text or "").strip()
+        if not text[:1].isdigit():
+            continue
+        size = math.dist(d.p1, d.p2)
+        for a, b in axes:
+            if not across(d, a, b):
+                continue
+            signed = any(o is not d and (o.text or "").startswith("Ø") and across(o, a, b)
+                         for o in linear)
+            seen = any(abs(2 * c.radius - size) <= 0.01 * size + 0.1 for c in circles)
+            if signed or seen:
+                d.text = "Ø" + text
+                d.notes.append("знак Ø добавлен: размер поперёк оси")
+                out.append(d.text)
+                break
+    return out
+
+
+def _across(p, a, b):
+    """(signed distance of ``p`` off the line a→b, its station along it)."""
+    n = math.dist(a, b)
+    ux, uy = (b[0] - a[0]) / n, (b[1] - a[1]) / n
+    return ((p[0] - a[0]) * uy - (p[1] - a[1]) * ux, (p[0] - a[0]) * ux + (p[1] - a[1]) * uy)
 
 
 def _ends_in_arrow(line: Primitive, arrows) -> bool:

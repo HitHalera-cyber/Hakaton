@@ -18,11 +18,13 @@ from ..pipeline import recognize_pdf
 from ..report.preview import render_preview_png
 
 PREVIEW_DPI = 150
+PREVIEW_STAGE = "Рисую предпросмотр"
 
 
 class RecognizeJob(QObject):
     finished = Signal(object, bytes, float)  # drawing, preview png, page height (pt)
     failed = Signal(str)
+    stage = Signal(str)  # one of pipeline.STAGES, then PREVIEW_STAGE
 
     def __init__(self, pdf: Path, exact: bool, page: int = 0):
         super().__init__()
@@ -31,15 +33,18 @@ class RecognizeJob(QObject):
     def run(self) -> None:
         try:
             try:
-                drawing = recognize_pdf(self.pdf, self.page, exact=self.exact)
+                drawing = recognize_pdf(self.pdf, self.page, exact=self.exact,
+                                        progress=self.stage.emit)
             except Exception:
                 if not self.exact:
                     raise
                 # the drawing opens anyway: as in the PDF, without the exact fitting
                 error = traceback.format_exc().strip().splitlines()[-1]
-                drawing = recognize_pdf(self.pdf, self.page, exact=False)
+                drawing = recognize_pdf(self.pdf, self.page, exact=False,
+                                        progress=self.stage.emit)
                 drawing.warnings.insert(0, "Точный режим не удался, чертёж открыт как в PDF "
                                            f"(без выравнивания): {error}")
+            self.stage.emit(PREVIEW_STAGE)
             png = render_preview_png(drawing, self.pdf, self.page, PREVIEW_DPI, legend=False)
             with pymupdf.open(str(self.pdf)) as doc:
                 height = doc[self.page].rect.height
@@ -94,9 +99,9 @@ class RevolveJob(QObject):
     finished = Signal(str)
     failed = Signal(str)
 
-    def __init__(self, drawing, out_m3d: Path):
+    def __init__(self, drawing, out_m3d: Path, exact: bool = True):
         super().__init__()
-        self.drawing, self.out = drawing, out_m3d
+        self.drawing, self.out, self.exact = drawing, out_m3d, exact
 
     def run(self) -> None:
         if sys.platform != "win32":
@@ -105,6 +110,10 @@ class RevolveJob(QObject):
         try:
             from ..model3d.revolve import find_revolve_profile
 
+            if not self.exact:
+                self.drawing = geometry_only(self.drawing)
+                self.progress.emit("Модель по геометрии чертежа (без выравнивания по размерам): "
+                                   "концы контура сомкнуты, размеры не используются")
             profile = find_revolve_profile(self.drawing)
             if profile is None:
                 self.failed.emit("Не найден профиль тела вращения: нужна осевая линия вдоль детали "
@@ -124,7 +133,8 @@ class RevolveJob(QObject):
                 from ..model3d.revolve import (drawing_radii, profile_segments, shift_loops,
                                                thread_specs)
 
-                loops = profile_segments(profile, drawing_radii(self.drawing))
+                loops = profile_segments(profile, drawing_radii(self.drawing) if self.exact
+                                         else ())
                 threads = thread_specs(self.drawing, profile, loops)
                 flange = None
                 try:
@@ -160,3 +170,16 @@ class RevolveJob(QObject):
                 pythoncom.CoUninitialize()
         except Exception:
             self.failed.emit(traceback.format_exc())
+
+
+def geometry_only(drawing: ir.Drawing) -> ir.Drawing:
+    """A copy of the drawing whose contour is closed by its own geometry —
+    ends that nearly meet are joined, near-straight lines straightened — with
+    no fitting to the dimensions: the model follows the lines as drawn."""
+    import copy
+
+    from ..geometry.regularize import close_contour
+
+    out = copy.deepcopy(drawing)
+    close_contour(out)
+    return out

@@ -87,13 +87,16 @@ def _along(p, axis):
     return ((p[0] - x1) * dy - (p[1] - y1) * dx) / n, ((p[0] - x1) * dx + (p[1] - y1) * dy) / n
 
 
-def diameters_across(drawing: ir.Drawing, axis) -> list[float]:
+def diameters_across(drawing: ir.Drawing, axis, signed: bool = True) -> list[float]:
     """Diameter sizes (Ø…) measured straight across the axis, their ends at
     equal distances on both sides of it: the sign of a body of revolution."""
     length = math.dist(*axis)
     out = []
     for d in drawing.of_type(ir.Dimension):
-        if d.dim_type != "linear" or not d.p1 or not d.p2 or "Ø" not in (d.text or ""):
+        text = (d.text or "").strip()
+        if d.dim_type != "linear" or not d.p1 or not d.p2:
+            continue
+        if ("Ø" not in text) if signed else not text[:1].isdigit():
             continue
         (s1, t1), (s2, t2) = _along(d.p1, axis), _along(d.p2, axis)
         if s1 * s2 < 0 and abs(abs(s1) - abs(s2)) <= 0.2 + 0.02 * max(abs(s1), abs(s2)) \
@@ -128,6 +131,11 @@ def revolve_verdict(drawing: ir.Drawing) -> tuple[bool | None, str]:
     across = max((len(diameters_across(drawing, a)) for a in axes), default=0)
     if across:
         return True, f"размеров Ø поперёк оси: {across}"
+    bare = max((len(diameters_across(drawing, a, signed=False)) for a in axes), default=0)
+    if bare:
+        # sizes across the axis without the Ø sign: maybe diameters with the
+        # sign forgotten, maybe widths — not a reason to refuse the model
+        return None, f"размеров поперёк оси без знака Ø: {bare} — проверьте, что это диаметры"
     if drawing.of_type(ir.Dimension):
         return False, "ни один диаметр не задан поперёк осевой — деталь не тело вращения"
     return None, "размеров нет — тело вращения не подтверждено"
