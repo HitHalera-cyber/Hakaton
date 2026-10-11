@@ -77,6 +77,9 @@ class DrawingWriter:
         self.scale = 1.0
         self.origin = (0.0, 0.0)  # sheet point of the view origin (view mode)
         self._drawing: ir.Drawing | None = None
+        # on_sheet(backend, drawing) → ids not to draw: called on the new sheet
+        # before the view (the linked view of a model goes there)
+        self.on_sheet = None
         self._angular_shelves: dict = {}
 
     # --- coordinate handling --------------------------------------------------------
@@ -122,6 +125,9 @@ class DrawingWriter:
                 note = repr(exc)
             report.notes.append(f"{t.id}: таблица не создана ({note}) — нарисована линиями и "
                                 "текстом")
+
+        if self.on_sheet is not None:
+            self._skip |= set(self.on_sheet(self.b, drawing) or ())
 
         self.scale = drawing.scale.value or 1.0
         if self.mode == "view" and self.scale != 1.0:
@@ -681,54 +687,3 @@ def _side_extent(drawing: ir.Drawing, center, angle: float, tol: float = 0.3) ->
 
 def _polar(center, p) -> float:
     return math.degrees(math.atan2(p[1] - center[1], p[0] - center[0])) % 360.0
-
-
-SCALES = (10.0, 5.0, 4.0, 2.5, 2.0, 1.0, 0.5, 0.4, 0.25, 0.2, 0.1)  # ГОСТ 2.302
-CELL = 5.0  # sheet mm
-
-
-def free_spot(drawing: ir.Drawing, size: float):
-    """Where on the sheet a view of the part (``size`` mm across) fits:
-    ((x, y) of its centre, scale) — the largest standard scale whose square
-    of 1.6 × size fits in the frame clear of everything drawn and of the
-    title block; None when there is no room."""
-    w, h = drawing.sheet.width, drawing.sheet.height
-    x0, y0, x1, y1 = 20.0 + 5.0, 5.0 + 5.0, w - 5.0 - 5.0, h - 5.0 - 5.0
-    nx, ny = int((x1 - x0) // CELL), int((y1 - y0) // CELL)
-    if nx <= 0 or ny <= 0:
-        return None
-    busy = [[False] * nx for _ in range(ny)]
-
-    def mark(ax, ay, bx, by):
-        i0, i1 = int((min(ax, bx) - x0) // CELL) - 1, int((max(ax, bx) - x0) // CELL) + 1
-        j0, j1 = int((min(ay, by) - y0) // CELL) - 1, int((max(ay, by) - y0) // CELL) + 1
-        for j in range(max(j0, 0), min(j1, ny - 1) + 1):
-            for i in range(max(i0, 0), min(i1, nx - 1) + 1):
-                busy[j][i] = True
-
-    mark(w - 5.0 - 185.0, 5.0, w - 5.0, 5.0 + 55.0)  # the title block
-    for e in drawing.entities:
-        pts = []
-        for name in ("p1", "p2", "center", "position", "line_point", "text_pos"):
-            q = getattr(e, name, None)
-            if q is not None:
-                pts.append(q)
-        r = getattr(e, "radius", None) or getattr(e, "a", None) or 0.0
-        if isinstance(e, ir.Hatch):
-            pts += [q for ring in e.contours for q in ring]
-        if not pts:
-            continue
-        xs, ys = [q[0] for q in pts], [q[1] for q in pts]
-        mark(min(xs) - r, min(ys) - r, max(xs) + r, max(ys) + r)
-    # the largest free square at each cell (bottom-left corner), by dynamic programming
-    best = [[0] * (nx + 1) for _ in range(ny + 1)]
-    for j in range(ny - 1, -1, -1):
-        for i in range(nx - 1, -1, -1):
-            best[j][i] = 0 if busy[j][i] else 1 + min(best[j + 1][i], best[j][i + 1],
-                                                      best[j + 1][i + 1])
-    k, (bi, bj) = max((best[j][i], (i, j)) for j in range(ny) for i in range(nx))
-    room = k * CELL
-    for scale in SCALES:
-        if 1.6 * size * scale <= room:
-            return ((x0 + (bi + k / 2) * CELL, y0 + (bj + k / 2) * CELL), scale)
-    return None

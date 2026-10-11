@@ -662,6 +662,7 @@ def solve_contour(drawing: ir.Drawing) -> dict:
     segments = [(member_node[(id(e), 0)], member_node[(id(e), 1)]) for e in lines]
     dim_conds, used, skipped, correction = _dimension_conds(drawing, points, axes, scale, curves,
                                                             segments)
+    anchored = list(used)  # every size held on points, kept or not in the end
     # an arc nobody sized (nor measured from) has its radius as an unknown
     held = {u[k][1] for u in used for k in (2, 3) if u[k] and u[k][0] == "pt" and u[k][2]}
     radius_var = {}
@@ -728,6 +729,7 @@ def solve_contour(drawing: ir.Drawing) -> dict:
             gap = c.center[k] - level
             if abs(abs(gap) - c.radius) <= 0.1 and _between(c.center, line.p1, line.p2):
                 conds.append(("dx", a, circle_var[id(c)], k, math.copysign(c.radius, gap)))
+    conds += _symmetric_holes(circles, circle_var, arcs, arc_var, points)
     for c in circles:  # a hole on an axis stays on it (its own centre mark goes with it)
         for axis in axes:
             if not _centre_mark(c, axis) and _line_gap(c.center, axis.p1, axis.p2) <= JOIN and _between(c.center, axis.p1, axis.p2):
@@ -778,20 +780,55 @@ def solve_contour(drawing: ir.Drawing) -> dict:
         j = circle_var[id(c)]
         _move_centre(c, (float(x[2 * j]), float(x[2 * j + 1])), axes)
     result = _write_back(drawing, nodes, arcs, arc_var, x, end, moved, n, len(direction), dropped)
-    for _, d, a, b in used:
-        # the size measures exactly the points it was held on
+    kept = {id(u[1]) for u in used}
+    for _, d, a, b in anchored:
+        # the size measures exactly the points it was held on (also one that
+        # gave way: its points follow the geometry, its number stays written)
         k = 0 if d.orientation == "horizontal" else 1
         for name, anc in (("p1", a), ("p2", b)):
             if anc is not None and anc[0] == "pt":
                 q = [float(x[2 * anc[1]]), float(x[2 * anc[1] + 1])]
                 q[k] += anc[2]
                 setattr(d, name, tuple(q))
-        d.measured = round(d.nominal * _view_scale(d, scale), 6)
+        if id(d) in kept:
+            d.measured = round(d.nominal * _view_scale(d, scale), 6)
+        elif d.p1 and d.p2 and d.orientation in ("horizontal", "vertical"):
+            d.measured = round(abs(d.p2[k] - d.p1[k]), 6)
     result["dims"] = len({u[1].id for u in used})
     result["dims_skipped"] = sorted(set(skipped))
     result["rounded"] = rounded + _NICE[0]
     result["left_as_drawn"] = list(_SKIPPED)
     return result
+
+
+def _same_hole(a, b) -> bool:
+    if type(a) is not type(b):
+        return False
+    if isinstance(a, ir.Circle):
+        return abs(a.radius - b.radius) <= 0.02 * max(a.radius, b.radius)
+    return abs(a.a - b.a) <= 0.03 * a.a and abs(a.b - b.b) <= 0.03 * a.b \
+        and abs((a.angle - b.angle + 90.0) % 180.0 - 90.0) <= 2.0
+
+
+def _symmetric_holes(holes, hole_var, arcs, arc_var, points) -> list:
+    """Two equal holes on either side of a centre (of a circle or an arc of
+    the view) stay symmetric about it: a size given to one of them holds for
+    the other (15 from the centre on one side is 15 on the other)."""
+    if len(holes) > 200:
+        return []
+    centres = [hole_var[id(h)] for h in holes if isinstance(h, ir.Circle)] \
+        + [arc_var[id(a)] for a in arcs]
+    out = []
+    for i, a in enumerate(holes):
+        for b in holes[i + 1:]:
+            if not _same_hole(a, b) or math.dist(a.center, b.center) < 1.0:
+                continue
+            mid = ((a.center[0] + b.center[0]) / 2, (a.center[1] + b.center[1]) / 2)
+            m = min((j for j in centres if j not in (hole_var[id(a)], hole_var[id(b)])),
+                    key=lambda j: math.dist(points[j], mid), default=None)
+            if m is not None and math.dist(points[m], mid) <= 0.3:
+                out += [("mid", hole_var[id(a)], hole_var[id(b)], m, k) for k in (0, 1)]
+    return out
 
 
 def _centre_mark(c, axis) -> bool:
@@ -1084,7 +1121,7 @@ def _point_slots(cond) -> list[int]:
     kind = cond[0].lstrip("D")
     if kind in ("dir", "circle", "tangent", "dx", "sym", "dist"):
         return [1, 2]
-    if kind in ("online", "circleR"):
+    if kind in ("online", "circleR", "mid"):
         return [1, 2, 3]
     return [1]
 
@@ -1211,20 +1248,26 @@ def _nice_conds(conds, x, scale, levels, radii=()):
     A size is free when its row is independent of the conditions' rows."""
     size = len(x)
     J, _ = _rows(conds, x)
+    basis = np.zeros((size, size))  # orthonormal rows; the first ``used`` taken
+    used = 0
     if J.shape[0]:
         _, s, vt = np.linalg.svd(J, full_matrices=False)
-        basis = vt[s > 1e-9 * (s[0] if len(s) else 1.0)]
-    else:
-        basis = np.zeros((0, size))
+        kept = vt[s > 1e-9 * (s[0] if len(s) else 1.0)]
+        used = len(kept)
+        basis[:used] = kept
     out = []
 
     def free(row):
-        nonlocal basis
-        r = row - basis.T @ (basis @ row) if len(basis) else row.copy()
+        nonlocal used
+        if used >= size:
+            return False
+        nz = np.flatnonzero(row)  # a row of one or two entries: cheap to project
+        r = row - basis[:used].T @ (basis[:used, nz] @ row[nz]) if used else row.copy()
         norm = np.linalg.norm(r)
         if norm < 1e-6:
             return False
-        basis = np.vstack([basis, r / norm])
+        basis[used] = r / norm
+        used += 1
         return True
 
     for j in sorted(radii):  # the radii of fillets nobody sized
@@ -1303,6 +1346,10 @@ def _rows(conds, x):
             _, i, k, v = cond
             val = x[2 * i + k] - v
             row[2 * i + k] = 1.0
+        elif kind == "mid":
+            _, a, b, m, k = cond
+            val = x[2 * a + k] + x[2 * b + k] - 2 * x[2 * m + k]
+            row[2 * a + k], row[2 * b + k], row[2 * m + k] = 1.0, 1.0, -2.0
         elif kind == "sym":
             _, a, b, k, v = cond
             val = x[2 * a + k] + x[2 * b + k] - 2 * v

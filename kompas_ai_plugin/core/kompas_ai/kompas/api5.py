@@ -1237,6 +1237,42 @@ class Api5Backend:
         return bool(con.Create())
 
     def table(self, top_left, widths, heights, cells, text_height) -> bool:
+        """A KOMPAS table: API7 first, then API5 (ksTable: the table's lines
+        and the texts of its cells, each after ksColumnNumber of its cell)."""
+        try:
+            if self._table7(top_left, widths, heights, cells, text_height):
+                return True
+            self._once("table7", "  таблица через API7 не обновилась — строю через API5 (ksTable)")
+        except Exception as exc:
+            self._once("table7", f"  таблица через API7: {exc!r} — строю через API5 (ksTable)")
+        return self._table5(top_left, widths, heights, cells, text_height)
+
+    def _table5(self, top_left, widths, heights, cells, text_height) -> bool:
+        doc = self.doc
+        if not doc.ksTable():
+            raise RuntimeError(f"ksTable не начал таблицу (код {self.last_error()})")
+        x0, y0 = top_left
+        xs = [x0 + sum(widths[:k]) for k in range(len(widths) + 1)]
+        ys = [y0 - sum(heights[:k]) for k in range(len(heights) + 1)]
+        for y in ys:
+            doc.ksLineSeg(xs[0], y, xs[-1], y, 1)
+        for x in xs:
+            doc.ksLineSeg(x, ys[0], x, ys[-1], 1)
+        number = 0
+        for r, row in enumerate(cells):  # cells numbered left to right, top to bottom
+            for k, value in enumerate(row):
+                number += 1
+                if not value:
+                    continue
+                text = value if isinstance(value, str) else "".join(p[0] for p in value)
+                h = min(text_height, 0.7 * heights[r])
+                doc.ksColumnNumber(number)
+                doc.ksText(xs[k] + 1.0, ys[r + 1] + (heights[r] - h) / 2, 0.0, h, 1.0, 0,
+                           kompas_text(text))
+        ref = doc.ksEndObj()
+        return bool(ref[0] if isinstance(ref, tuple) else ref)
+
+    def _table7(self, top_left, widths, heights, cells, text_height) -> bool:
         """A KOMPAS table (API7 IDrawingTables) at ``top_left`` on the sheet:
         column widths, row heights (top first), cell texts — a string, or
         [text, "normal"|"sub"|"sup"] parts for indices. False when KOMPAS
@@ -1302,10 +1338,11 @@ class Api5Backend:
                     item.Update()
         return bool(table.Update())
 
-    def model_view(self, source: str, at, scale: float,
-                   projection: str = "#Изометрия XYZ") -> bool:
-        """A view of a saved part, linked to it (the view follows the model),
-        centred at ``at`` on the sheet. API7 first, then API5."""
+    def model_view(self, source: str, at, scale: float, angle: float = 0.0,
+                   projection: str = "#Спереди", hidden: bool = False) -> bool:
+        """A view of a saved part, linked to it (the view follows the model):
+        the model's origin at ``at`` on the sheet, turned by ``angle``°;
+        ``hidden`` shows the hidden edges (bores) dashed. API7 first, then API5."""
         try:
             from win32com.client import CastTo, gencache
 
@@ -1315,18 +1352,31 @@ class Api5Backend:
             assoc = CastTo(view, "IAssociationView")
             assoc.SourceFileName = source
             assoc.ProjectionName = projection
+            if hidden:
+                try:
+                    assoc.HiddenLinesVisible = True
+                except Exception:
+                    pass
             view.X, view.Y = at
             view.Scale = scale
+            view.Angle = angle
             view.Name = "Модель"
             if view.Update():
+                self._drawing7 = None
                 return True
         except Exception as exc:
             self._once("model_view7", f"  вид модели через API7: {exc!r} — пробую API5")
         par = self._param("ko_AssociationViewParam", "ksAssociationViewParam")
         par.Init()
         par.fileName, par.projectionName = source, projection
-        par.x, par.y, par.scale_, par.name = at[0], at[1], scale, "Модель"
+        par.x, par.y, par.scale_, par.angle, par.name = at[0], at[1], scale, angle, "Модель"
+        if hidden:
+            try:
+                par.hiddenLinesShow = True
+            except Exception:
+                pass
         ref = self.doc.ksCreateSheetArbitraryView(par, 0)
+        self._drawing7 = None
         return bool(ref[0] if isinstance(ref, tuple) else ref)
 
     def _sketch_arc(self, d2, seg):

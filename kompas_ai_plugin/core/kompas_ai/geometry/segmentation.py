@@ -275,27 +275,40 @@ def merge_cocircular(prims: list[Primitive]) -> list[Primitive]:
     junction points; its pieces are re-joined here. Pieces separated by gaps
     (dash patterns) are left to the line-type stage.
     """
+    from .constraints import Grid
+
     arcs = [p for p in prims if p.kind == "arc"]
     rest = [p for p in prims if p.kind != "arc"]
     groups: list[list[Primitive]] = []
+    # groups by the centre of their first arc (an assembly has thousands of
+    # arcs): only groups centred near an arc are tried, first made first
+    by_centre = Grid(2.0)
+    reach = 3 * CIRCLE_TOLERANCE + 0.003 * max((a.radius for a in arcs), default=0.0)
     for arc in arcs:
-        for g in groups:
-            ref = g[0]
+        for k in sorted(by_centre.near(arc.center, reach)):
+            ref = groups[k][0]
             tol = 3 * CIRCLE_TOLERANCE + 0.003 * ref.radius
             if abs(ref.width - arc.width) < 1e-3 and math.dist(ref.center, arc.center) <= tol \
                     and abs(ref.radius - arc.radius) <= tol:
-                g.append(arc)
+                groups[k].append(arc)
                 break
         else:
+            by_centre.add(arc.center, len(groups))
             groups.append([arc])
 
     # Short chords lying on a circle (left over where a junction split it)
     # fill the gaps between its arc pieces.
     used_chords: set[int] = set()
+    ends = Grid(5.0)  # the lines by their first end
+    for k, line in enumerate(rest):
+        if line.kind == "line":
+            ends.add(line.p1, k)
     for g in groups:
         ref = max(g, key=lambda a: a.sweep)
         tol = CIRCLE_TOLERANCE + 0.002 * ref.radius
-        for line in rest:
+        near = ends.near(ref.center, ref.radius + tol) if ref.radius < 200.0 \
+            else range(len(rest))
+        for line in (rest[k] for k in sorted(near)):
             if line.kind != "line" or abs(line.width - ref.width) >= 1e-3 or id(line) in used_chords:
                 continue
             if line.length > 0.6 * ref.radius or not all(

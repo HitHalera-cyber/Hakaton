@@ -119,14 +119,15 @@ def _night(image: QImage, ground: QColor) -> QImage:
     ptr = image.constBits()
     rgba = np.frombuffer(ptr, np.uint8, image.bytesPerLine() * height)
     rgba = rgba.reshape(height, image.bytesPerLine())[:, :width * 4].reshape(height, width, 4)
-    rgb = rgba[..., :3].astype(np.int16)  # BGRA order on little endian; symmetric anyway
-    shift = 255 - rgb.max(axis=2, keepdims=True) - rgb.min(axis=2, keepdims=True)
-    out = np.clip(rgb + shift, 0, 255)
     floor = np.array([ground.blue(), ground.green(), ground.red()], np.int16)
-    out = np.maximum(out, floor).astype(np.uint8)
-    result = np.dstack([out, np.full((height, width, 1), 255, np.uint8)])
-    night = QImage(result.tobytes(), width, height, width * 4, QImage.Format_ARGB32)
-    return night.copy()
+    result = np.empty((height, width, 4), np.uint8)
+    result[..., 3] = 255
+    for y0 in range(0, height, 256):  # in bands: a big sheet stays small in memory
+        rgb = rgba[y0:y0 + 256, :, :3].astype(np.int16)  # BGRA order; symmetric anyway
+        shift = 255 - rgb.max(axis=2, keepdims=True) - rgb.min(axis=2, keepdims=True)
+        result[y0:y0 + 256, :, :3] = np.maximum(np.clip(rgb + shift, 0, 255), floor)
+    night = QImage(result.data, width, height, width * 4, QImage.Format_ARGB32)
+    return night.copy()  # its own pixels: ``result`` goes away with this function
 
 
 def _card(name: str = "card") -> tuple[QFrame, QVBoxLayout]:
@@ -323,11 +324,10 @@ class MainWindow(QMainWindow):
         self.dims_card = StatCard("Размеров")
         grid.addWidget(self.dims_card, 1, 2)
 
+        bottom = QHBoxLayout()
+        bottom.setSpacing(18)
         options, lay = _card()
         lay.addWidget(_label("Параметры построения", "cardTitle"))
-        row = QGridLayout()
-        row.setHorizontalSpacing(24)
-        row.setVerticalSpacing(12)
         self.mode = QComboBox()
         for name, _ in MODES:
             self.mode.addItem(name)
@@ -345,38 +345,39 @@ class MainWindow(QMainWindow):
             "Эскиз 3D-модели с управляющими размерами на отрезках и дугах и связями "
             "(совпадение, горизонталь, вертикаль, касание): изменили размер — модель "
             "перестроилась. Без галочки — эскиз из простых линий.")
-        row.addWidget(self.mode, 0, 0, 1, 2)
-        row.addWidget(self.dims_box, 1, 0)
-        row.addWidget(self.param_box, 1, 1)
-        lay.addLayout(row)
+        lay.addWidget(self.mode)
+        lay.addWidget(self.dims_box)
+        lay.addWidget(self.param_box)
         lay.addStretch(1)
-        grid.addWidget(options, 2, 0, 1, 2)
+        bottom.addWidget(options, 3)
 
-        model, lay = _card("cardAccent")
-        lay.setSpacing(10)
-        self.build_button = QPushButton("Построить чертёж", objectName="primary")
-        self.build_button.clicked.connect(self.build_in_kompas)
-        lay.addWidget(self.build_button)
-        lay.addSpacing(4)
-        lay.addWidget(_label("3D-модель", "cardTitle"))
-        self.model_note = _label("Тело вращения: профиль над осью вращается на 360°, "
-                                 "лыски, отверстия, резьба", "sub")
-        self.model_note.setWordWrap(True)
-        lay.addWidget(self.model_note)
-        lay.addStretch(1)
-        self.model_button = QPushButton("Построить модель", objectName="primary")
-        self.model_button.clicked.connect(self.build_3d)
-        lay.addWidget(self.model_button)
-        self.both_button = QPushButton("Построить всё", objectName="primary")
-        self.both_button.setToolTip("Модель и чертёж к ней: на листе — вид, связанный с моделью "
-                                    "(изменили модель — вид обновился)")
-        self.both_button.clicked.connect(self.build_both)
-        lay.addWidget(self.both_button)
-        for button in (self.build_button, self.model_button, self.both_button):
+        def build_card(title, note, button_text, action, accent=False):
+            frame, box = _card("cardAccent" if accent else "card")
+            box.addWidget(_label(title, "cardTitle"))
+            text = _label(note, "sub")
+            text.setWordWrap(True)
+            box.addWidget(text)
+            box.addStretch(1)
+            button = QPushButton(button_text, objectName="primary")
+            button.setStyleSheet("padding: 0 6px; font-size: 14px;")  # a narrow card
             button.setCursor(Qt.PointingHandCursor)
+            button.clicked.connect(action)
             if sys.platform != "win32":
                 button.setToolTip("Доступно в Windows с установленным КОМПАС-3D")
-        grid.addWidget(model, 2, 2)
+            box.addWidget(button)
+            bottom.addWidget(frame, 2)
+            return button, text
+
+        self.build_button, _ = build_card(
+            "Чертёж", "Лист в КОМПАС: геометрия, размеры, таблицы", "Построить чертёж",
+            self.build_in_kompas)
+        self.model_button, self.model_note = build_card(
+            "3D-модель", "Тело вращения: профиль над осью вращается на 360°, лыски, отверстия, "
+            "резьба", "Построить модель", self.build_3d, accent=True)
+        self.both_button, _ = build_card(
+            "Модель и чертёж", "Главный вид чертежа — вид модели: изменили модель — чертёж "
+            "перестроился", "Построить всё", self.build_both)
+        grid.addLayout(bottom, 2, 0, 1, 3)
         return page
 
     def _text_page(self, title: str, body: QWidget) -> QWidget:
@@ -506,6 +507,7 @@ class MainWindow(QMainWindow):
     def on_recognized(self, drawing: ir.Drawing, png: bytes, page_height: float) -> None:
         self.loader.stop()
         self.drawing, self.page_height = drawing, page_height
+        self.preview_dpi = getattr(self.job, "dpi", PREVIEW_DPI)
         self.preview.show_png(png)
         self.summary.setPlainText(summary_text(drawing))
         self._fill_review(drawing)
@@ -613,7 +615,8 @@ class MainWindow(QMainWindow):
         anchor = item.data(Qt.UserRole + 1) or (_anchor(entity) if entity else None)
         if anchor:
             self.show_page(0)
-            x, y = sheet_to_pixel(self.drawing, self.page_height, PREVIEW_DPI, anchor)
+            x, y = sheet_to_pixel(self.drawing, self.page_height,
+                                  getattr(self, "preview_dpi", PREVIEW_DPI), anchor)
             self.preview.point_at(x, y)
 
     # --- outputs -----------------------------------------------------------------------------
@@ -774,6 +777,22 @@ def _anchor(e: ir.Entity):
     return None
 
 
+def _crash_log() -> None:
+    """Where the program died, if it ever does without a Python error (memory,
+    a library): %APPDATA%/KompasAI/crash.log — send it with the PDF."""
+    import faulthandler
+    import os
+
+    try:
+        folder = Path(os.environ.get("APPDATA") or Path.home()) / "KompasAI"
+        folder.mkdir(parents=True, exist_ok=True)
+        stream = open(folder / "crash.log", "w", encoding="utf-8")
+        faulthandler.enable(stream, all_threads=True)
+        globals()["_CRASH_STREAM"] = stream  # kept open for the whole run
+    except OSError:
+        pass
+
+
 def _icon_path() -> Path | None:
     """Icon next to the packaged exe, or in the source tree when run from code."""
     candidates = [Path(getattr(sys, "_MEIPASS", "")) / "kompas_ai" / "kompas_ai.png",
@@ -791,6 +810,7 @@ def main(argv: list[str] | None = None) -> int:
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("KompasAI.App")
         except (AttributeError, OSError):
             pass
+    _crash_log()
     app = QApplication(argv if argv is not None else sys.argv)
     app.setApplicationName(APP_NAME)
     icon = _icon_path()

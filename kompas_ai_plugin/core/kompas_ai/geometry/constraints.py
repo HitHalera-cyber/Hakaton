@@ -16,6 +16,7 @@ AXIS_ANGLE = 0.3  # deg
 PARALLEL_ANGLE = 0.3  # deg
 CONCENTRIC = 0.1  # mm
 TANGENT = 0.1  # mm
+MANY_PARALLEL = 150  # inclined lines of one direction: more are a pattern, not a design
 
 
 def find_constraints(entities) -> list[Constraint]:
@@ -65,6 +66,8 @@ def find_constraints(entities) -> list[Constraint]:
     seen = set()
     for key, group in by_angle.items():
         near = group + by_angle.get((key + 1) % buckets, [])
+        if len(near) > MANY_PARALLEL:
+            continue  # strokes of one pattern (an assembly's hatch-like lines): not relations
         for x, a in enumerate(near):
             for b in near[x + 1:]:
                 pair = (min(id(a), id(b)), max(id(a), id(b)))

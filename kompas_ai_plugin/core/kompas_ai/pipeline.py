@@ -300,6 +300,10 @@ def _build_entities(drawing, geometry, is_thin, found, plain_texts, regions, orp
     branches = _radius_branches(drawing)
     if branches:
         drawing.processing.append(f"Дополнительные выноски радиусов: {branches}")
+    extensions = _drop_extension_lines(drawing)
+    if extensions:
+        drawing.processing.append(f"Выносные линии размеров, нарисованные отдельно, убраны: "
+                                  f"{extensions}")
     tails = _drop_arrow_tails(drawing)
     if tails:
         drawing.processing.append(f"Хвосты стрелок угловых размеров убраны: {tails}")
@@ -381,6 +385,33 @@ def _radius_branches(drawing, near_leader: float = 3.0, on_arc: float = 0.3) -> 
                 break
     drawing.entities = [e for e in drawing.entities if e.id not in drop]
     return made
+
+
+def _drop_extension_lines(drawing, tol: float = 0.3) -> int:
+    """A thin line along a dimension's extension line — from its point towards
+    its dimension line — is that extension line drawn once more: KOMPAS draws
+    its own, so the copy stays behind as an extra line when the geometry is
+    made exact."""
+    gone = set()
+    thin = [e for e in drawing.of_type(ir.Line) if e.style == ir.STYLE_THIN]
+    for d in drawing.of_type(ir.Dimension):
+        if d.dim_type != "linear" or not d.line_point or not d.p1 or not d.p2 \
+                or d.orientation not in ("horizontal", "vertical"):
+            continue
+        k = 0 if d.orientation == "horizontal" else 1  # the extension lines keep this coordinate
+        for p in (d.p1, d.p2):
+            lo, hi = sorted((p[1 - k], d.line_point[1 - k]))
+            for line in thin:
+                if line.id in gone or abs(line.p1[k] - line.p2[k]) > 0.05 \
+                        or abs(line.p1[k] - p[k]) > tol:
+                    continue
+                a, b = sorted((line.p1[1 - k], line.p2[1 - k]))
+                inside = min(b, hi + 3.0) - max(a, lo - 3.0)
+                if b - a > 0 and inside >= 0.8 * (b - a):
+                    gone.add(line.id)
+    if gone:
+        drawing.entities = [e for e in drawing.entities if e.id not in gone]
+    return len(gone)
 
 
 def _drop_arrow_tails(drawing, tol: float = 0.3, max_angle: float = 25.0) -> int:

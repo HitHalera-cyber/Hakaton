@@ -21,6 +21,15 @@ PREVIEW_DPI = 150
 PREVIEW_STAGE = "Рисую предпросмотр"
 
 
+MAX_PREVIEW_PIXELS = 10_000_000  # an A1 sheet at 150 dpi is 17 million: hundreds of MB
+
+
+def preview_dpi(width_pt: float, height_pt: float) -> int:
+    """The preview's resolution: PREVIEW_DPI, less for a big sheet."""
+    inches = (width_pt / 72.0) * (height_pt / 72.0)
+    return max(60, min(PREVIEW_DPI, int((MAX_PREVIEW_PIXELS / max(inches, 1e-6)) ** 0.5)))
+
+
 class RecognizeJob(QObject):
     finished = Signal(object, bytes, float)  # drawing, preview png, page height (pt)
     failed = Signal(str)
@@ -29,6 +38,7 @@ class RecognizeJob(QObject):
     def __init__(self, pdf: Path, exact: bool, page: int = 0):
         super().__init__()
         self.pdf, self.exact, self.page = pdf, exact, page
+        self.dpi = PREVIEW_DPI
 
     def run(self) -> None:
         try:
@@ -45,9 +55,11 @@ class RecognizeJob(QObject):
                 drawing.warnings.insert(0, "Точный режим не удался, чертёж открыт как в PDF "
                                            f"(без выравнивания): {error}")
             self.stage.emit(PREVIEW_STAGE)
-            png = render_preview_png(drawing, self.pdf, self.page, PREVIEW_DPI, legend=False)
             with pymupdf.open(str(self.pdf)) as doc:
-                height = doc[self.page].rect.height
+                rect = doc[self.page].rect
+            height = rect.height
+            self.dpi = preview_dpi(rect.width, rect.height)
+            png = render_preview_png(drawing, self.pdf, self.page, self.dpi, legend=False)
             self.finished.emit(drawing, png, height)
         except Exception:
             self.failed.emit(traceback.format_exc())
@@ -85,33 +97,73 @@ class KompasJob(QObject):
 
 
 def write_drawing(drawing, out: Path, with_dimensions: bool, log, model: Path | None = None,
-                  model_size=None) -> str:
-    """The drawing built and saved; with ``model`` (a saved part) a view of
-    that part is put on the sheet too, linked to it."""
+                  link=None) -> str:
+    """The drawing built and saved. With ``model`` (a saved part) and ``link``
+    (where its main view is on the sheet, from make_model) that view is the
+    part's associative view: the lines it shows are not drawn by hand, and a
+    change of the model rebuilds them on the drawing."""
     from ..kompas.api5 import Api5Backend
-    from ..kompas.writer import DrawingWriter, free_spot
+    from ..kompas.writer import DrawingWriter
 
     log("Подключение к КОМПАС (первый раз — до пары минут)…")
     # the drawing is not parametrised: constraints only ever move its lines
     backend = Api5Backend(log=log, parametric=False)
     log("Построение объектов…")
-    report = DrawingWriter(backend, mode="view", with_dimensions=with_dimensions).write(drawing)
+    writer = DrawingWriter(backend, mode="view", with_dimensions=with_dimensions)
+    linked = []
+    if model is not None and link is not None:
+        def on_sheet(b, d):
+            skip = _link_view(b, d, model, link, log)
+            linked.append(bool(skip))
+            return skip
+
+        writer.on_sheet = on_sheet
+    report = writer.write(drawing)
     text = report.text()
-    if model is not None:
-        try:
-            length, diameter = model_size or (50.0, 50.0)
-            spot = free_spot(drawing, max(length, diameter))
-            if spot is None:
-                log("На листе нет свободного места для вида модели — пропущен")
-            else:
-                (x, y), scale = spot
-                ok = backend.model_view(str(model), (x, y), scale)
-                text += "\n" + (f"Вид модели (изометрия, {scale:g}:1 → связан с {model.name})"
-                                 if ok else "Вид модели не создан")
-        except Exception as exc:
-            text += f"\nВид модели не создан: {exc!r}"
+    if linked:
+        text += "\n" + (f"Главный вид — ассоциативный вид модели {model.name}: изменили модель — "
+                         "вид на чертеже перестроится (Перестроить, F5)" if linked[0]
+                         else "Ассоциативный вид модели не создан — главный вид нарисован линиями")
     saved = backend.save(str(out))
     return text + "\n" + (f"Сохранено: {out}" if saved else f"Не удалось сохранить {out}")
+
+
+def _link_view(backend, drawing, model: Path, link, log) -> set:
+    """The model's front view over the main view of the drawing; the ids of
+    the drawn lines, arcs and hatches it replaces (empty when not made)."""
+    try:
+        ok = backend.model_view(str(model), link["origin"], link["scale"], angle=link["angle"],
+                                projection="#Спереди", hidden=True)
+    except Exception as exc:
+        log(f"Вид модели: {exc!r}")
+        ok = False
+    if not ok:
+        return set()
+    (ox, oy), (ux, uy), k = link["origin"], link["u"], link["scale"]
+    half = link["radius"] * k + 0.5
+
+    def inside(p):
+        vx, vy = p[0] - ox, p[1] - oy
+        along = (vx * ux + vy * uy) / k
+        return link["x_from"] - 0.5 / k <= along <= link["x_to"] + 0.5 / k \
+            and abs(-vx * uy + vy * ux) <= half
+
+    skip = set()
+    for e in drawing.entities:
+        style = getattr(e, "style", None)
+        if isinstance(e, ir.Hatch):
+            pts = [q for ring in e.contours for q in ring]
+        elif style == ir.STYLE_MAIN and isinstance(e, ir.Line):
+            pts = [e.p1, e.p2]
+        elif style == ir.STYLE_MAIN and isinstance(e, (ir.Arc, ir.Circle)):
+            r = e.radius
+            pts = [(e.center[0] - r, e.center[1]), (e.center[0] + r, e.center[1]),
+                   (e.center[0], e.center[1] - r), (e.center[0], e.center[1] + r)]
+        else:
+            continue
+        if pts and all(inside(q) for q in pts):
+            skip.add(e.id)
+    return skip
 
 
 class RevolveJob(QObject):
@@ -168,12 +220,12 @@ class BothJob(QObject):
             try:
                 m3d = self.out.with_suffix(".m3d")
                 self.progress.emit("— 1. Модель —")
-                text, saved, size = make_model(self.drawing, m3d, self.exact, self.parametric,
+                text, saved, link = make_model(self.drawing, m3d, self.exact, self.parametric,
                                                self.progress.emit)
                 self.progress.emit("— 2. Чертёж —")
                 drawing_text = write_drawing(self.drawing, self.out, self.with_dimensions,
                                              self.progress.emit, model=m3d if saved else None,
-                                             model_size=size)
+                                             link=link)
                 self.finished.emit(text + "\n\n" + drawing_text)
             finally:
                 pythoncom.CoUninitialize()
@@ -242,13 +294,37 @@ def make_model(drawing, out: Path, exact: bool, parametric: bool, log):
             ch.x += shift
         for f in fillets:
             f.x += shift
-    pts = [p for loop in loops for seg in loop for p in _seg_points(seg)]
-    size = (max(x for x, _ in pts) - min(x for x, _ in pts), 2 * max(abs(y) for _, y in pts)) \
-        if pts else (50.0, 50.0)
+    link = _view_link(profile, loops, shift if flange is not None else 0.0)
     saved = backend.revolve_part(loops, str(out), threads, log=log, flange=flange,
                                  fillets=fillets, channels=channels, parametric=parametric)
     return (profile.summary() + "\n" + (f"3D-деталь сохранена: {out}" if saved
-                                        else f"Не удалось сохранить {out}"), saved, size)
+                                        else f"Не удалось сохранить {out}"), saved, link)
+
+
+def _view_link(profile, loops, shift: float):
+    """Where the part's front view goes to lie over the main view of the
+    drawing: the sheet point of the model's origin, the turn of its axis, the
+    scale, and the stretch of the axis the part takes (model mm)."""
+    import math
+
+    from ..model3d.revolve import GRID
+
+    if not profile.sheet_rings:
+        return None
+    (ax, ay), (bx, by) = profile.axis
+    n = math.hypot(bx - ax, by - ay) or 1.0
+    ux, uy, k = (bx - ax) / n, (by - ay) / n, profile.scale
+    x0 = min(((p[0] - ax) * ux + (p[1] - ay) * uy) / k for ring in profile.sheet_rings
+             for p in ring)
+    x0 = round(x0 / GRID) * GRID  # as profile_segments puts the part's end at 0
+    origin_x = x0 - shift
+    pts = [p for loop in loops for seg in loop for p in _seg_points(seg)]
+    if not pts:
+        return None
+    return {"origin": (ax + ux * origin_x * k, ay + uy * origin_x * k),
+            "angle": math.degrees(math.atan2(uy, ux)), "scale": k, "u": (ux, uy),
+            "x_from": min(x for x, _ in pts), "x_to": max(x for x, _ in pts),
+            "radius": max(abs(y) for _, y in pts)}
 
 
 def _seg_points(seg):

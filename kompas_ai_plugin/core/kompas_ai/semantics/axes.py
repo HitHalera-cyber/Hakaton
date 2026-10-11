@@ -27,6 +27,9 @@ def mark_axis_lines(thin_lines: list[Primitive], main: list[Primitive]) -> int:
     grid = Grid(10.0)
     for k, l in enumerate(lines):
         grid.add_rect(l.p1[0], l.p1[1], l.p2[0], l.p2[1], k)
+    centres = Grid(10.0)
+    for k, cv in enumerate(curves):
+        centres.add(cv.center, k)
     count = 0
     for t in thin_lines:
         if t.kind != "line" or t.tags & {"axial", "dashed"}:
@@ -34,7 +37,8 @@ def mark_axis_lines(thin_lines: list[Primitive], main: list[Primitive]) -> int:
         mid = ((t.p1[0] + t.p2[0]) / 2, (t.p1[1] + t.p2[1]) / 2)
         reach = 50.0 + t.length / 2  # a side line overlaps the axis, up to 50 mm off it
         near = [lines[k] for k in sorted(grid.near(mid, reach))]
-        if _through_center(t, curves) or _midway(t, near):
+        around = [curves[k] for k in sorted(centres.near(mid, t.length / 2 + 1.0))]
+        if _through_center(t, around) or _midway(t, near):
             t.tags.add("axial")
             count += 1
     return count
