@@ -278,6 +278,7 @@ def snap_annotations(drawing: ir.Drawing, tol: float = SNAP_ANNOTATION) -> int:
                 if q != tuple(p):
                     setattr(d, name, (round(q[0], 6), round(q[1], 6)))
                     moved += 1
+    moved += _snap_angles(drawing)
     for h in drawing.of_type(ir.Hatch):
         for ring in h.contours:
             for i, p in enumerate(ring):
@@ -286,6 +287,81 @@ def snap_annotations(drawing: ir.Drawing, tol: float = SNAP_ANNOTATION) -> int:
                     ring[i] = (round(q[0], 6), round(q[1], 6))
                     moved += 1
     return moved
+
+
+ANGLE_ON_LINE = "стороны угла на контуре"  # a note: the writer keeps the sides as they are
+SIDE_DEG = 2.0  # a side of an angle this close in direction to a line lies on it
+SIDE_GAP = 1.2  # sheet mm the vertex may be off a line its side lies on
+
+
+def _snap_angles(drawing: ir.Drawing) -> int:
+    """The sides of an angle lie on the lines of the contour (or on an axis)
+    and its vertex where they cross — exactly, so the dimension's extension
+    lines run on the part's own lines."""
+    lines = [l for l in drawing.of_type(ir.Line)
+             if l.style in (ir.STYLE_MAIN, ir.STYLE_AXIAL) and math.dist(l.p1, l.p2) > 1e-6]
+
+    def side_line(c, p):
+        a = math.atan2(p[1] - c[1], p[0] - c[0])
+        best = None
+        for l in lines:
+            b = math.atan2(l.p2[1] - l.p1[1], l.p2[0] - l.p1[0])
+            diff = abs((math.degrees(a - b) + 90.0) % 180.0 - 90.0)
+            if diff > SIDE_DEG:
+                continue
+            gap = _line_gap(c, l.p1, l.p2)
+            if gap <= SIDE_GAP and (best is None or (gap, diff) < best[0]):
+                best = ((gap, diff), l)
+        return best[1] if best else None
+
+    moved = 0
+    for d in drawing.of_type(ir.Dimension):
+        if d.dim_type != "angular" or not (d.center and d.p1 and d.p2):
+            continue
+        c = tuple(d.center)
+        l1, l2 = side_line(c, d.p1), side_line(c, d.p2)
+        if l1 is None and l2 is None:
+            continue
+        if l1 is not None and l2 is not None and l1 is not l2:
+            x = _crossing(l1.p1, l1.p2, l2.p1, l2.p2)
+            if x is None or math.dist(x, c) > SIDE_GAP:
+                continue
+            new_c = x
+            p1, p2 = _foot(d.p1, l1.p1, l1.p2), _foot(d.p2, l2.p1, l2.p2)
+        else:
+            l = l1 if l1 is not None else l2
+            new_c = _foot(c, l.p1, l.p2)
+            shift = (new_c[0] - c[0], new_c[1] - c[1])
+            p1 = _foot(d.p1, l.p1, l.p2) if l1 is not None else \
+                (d.p1[0] + shift[0], d.p1[1] + shift[1])
+            p2 = _foot(d.p2, l.p1, l.p2) if l2 is not None else \
+                (d.p2[0] + shift[0], d.p2[1] + shift[1])
+        d.center = (round(new_c[0], 6), round(new_c[1], 6))
+        d.p1 = (round(p1[0], 6), round(p1[1], 6))
+        d.p2 = (round(p2[0], 6), round(p2[1], 6))
+        if l1 is not None and l2 is not None:
+            d.notes.append(ANGLE_ON_LINE)
+        moved += 1
+    return moved
+
+
+def _line_gap(p, a, b) -> float:
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    return abs((p[0] - a[0]) * dy - (p[1] - a[1]) * dx) / math.hypot(dx, dy)
+
+
+def _foot(p, a, b):
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    k = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy)
+    return (a[0] + k * dx, a[1] + k * dy)
+
+
+def _crossing(a1, a2, b1, b2):
+    d = (a2[0] - a1[0]) * (b2[1] - b1[1]) - (a2[1] - a1[1]) * (b2[0] - b1[0])
+    if abs(d) < 1e-12:
+        return None
+    t = ((b1[0] - a1[0]) * (b2[1] - b1[1]) - (b1[1] - a1[1]) * (b2[0] - b1[0])) / d
+    return (a1[0] + t * (a2[0] - a1[0]), a1[1] + t * (a2[1] - a1[1]))
 
 
 STRAIGHT_DEG = 2.0  # a line this close to horizontal/vertical is meant to be so
@@ -432,6 +508,33 @@ ANGLE_SNAP = 2.0  # degrees: a line this close to a standard angle runs at it
 STANDARD_ANGLES = (0.0, 15.0, 30.0, 45.0, 60.0, 75.0, 90.0, 105.0, 120.0, 135.0, 150.0, 165.0)
 
 
+def _dimensioned_angles(drawing: ir.Drawing) -> tuple:
+    """Directions (degrees, mod 180) the written angles ask for: a cone of
+    45° about an axis wants its sides at the axis ± 22.5°; an angle from a
+    horizontal or vertical side wants the other side that far from it. The
+    number wins over the lines, for angles too."""
+    out = []
+    for d in drawing.of_type(ir.Dimension):
+        if d.dim_type != "angular" or not (d.nominal and d.center and d.p1 and d.p2):
+            continue
+        a1 = math.degrees(math.atan2(d.p1[1] - d.center[1], d.p1[0] - d.center[0]))
+        a2 = math.degrees(math.atan2(d.p2[1] - d.center[1], d.p2[0] - d.center[0]))
+        if (a2 - a1) % 360.0 > 180.0:
+            a1, a2 = a2, a1
+        sweep = (a2 - a1) % 360.0
+        if abs(sweep - d.nominal) > 2.0:
+            continue
+        mid = a1 + sweep / 2
+        for ref, others in ((mid, (mid - d.nominal / 2, mid + d.nominal / 2)),
+                            (a1, (a1 + d.nominal,)), (a2, (a2 - d.nominal,))):
+            near = min(STANDARD_ANGLES + (180.0,), key=lambda v: abs(ref % 180.0 - v))
+            if abs(ref % 180.0 - near) <= 1.0:  # measured from an axis-true direction
+                shift = near - ref % 180.0
+                out += [round((o + shift) % 180.0, 6) for o in others]
+                break
+    return tuple(out)
+
+
 def solve_contour(drawing: ir.Drawing) -> dict:
     """The contour as one system of conditions, solved together (a sketch
     solver in small). Unknowns: the nodes where ends meet and the centres of
@@ -478,6 +581,7 @@ def solve_contour(drawing: ir.Drawing) -> dict:
                   + [c for a in arcs for c in a.center], dtype=float)
 
     lines = [e for e in pieces if isinstance(e, ir.Line)]
+    angles = _dimensioned_angles(drawing)
     direction = {}
     conds = []
     for line in lines:
@@ -486,7 +590,7 @@ def solve_contour(drawing: ir.Drawing) -> dict:
             continue
         (x1, y1), (x2, y2) = line.p1, line.p2
         ang = math.degrees(math.atan2(y2 - y1, x2 - x1)) % 180.0
-        best = min(STANDARD_ANGLES + (180.0,), key=lambda v: abs(ang - v))
+        best = min(STANDARD_ANGLES + (180.0,) + angles, key=lambda v: abs(ang - v))
         if abs(ang - best) <= ANGLE_SNAP:
             th = math.radians(best % 180.0)
             conds.append(("dir", a, b, th))

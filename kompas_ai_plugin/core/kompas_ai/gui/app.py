@@ -24,7 +24,7 @@ from ..report.preview import sheet_to_pixel
 from ..report.summary import TYPE_NAMES, summary_text
 from ..pipeline import STAGES
 from .loader import DraftingLoader
-from .theme import THEMES, style_sheet
+from .theme import THEME_ICONS, THEME_NAMES, THEMES, style_sheet
 from .workers import PREVIEW_DPI, PREVIEW_STAGE, KompasJob, RecognizeJob, RevolveJob
 
 APP_NAME = "КОМПАС-AI"
@@ -397,11 +397,16 @@ class MainWindow(QMainWindow):
         self.setStyleSheet(style_sheet(colors))
         self.preview.set_colors(colors)
         self.loader.set_colors(colors)
-        self.theme_button.setText("☾  Тёмная тема" if self.theme == "light" else "☀  Светлая тема")
+        nxt = self._next_theme()
+        self.theme_button.setText(f"{THEME_ICONS[nxt]}  {THEME_NAMES[nxt]}")
         self.settings.setValue("theme", self.theme)
 
+    def _next_theme(self) -> str:
+        names = list(THEMES)
+        return names[(names.index(self.theme) + 1) % len(names)]
+
     def toggle_theme(self) -> None:
-        self.apply_theme("dark" if self.theme == "light" else "light")
+        self.apply_theme(self._next_theme())
 
     def _set_ready(self, ready: bool) -> None:
         for button in (self.build_button, self.model_button, self.dxf_button, self.report_button):

@@ -50,7 +50,32 @@ DARK = {
     "log_text": "#CFD8E3",
 }
 
-THEMES = {"light": LIGHT, "dark": DARK}
+# the colours of the waiting screen's dawn: a deep violet room, the sun's orange
+DAWN = {
+    "ground": "#0E0B24",
+    "card": "#171339",
+    "card_alt": "#211B4C",
+    "border": "#2E2766",
+    "text": "#F2E9FF",
+    "muted": "#A39BCB",
+    "select": "#FF9A5C",
+    "select_soft": "#3A2348",
+    "action": "#FF8A52",
+    "action_hover": "#FFA36F",
+    "action_text": "#1A0E22",
+    "ok": "#7FE2A8",
+    "ok_soft": "#1C3030",
+    "warn": "#FFC46E",
+    "warn_soft": "#3A2A22",
+    "sheet": "#120E2E",
+    "grid": "#1D1846",
+    "log": "#0A0820",
+    "log_text": "#E2D8F6",
+}
+
+THEMES = {"light": LIGHT, "dark": DARK, "dawn": DAWN}
+THEME_NAMES = {"light": "Светлая тема", "dark": "Тёмная тема", "dawn": "Тема «Рассвет»"}
+THEME_ICONS = {"light": "☀", "dark": "☾", "dawn": "◐"}
 
 CHECK_SVG = ('<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18">'
              '<path d="M4.5 9.5l3 3 6-7" fill="none" stroke="{color}" stroke-width="2.2" '

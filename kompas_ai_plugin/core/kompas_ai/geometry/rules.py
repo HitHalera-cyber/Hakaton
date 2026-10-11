@@ -18,7 +18,10 @@ EXACT = 1e-6
 
 
 def check(drawing: ir.Drawing) -> list[str]:
+    from .regularize import _dimensioned_angles
+
     out = []
+    written = _dimensioned_angles(drawing)  # a slope an angle dimension asks for
     pieces = [e for e in drawing.entities if isinstance(e, (ir.Line, ir.Arc))
               and e.style == ir.STYLE_MAIN]
     for line in (e for e in pieces if isinstance(e, ir.Line)):
@@ -27,7 +30,8 @@ def check(drawing: ir.Drawing) -> list[str]:
             continue
         ang = math.degrees(math.atan2(y2 - y1, x2 - x1)) % 180.0
         a = min(ang, 180.0 - ang)  # 0…90 from horizontal
-        if min(abs(a - s) for s in STANDARD_ANGLES) > 1e-3:
+        if min(abs(a - s) for s in STANDARD_ANGLES) > 1e-3 \
+                and min((abs(ang - w) for w in written), default=1.0) > 1e-3:
             out.append(f"{line.id}: наклон {a:.3f}° — не горизонталь, не вертикаль и не "
                        f"стандартный угол")
 

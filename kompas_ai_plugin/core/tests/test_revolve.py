@@ -136,3 +136,30 @@ def test_width_across_a_round_view_is_no_diameter():
     other = ir.Dimension("D2", text="Ø40", p1=(25, 30), p2=(25, 70))
     d = ir.Drawing(entities=[axis, rim, flats, other, ir.Circle("C2", center=(0, 0), radius=16)])
     assert implied_diameters(d) == []
+
+
+def test_channels_across_the_axis():
+    """An injector: the end view with a pair of parallel lines across the
+    wall, the main view with a small circle of the same size on the section."""
+    from types import SimpleNamespace
+
+    from kompas_ai import ir
+    from kompas_ai.model3d.channels import find_channels
+
+    d = ir.Drawing(scale=ir.Scale(value=5.0, text="5:1"))
+    c = (113.0, 120.0)  # the end view: outer Ø10, the cavity Ø4,6
+    d.entities = [ir.Circle("C1", center=c, radius=25.0), ir.Circle("C2", center=c, radius=11.5),
+                  # a channel Ø0,8 going up, 1,9 mm left of the centre
+                  ir.Line("L1", p1=(101.5, 120.0), p2=(101.5, 142.0)),
+                  ir.Line("L2", p1=(105.5, 129.5), p2=(105.5, 144.3)),
+                  # the main view, along x = 113: the channel cut, 4,67 above the end
+                  ir.Circle("C3", center=(103.5, 190.7), radius=2.0),
+                  ir.Dimension("D1", text="Ø0,8", nominal=0.8, p1=(101.5, 137.0), p2=(105.5, 137.0)),
+                  ir.Dimension("D2", text="4,67", nominal=4.67, p1=(113.0, 190.7),
+                               p2=(113.0, 167.35))]
+    profile = SimpleNamespace(axis=((113.0, 164.15), (113.0, 219.2)),
+                              rings=[[(0.64, 0.0), (10.0, 0.0), (10.0, 5.0), (0.64, 5.0)]])
+    (ch,) = find_channels(d, profile)
+    assert ch.along == 2 and ch.sign == 1  # along the view's vertical, upwards
+    assert abs(ch.offset + 1.9) < 0.01 and ch.radius == 0.4
+    assert abs(ch.x - 4.67) < 0.01

@@ -647,7 +647,7 @@ class Api5Backend:
     # --- 3D -----------------------------------------------------------------------------
 
     def revolve_part(self, loops, path: str, threads=(), log=None, flange=None,
-                     fillets=()) -> bool:
+                     fillets=(), channels=()) -> bool:
         """A part made by revolving closed profile loops 360° around the X axis.
 
         Calls confirmed by prototype/api_test9.py and api_test11.py (KOMPAS v23):
@@ -657,6 +657,8 @@ class Api5Backend:
         (a parametric sketch). ``loops``: closed loops of ("line", p1, p2) /
         ("arc", center, r, a1, a2) in model mm, x along the axis, y the radius.
         ``threads``: model3d.revolve.ThreadSpec — cosmetic threads on the part.
+        ``channels``: model3d.channels.ChannelSpec — holes drilled across the
+        axis (the swirl channels of an injector).
         """
         log = log or self.log
         m, c = self.m, self.constants
@@ -666,6 +668,8 @@ class Api5Backend:
                 alpha = _hole_geometry(flange, h)[0]
                 self._plane_axes(alpha, log)
                 self._plane_axes(-alpha, log)
+        for along in sorted({ch.along for ch in channels}):
+            self._default_plane_axes(along, log)
         doc3d = self.kompas.Document3D()
         if not doc3d.Create(False, True):
             raise RuntimeError(f"КОМПАС не создал деталь (код {self.last_error()})")
@@ -701,6 +705,12 @@ class Api5Backend:
                         f"{'выполнено' if ok else 'не выполнено'}")
                 except Exception as exc:
                     log(f"Скругление R{f.radius:g} после фрезеровки: {exc!r}")
+        for ch in channels:
+            try:
+                log(f"Канал Ø{2 * ch.radius:g} (сверление): "
+                    f"{'выполнен' if self._channel(part, ch, log) else 'не выполнен'}")
+            except Exception as exc:
+                log(f"Канал Ø{2 * ch.radius:g}: {exc!r}")
         for t in threads:
             try:
                 ok = self._thread(part, t)
@@ -786,6 +796,123 @@ class Api5Backend:
         cd.SetSideParam(False, c.etBlind, reach, 0.0, False)
         cd.SetSketch(sketch)
         return bool(cut.Create())
+
+    def _channel(self, part, ch, log) -> bool:
+        """A channel across the axis: a circle on the plane through the axis
+        across the channel (XOZ for one along Y, XOY for one along Z), cut
+        from there outwards past the outside."""
+        c, m = self.constants, self.m
+        ex, ey, normal = self._default_plane_axes(ch.along, log)
+        point = (ch.x, 0.0, ch.offset) if ch.along == 1 else (ch.x, ch.offset, 0.0)
+        local = (sum(a * b for a, b in zip(point, ex)), sum(a * b for a, b in zip(point, ey)))
+        outwards = [0.0, 0.0, 0.0]
+        outwards[ch.along] = float(ch.sign)
+        forward = sum(a * b for a, b in zip(normal, outwards)) > 0
+        plane = part.GetDefaultEntity(c.o3d_planeXOZ if ch.along == 1 else c.o3d_planeXOY)
+        sketch = part.NewEntity(c.o3d_sketch)
+        sdef = m.ksSketchDefinition(sketch.GetDefinition())
+        sdef.SetPlane(plane)
+        sketch.Create()
+        d2 = sdef.BeginEdit()
+        d2.ksCircle(local[0], local[1], ch.radius, 1)
+        sdef.EndEdit()
+        cut = part.NewEntity(c.o3d_cutExtrusion)
+        cd = m.ksCutExtrusionDefinition(cut.GetDefinition())
+        cd.cut = True
+        cd.directionType = c.dtNormal if forward else c.dtReverse
+        cd.SetSideParam(forward, c.etBlind, ch.length, 0.0, False)
+        cd.SetSketch(sketch)
+        return bool(cut.Create())
+
+    def _default_plane_axes(self, along: int, log=None):
+        """For the plane across a channel along Y (1: XOZ) or Z (2: XOY): the 3D
+        directions of its sketch x and y axes and of its normal (the way a
+        "forward" cut goes). Found on a test part like _plane_axes: a cube
+        cut one way by a circle R1 at sketch (10, 0) and R2 at (0, 10)."""
+        cache = self.__dict__.setdefault("_default_axes", {})
+        if along in cache:
+            return cache[along]
+        unit = [(1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)]
+        normal = unit[along]
+        in_plane = [unit[0], unit[2] if along == 1 else unit[1]]
+        try:
+            found = self._probe_default_plane(along, normal, in_plane)
+            (log or self.log)(f"  оси эскиза на плоскости {'XOZ' if along == 1 else 'XOY'}: "
+                              f"x = {_vec(found[0])}, y = {_vec(found[1])}, "
+                              f"вырез вперёд = {_vec(found[2])}")
+        except Exception as exc:
+            found = (in_plane[0], in_plane[1], normal)
+            (log or self.log)(f"  оси эскиза на плоскости {'XOZ' if along == 1 else 'XOY'} "
+                              f"не найдены ({exc!r}) — беру x = X")
+        cache[along] = found
+        return found
+
+    def _probe_default_plane(self, along, normal, in_plane):
+        c, m = self.constants, self.m
+        doc = self.kompas.Document3D()
+        if not doc.Create(False, True):
+            raise RuntimeError("пробная деталь не создана")
+        try:
+            part = doc.GetPart(c.pTop_Part)
+            sk = part.NewEntity(c.o3d_sketch)
+            sd = m.ksSketchDefinition(sk.GetDefinition())
+            sd.SetPlane(part.GetDefaultEntity(c.o3d_planeYOZ))
+            sk.Create()
+            d2 = sd.BeginEdit()
+            for x1, y1, x2, y2 in ((-30, -30, 30, -30), (30, -30, 30, 30), (30, 30, -30, 30),
+                                   (-30, 30, -30, -30)):
+                d2.ksLineSeg(x1, y1, x2, y2, 1)
+            sd.EndEdit()
+            ext = part.NewEntity(c.o3d_baseExtrusion)
+            ed = m.ksBaseExtrusionDefinition(ext.GetDefinition())
+            ed.directionType = c.dtBoth
+            ed.SetSideParam(True, c.etBlind, 30.0, 0.0, False)
+            ed.SetSideParam(False, c.etBlind, 30.0, 0.0, False)
+            ed.SetSketch(sk)
+            if not ext.Create():
+                raise RuntimeError("пробный куб не создан")
+            sk2 = part.NewEntity(c.o3d_sketch)
+            sd2 = m.ksSketchDefinition(sk2.GetDefinition())
+            sd2.SetPlane(part.GetDefaultEntity(c.o3d_planeXOZ if along == 1 else c.o3d_planeXOY))
+            sk2.Create()
+            d3 = sd2.BeginEdit()
+            d3.ksCircle(10.0, 0.0, 1.0, 1)
+            d3.ksCircle(0.0, 10.0, 2.0, 1)
+            sd2.EndEdit()
+            cut = part.NewEntity(c.o3d_cutExtrusion)
+            cd = m.ksCutExtrusionDefinition(cut.GetDefinition())
+            cd.cut = True
+            cd.directionType = c.dtNormal
+            cd.SetSideParam(True, c.etBlind, 20.0, 0.0, False)
+            cd.SetSketch(sk2)
+            if not cut.Create():
+                raise RuntimeError("пробный вырез не выполнен")
+
+            def wall(direction, side, r, n):
+                # a point on the wall of the hole of radius r centred 10 mm
+                # along direction, 10 mm into the cut along n
+                p = [10.0 * direction[k] + r * side[k] + 10.0 * n[k] for k in range(3)]
+                faces = part.EntityCollection(c.o3d_face)
+                faces.SelectByPoint(*p)
+                return faces.GetCount() > 0
+
+            cands = [v for u in in_plane for v in (u, tuple(-a for a in u))]
+            norms = [normal, tuple(-a for a in normal)]
+            found = {}
+            for r in (1.0, 2.0):
+                hits = [(v, n) for v in cands for n in norms
+                        if wall(v, next(u for u in in_plane if abs(sum(a * b for a, b in zip(u, v))) < 0.5), r, n)]
+                if len(hits) != 1:
+                    raise RuntimeError(f"неоднозначно: R{r:g} — {len(hits)}")
+                found[r] = hits[0]
+            if found[1.0][1] != found[2.0][1]:
+                raise RuntimeError("направление выреза не совпало")
+            return found[1.0][0], found[2.0][0], found[1.0][1]
+        finally:
+            try:
+                doc.close()
+            except Exception:
+                pass
 
     def _angle_plane(self, part, alpha):
         c, m = self.constants, self.m

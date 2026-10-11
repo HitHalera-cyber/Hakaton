@@ -141,6 +141,15 @@ class RevolveJob(QObject):
                     flange = find_flange(self.drawing, profile, loops)
                 except Exception as exc:
                     self.progress.emit(f"Вид с торца не разобран: {exc!r}")
+                channels = []
+                try:
+                    from ..model3d.channels import find_channels
+
+                    channels = find_channels(self.drawing, profile)
+                except Exception as exc:
+                    self.progress.emit(f"Каналы поперёк оси не разобраны: {exc!r}")
+                for ch in channels:
+                    self.progress.emit("Сверление: " + ch.text())
                 fillets = []
                 if flange is not None:
                     self.progress.emit(flange.summary())
@@ -159,11 +168,13 @@ class RevolveJob(QObject):
                     flange.x0, flange.x1 = flange.x0 + shift, flange.x1 + shift
                     for t in threads:
                         t.x += shift
+                    for ch in channels:
+                        ch.x += shift
                     for f in fillets:
                         f.x += shift
                 saved = backend.revolve_part(loops, str(self.out), threads,
                                              log=self.progress.emit, flange=flange,
-                                             fillets=fillets)
+                                             fillets=fillets, channels=channels)
                 self.finished.emit(profile.summary() + "\n" + (
                     f"3D-деталь сохранена: {self.out}" if saved else f"Не удалось сохранить {self.out}"))
             finally:

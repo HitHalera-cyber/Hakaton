@@ -19,6 +19,7 @@ import re
 from dataclasses import dataclass, field
 
 from .. import ir
+from ..geometry.regularize import ANGLE_ON_LINE
 from .backend import (LINEAR_HORIZONTAL, LINEAR_PARALLEL, LINEAR_VERTICAL, STYLE_IDS, Backend,
                       DimText)
 
@@ -373,7 +374,8 @@ class DrawingWriter:
             # written value agrees with the drawing, the sides are set exactly
             # to it around their bisector so the dimension reads like the source.
             sweep = (a2 - a1) % 360.0
-            if d.nominal and abs(sweep - d.nominal) <= 1.0:
+            # sides lying on the contour's lines stay on them (snap_annotations)
+            if d.nominal and abs(sweep - d.nominal) <= 1.0 and ANGLE_ON_LINE not in d.notes:
                 mid = a1 + sweep / 2
                 a1, a2 = (mid - d.nominal / 2) % 360.0, (mid + d.nominal / 2) % 360.0
             # the radius of the dimension arc is in sheet mm as well
