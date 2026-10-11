@@ -163,3 +163,25 @@ def test_channels_across_the_axis():
     assert ch.along == 2 and ch.sign == 1  # along the view's vertical, upwards
     assert abs(ch.offset + 1.9) < 0.01 and ch.radius == 0.4
     assert abs(ch.x - 4.67) < 0.01
+
+
+def test_channel_with_a_short_wall():
+    """One wall of a tangential channel runs on to the cavity, the other
+    stops where it meets it: still one channel (the oxidiser injector)."""
+    from types import SimpleNamespace
+
+    from kompas_ai import ir
+    from kompas_ai.model3d.channels import find_channels
+
+    d = ir.Drawing(scale=ir.Scale(value=4.0, text="4:1"))
+    c = (110.26, 215.71)  # outer Ø11,9, the cavity Ø8, the channel axes on Ø6
+    d.entities = [ir.Circle("C1", center=c, radius=23.82), ir.Circle("C2", center=c, radius=16.0),
+                  ir.Line("L17", p1=(94.26, 215.73), p2=(94.26, 198.04)),
+                  ir.Line("L27", p1=(102.26, 193.29), p2=(102.26, 201.85)),
+                  ir.Circle("C4", center=(122.27, 151.72), radius=4.0),
+                  ir.Dimension("D4", text="2", nominal=2.0, p1=(94.26, 198.04), p2=(102.26, 197.5))]
+    profile = SimpleNamespace(axis=((110.24, 167.64), (110.24, 104.22)),
+                              rings=[[(1.02, 0.0), (14.0, 0.0), (14.0, 6.0), (1.02, 6.0)]])
+    (ch,) = find_channels(d, profile)
+    assert ch.along == 2 and ch.sign == -1 and ch.radius == 1.0
+    assert abs(ch.offset + 3.0) < 0.01 and abs(ch.x - 2.96) < 0.01

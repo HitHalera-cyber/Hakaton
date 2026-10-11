@@ -267,6 +267,22 @@ def snap_annotations(drawing: ir.Drawing, tol: float = SNAP_ANNOTATION) -> int:
                         e.center[1] + (p[1] - e.center[1]) * e.radius / d)
         return snap(p)
 
+    def on_contour(q):
+        if any(math.dist(q, n) <= 1e-6 for n in nodes) or q in centres:
+            return True
+        return any(_line_gap(q, a, b) <= 1e-4 and _between(q, a, b) for a, b in lines)
+
+    def slide(p, orientation):
+        """A point that lies on nothing: along its extension line (vertical
+        for a horizontal size, horizontal for a vertical one) to the nearest
+        corner of the contour on that line — the point the size measures."""
+        k = 0 if orientation == "horizontal" else 1 if orientation == "vertical" else None
+        if k is None:
+            return p
+        on_line = [n for n in nodes if abs(n[k] - p[k]) <= 0.05]
+        best = min(on_line, key=lambda n: abs(n[1 - k] - p[1 - k]), default=None)
+        return best if best is not None and abs(best[1 - k] - p[1 - k]) <= SLIDE else p
+
     moved = 0
     for d in drawing.of_type(ir.Dimension):
         if d.dim_type != "linear":
@@ -275,6 +291,8 @@ def snap_annotations(drawing: ir.Drawing, tol: float = SNAP_ANNOTATION) -> int:
             p = getattr(d, name)
             if p is not None:
                 q = snap_dim(tuple(p))
+                if not on_contour(q):
+                    q = slide(q, d.orientation)
                 if q != tuple(p):
                     setattr(d, name, (round(q[0], 6), round(q[1], 6)))
                     moved += 1
@@ -289,6 +307,7 @@ def snap_annotations(drawing: ir.Drawing, tol: float = SNAP_ANNOTATION) -> int:
     return moved
 
 
+SLIDE = 120.0  # sheet mm a dimension point may slide along its extension line
 ANGLE_ON_LINE = "стороны угла на контуре"  # a note: the writer keeps the sides as they are
 SIDE_DEG = 2.0  # a side of an angle this close in direction to a line lies on it
 SIDE_GAP = 1.2  # sheet mm the vertex may be off a line its side lies on
@@ -343,6 +362,12 @@ def _snap_angles(drawing: ir.Drawing) -> int:
             d.notes.append(ANGLE_ON_LINE)
         moved += 1
     return moved
+
+
+def _between(p, a, b) -> bool:
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    k = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / ((dx * dx + dy * dy) or 1.0)
+    return -1e-6 <= k <= 1 + 1e-6
 
 
 def _line_gap(p, a, b) -> float:
