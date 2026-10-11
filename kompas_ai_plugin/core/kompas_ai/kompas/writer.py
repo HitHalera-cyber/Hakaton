@@ -340,8 +340,8 @@ class DrawingWriter:
                 for a in (a1, a2):
                     start = _side_extent(self._drawing, d.center, a)
                     # no drawn side on this ray (a chamfer seen past its vertex):
-                    # no extension line — one from the vertex was a stray line
-                    if 0.0 < start < radius - 0.5:
+                    # the extension line runs from the vertex, as on the source
+                    if start < radius - 0.5:
                         u = (math.cos(math.radians(a)), math.sin(math.radians(a)))
                         p = (d.center[0] + u[0] * start, d.center[1] + u[1] * start)
                         q = (d.center[0] + u[0] * (radius + EXT_OVERSHOOT),
