@@ -219,12 +219,23 @@ def snap_annotations(drawing: ir.Drawing, tol: float = SNAP_ANNOTATION) -> int:
                 ends.append((e.center[0] + e.radius * math.cos(t),
                              e.center[1] + e.radius * math.sin(t)))
 
+    # neighbours only, through grids: an assembly has thousands of points
+    from .constraints import Grid
+
+    end_grid = Grid(1.0)
+    for q in ends:
+        end_grid.add(q, q)
+    line_grid = Grid(5.0)
+    for k, (a, b) in enumerate(lines):
+        line_grid.add_rect(min(a[0], b[0]) - tol, min(a[1], b[1]) - tol,
+                           max(a[0], b[0]) + tol, max(a[1], b[1]) + tol, k)
+
     def snap(p):
-        best = min(ends, key=lambda q: math.dist(p, q), default=None)
+        best = min(end_grid.near(p, tol), key=lambda q: math.dist(p, q), default=None)
         if best is not None and math.dist(p, best) <= tol:
             return best
         near, gap = None, tol
-        for a, b in lines:
+        for a, b in (lines[k] for k in sorted(line_grid.at(p))):
             dx, dy = b[0] - a[0], b[1] - a[1]
             n2 = dx * dx + dy * dy
             if n2 < 1e-12:
@@ -253,14 +264,22 @@ def snap_annotations(drawing: ir.Drawing, tol: float = SNAP_ANNOTATION) -> int:
     centres = [tuple(e.center) for e in drawing.entities
                if isinstance(e, (ir.Arc, ir.Circle, ir.Ellipse))]
 
+    node_grid, centre_grid, curve_grid = Grid(1.0), Grid(1.0), Grid(5.0)
+    for q in nodes:
+        node_grid.add(q, q)
+    for q in centres:
+        centre_grid.add(q, q)
+    for k, e in enumerate(curves):
+        curve_grid.add_box(e.center, e.radius + tol, k)
+
     def snap_dim(p):
-        best = min(nodes, key=lambda q: math.dist(p, q), default=None)
+        best = min(node_grid.near(p, DIM_NODE), key=lambda q: math.dist(p, q), default=None)
         if best is not None and math.dist(p, best) <= DIM_NODE:
             return best
-        c = min(centres, key=lambda q: math.dist(p, q), default=None)
+        c = min(centre_grid.near(p, tol), key=lambda q: math.dist(p, q), default=None)
         if c is not None and math.dist(p, c) <= tol:
             return c  # from the centre of a hole or an arc
-        for e in curves:  # a point of an arc (the bottom of a notch)
+        for e in (curves[k] for k in sorted(curve_grid.at(p))):  # a point of an arc
             d = math.dist(p, e.center)
             if d > 0 and abs(d - e.radius) <= tol:
                 return (e.center[0] + (p[0] - e.center[0]) * e.radius / d,
@@ -268,9 +287,11 @@ def snap_annotations(drawing: ir.Drawing, tol: float = SNAP_ANNOTATION) -> int:
         return snap(p)
 
     def on_contour(q):
-        if any(math.dist(q, n) <= 1e-6 for n in nodes) or q in centres:
+        if any(math.dist(q, n) <= 1e-6 for n in node_grid.near(q, 0.01)) \
+                or q in centre_grid.near(q, 0.01):
             return True
-        return any(_line_gap(q, a, b) <= 1e-4 and _between(q, a, b) for a, b in lines)
+        return any(_line_gap(q, a, b) <= 1e-4 and _between(q, a, b)
+                   for a, b in (lines[k] for k in line_grid.at(q)))
 
     def slide(p, orientation):
         """A point that lies on nothing: along its extension line (vertical

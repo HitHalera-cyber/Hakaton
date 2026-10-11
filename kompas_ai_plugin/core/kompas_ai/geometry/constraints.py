@@ -35,7 +35,7 @@ def find_constraints(entities) -> list[Constraint]:
             out.append(Constraint("vertical", line.id))
 
     # lines sharing an end: their ends in cells of the grid
-    ends = _Grid(1.0)
+    ends = Grid(1.0)
     for k, l in enumerate(lines):
         for p in (l.p1, l.p2):
             ends.add(p, k)
@@ -74,7 +74,7 @@ def find_constraints(entities) -> list[Constraint]:
                 if angle_diff(angle[id(a)], angle[id(b)]) <= PARALLEL_ANGLE:
                     out.append(Constraint("parallel", a.id, b.id))
 
-    centres = _Grid(1.0)
+    centres = Grid(1.0)
     for k, c in enumerate(curves):
         centres.add(c.center, k)
     for k, a in enumerate(curves):
@@ -83,7 +83,7 @@ def find_constraints(entities) -> list[Constraint]:
                 out.append(Constraint("concentric", a.id, curves[m].id))
 
     # tangent: a line one of whose ends lies on the curve
-    on_curve = _Grid(5.0)
+    on_curve = Grid(5.0)
     for k, c in enumerate(curves):
         on_curve.add_box(c.center, c.radius + TANGENT, k)
     for line in lines:
@@ -99,12 +99,17 @@ def find_constraints(entities) -> list[Constraint]:
     return out
 
 
-class _Grid:
-    """Points (or boxes) in square cells, to find what is near quickly."""
+class Grid:
+    """Points (or boxes) in square cells, to find what is near quickly. A box
+    over too many cells (an arc of a huge radius) is kept aside and offered
+    to every query instead."""
+
+    MAX_CELLS = 2000
 
     def __init__(self, cell: float):
         self.cell = cell
         self.cells: dict[tuple, set] = {}
+        self.big: set = set()
 
     def _key(self, p):
         return (int(math.floor(p[0] / self.cell)), int(math.floor(p[1] / self.cell)))
@@ -113,17 +118,24 @@ class _Grid:
         self.cells.setdefault(self._key(p), set()).add(item)
 
     def add_box(self, c, r, item):
-        (x0, y0), (x1, y1) = self._key((c[0] - r, c[1] - r)), self._key((c[0] + r, c[1] + r))
-        for x in range(x0, x1 + 1):
-            for y in range(y0, y1 + 1):
+        self.add_rect(c[0] - r, c[1] - r, c[0] + r, c[1] + r, item)
+
+    def add_rect(self, x0, y0, x1, y1, item):
+        (a0, b0) = self._key((min(x0, x1), min(y0, y1)))
+        (a1, b1) = self._key((max(x0, x1), max(y0, y1)))
+        if (a1 - a0 + 1) * (b1 - b0 + 1) > self.MAX_CELLS:
+            self.big.add(item)
+            return
+        for x in range(a0, a1 + 1):
+            for y in range(b0, b1 + 1):
                 self.cells.setdefault((x, y), set()).add(item)
 
     def at(self, p) -> set:
-        return self.cells.get(self._key(p), set())
+        return self.cells.get(self._key(p), set()) | self.big
 
     def near(self, p, r) -> set:
         (x0, y0), (x1, y1) = self._key((p[0] - r, p[1] - r)), self._key((p[0] + r, p[1] + r))
-        out = set()
+        out = set(self.big)
         for x in range(x0, x1 + 1):
             for y in range(y0, y1 + 1):
                 out |= self.cells.get((x, y), set())

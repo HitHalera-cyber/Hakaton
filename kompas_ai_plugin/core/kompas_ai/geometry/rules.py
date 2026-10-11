@@ -46,11 +46,20 @@ def check(drawing: ir.Drawing) -> list[str]:
                                  e.center[1] + e.radius * math.sin(r))))
     lines = [e for e in pieces if isinstance(e, ir.Line)] + [
         e for e in drawing.of_type(ir.Line) if e.style == ir.STYLE_AXIAL]
+    # neighbours through grids (an assembly has thousands of ends)
+    from .constraints import Grid
+
+    end_grid, line_grid = Grid(1.0), Grid(5.0)
+    for k, (e, q) in enumerate(ends):
+        end_grid.add(q, k)
+    for k, o in enumerate(lines):
+        line_grid.add_rect(o.p1[0] - 0.01, o.p1[1] - 0.01, o.p2[0] + 0.01, o.p2[1] + 0.01, k)
     for e, p in ends:
-        if any(o is not e and math.dist(p, q) <= EXACT for o, q in ends):
+        near = [ends[k] for k in end_grid.near(p, 0.3)]
+        if any(o is not e and math.dist(p, q) <= EXACT for o, q in near):
             continue
-        gap = min((math.dist(p, q) for o, q in ends if o is not e), default=math.inf)
-        on_line = any(o is not e and _on_segment(p, o) for o in lines)
+        gap = min((math.dist(p, q) for o, q in near if o is not e), default=math.inf)
+        on_line = any(o is not e and _on_segment(p, o) for o in (lines[k] for k in line_grid.at(p)))
         if on_line:
             continue
         if gap < 0.3:

@@ -21,11 +21,20 @@ def mark_axis_lines(thin_lines: list[Primitive], main: list[Primitive]) -> int:
     """Tag thin solid lines that act as axes with ``axial``; return how many."""
     curves = [p for p in main if p.kind in ("circle", "arc")]
     lines = [p for p in main if p.kind == "line"]
+    # neighbours only: lines within reach of an axis' middle, through a grid
+    from ..geometry.constraints import Grid
+
+    grid = Grid(10.0)
+    for k, l in enumerate(lines):
+        grid.add_rect(l.p1[0], l.p1[1], l.p2[0], l.p2[1], k)
     count = 0
     for t in thin_lines:
         if t.kind != "line" or t.tags & {"axial", "dashed"}:
             continue
-        if _through_center(t, curves) or _midway(t, lines):
+        mid = ((t.p1[0] + t.p2[0]) / 2, (t.p1[1] + t.p2[1]) / 2)
+        reach = 50.0 + t.length / 2  # a side line overlaps the axis, up to 50 mm off it
+        near = [lines[k] for k in sorted(grid.near(mid, reach))]
+        if _through_center(t, curves) or _midway(t, near):
             t.tags.add("axial")
             count += 1
     return count
