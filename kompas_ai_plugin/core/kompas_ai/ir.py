@@ -98,6 +98,21 @@ class Text(Entity):
 
 
 @dataclass
+class Table(Entity):
+    """A table drawn on the sheet: a grid of cells with text. ``top_left`` of
+    the grid, column widths left to right, row heights top to bottom (sheet
+    mm); ``cells[row][col]`` the text of a cell; ``members`` the ids of the
+    lines and texts it was read from (drawn by them when KOMPAS makes no table)."""
+
+    top_left: Point = (0.0, 0.0)
+    widths: list = field(default_factory=list)
+    heights: list = field(default_factory=list)
+    cells: list = field(default_factory=list)
+    text_height: float = 3.5
+    members: list = field(default_factory=list)
+
+
+@dataclass
 class Hatch(Entity):
     """Hatched region bounded by ``contours`` (first = outer, others = holes)."""
 
@@ -172,6 +187,7 @@ class Drawing:
     constraints: list[Constraint] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     processing: list[str] = field(default_factory=list)  # what was corrected and how
+    issues: list[str] = field(default_factory=list)  # broken contour rules, "L7: …" each
 
     def of_type(self, cls: type) -> list:
         return [e for e in self.entities if isinstance(e, cls)]
@@ -199,6 +215,7 @@ class Drawing:
             "review": [e.id for e in self.review],
             "warnings": self.warnings,
             "processing": self.processing,
+            "issues": self.issues,
             "entities": [e.to_dict() for e in self.entities],
             "constraints": [asdict(c) for c in self.constraints],
         }
@@ -225,6 +242,7 @@ class Drawing:
             constraints=[Constraint(**c) for c in data.get("constraints", [])],
             warnings=list(data.get("warnings", [])),
             processing=list(data.get("processing", [])),
+            issues=list(data.get("issues", [])),
         )
 
     @classmethod
@@ -232,7 +250,7 @@ class Drawing:
         return cls.from_dict(json.loads(Path(path).read_text(encoding="utf-8")))
 
 
-ENTITY_TYPES = (Line, Circle, Arc, Ellipse, PointMark, Text, Hatch, Dimension)
+ENTITY_TYPES = (Line, Circle, Arc, Ellipse, PointMark, Text, Hatch, Dimension, Table)
 
 
 def _tuples(value):

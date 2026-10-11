@@ -18,6 +18,7 @@ MAX_GAP = 7.0  # mm between consecutive dashes (ISO 128 / AutoCAD patterns up to
 MIN_DASHES = 3  # a dash pattern shows at least dash–dot–dash
 OFFSET_TOLERANCE = 0.12  # mm
 ANGLE_TOLERANCE = 0.8  # deg
+RHO_BUCKET = 2.0  # mm: buckets of line distance from the origin, for grouping
 DOT_MAX = 2.5  # mm; a "dot" of a dash-dot line
 CIRCLE_COVERAGE = 300.0  # deg of dashes+gaps to call a dashed arc set a full circle
 
@@ -93,16 +94,41 @@ def _absorb_dots(lines: list[Primitive], curves: list[Primitive]) -> list[Primit
 
 def _merge_lines(lines: list[Primitive], arrow_tips=()) -> list[Primitive]:
     groups: list[list[Primitive]] = []
+    # groups by direction and distance of their line from the origin (an
+    # assembly has thousands of lines): only neighbouring buckets are tried,
+    # in the order the groups were made — the same groups as trying them all
+    reach = max((abs(c) for l in lines for p in (l.p1, l.p2) for c in p), default=0.0) * 1.5
+    span = int(math.ceil((reach * math.radians(ANGLE_TOLERANCE) + OFFSET_TOLERANCE) / RHO_BUCKET))
+    buckets: dict[tuple[int, int], list[int]] = {}
+
+    def key(line):
+        a = direction_deg(line.p1, line.p2)
+        t = math.radians(a)
+        rho = -line.p1[0] * math.sin(t) + line.p1[1] * math.cos(t)
+        return a, rho
+
     for line in sorted(lines, key=lambda p: -p.length):
-        for group in groups:
-            ref = group[0]
-            if angle_diff(direction_deg(ref.p1, ref.p2), direction_deg(line.p1, line.p2)) \
-                    <= ANGLE_TOLERANCE \
+        a, rho = key(line)
+        ka, kr = int(a // 1.0), int(math.floor(rho / RHO_BUCKET))
+        cands = set()
+        for da in (-1, 0, 1):
+            bucket_a = ka + da
+            sign = 1
+            if bucket_a < 0 or bucket_a >= 180:  # across 0°/180° the normal turns over
+                bucket_a %= 180
+                sign = -1
+            r = kr if sign > 0 else int(math.floor(-rho / RHO_BUCKET))
+            for dr in range(-span, span + 1):
+                cands.update(buckets.get((bucket_a, r + dr), ()))
+        for g in sorted(cands):
+            ref = groups[g][0]
+            if angle_diff(direction_deg(ref.p1, ref.p2), a) <= ANGLE_TOLERANCE \
                     and point_line_distance(line.p1, ref.p1, ref.p2) <= OFFSET_TOLERANCE \
                     and point_line_distance(line.p2, ref.p1, ref.p2) <= OFFSET_TOLERANCE:
-                group.append(line)
+                groups[g].append(line)
                 break
         else:
+            buckets.setdefault((ka, kr), []).append(len(groups))
             groups.append([line])
 
     out = []

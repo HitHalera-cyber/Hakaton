@@ -647,7 +647,7 @@ class Api5Backend:
     # --- 3D -----------------------------------------------------------------------------
 
     def revolve_part(self, loops, path: str, threads=(), log=None, flange=None,
-                     fillets=(), channels=()) -> bool:
+                     fillets=(), channels=(), parametric: bool = True) -> bool:
         """A part made by revolving closed profile loops 360° around the X axis.
 
         Calls confirmed by prototype/api_test9.py and api_test11.py (KOMPAS v23):
@@ -658,7 +658,8 @@ class Api5Backend:
         ("arc", center, r, a1, a2) in model mm, x along the axis, y the radius.
         ``threads``: model3d.revolve.ThreadSpec — cosmetic threads on the part.
         ``channels``: model3d.channels.ChannelSpec — holes drilled across the
-        axis (the swirl channels of an injector).
+        axis (the swirl channels of an injector). ``parametric``: the sketch
+        with constraints and driving dimensions (False: plain lines).
         """
         log = log or self.log
         m, c = self.m, self.constants
@@ -680,13 +681,17 @@ class Api5Backend:
         sdef.SetPlane(part.GetDefaultEntity(c.o3d_planeXOY))
         sketch.Create()
         d2 = sdef.BeginEdit()
-        try:
-            made, tried = self._sketch7(loops, d2)
-            log(f"Эскиз через API7: связей создано {made} из {tried}"
-                + (" — все наложены" if made == tried else ""))
-        except Exception as exc:
-            log(f"Эскиз через API7 не удался ({exc!r}) — строю через API5, без связей")
+        if not parametric:
+            log("Эскиз без параметризации: простые отрезки и дуги")
             self._sketch5(d2, loops)
+        else:
+            try:
+                made, tried = self._sketch7(loops, d2)
+                log(f"Эскиз через API7: связей и размеров создано {made} из {tried}"
+                    + (" — все наложены" if made == tried else ""))
+            except Exception as exc:
+                log(f"Эскиз через API7 не удался ({exc!r}) — строю через API5, без связей")
+                self._sketch5(d2, loops)
         sdef.EndEdit()
         rot = part.NewEntity(c.o3d_baseRotated)
         rdef = m.ksBaseRotatedDefinition(rot.GetDefinition())
@@ -879,6 +884,10 @@ class Api5Backend:
         cache = self.__dict__.setdefault("_default_axes", {})
         if along in cache:
             return cache[along]
+        known = _known_axes().get(f"default:{along}")
+        if known:  # found on an earlier run: no test part this time
+            cache[along] = tuple(tuple(v) for v in known)
+            return cache[along]
         unit = [(1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)]
         normal = unit[along]
         in_plane = [unit[0], unit[2] if along == 1 else unit[1]]
@@ -887,6 +896,7 @@ class Api5Backend:
             (log or self.log)(f"  оси эскиза на плоскости {'XOZ' if along == 1 else 'XOY'}: "
                               f"x = {_vec(found[0])}, y = {_vec(found[1])}, "
                               f"вырез вперёд = {_vec(found[2])}")
+            _remember_axes(f"default:{along}", found)
         except Exception as exc:
             found = (in_plane[0], in_plane[1], normal)
             (log or self.log)(f"  оси эскиза на плоскости {'XOZ' if along == 1 else 'XOY'} "
@@ -897,7 +907,7 @@ class Api5Backend:
     def _probe_default_plane(self, along, normal, in_plane):
         c, m = self.constants, self.m
         doc = self.kompas.Document3D()
-        if not doc.Create(False, True):
+        if not doc.Create(True, True):  # invisible: the test part is not shown
             raise RuntimeError("пробная деталь не создана")
         try:
             part = doc.GetPart(c.pTop_Part)
@@ -982,12 +992,17 @@ class Api5Backend:
         key = round(alpha, 3)
         if key in cache:
             return cache[key]
+        known = _known_axes().get(f"angle:{key}")
+        if known:  # found on an earlier run: no test part this time
+            cache[key] = tuple(tuple(v) for v in known)
+            return cache[key]
         a = math.radians(alpha)
         y_axis, w = (0.0, 1.0, 0.0), (math.sin(a), 0.0, math.cos(a))
         try:
             found = self._probe_plane_axes(alpha, y_axis, w)
             (log or self.log)(f"  оси эскиза на плоскости {alpha:.1f}°: x = {_vec(found[0])}, "
                               f"y = {_vec(found[1])}")
+            _remember_axes(f"angle:{key}", found)
         except Exception as exc:
             found = (y_axis, w)
             (log or self.log)(f"  оси эскиза на плоскости {alpha:.1f}° не найдены ({exc!r}) — "
@@ -998,7 +1013,7 @@ class Api5Backend:
     def _probe_plane_axes(self, alpha, y_axis, w):
         c, m = self.constants, self.m
         doc = self.kompas.Document3D()
-        if not doc.Create(False, True):
+        if not doc.Create(True, True):  # invisible: the test part is not shown
             raise RuntimeError("пробная деталь не создана")
         try:
             part = doc.GetPart(c.pTop_Part)
@@ -1135,10 +1150,26 @@ class Api5Backend:
             objs.append(self.line(axis[0], axis[1], 3))  # the axis of revolution
             if not all(objs):
                 raise RuntimeError("не все объекты эскиза созданы")
-            made, failed = 0, {}
+            made, failed, dims = 0, {}, 0
             for job in jobs:
                 b = objs[job.b] if job.b is not None else None
                 ok = False
+                if job.kind in ("fixed_length", "radius"):
+                    # a driving dimension, as a designer sizes a sketch; a
+                    # fixed length when KOMPAS takes no dimension here
+                    try:
+                        ok = self._sketch_dimension(objs[job.a], segments[job.a])
+                    except Exception as exc:
+                        self._once("sketch_dim", f"  размер в эскизе: {exc!r} — фиксирую длину")
+                        ok = False
+                    dims += ok
+                    if not ok and job.kind == "radius":
+                        # no radius dimension: the arc's ends fixed instead
+                        ok = all(self.constrain("fixed_point", objs[job.a], None, k, None)
+                                 for k in (0, 1))
+                    if ok:
+                        made += 1
+                        continue
                 # a tangency is tried without point indices first (api_test10),
                 # then at the shared ends
                 tries = [(None, None), (job.ia, job.ib)] if job.kind == "tangent" \
@@ -1153,6 +1184,8 @@ class Api5Backend:
                 made += ok
                 if not ok:
                     failed[job.kind] = failed.get(job.kind, 0) + 1
+            if dims:
+                self.log(f"  управляющих размеров в эскизе: {dims}")
             if failed:
                 self.log("  не наложены: " + ", ".join(f"{k} {v}" for k, v in failed.items()))
             if left:
@@ -1162,6 +1195,139 @@ class Api5Backend:
             return made, len(jobs)
         finally:
             self.parametric, self._drawing7 = saved
+
+    def _sketch_dimension(self, obj, seg) -> bool:
+        """A driving dimension in the sketch (api_test14/15): a line's length
+        (horizontal, vertical or along it) tied to its ends, an arc's radius on
+        the arc; made driving by the constraint «фиксированный размер»."""
+        from win32com.client import CastTo
+
+        if isinstance(obj, int):
+            return False
+        c = self.constants
+        symbols = CastTo(self._api7_view(), "ISymbols2DContainer")
+        if seg[0] == "line":
+            (ax, ay), (bx, by) = seg[1], seg[2]
+            n = math.hypot(bx - ax, by - ay) or 1.0
+            nx, ny = -(by - ay) / n, (bx - ax) / n  # off the line, 3 mm
+            dim = symbols.LineDimensions.Add()
+            dim.X1, dim.Y1, dim.X2, dim.Y2 = ax, ay, bx, by
+            dim.X3, dim.Y3 = (ax + bx) / 2 + 3.0 * nx, (ay + by) / 2 + 3.0 * ny
+            if abs(ay - by) < 1e-9:
+                dim.Orientation = c.ksLinDHorizontal
+            elif abs(ax - bx) < 1e-9:
+                dim.Orientation = c.ksLinDVertical
+            else:
+                dim.Orientation = c.ksLinDParallel
+            if not dim.Update():
+                return False
+            for k in (0, 1):
+                if not self.constrain("coincident", dim, obj, k, k):
+                    return False
+        else:
+            (cx, cy), r, a1, a2 = seg[1], seg[2], seg[3], seg[4]
+            dim = symbols.RadialDimensions.Add()
+            dim.Xc, dim.Yc, dim.Radius = cx, cy, r
+            dim.Angle = (a1 + ((a2 - a1) % 360.0) / 2) % 360.0
+            CastTo(dim, "IRadialDimension").BaseObject = obj
+            if not dim.Update():
+                return False
+        con = _interface(dim, "IDrawingObject1").NewConstraint()
+        con.ConstraintType = c.ksCFixedDim
+        return bool(con.Create())
+
+    def table(self, top_left, widths, heights, cells, text_height) -> bool:
+        """A KOMPAS table (API7 IDrawingTables) at ``top_left`` on the sheet:
+        column widths, row heights (top first), cell texts — a string, or
+        [text, "normal"|"sub"|"sup"] parts for indices. False when KOMPAS
+        makes none (the caller then draws its lines and texts)."""
+        from win32com.client import CastTo
+
+        rows, cols = len(heights), len(widths)
+        view = self._api7_view()
+        coll = None
+        for iface in ("IDrawingContainer", "ISymbols2DContainer"):
+            try:
+                coll = CastTo(view, iface).DrawingTables
+                break
+            except Exception:
+                continue
+        if coll is None:
+            raise NotImplementedError("нет коллекции таблиц (DrawingTables)")
+        height, width = sum(heights) / rows, sum(widths) / cols
+        table = None
+        for args in ((rows, cols, height, width, 0), (rows, cols, height, width)):
+            try:
+                table = coll.Add(*args)
+                break
+            except Exception:
+                continue
+        if table is None:
+            raise NotImplementedError("таблица не добавлена")
+        table.X, table.Y = top_left
+        grid = CastTo(table, "ITable")
+        sized = True
+        for k, w in enumerate(widths):
+            try:
+                grid.Cell(0, k).Width = w
+            except Exception:
+                sized = False
+        for k, h in enumerate(heights):
+            try:
+                grid.Cell(k, 0).Height = h
+            except Exception:
+                sized = False
+        uneven = max(widths) - min(widths) > 0.15 * width or max(heights) - min(heights) > 0.15 * height
+        if not sized and uneven:
+            try:
+                table.Delete()
+            except Exception:
+                pass
+            raise NotImplementedError("размеры колонок таблицы не задаются")
+        for r, row in enumerate(cells):
+            for k, value in enumerate(row):
+                if not value:
+                    continue
+                text = CastTo(grid.Cell(r, k).Text, "IText")
+                parts = value if isinstance(value, list) else [[value, "normal"]]
+                line = text.Add()
+                for s, kind in index_items([tuple(p) for p in parts]):
+                    item = line.Add()
+                    item.ItemType = kind
+                    item.Str = s
+                    try:
+                        item.ItemFont.Height = text_height
+                    except Exception:
+                        pass
+                    item.Update()
+        return bool(table.Update())
+
+    def model_view(self, source: str, at, scale: float,
+                   projection: str = "#Изометрия XYZ") -> bool:
+        """A view of a saved part, linked to it (the view follows the model),
+        centred at ``at`` on the sheet. API7 first, then API5."""
+        try:
+            from win32com.client import CastTo, gencache
+
+            app = gencache.EnsureDispatch("Kompas.Application.7")
+            doc2d = CastTo(app.ActiveDocument, "IKompasDocument2D")
+            view = doc2d.ViewsAndLayersManager.Views.Add(self.constants.vt_Arbitrary)
+            assoc = CastTo(view, "IAssociationView")
+            assoc.SourceFileName = source
+            assoc.ProjectionName = projection
+            view.X, view.Y = at
+            view.Scale = scale
+            view.Name = "Модель"
+            if view.Update():
+                return True
+        except Exception as exc:
+            self._once("model_view7", f"  вид модели через API7: {exc!r} — пробую API5")
+        par = self._param("ko_AssociationViewParam", "ksAssociationViewParam")
+        par.Init()
+        par.fileName, par.projectionName = source, projection
+        par.x, par.y, par.scale_, par.name = at[0], at[1], scale, "Модель"
+        ref = self.doc.ksCreateSheetArbitraryView(par, 0)
+        return bool(ref[0] if isinstance(ref, tuple) else ref)
 
     def _sketch_arc(self, d2, seg):
         """API7 arc (constrainable) or, when API7 arcs fail, an API5 one (an int
@@ -1316,3 +1482,35 @@ def _tangent(a, b) -> bool:
         return False
     dist = abs((x2 - x1) * (y1 - cy) - (x1 - cx) * (y2 - y1)) / n
     return abs(dist - r) <= 1e-3 * max(1.0, r)
+
+
+def _axes_file():
+    import os
+    from pathlib import Path
+
+    base = os.environ.get("APPDATA") or str(Path.home())
+    return Path(base) / "KompasAI" / "plane_axes.json"
+
+
+def _known_axes() -> dict:
+    """Sketch axes of KOMPAS planes found on test parts by earlier runs: the
+    same on every run of this KOMPAS, so each is probed once per computer."""
+    import json
+
+    try:
+        return json.loads(_axes_file().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def _remember_axes(key: str, found) -> None:
+    import json
+
+    data = _known_axes()
+    data[key] = [list(v) for v in found]
+    try:
+        path = _axes_file()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data), encoding="utf-8")
+    except OSError:
+        pass

@@ -91,6 +91,8 @@ class SketchSystem:
         if job.kind == "fixed_point":
             p, p0 = self._point(x, job.a, job.ia), self._point(self.x0, job.a, job.ia)
             return [p[0] - p0[0], p[1] - p0[1]]
+        if job.kind == "radius":
+            return [x[o + 2] - self.x0[o + 2]]
         if job.kind == "fixed_length":
             x1, y1, x2, y2 = x[o:o + 4]
             a1, b1, a2, b2 = self.x0[o:o + 4]
@@ -166,17 +168,17 @@ def candidates(loops, axis_index: int | None = None) -> tuple[list, list[Job], l
         start += n
     if axis_index is not None:
         fixing += [Job("fixed_point", axis_index, ia=0), Job("fixed_point", axis_index, ia=1)]
-    # Points first where they take two degrees of freedom at once: the start
-    # of the profile and the ends of the fillets (a fillet's radius is free
-    # otherwise — lengths alone left the radii of arc–line–arc chains loose).
-    # Then lengths and angles of lines, then any point still free.
+    # The start of the profile is fixed; then the sizes a designer would put
+    # (the radius of each arc, the length of each line — dimensions in the
+    # sketch), the angles of slanted lines, then any point still free.
     fixing.append(Job("fixed_point", 0, ia=0))
     arcs = [i for i, s in enumerate(segments) if s[0] == "arc"]
-    fixing += [Job("fixed_point", i, ia=k) for i in arcs for k in (0, 1)]
+    fixing += [Job("radius", i) for i in arcs]
     lines = [i for i, s in enumerate(segments) if s[0] == "line"]
     fixing += [Job("fixed_length", i) for i in lines]
     fixing += [Job("fixed_angle", i) for i in lines
                if not _is_line(segments[i], "horizontal") and not _is_line(segments[i], "vertical")]
+    fixing += [Job("fixed_point", i, ia=k) for i in arcs for k in (0, 1)]
     fixing += [Job("fixed_point", i, ia=k) for i in lines for k in (0, 1)]
     return segments, structural, fixing
 

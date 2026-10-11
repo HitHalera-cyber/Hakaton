@@ -54,16 +54,18 @@ class RecognizeJob(QObject):
 
 
 class KompasJob(QObject):
+    """The drawing in KOMPAS: a view at the drawing's scale, the part in true
+    millimetres (KOMPAS measures the sizes itself; a number the PDF writes
+    differently is written as in the PDF)."""
+
     progress = Signal(str)
     finished = Signal(str)  # report text
     failed = Signal(str)
 
-    def __init__(self, drawing, out_cdw: Path, mode: str, with_dimensions: bool = True,
-                 parametric: bool = False):
+    def __init__(self, drawing, out_cdw: Path, with_dimensions: bool = True):
         super().__init__()
-        self.drawing, self.out, self.mode = drawing, out_cdw, mode
+        self.drawing, self.out = drawing, out_cdw
         self.with_dimensions = with_dimensions
-        self.parametric = parametric
 
     def run(self) -> None:
         if sys.platform != "win32":
@@ -74,22 +76,42 @@ class KompasJob(QObject):
 
             pythoncom.CoInitialize()  # COM must be initialised in every thread that uses it
             try:
-                from ..kompas.api5 import Api5Backend
-                from ..kompas.writer import DrawingWriter
-
-                self.progress.emit("Подключение к КОМПАС (первый раз — до пары минут)…")
-                backend = Api5Backend(log=self.progress.emit, parametric=self.parametric)
-                self.progress.emit("Построение объектов…")
-                report = DrawingWriter(backend, mode=self.mode,
-                                       with_dimensions=self.with_dimensions).write(self.drawing)
-                saved = backend.save(str(self.out))
-                text = report.text() + ("\n" + (f"Сохранено: {self.out}" if saved
-                                                 else f"Не удалось сохранить {self.out}"))
-                self.finished.emit(text)
+                self.finished.emit(write_drawing(self.drawing, self.out, self.with_dimensions,
+                                                 self.progress.emit))
             finally:
                 pythoncom.CoUninitialize()
         except Exception:
             self.failed.emit(traceback.format_exc())
+
+
+def write_drawing(drawing, out: Path, with_dimensions: bool, log, model: Path | None = None,
+                  model_size=None) -> str:
+    """The drawing built and saved; with ``model`` (a saved part) a view of
+    that part is put on the sheet too, linked to it."""
+    from ..kompas.api5 import Api5Backend
+    from ..kompas.writer import DrawingWriter, free_spot
+
+    log("Подключение к КОМПАС (первый раз — до пары минут)…")
+    # the drawing is not parametrised: constraints only ever move its lines
+    backend = Api5Backend(log=log, parametric=False)
+    log("Построение объектов…")
+    report = DrawingWriter(backend, mode="view", with_dimensions=with_dimensions).write(drawing)
+    text = report.text()
+    if model is not None:
+        try:
+            length, diameter = model_size or (50.0, 50.0)
+            spot = free_spot(drawing, max(length, diameter))
+            if spot is None:
+                log("На листе нет свободного места для вида модели — пропущен")
+            else:
+                (x, y), scale = spot
+                ok = backend.model_view(str(model), (x, y), scale)
+                text += "\n" + (f"Вид модели (изометрия, {scale:g}:1 → связан с {model.name})"
+                                 if ok else "Вид модели не создан")
+        except Exception as exc:
+            text += f"\nВид модели не создан: {exc!r}"
+    saved = backend.save(str(out))
+    return text + "\n" + (f"Сохранено: {out}" if saved else f"Не удалось сохранить {out}")
 
 
 class RevolveJob(QObject):
@@ -99,88 +121,141 @@ class RevolveJob(QObject):
     finished = Signal(str)
     failed = Signal(str)
 
-    def __init__(self, drawing, out_m3d: Path, exact: bool = True):
+    def __init__(self, drawing, out_m3d: Path, exact: bool = True, parametric: bool = True):
         super().__init__()
         self.drawing, self.out, self.exact = drawing, out_m3d, exact
+        self.parametric = parametric
 
     def run(self) -> None:
         if sys.platform != "win32":
             self.failed.emit("Построение в КОМПАС возможно только в Windows с установленным КОМПАС-3D.")
             return
         try:
-            from ..model3d.revolve import find_revolve_profile
-
-            if not self.exact:
-                self.drawing = geometry_only(self.drawing)
-                self.progress.emit("Модель по геометрии чертежа (без выравнивания по размерам): "
-                                   "концы контура сомкнуты, размеры не используются")
-            profile = find_revolve_profile(self.drawing)
-            if profile is None:
-                self.failed.emit("Не найден профиль тела вращения: нужна осевая линия вдоль детали "
-                                 "и контур (лучше — разрез со штриховкой) по одну сторону от неё.")
-                return
-            self.progress.emit(profile.summary())
             import pythoncom
 
             pythoncom.CoInitialize()
             try:
-                from ..kompas.api5 import Api5Backend
-
-                self.progress.emit("Подключение к КОМПАС…")
-                backend = Api5Backend(log=self.progress.emit)
-                self.progress.emit("Эскиз профиля и операция вращения…")
-                from ..model3d.endview import find_flange
-                from ..model3d.revolve import (drawing_radii, profile_segments, shift_loops,
-                                               thread_specs)
-
-                loops = profile_segments(profile, drawing_radii(self.drawing) if self.exact
-                                         else ())
-                threads = thread_specs(self.drawing, profile, loops)
-                flange = None
-                try:
-                    flange = find_flange(self.drawing, profile, loops)
-                except Exception as exc:
-                    self.progress.emit(f"Вид с торца не разобран: {exc!r}")
-                channels = []
-                try:
-                    from ..model3d.channels import find_channels
-
-                    channels = find_channels(self.drawing, profile)
-                except Exception as exc:
-                    self.progress.emit(f"Каналы поперёк оси не разобраны: {exc!r}")
-                for ch in channels:
-                    self.progress.emit("Сверление: " + ch.text())
-                fillets = []
-                if flange is not None:
-                    self.progress.emit(flange.summary())
-                    from ..model3d.endview import fillets_after_milling
-
-                    # the milling runs through the fillets at the flange faces
-                    _, cut = fillets_after_milling(loops, flange)
-                    flange.cut_extra = max((f.radius for f in cut), default=0.0)
-                    for h in flange.holes or []:
-                        self.progress.emit(
-                            f"Отверстие Ø{2 * h.radius:g} под {h.tilt:.0f}° к оси "
-                            f"из точки ({h.u:g}; {h.v:g}) торца")
-                    # the flange in the middle of the YOZ plane (see Api5Backend._flange)
-                    shift = -(flange.x0 + flange.x1) / 2
-                    loops = shift_loops(loops, shift)
-                    flange.x0, flange.x1 = flange.x0 + shift, flange.x1 + shift
-                    for t in threads:
-                        t.x += shift
-                    for ch in channels:
-                        ch.x += shift
-                    for f in fillets:
-                        f.x += shift
-                saved = backend.revolve_part(loops, str(self.out), threads,
-                                             log=self.progress.emit, flange=flange,
-                                             fillets=fillets, channels=channels)
-                self.finished.emit(profile.summary() + "\n" + (
-                    f"3D-деталь сохранена: {self.out}" if saved else f"Не удалось сохранить {self.out}"))
+                text, _, _ = make_model(self.drawing, self.out, self.exact, self.parametric,
+                                        self.progress.emit)
+                self.finished.emit(text)
             finally:
                 pythoncom.CoUninitialize()
-        except Exception:
-            self.failed.emit(traceback.format_exc())
+        except Exception as exc:
+            self.failed.emit(str(exc) if isinstance(exc, ModelError) else traceback.format_exc())
+
+
+class BothJob(QObject):
+    """The model, then the drawing with a view linked to it."""
+
+    progress = Signal(str)
+    finished = Signal(str)
+    failed = Signal(str)
+
+    def __init__(self, drawing, out_cdw: Path, exact: bool = True, parametric: bool = True,
+                 with_dimensions: bool = True):
+        super().__init__()
+        self.drawing, self.out, self.exact = drawing, out_cdw, exact
+        self.parametric, self.with_dimensions = parametric, with_dimensions
+
+    def run(self) -> None:
+        if sys.platform != "win32":
+            self.failed.emit("Построение в КОМПАС возможно только в Windows с установленным КОМПАС-3D.")
+            return
+        try:
+            import pythoncom
+
+            pythoncom.CoInitialize()
+            try:
+                m3d = self.out.with_suffix(".m3d")
+                self.progress.emit("— 1. Модель —")
+                text, saved, size = make_model(self.drawing, m3d, self.exact, self.parametric,
+                                               self.progress.emit)
+                self.progress.emit("— 2. Чертёж —")
+                drawing_text = write_drawing(self.drawing, self.out, self.with_dimensions,
+                                             self.progress.emit, model=m3d if saved else None,
+                                             model_size=size)
+                self.finished.emit(text + "\n\n" + drawing_text)
+            finally:
+                pythoncom.CoUninitialize()
+        except Exception as exc:
+            self.failed.emit(str(exc) if isinstance(exc, ModelError) else traceback.format_exc())
+
+
+class ModelError(RuntimeError):
+    """The model cannot be made from this drawing (said in plain words)."""
+
+
+def make_model(drawing, out: Path, exact: bool, parametric: bool, log):
+    """Build and save the part. Returns (report, saved, (length, diameter) in mm)."""
+    from ..model3d.revolve import find_revolve_profile
+
+    if not exact:
+        drawing = geometry_only(drawing)
+        log("Модель по геометрии чертежа (без выравнивания по размерам): "
+            "концы контура сомкнуты, размеры не используются")
+    profile = find_revolve_profile(drawing)
+    if profile is None:
+        raise ModelError("Не найден профиль тела вращения: нужна осевая линия вдоль детали "
+                         "и контур (лучше — разрез со штриховкой) по одну сторону от неё.")
+    log(profile.summary())
+    from ..kompas.api5 import Api5Backend
+    from ..model3d.endview import find_flange
+    from ..model3d.revolve import drawing_radii, profile_segments, shift_loops, thread_specs
+
+    log("Подключение к КОМПАС…")
+    backend = Api5Backend(log=log)
+    log("Эскиз профиля и операция вращения…")
+    loops = profile_segments(profile, drawing_radii(drawing) if exact else ())
+    threads = thread_specs(drawing, profile, loops)
+    flange = None
+    try:
+        flange = find_flange(drawing, profile, loops)
+    except Exception as exc:
+        log(f"Вид с торца не разобран: {exc!r}")
+    channels = []
+    try:
+        from ..model3d.channels import find_channels
+
+        channels = find_channels(drawing, profile)
+    except Exception as exc:
+        log(f"Каналы поперёк оси не разобраны: {exc!r}")
+    for ch in channels:
+        log("Сверление: " + ch.text())
+    fillets = []
+    if flange is not None:
+        log(flange.summary())
+        from ..model3d.endview import fillets_after_milling
+
+        # the milling runs through the fillets at the flange faces
+        _, cut = fillets_after_milling(loops, flange)
+        flange.cut_extra = max((f.radius for f in cut), default=0.0)
+        for h in flange.holes or []:
+            log(f"Отверстие Ø{2 * h.radius:g} под {h.tilt:.0f}° к оси "
+                f"из точки ({h.u:g}; {h.v:g}) торца")
+        # the flange in the middle of the YOZ plane (see Api5Backend._flange)
+        shift = -(flange.x0 + flange.x1) / 2
+        loops = shift_loops(loops, shift)
+        flange.x0, flange.x1 = flange.x0 + shift, flange.x1 + shift
+        for t in threads:
+            t.x += shift
+        for ch in channels:
+            ch.x += shift
+        for f in fillets:
+            f.x += shift
+    pts = [p for loop in loops for seg in loop for p in _seg_points(seg)]
+    size = (max(x for x, _ in pts) - min(x for x, _ in pts), 2 * max(abs(y) for _, y in pts)) \
+        if pts else (50.0, 50.0)
+    saved = backend.revolve_part(loops, str(out), threads, log=log, flange=flange,
+                                 fillets=fillets, channels=channels, parametric=parametric)
+    return (profile.summary() + "\n" + (f"3D-деталь сохранена: {out}" if saved
+                                        else f"Не удалось сохранить {out}"), saved, size)
+
+
+def _seg_points(seg):
+    if seg[0] == "line":
+        return [seg[1], seg[2]]
+    (cx, cy), r = seg[1], seg[2]
+    return [(cx - r, cy - r), (cx + r, cy + r)]
 
 
 def geometry_only(drawing: ir.Drawing) -> ir.Drawing:

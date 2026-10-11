@@ -118,6 +118,10 @@ def hatch_regions(groups: list[HatchGroup], contour: list[Primitive]) -> tuple[l
     for g in groups:
         patterns.setdefault((round(g.angle), round(g.spacing, 1)), []).append(g)
 
+    from shapely import STRtree
+
+    tree = STRtree(faces) if faces else None  # an assembly has thousands of faces
+    areas = [f.area for f in faces]
     regions, orphans = [], []
     for (_, _), pattern_groups in patterns.items():
         lines = [l for g in pattern_groups for l in g.lines]
@@ -125,7 +129,7 @@ def hatch_regions(groups: list[HatchGroup], contour: list[Primitive]) -> tuple[l
         missed = 0
         for line in lines:
             mid = Point((line.p1[0] + line.p2[0]) / 2, (line.p1[1] + line.p2[1]) / 2)
-            idx = _smallest_face_containing(faces, mid)
+            idx = _smallest_face_containing(faces, mid, tree, areas)
             if idx is None:
                 missed += 1
             else:
@@ -143,9 +147,12 @@ def hatch_regions(groups: list[HatchGroup], contour: list[Primitive]) -> tuple[l
     return regions, orphans
 
 
-def _smallest_face_containing(faces: list[Polygon], point: Point) -> int | None:
+def _smallest_face_containing(faces: list[Polygon], point: Point, tree=None,
+                              areas=None) -> int | None:
     best, best_area = None, math.inf
-    for i, face in enumerate(faces):
-        if face.area < best_area and face.contains(point):
-            best, best_area = i, face.area
+    near = tree.query(point) if tree is not None else range(len(faces))
+    for i in sorted(int(k) for k in near):
+        area = areas[i] if areas is not None else faces[i].area
+        if area < best_area and faces[i].contains(point):
+            best, best_area = i, area
     return best

@@ -8,7 +8,7 @@ from .. import ir
 
 TYPE_NAMES = {
     "line": "Отрезок", "circle": "Окружность", "arc": "Дуга", "dimension": "Размер",
-    "text": "Текст", "hatch": "Штриховка", "pointmark": "Точка",
+    "text": "Текст", "hatch": "Штриховка", "pointmark": "Точка", "table": "Таблица",
 }
 
 

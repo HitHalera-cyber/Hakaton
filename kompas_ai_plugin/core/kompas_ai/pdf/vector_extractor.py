@@ -29,6 +29,8 @@ SYMBOL_FONT_MAP = {
     "±": "±",
 }
 SYMBOL_FONTS = ("symbol_a", "symbol_b", "symbol")
+# private-use glyphs of the KOMPAS GOST fonts, any font
+PRIVATE_MAP = str.maketrans({"\ue823": "∞"})
 
 BEZIER_STEPS = 16
 MULTIPLY_RE = re.compile(r"(?<=[\dA-Za-zА-Яа-я])\s*[•∙·]\s*(?=\d)")
@@ -247,6 +249,7 @@ def _apply_dashes(poly, lengths, phase):
 
 
 def _normalise_text(text: str, font: str, unknown: set[str]) -> str:
+    text = text.translate(PRIVATE_MAP)  # c₂ᵤ∞ of a pump's velocity triangle
     if not font.lower().startswith(SYMBOL_FONTS):
         return text
     out = []

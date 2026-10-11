@@ -9,13 +9,13 @@ import re
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QSettings, Qt, QThread
+from PySide6.QtCore import QEvent, QSettings, Qt, QThread, Signal
 from PySide6.QtGui import (QAction, QBrush, QColor, QIcon, QImage, QKeySequence, QPainter, QPen,
                            QPixmap)
 from PySide6.QtWidgets import (QApplication, QButtonGroup, QCheckBox, QComboBox, QFileDialog,
                                QFrame, QGraphicsEllipseItem, QGraphicsScene, QGraphicsView,
                                QGridLayout, QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
-                               QMainWindow, QMessageBox, QPlainTextEdit, QPushButton,
+                               QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QSizePolicy,
                                QStackedWidget, QVBoxLayout, QWidget)
 
 from .. import ir
@@ -25,11 +25,10 @@ from ..report.summary import TYPE_NAMES, summary_text
 from ..pipeline import STAGES
 from .loader import DraftingLoader
 from .theme import THEME_ICONS, THEME_NAMES, THEMES, style_sheet
-from .workers import PREVIEW_DPI, PREVIEW_STAGE, KompasJob, RecognizeJob, RevolveJob
+from .workers import PREVIEW_DPI, PREVIEW_STAGE, BothJob, KompasJob, RecognizeJob, RevolveJob
 
 APP_NAME = "КОМПАС-AI"
 MODES = [("Точно по размерам", True), ("Как в PDF (без выравнивания)", False)]
-BUILD_MODES = [("Вид с масштабом чертежа", "view"), ("В миллиметрах листа", "sheet")]
 PAGES = ["Чертёж", "Отчёт", "Проверка", "Журнал"]
 GRID = 20  # px between grid lines behind the drawing
 
@@ -89,6 +88,9 @@ class PreviewView(QGraphicsView):
         if not self.scene().sceneRect().isEmpty():
             self.fitInView(self.scene().sceneRect(), Qt.KeepAspectRatio)
 
+    def mouseDoubleClickEvent(self, event):
+        self.fit()  # the whole sheet again
+
     def wheelEvent(self, event):
         factor = 1.25 if event.angleDelta().y() > 0 else 0.8
         self.scale(factor, factor)
@@ -143,7 +145,9 @@ def _label(text: str, name: str = "") -> QLabel:
 
 
 class StatCard(QFrame):
-    """A big number with a caption: rules, dimensions."""
+    """A big number with a caption: rules, dimensions. A click opens its list."""
+
+    clicked = Signal()
 
     def __init__(self, title: str):
         super().__init__(objectName="card")
@@ -156,6 +160,11 @@ class StatCard(QFrame):
         self.note.setWordWrap(True)
         lay.addWidget(self.value)
         lay.addWidget(self.note)
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.clicked.emit()
+        super().mouseReleaseEvent(event)
 
     def set_value(self, value: str, note: str, state: str = "") -> None:
         self.value.setText(value)
@@ -202,7 +211,8 @@ class MainWindow(QMainWindow):
         self.pages.addWidget(self._drawing_page())
         self.pages.addWidget(self._text_page("Результат распознавания", self.summary))
         self.pages.addWidget(self._text_page(
-            "Требуют проверки — щёлкните, покажу на листе", self.review))
+            "Нарушения правил контура и объекты под вопросом — щёлкните, покажу на листе",
+            self.review))
         self.pages.addWidget(self._log_page())
         column.addWidget(self.pages, 1)
         lay.addLayout(column, 1)
@@ -263,21 +273,17 @@ class MainWindow(QMainWindow):
         head = QHBoxLayout()
         head.setSpacing(14)
         self.title = _label("Чертёж не открыт", "title")
-        head.addWidget(self.title)
+        # a long file name is shortened, never pushes the buttons off the window
+        self.title.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+        self.title.setMinimumWidth(120)
+        head.addWidget(self.title, 1)
         self.sheet_chip = _label("", "chip")
         self.sheet_chip.hide()
         head.addWidget(self.sheet_chip)
-        head.addStretch(1)
         open_button = QPushButton("Открыть PDF", objectName="secondary")
         open_button.clicked.connect(self.open_dialog)
+        open_button.setCursor(Qt.PointingHandCursor)
         head.addWidget(open_button)
-        self.build_button = QPushButton("Построить в КОМПАС", objectName="primary")
-        self.build_button.clicked.connect(self.build_in_kompas)
-        if sys.platform != "win32":
-            self.build_button.setToolTip("Доступно в Windows с установленным КОМПАС-3D")
-        head.addWidget(self.build_button)
-        for button in (open_button, self.build_button):
-            button.setCursor(Qt.PointingHandCursor)
         return head
 
     def _drawing_page(self) -> QWidget:
@@ -289,7 +295,7 @@ class MainWindow(QMainWindow):
             grid.setColumnStretch(i, 1)
         grid.setRowStretch(0, 3)
         grid.setRowStretch(1, 3)
-        grid.setRowStretch(2, 2)
+        grid.setRowStretch(2, 3)
 
         sheet, lay = _card()
         lay.setContentsMargins(14, 14, 14, 14)
@@ -301,10 +307,8 @@ class MainWindow(QMainWindow):
         self.contour_chip = _label("", "chipOk")
         self.contour_chip.hide()
         top.addWidget(self.contour_chip)
-        fit = QPushButton("Весь лист", objectName="flat")
-        fit.clicked.connect(self.preview.fit)
-        top.addWidget(fit)
         lay.addLayout(top)
+        self.preview.setToolTip("Колесо — масштаб, перетаскивание — сдвиг, двойной щелчок — весь лист")
         lay.addWidget(self.preview, 1)
         grid.addWidget(sheet, 0, 0, 2, 2)
         self.sheet_card = sheet
@@ -312,6 +316,9 @@ class MainWindow(QMainWindow):
         sheet.installEventFilter(self)
 
         self.rules_card = StatCard("Правила контура")
+        self.rules_card.setCursor(Qt.PointingHandCursor)
+        self.rules_card.setToolTip("Щёлкните — список нарушений, каждое можно показать на листе")
+        self.rules_card.clicked.connect(lambda: self.show_page(PAGES.index("Проверка")))
         grid.addWidget(self.rules_card, 0, 2)
         self.dims_card = StatCard("Размеров")
         grid.addWidget(self.dims_card, 1, 2)
@@ -324,25 +331,21 @@ class MainWindow(QMainWindow):
         self.mode = QComboBox()
         for name, _ in MODES:
             self.mode.addItem(name)
-        self.mode.setToolTip("Точно по размерам — геометрия доводится до значений размеров чертежа")
+        self.mode.setToolTip(
+            "Точно по размерам: длина каждой линии равна числу на её размере (6, а не 6,001); "
+            "неуказанное — из других размеров или ближайшее круглое.\n"
+            "Как в PDF: точная копия листа, линии не двигаются; в размерах — числа из PDF.")
         self.mode.currentIndexChanged.connect(lambda _: self.recognize())
-        self.build_mode = QComboBox()
-        for name, _ in BUILD_MODES:
-            self.build_mode.addItem(name)
-        self.build_mode.setToolTip(
-            "Вид с масштабом: деталь в настоящих размерах, КОМПАС сам считает размеры "
-            "(нужна лицензия, иначе — мм листа).\nВ миллиметрах листа: как на PDF, "
-            "числа размеров вписываются из PDF.")
         self.dims_box = QCheckBox("Размеры по ГОСТ")
         self.dims_box.setChecked(True)
         self.dims_box.setToolTip("Снимите, чтобы построить просто чертёж — без размеров")
-        self.param_box = QCheckBox("Параметризация")
+        self.param_box = QCheckBox("Параметризация эскиза модели")
         self.param_box.setChecked(True)
-        self.param_box.setToolTip("Связи: горизонталь, вертикаль, совпадение концов, касание, "
-                                  "концентричность, точки размеров на контуре "
-                                  "(нужна лицензия КОМПАС)")
-        row.addWidget(self.mode, 0, 0)
-        row.addWidget(self.build_mode, 0, 1)
+        self.param_box.setToolTip(
+            "Эскиз 3D-модели с управляющими размерами на отрезках и дугах и связями "
+            "(совпадение, горизонталь, вертикаль, касание): изменили размер — модель "
+            "перестроилась. Без галочки — эскиз из простых линий.")
+        row.addWidget(self.mode, 0, 0, 1, 2)
         row.addWidget(self.dims_box, 1, 0)
         row.addWidget(self.param_box, 1, 1)
         lay.addLayout(row)
@@ -350,16 +353,29 @@ class MainWindow(QMainWindow):
         grid.addWidget(options, 2, 0, 1, 2)
 
         model, lay = _card("cardAccent")
+        lay.setSpacing(10)
+        self.build_button = QPushButton("Построить чертёж", objectName="primary")
+        self.build_button.clicked.connect(self.build_in_kompas)
+        lay.addWidget(self.build_button)
+        lay.addSpacing(4)
         lay.addWidget(_label("3D-модель", "cardTitle"))
         self.model_note = _label("Тело вращения: профиль над осью вращается на 360°, "
                                  "лыски, отверстия, резьба", "sub")
         self.model_note.setWordWrap(True)
         lay.addWidget(self.model_note)
         lay.addStretch(1)
-        self.model_button = QPushButton("Построить модель", objectName="secondary")
-        self.model_button.setCursor(Qt.PointingHandCursor)
+        self.model_button = QPushButton("Построить модель", objectName="primary")
         self.model_button.clicked.connect(self.build_3d)
         lay.addWidget(self.model_button)
+        self.both_button = QPushButton("Построить всё", objectName="primary")
+        self.both_button.setToolTip("Модель и чертёж к ней: на листе — вид, связанный с моделью "
+                                    "(изменили модель — вид обновился)")
+        self.both_button.clicked.connect(self.build_both)
+        lay.addWidget(self.both_button)
+        for button in (self.build_button, self.model_button, self.both_button):
+            button.setCursor(Qt.PointingHandCursor)
+            if sys.platform != "win32":
+                button.setToolTip("Доступно в Windows с установленным КОМПАС-3D")
         grid.addWidget(model, 2, 2)
         return page
 
@@ -409,13 +425,15 @@ class MainWindow(QMainWindow):
         self.apply_theme(self._next_theme())
 
     def _set_ready(self, ready: bool) -> None:
-        for button in (self.build_button, self.model_button, self.dxf_button, self.report_button):
+        for button in (self.build_button, self.model_button, self.both_button, self.dxf_button,
+                       self.report_button):
             button.setEnabled(ready)
         if self.model_ok is False:
             self.model_button.setEnabled(False)  # only the drawing for this part
+            self.both_button.setEnabled(False)
         if sys.platform != "win32":
-            self.build_button.setEnabled(False)
-            self.model_button.setEnabled(False)
+            for button in (self.build_button, self.model_button, self.both_button):
+                button.setEnabled(False)
 
     # --- open / recognise -----------------------------------------------------------------
 
@@ -450,8 +468,25 @@ class MainWindow(QMainWindow):
         self.show_page(0)
         self.settings.setValue("last_dir", str(path.parent))
         self.setWindowTitle(f"{APP_NAME} — {path.name}")
-        self.title.setText(path.name)
+        self._show_title()
         self.recognize()
+
+    def _show_title(self) -> None:
+        if getattr(self, "pdf", None) is None or not hasattr(self, "title"):
+            return
+        name = self.pdf.name
+        width = max(self.title.width() - 8, 120)
+        self.title.setText(self.title.fontMetrics().elidedText(name, Qt.ElideMiddle, width))
+        self.title.setToolTip(name)
+
+    def layout_title_later(self) -> None:
+        from PySide6.QtCore import QTimer
+
+        QTimer.singleShot(0, self._show_title)  # after the header has its new widths
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._show_title()
 
     def recognize(self) -> None:
         if self.pdf is None or self._busy():
@@ -473,13 +508,7 @@ class MainWindow(QMainWindow):
         self.drawing, self.page_height = drawing, page_height
         self.preview.show_png(png)
         self.summary.setPlainText(summary_text(drawing))
-        self.review.clear()
-        for e in drawing.review:
-            note = "; ".join(e.notes)
-            item = QListWidgetItem(f"{TYPE_NAMES.get(e.kind, e.kind)} {e.id} — {e.confidence:.0%}"
-                                   + (f": {note}" if note else ""))
-            item.setData(Qt.UserRole, e.id)
-            self.review.addItem(item)
+        self._fill_review(drawing)
         self._show_results(drawing)
         self._judge_model(drawing)
         for w in drawing.warnings:
@@ -520,6 +549,7 @@ class MainWindow(QMainWindow):
     def _show_results(self, drawing: ir.Drawing) -> None:
         self.sheet_chip.setText(f"{drawing.sheet.format} · {drawing.scale.text}")
         self.sheet_chip.show()
+        self.layout_title_later()
         self.view_label.setText(f"Чертёж · масштаб {drawing.scale.text}")
         broken = _broken_rules(drawing)
         exact = MODES[self.mode.currentIndex()][1]
@@ -539,14 +569,48 @@ class MainWindow(QMainWindow):
         self.dims_card.set_value(str(len(dims)),
                                  f"проверить: {doubtful}" if doubtful else "все распознаны уверенно",
                                  "warn" if doubtful else "ok")
-        self.nav.button(2).setText(f"Проверка · {len(drawing.review)}" if drawing.review
-                                   else "Проверка")
+        count = len(drawing.review) + len(drawing.issues)
+        self.nav.button(2).setText(f"Проверка · {count}" if count else "Проверка")
+
+    def _fill_review(self, drawing: ir.Drawing) -> None:
+        """Broken contour rules first (what each means in the tooltip), then
+        the objects recognised with doubt."""
+        self.review.clear()
+
+        def header(text: str) -> None:
+            item = QListWidgetItem(text)
+            item.setFlags(Qt.NoItemFlags)
+            font = item.font()
+            font.setBold(True)
+            item.setFont(font)
+            self.review.addItem(item)
+
+        if drawing.issues:
+            header(f"Правила контура — нарушений {len(drawing.issues)}")
+            for text in drawing.issues:
+                item = QListWidgetItem(text)
+                item.setData(Qt.UserRole, text.split(":", 1)[0])
+                m = re.search(r"\((-?[\d.]+); (-?[\d.]+)\)", text)
+                if m:
+                    item.setData(Qt.UserRole + 1, (float(m.group(1)), float(m.group(2))))
+                item.setToolTip(_rule_meaning(text))
+                self.review.addItem(item)
+        if drawing.review:
+            header(f"Распознаны с сомнением — {len(drawing.review)}")
+        for e in drawing.review:
+            note = "; ".join(e.notes)
+            item = QListWidgetItem(f"{TYPE_NAMES.get(e.kind, e.kind)} {e.id} — {e.confidence:.0%}"
+                                   + (f": {note}" if note else ""))
+            item.setData(Qt.UserRole, e.id)
+            self.review.addItem(item)
+        if not drawing.issues and not drawing.review:
+            header("Всё в порядке: контур без нарушений, объекты распознаны уверенно")
 
     def on_review_clicked(self, item: QListWidgetItem) -> None:
-        if self.drawing is None:
+        if self.drawing is None or not item.data(Qt.UserRole):
             return
         entity = self.drawing.get(item.data(Qt.UserRole))
-        anchor = _anchor(entity) if entity else None
+        anchor = item.data(Qt.UserRole + 1) or (_anchor(entity) if entity else None)
         if anchor:
             self.show_page(0)
             x, y = sheet_to_pixel(self.drawing, self.page_height, PREVIEW_DPI, anchor)
@@ -565,9 +629,7 @@ class MainWindow(QMainWindow):
         self._set_ready(False)
         self.statusBar().showMessage("Строю чертёж в КОМПАС…")
         self.show_page(PAGES.index("Журнал"))
-        job = KompasJob(self.drawing, Path(name), BUILD_MODES[self.build_mode.currentIndex()][1],
-                        with_dimensions=self.dims_box.isChecked(),
-                        parametric=self.param_box.isChecked())
+        job = KompasJob(self.drawing, Path(name), with_dimensions=self.dims_box.isChecked())
         job.progress.connect(self._log)
         job.finished.connect(self.on_built)
         job.failed.connect(self.on_failed)
@@ -584,7 +646,28 @@ class MainWindow(QMainWindow):
         self._set_ready(False)
         self.statusBar().showMessage("Строю 3D-модель в КОМПАС…")
         self.show_page(PAGES.index("Журнал"))
-        job = RevolveJob(self.drawing, Path(name), exact=MODES[self.mode.currentIndex()][1])
+        job = RevolveJob(self.drawing, Path(name), exact=MODES[self.mode.currentIndex()][1],
+                         parametric=self.param_box.isChecked())
+        job.progress.connect(self._log)
+        job.finished.connect(self.on_built)
+        job.failed.connect(self.on_failed)
+        self._start(job)
+
+    def build_both(self) -> None:
+        """The model and the drawing with a view linked to it, side by side."""
+        if self.drawing is None or self._busy():
+            return
+        out = self.pdf.with_name(self.pdf.stem + "_kompas.cdw")
+        name, _ = QFileDialog.getSaveFileName(
+            self, "Сохранить чертёж (деталь сохранится рядом, .m3d)", str(out), "КОМПАС (*.cdw)")
+        if not name:
+            return
+        self._set_ready(False)
+        self.statusBar().showMessage("Строю модель и чертёж в КОМПАС…")
+        self.show_page(PAGES.index("Журнал"))
+        job = BothJob(self.drawing, Path(name), exact=MODES[self.mode.currentIndex()][1],
+                      parametric=self.param_box.isChecked(),
+                      with_dimensions=self.dims_box.isChecked())
         job.progress.connect(self._log)
         job.finished.connect(self.on_built)
         job.failed.connect(self.on_failed)
@@ -649,8 +732,25 @@ class MainWindow(QMainWindow):
             self.open_file(path)
 
 
+def _rule_meaning(text: str) -> str:
+    """What a broken rule means for the drawing, in a sentence."""
+    if "наклон" in text:
+        return ("Линия почти горизонтальна или вертикальна (или почти под стандартным углом), "
+                "но не точно: так обычно рисуют по ошибке. Размер на ней будет неточным, связь "
+                "«горизонталь/вертикаль» в КОМПАС не наложится.")
+    if "свободный конец" in text:
+        return ("Конец линии ни с чем не соединён: контур не замкнут. Штриховка может не "
+                "построиться, а 3D-модель — выйти не той формы.")
+    if "не сходится" in text:
+        return ("Конец почти касается соседнего, но остаётся щель: контур не замкнут. "
+                "Обычно это неточность PDF — проверьте, тот ли это угол детали.")
+    return "Правило контура не выполнено"
+
+
 def _broken_rules(drawing: ir.Drawing) -> int:
     """Number of contour rules the pipeline reported as broken (0 when none)."""
+    if drawing.issues:
+        return len(drawing.issues)
     for w in drawing.warnings:
         m = re.match(r"Правила контура не выполнены \((\d+)\)", w)
         if m:

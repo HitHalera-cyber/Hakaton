@@ -584,20 +584,32 @@ def _dimensioned_angles(drawing: ir.Drawing) -> tuple:
 def solve_contour(drawing: ir.Drawing) -> dict:
     """The contour as one system of conditions, solved together (a sketch
     solver in small). Unknowns: the nodes where ends meet and the centres of
-    the arcs (radii stay as the dimensions set them). Conditions:
+    the arcs and circles. Conditions:
       * the ends of a node coincide exactly (they are one unknown);
       * a line near horizontal, vertical or a standard angle (chamfer 45°,
         cone 30°) runs exactly so;
       * a node of an arc lies on its circle; a fillet that meets a line
         nearly tangentially meets it exactly tangentially;
-      * an end resting on another line (or on an axis) lies on it.
+      * an end resting on another line (or on an axis) lies on it;
+      * every written size holds exactly: the number wins over the lines; a
+        diameter across an axis is symmetric about it;
+      * a size nobody wrote, that the written ones leave free, takes the
+        nearest round value (5.001 → 5).
     Of all positions keeping these, the one nearest the drawing is taken
     (least squares, Gauss–Newton). One rule at a time undid the others:
     joining two ends tilted the horizontal that had just been made exact."""
+    from .constraints import Grid
+
     _SKIPPED.clear()
+    _REJECTED.clear()
+    scale = drawing.scale.value or 1.0
     pieces = [e for e in drawing.entities if isinstance(e, (ir.Line, ir.Arc))
               and e.style == ir.STYLE_MAIN]
     axes = [e for e in drawing.of_type(ir.Line) if e.style == ir.STYLE_AXIAL]
+    # holes: circles, and ellipses (a hole seen at a slant); sizes go to their centres
+    circles = [e for e in drawing.entities if isinstance(e, (ir.Circle, ir.Ellipse))
+               and e.style == ir.STYLE_MAIN]
+    rounded, fixed_radius = _round_radii(drawing, scale)
 
     def end(e, k):
         if isinstance(e, ir.Line):
@@ -607,25 +619,27 @@ def solve_contour(drawing: ir.Drawing) -> dict:
 
     nodes: list[list] = []
     member_node = {}
+    grid = Grid(1.0)
     for e in pieces:
         for k in (0, 1):
             p = end(e, k)
-            for i, node in enumerate(nodes):
-                if math.dist(node[0], p) <= JOIN:
-                    node[1].append((e, k))
-                    member_node[(id(e), k)] = i
-                    break
+            near = [i for i in grid.near(p, JOIN) if math.dist(nodes[i][0], p) <= JOIN]
+            if near:
+                i = min(near)
+                nodes[i][1].append((e, k))
+                member_node[(id(e), k)] = i
             else:
                 member_node[(id(e), k)] = len(nodes)
+                grid.add(p, len(nodes))
                 nodes.append([p, [(e, k)]])
     n = len(nodes)
     if n == 0:
         return {"nodes": 0}
     arcs = [e for e in pieces if isinstance(e, ir.Arc)]
     arc_var = {id(a): n + j for j, a in enumerate(arcs)}  # unknown index of the centre
-    size = 2 * (n + len(arcs))
-    x0 = np.array([c for node in nodes for c in node[0]]
-                  + [c for a in arcs for c in a.center], dtype=float)
+    circle_var = {id(c): n + len(arcs) + j for j, c in enumerate(circles)}
+    points = [node[0] for node in nodes] + [tuple(a.center) for a in arcs] \
+        + [tuple(c.center) for c in circles]
 
     lines = [e for e in pieces if isinstance(e, ir.Line)]
     angles = _dimensioned_angles(drawing)
@@ -642,10 +656,28 @@ def solve_contour(drawing: ir.Drawing) -> dict:
             th = math.radians(best % 180.0)
             conds.append(("dir", a, b, th))
             direction[id(line)] = th
+    # the written sizes first: a size across a circle sets its radius
+    curves = [(arc_var[id(a)], a.radius, a) for a in arcs] \
+        + [(circle_var[id(e)], e.radius, e) for e in circles if isinstance(e, ir.Circle)]
+    segments = [(member_node[(id(e), 0)], member_node[(id(e), 1)]) for e in lines]
+    dim_conds, used, skipped, correction = _dimension_conds(drawing, points, axes, scale, curves,
+                                                            segments)
+    # an arc nobody sized (nor measured from) has its radius as an unknown
+    held = {u[k][1] for u in used for k in (2, 3) if u[k] and u[k][0] == "pt" and u[k][2]}
+    radius_var = {}
+    for arc in arcs:
+        if id(arc) not in fixed_radius and arc_var[id(arc)] not in held:
+            radius_var[id(arc)] = len(points)
+            points.append((arc.radius, 0.0))
+    size = 2 * len(points)
+    x0 = np.array([c for p in points for c in p], dtype=float)
     for arc in arcs:
         for k in (0, 1):
             i = member_node[(id(arc), k)]
-            conds.append(("circle", i, arc_var[id(arc)], arc.radius))
+            if id(arc) in radius_var:
+                conds.append(("circleR", i, arc_var[id(arc)], radius_var[id(arc)]))
+            else:
+                conds.append(("circle", i, arc_var[id(arc)], arc.radius))
             # a line leaving this node nearly along the arc's tangent: tangent
             p = end(arc, k)
             for e, kk in nodes[i][1]:
@@ -656,11 +688,17 @@ def solve_contour(drawing: ir.Drawing) -> dict:
                 cosang = abs(rx * math.cos(th) + ry * math.sin(th)) / (math.hypot(rx, ry) or 1.0)
                 if cosang < math.sin(math.radians(5.0)):
                     conds.append(("tangent", i, arc_var[id(arc)], th))
+    line_grid = Grid(5.0)
+    for j, line in enumerate(lines + axes):
+        (ax, ay), (bx, by) = line.p1, line.p2
+        line_grid.add_rect(min(ax, bx) - JOIN, min(ay, by) - JOIN,
+                           max(ax, bx) + JOIN, max(ay, by) + JOIN, j)
+    near_line = lines + axes
     for i, (p, members) in enumerate(nodes):
         if len(members) != 1:
             continue
         own = members[0][0]
-        for line in lines + axes:
+        for line in (near_line[j] for j in sorted(line_grid.at(p))):
             if line is own:
                 continue
             (ax, ay), (bx, by) = line.p1, line.p2
@@ -678,40 +716,363 @@ def solve_contour(drawing: ir.Drawing) -> dict:
                     if i not in (a, b):
                         conds.append(("online", i, a, b))
                 break
+    for c in circles:  # a hole touching a straight wall touches it exactly (a drilled
+        if not isinstance(c, ir.Circle):  # channel at the cavity's end)
+            continue
+        for line in lines:
+            a, b = member_node[(id(line), 0)], member_node[(id(line), 1)]
+            if direction.get(id(line)) not in (0.0, math.pi / 2):
+                continue
+            k = 1 if direction[id(line)] == 0.0 else 0  # across the line
+            level = line.p1[k]
+            gap = c.center[k] - level
+            if abs(abs(gap) - c.radius) <= 0.1 and _between(c.center, line.p1, line.p2):
+                conds.append(("dx", a, circle_var[id(c)], k, math.copysign(c.radius, gap)))
+    for c in circles:  # a hole on an axis stays on it (its own centre mark goes with it)
+        for axis in axes:
+            if not _centre_mark(c, axis) and _line_gap(c.center, axis.p1, axis.p2) <= JOIN and _between(c.center, axis.p1, axis.p2):
+                conds.append(("onfixed", circle_var[id(c)], tuple(axis.p1), tuple(axis.p2)))
+                break
+
+    conds += dim_conds
+    conds += _same_levels(points, conds, set(radius_var.values()))
+    levels = [(0 if abs(a.p1[0] - a.p2[0]) < 1e-9 else 1, a.p1[0] if abs(a.p1[0] - a.p2[0]) < 1e-9
+               else a.p1[1]) for a in axes
+              if abs(a.p1[0] - a.p2[0]) < 1e-9 or abs(a.p1[1] - a.p2[1]) < 1e-9]
 
     x, dropped = x0.copy(), 0
-    for _ in range(4):
-        x = _solve_parts(conds, x0, size)
-        shift = np.hypot((x - x0)[0::2], (x - x0)[1::2])
-        far = {i for i in range(len(shift)) if shift[i] > MAX_NODE_SHIFT}
+    allow = MAX_NODE_SHIFT + correction
+    cache: dict = {}  # outlines whose conditions a round left alone are not solved again
+    for round_ in range(5):
+        x, plain = _solve_parts(conds, x0, size, nice=(scale, levels, set(radius_var.values())),
+                                cache=cache)
+        # the round values move points a little more, by design: judged without them
+        shift = np.hypot((plain - x0)[0::2], (plain - x0)[1::2])
+        far = {i for i in range(len(shift)) if shift[i] > allow}
         if not far:
             break
         # conditions that drag a point this far contradict the drawing (a
-        # slope that is not a standard one, a wrong contact): left out there
-        keep = [c for c in conds if not far & _cond_vars(c)]
+        # slope that is not a standard one, a wrong contact): left out there;
+        # the written sizes go last
+        keep = [c for c in conds if not far & _cond_vars(c)
+                or (c[0][0] == "D" and round_ < 3)]
+        if len(keep) == len(conds):
+            keep = [c for c in conds if not far & _cond_vars(c)]
+        lost = {id(c) for c in conds} - {id(c) for c in keep}
+        skipped += [u[1].id for u in used if id(u[0]) in lost]
+        used = [u for u in used if id(u[0]) not in lost]
         dropped += len(conds) - len(keep)
         conds = keep
     else:
         x = x0.copy()  # no consistent set found: the drawing stays as it is
+        used = []
 
+    if _REJECTED:
+        skipped += sorted(set(_REJECTED))
+        used = [u for u in used if u[1].id not in set(_REJECTED)]
     moved = float(np.abs(x - x0).max())
+    for arc in arcs:
+        if id(arc) in radius_var:
+            arc.radius = float(x[2 * radius_var[id(arc)]])
+    for c in circles:
+        j = circle_var[id(c)]
+        _move_centre(c, (float(x[2 * j]), float(x[2 * j + 1])), axes)
     result = _write_back(drawing, nodes, arcs, arc_var, x, end, moved, n, len(direction), dropped)
+    for _, d, a, b in used:
+        # the size measures exactly the points it was held on
+        k = 0 if d.orientation == "horizontal" else 1
+        for name, anc in (("p1", a), ("p2", b)):
+            if anc is not None and anc[0] == "pt":
+                q = [float(x[2 * anc[1]]), float(x[2 * anc[1] + 1])]
+                q[k] += anc[2]
+                setattr(d, name, tuple(q))
+        d.measured = round(d.nominal * _view_scale(d, scale), 6)
+    result["dims"] = len({u[1].id for u in used})
+    result["dims_skipped"] = sorted(set(skipped))
+    result["rounded"] = rounded + _NICE[0]
     result["left_as_drawn"] = list(_SKIPPED)
     return result
 
 
+def _centre_mark(c, axis) -> bool:
+    """A short centre line of this hole, through its centre."""
+    reach = 4 * (getattr(c, "radius", 0.0) or max(getattr(c, "a", 0.0), 1.0))
+    return math.dist(axis.p1, axis.p2) <= 2 * reach \
+        and _line_gap(c.center, axis.p1, axis.p2) <= JOIN and _between(c.center, axis.p1, axis.p2)
+
+
+def _move_centre(c, new, axes) -> None:
+    """A hole moved by its sizes: its centre lines go with it."""
+    dx, dy = new[0] - c.center[0], new[1] - c.center[1]
+    if abs(dx) < 1e-12 and abs(dy) < 1e-12:
+        return
+    for a in axes:
+        if _centre_mark(c, a):
+            a.p1 = (a.p1[0] + dx, a.p1[1] + dy)
+            a.p2 = (a.p2[0] + dx, a.p2[1] + dy)
+    if isinstance(c, ir.Ellipse):
+        def shift(q):
+            return [q[0] + dx, q[1] + dy]
+
+        c.arcs = [[a[0], shift(a[1]), shift(a[2])] if a[0] == "line"
+                  else [a[0], shift(a[1])] + list(a[2:]) for a in c.arcs]
+    c.center = new
+
+
 MAX_NODE_SHIFT = 0.15  # sheet mm
+DIM_SLIDE = 0.6  # sheet mm a dimension's point may be off the coordinate it measures
+DIM_LIMIT = 1.5  # sheet mm: a size asking more of the lines measures something else
+NICE_STEPS = (1.0, 0.5, 0.1, 0.05)  # model mm: round values, the roundest first
+NICE_TOL = 0.15  # sheet mm an unwritten size may be off a round value (PDF rounding)
+_NICE = [0]  # sizes made round by the last solve (read by solve_contour)
+
+
+LEVEL = 0.01  # sheet mm: points this close in X (or Y) are on one level of the design
+
+
+def _same_levels(points, conds, skip=()) -> list:
+    """Points of one X (Y) in one outline stay of one X (Y): the shoulders a
+    size measures and the ones it does not are one level of the design, also
+    when no line joins them."""
+    group = _components(conds, len(points))
+    out = []
+    for k in (0, 1):
+        idx = sorted(range(len(points)), key=lambda i: (group[i], points[i][k]))
+        for a, b in zip(idx, idx[1:]):
+            if group[a] == group[b] and points[b][k] - points[a][k] <= LEVEL \
+                    and a not in skip and b not in skip:
+                out.append(("dx", a, b, k, 0.0))
+    return out
+
+
+def _components(conds, count) -> list[int]:
+    """The group (a representative point) of every point under the conditions."""
+    parent = list(range(count))
+
+    def find(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    for c in conds:
+        pts = [c[k] for k in _point_slots(c)]
+        for p in pts[1:]:
+            a, b = find(pts[0]), find(p)
+            if a != b:
+                parent[a] = b
+    return [find(i) for i in range(count)]
+
+
+def _view_scale(d, scale: float) -> float:
+    """The scale a dimension is drawn in: the sheet's, or its view's own
+    (a note «… масштабу 2:1 …» put by the recognition)."""
+    import re
+
+    for note in d.notes:
+        m = re.search(r"масштабу (\d+(?:[.,]\d+)?):(\d+(?:[.,]\d+)?)", note)
+        if m:
+            a, b = (float(v.replace(",", ".")) for v in m.groups())
+            return a / b if b else scale
+    return scale
+
+
+def _nice(value: float, scale: float, factor: float = 1.0):
+    """The roundest value near ``value`` (model mm), or None."""
+    tol = max(NICE_TOL * factor / scale, 0.01 * abs(value))
+    for step in NICE_STEPS:
+        v = round(value / step) * step
+        if abs(v - value) <= tol and v > 0:
+            return v
+    return None
+
+
+def _round_radii(drawing, scale: float) -> int:
+    """Arcs and circles nobody dimensioned: the written radius of one like
+    them (R1 on one of two fillets), else the nearest round value."""
+    written = {d.ref for d in drawing.of_type(ir.Dimension)
+               if d.dim_type in ("radius", "diameter") and d.ref}
+    values = [d.nominal / (2 if d.dim_type == "diameter" else 1)
+              for d in drawing.of_type(ir.Dimension)
+              if d.dim_type in ("radius", "diameter") and d.nominal]
+    count, fixed = 0, set()
+    for e in drawing.entities:
+        if not isinstance(e, (ir.Arc, ir.Circle)) or e.style != ir.STYLE_MAIN:
+            continue
+        if e.id in written:
+            fixed.add(id(e))
+            continue
+        r = e.radius / scale
+        tol = max(NICE_TOL / scale, 0.01 * r)
+        same = [v for v in values if abs(v - r) <= tol]
+        if same:
+            v = min(same, key=lambda v: abs(v - r))
+            fixed.add(id(e))
+        elif isinstance(e, ir.Arc):
+            continue  # its radius is an unknown of the solve, made round there
+        else:
+            v = _nice(r, scale)
+        if v is not None and abs(v * scale - e.radius) > 1e-9:
+            e.radius = round(v * scale, 9)
+            count += 1
+    return count, fixed
+
+
+def _dimension_conds(drawing, points, axes, scale, curves=(), segments=()):
+    """Conditions of the written linear sizes on the solver's points: each
+    end of a size is a contour point within DIM_NODE, or the outermost point
+    of an arc or circle (its centre ± radius), else a point on its extension
+    line, else an axis. An anchor is ("pt", point, offset along the size) or
+    ("fix", coordinate). Returns (conditions, [(cond, dim, anchor1,
+    anchor2)], skipped ids, largest correction in sheet mm)."""
+    import bisect
+
+    order = [sorted(range(len(points)), key=lambda i: points[i][k]) for k in (0, 1)]
+    keys = [[points[i][k] for i in order[k]] for k in (0, 1)]
+
+    def along(p, k, tol):
+        lo = bisect.bisect_left(keys[k], p[k] - tol)
+        hi = bisect.bisect_right(keys[k], p[k] + tol)
+        return order[k][lo:hi]
+
+    def extreme(p, k):
+        """(gap, centre point, offset) of the arc whose outermost point in
+        the size's direction is p."""
+        best = None
+        for j, r, arc in curves:
+            c = points[j]
+            for sgn in (1.0, -1.0):
+                q = (c[0] + sgn * r, c[1]) if k == 0 else (c[0], c[1] + sgn * r)
+                gap = math.dist(p, q)
+                if gap > DIM_NODE or (best and gap >= best[0]):
+                    continue
+                if isinstance(arc, ir.Arc):
+                    ang = (0.0 if sgn > 0 else 180.0) if k == 0 else (90.0 if sgn > 0 else 270.0)
+                    if (ang - arc.start_angle) % 360.0 > (arc.end_angle - arc.start_angle) % 360.0:
+                        continue
+                best = (gap, j, sgn * r)
+        return best
+
+    def anchor(p, k):
+        near = along(p, 0, DIM_NODE)
+        near = [i for i in near if math.dist(points[i], p) <= DIM_NODE]
+        node = min(near, key=lambda i: math.dist(points[i], p)) if near else None
+        ext = extreme(p, k) if k is not None else None
+        if node is not None and not (ext and ext[0] < math.dist(points[node], p) - 1e-6):
+            return ("pt", node, 0.0)
+        if k is None:
+            return None
+        for i, j in segments:  # on a line across the size: its level
+            a, b = points[i], points[j]
+            if abs(a[k] - b[k]) <= LEVEL and abs(a[k] - p[k]) <= 0.1 \
+                    and min(a[1 - k], b[1 - k]) - 0.1 <= p[1 - k] <= max(a[1 - k], b[1 - k]) + 0.1:
+                return ("pt", i, 0.0)
+        if ext:  # the outermost point of an arc or circle
+            return ("pt", ext[1], ext[2])
+        for tol in (0.05, DIM_SLIDE):  # along the extension line to a corner
+            on = [i for i in along(p, k, tol) if abs(points[i][1 - k] - p[1 - k]) <= SLIDE]
+            if on:
+                return ("pt", min(on, key=lambda i: (abs(points[i][k] - p[k]) > 0.05,
+                                                      abs(points[i][1 - k] - p[1 - k]))), 0.0)
+        for a in axes:  # from an axis
+            if abs(a.p1[k] - a.p2[k]) < 1e-9 and abs(a.p1[k] - p[k]) <= DIM_SLIDE:
+                return ("fix", a.p1[k])
+        return None
+
+    def axis_between(p1, p2, k):
+        mid = (p1[k] + p2[k]) / 2
+        for a in axes:
+            if abs(a.p1[k] - a.p2[k]) < 1e-9 and abs(a.p1[k] - mid) <= DIM_SLIDE:
+                lo, hi = sorted((a.p1[1 - k], a.p2[1 - k]))
+                if lo - 5.0 <= p1[1 - k] <= hi + 5.0 or lo - 5.0 <= p2[1 - k] <= hi + 5.0:
+                    return a.p1[k]
+        return None
+
+    def value(anc, k):
+        return points[anc[1]][k] + anc[2] if anc[0] == "pt" else anc[1]
+
+    conds, used, skipped, worst = [], [], [], 0.0
+    for d in drawing.of_type(ir.Dimension):
+        if d.dim_type != "linear" or not d.p1 or not d.p2 or not d.nominal \
+                or d.confidence < ir.REVIEW_THRESHOLD:
+            continue
+        k = 0 if d.orientation == "horizontal" else 1 if d.orientation == "vertical" else None
+        target = d.nominal * _view_scale(d, scale)
+        a, b = anchor(d.p1, k), anchor(d.p2, k)
+        diameter = (d.text or "").lstrip().startswith("Ø") or any("Ø" in n for n in d.notes)
+        axis = axis_between(d.p1, d.p2, k) if diameter and k is not None else None
+        if k is not None and axis is not None and (a is None) != (b is None):
+            # a diameter in a half view: one side drawn, the axis in the middle
+            anc = a or b
+            if anc[0] == "pt":
+                side = value(anc, k) - axis
+                miss = abs(abs(side) * 2 - target)
+                if miss <= max(DIM_LIMIT, 0.03 * target):
+                    cond = ("fix", anc[1], k, axis + math.copysign(target / 2, side) - anc[2])
+                    worst = max(worst, miss)
+                    conds.append(cond)
+                    used.append((cond, d, a, b))
+            continue
+        if a and b and a[0] == b[0] == "pt" and a[1] == b[1] and k is not None:
+            # across one circle (or from its centre): the size is its radius
+            span = abs(a[2] - b[2])
+            curve = next((e for j, _, e in curves if j == a[1]), None)
+            if curve is not None and span > 1e-9:
+                r = target * curve.radius / span
+                if abs(r - curve.radius) <= max(DIM_LIMIT, 0.03 * r):
+                    worst = max(worst, abs(r - curve.radius))
+                    curve.radius = r
+                    used.append((None, d, a, b))
+                else:
+                    skipped.append(d.id)
+            continue
+        if a is None or b is None or a[:2] == b[:2] or (a[0] == "fix" and b[0] == "fix"):
+            continue
+        if k is None:
+            if a[0] != "pt" or b[0] != "pt" or a[2] or b[2]:
+                continue
+            cur = math.dist(points[a[1]], points[b[1]])
+            cond = ("dist", a[1], b[1], target)
+        else:
+            cur = value(b, k) - value(a, k)
+            if abs(cur) < 1e-9:
+                continue
+            t = math.copysign(target, cur)
+            if a[0] == "fix":
+                cond = ("fix", b[1], k, a[1] + t - b[2])
+            elif b[0] == "fix":
+                cond = ("fix", a[1], k, b[1] - t - a[2])
+            else:
+                cond = ("dx", a[1], b[1], k, t - b[2] + a[2])
+        miss = abs(abs(cur) - target)
+        if miss > max(DIM_LIMIT, 0.03 * target):
+            skipped.append(d.id)
+            continue
+        worst = max(worst, miss)
+        conds.append(cond)
+        used.append((cond, d, a, b))
+        if axis is not None and cond[0] == "dx":  # Ø across the axis: about it
+            conds.append(("sym", cond[1], cond[2], k, axis - (a[2] + b[2]) / 2))
+    # tagged as written sizes ("D…", the size's id last), the biggest first:
+    # where sizes contradict each other the overall ones win
+    nominal = {d.id: d.nominal for d in drawing.of_type(ir.Dimension)}
+    owner = {id(u[0]): u[1].id for u in used if u[0] is not None}
+    tagged, last = {}, None
+    for cond in conds:
+        last = owner.get(id(cond), last)
+        tagged[id(cond)] = ("D" + cond[0],) + cond[1:] + (last,)
+    used = [(tagged.get(id(u[0])), u[1], u[2], u[3]) for u in used]
+    conds = sorted(tagged.values(), key=lambda t: -nominal.get(t[-1], 0.0))
+    return conds, used, skipped, worst
+
+
+def _plain(cond):
+    """A written size's condition as the plain one (tag and id off)."""
+    return (cond[0][1:],) + cond[1:-1] if cond[0][0] == "D" else cond
 
 
 def _cond_vars(cond) -> set:
-    kind = cond[0]
-    if kind == "dir":
-        return {cond[1], cond[2]}
-    if kind in ("circle", "tangent"):
-        return {cond[1], cond[2]}
-    if kind == "online":
-        return {cond[1], cond[2], cond[3]}
-    return {cond[1]}
+    return {cond[k] for k in _point_slots(cond)}
 
 
 MAX_GROUP = 400  # points of one connected outline the fitting takes on
@@ -720,20 +1081,19 @@ _SKIPPED: list = []  # sizes of the outlines left as drawn (read by solve_contou
 
 def _point_slots(cond) -> list[int]:
     """Positions in the condition tuple that hold point indices."""
-    kind = cond[0]
-    if kind == "dir":
+    kind = cond[0].lstrip("D")
+    if kind in ("dir", "circle", "tangent", "dx", "sym", "dist"):
         return [1, 2]
-    if kind in ("circle", "tangent"):
-        return [1, 2]
-    if kind == "online":
+    if kind in ("online", "circleR"):
         return [1, 2, 3]
     return [1]
 
 
-def _solve_parts(conds, x0, size):
+def _solve_parts(conds, x0, size, nice=None, cache=None):
     """The contour's conditions fall apart into groups that share no point
     (the parts of an assembly, the views of a sheet): each group is solved on
-    its own — the same answer, without one huge system for the whole sheet."""
+    its own — the same answer, without one huge system for the whole sheet.
+    ``nice`` = (scale, axis levels): sizes left free get round values."""
     parent = list(range(size // 2))
 
     def find(i):
@@ -751,9 +1111,21 @@ def _solve_parts(conds, x0, size):
     groups: dict[int, list] = {}
     for c in conds:
         groups.setdefault(find(c[_point_slots(c)[0]]), []).append(c)
+    _NICE[0] = 0
+    _REJECTED.clear()
+    _SKIPPED.clear()
     x = x0.copy()
+    plain = x0.copy()
+    cache = {} if cache is None else cache
     for group in groups.values():
         points = sorted({c[k] for c in group for k in _point_slots(c)})
+        key = tuple(group)
+        if key in cache:
+            idx, xs, xp, rejected, rounded = cache[key]
+            x[idx], plain[idx] = xs, xp
+            _REJECTED.extend(rejected)
+            _NICE[0] += rounded
+            continue
         if len(points) > MAX_GROUP:
             # an assembly's tangle of lines: too big to fit as one part, it
             # stays as drawn (the fitting is for the drawings of parts)
@@ -767,58 +1139,213 @@ def _solve_parts(conds, x0, size):
                 c[k] = local[c[k]]
             sub.append(tuple(c))
         idx = np.array([v for p in points for v in (2 * p, 2 * p + 1)])
-        x[idx] = _gauss_newton(sub, x0[idx], len(idx))
-    return x
+        before, nice_before = len(_REJECTED), _NICE[0]
+        sub, xs = _with_sizes(sub, x0[idx])
+        plain[idx] = xs
+        if nice is not None:
+            scale_, levels_, radii_ = nice
+            extra = _nice_conds(sub, xs, scale_, levels_, {local[r] for r in radii_ if r in local})
+            for _ in range(4):
+                if not extra:
+                    break
+                xn = _gauss_newton(sub + extra, x0[idx], len(idx), start=xs)
+                # a round value is a small touch: one that drags the outline
+                # (a joint near a tangent) is not taken
+                moved = np.hypot((xn - xs)[0::2], (xn - xs)[1::2])
+                far = {j for j in range(len(moved)) if moved[j] > 2 * NICE_TOL}
+                if not far:
+                    xs = xn
+                    _NICE[0] += len(extra)
+                    break
+                extra = [e for e in extra if not far & _cond_vars(e)]
+        x[idx] = xs
+        cache[key] = (idx, xs, plain[idx], _REJECTED[before:], _NICE[0] - nice_before)
+    return x, plain
 
 
-def _gauss_newton(conds, x0, size):
-    W = 1e6
-    x = x0.copy()
-    for _ in range(30):
-        rows, res = [], []
-        for cond in conds:
+_REJECTED: list = []  # ids of written sizes that contradict the others (read by solve_contour)
+SIZE_TOL = 1e-4  # sheet mm: a size the others already decide must agree this well
+
+
+def _with_sizes(conds, x0):
+    """The outline's own conditions, then the written sizes (biggest first):
+    a size the others leave free is taken; one they already decide is kept
+    only if it agrees — two sizes saying different things (15 + 3 where the
+    flats make 17,86) cannot both hold, and the outline must not bend to a
+    compromise of them."""
+    size = len(x0)
+    base = [c for c in conds if c[0][0] != "D"]
+    sizes = [c for c in conds if c[0][0] == "D"]
+    x = _gauss_newton(base, x0, size)
+    if not sizes:
+        return base, x
+    J, _ = _rows(base, x)
+    if J.shape[0]:
+        _, s, vt = np.linalg.svd(J, full_matrices=False)
+        basis = vt[s > 1e-9 * (s[0] if len(s) else 1.0)]
+    else:
+        basis = np.zeros((0, size))
+    free, decided = [], []
+    for cond in sizes:
+        row = _rows([cond], x)[0][0]
+        r = row - basis.T @ (basis @ row) if len(basis) else row.copy()
+        norm = np.linalg.norm(r)
+        if norm > 1e-6:
+            basis = np.vstack([basis, r / norm])
+            free.append(cond)
+        else:
+            decided.append(cond)
+    x = _gauss_newton(base + free, x0, size, start=x)
+    kept = []
+    for cond in decided:
+        if abs(_rows([cond], x)[1][0]) <= SIZE_TOL:
+            kept.append(cond)
+        else:
+            _REJECTED.append(cond[-1])
+    return base + free + kept, x
+
+
+def _nice_conds(conds, x, scale, levels, radii=()):
+    """Round values for the sizes the conditions leave free: the distance of
+    a level from an axis (a diameter), the gap between neighbouring levels.
+    A size is free when its row is independent of the conditions' rows."""
+    size = len(x)
+    J, _ = _rows(conds, x)
+    if J.shape[0]:
+        _, s, vt = np.linalg.svd(J, full_matrices=False)
+        basis = vt[s > 1e-9 * (s[0] if len(s) else 1.0)]
+    else:
+        basis = np.zeros((0, size))
+    out = []
+
+    def free(row):
+        nonlocal basis
+        r = row - basis.T @ (basis @ row) if len(basis) else row.copy()
+        norm = np.linalg.norm(r)
+        if norm < 1e-6:
+            return False
+        basis = np.vstack([basis, r / norm])
+        return True
+
+    for j in sorted(radii):  # the radii of fillets nobody sized
+        v = _nice(x[2 * j] / scale, scale)
+        row = np.zeros(size)
+        row[2 * j] = 1.0
+        if v is not None and abs(v * scale - x[2 * j]) > 1e-9 and free(row):
+            out.append(("fix", j, 0, v * scale))
+    for k in (0, 1):
+        coords = x[k::2]
+        idx = np.argsort(coords)
+        lv = []  # (value, point) per distinct level
+        for i in idx:
+            if i in radii:
+                continue
+            if not lv or coords[i] - lv[-1][0] > 1e-7:
+                lv.append((float(coords[i]), int(i)))
+        lo, hi = (lv[0][0], lv[-1][0]) if lv else (0.0, 0.0)
+        for kk, axis in levels:
+            if kk != k or not lo - 1.0 <= axis <= hi + 1.0:
+                continue
+            for value, i in lv:
+                dist = abs(value - axis)
+                v = _nice(2 * dist / scale, scale, 2.0) if dist > 1e-6 else None
+                if v is None or abs(v * scale / 2 - dist) < 1e-9:
+                    continue
+                row = np.zeros(size)
+                row[2 * i + k] = 1.0
+                if free(row):
+                    out.append(("fix", i, k, axis + math.copysign(v * scale / 2, value - axis)))
+        for (va, a), (vb, b) in zip(lv, lv[1:]):
+            v = _nice((vb - va) / scale, scale)
+            if v is None or abs(v * scale - (vb - va)) < 1e-9:
+                continue
             row = np.zeros(size)
-            kind = cond[0]
-            if kind == "dir":
-                _, a, b, th = cond
-                sn, cs = math.sin(th), math.cos(th)
-                val = (x[2 * b] - x[2 * a]) * sn - (x[2 * b + 1] - x[2 * a + 1]) * cs
-                row[2 * b], row[2 * a], row[2 * b + 1], row[2 * a + 1] = sn, -sn, -cs, cs
-            elif kind == "circle":
-                _, i, c, r = cond
-                dx, dy = x[2 * i] - x[2 * c], x[2 * i + 1] - x[2 * c + 1]
-                d = math.hypot(dx, dy) or 1.0
-                val = d - r
-                row[2 * i], row[2 * i + 1] = dx / d, dy / d
-                row[2 * c], row[2 * c + 1] = -dx / d, -dy / d
-            elif kind == "tangent":
-                _, i, c, th = cond
-                cs, sn = math.cos(th), math.sin(th)
-                val = (x[2 * i] - x[2 * c]) * cs + (x[2 * i + 1] - x[2 * c + 1]) * sn
-                row[2 * i], row[2 * i + 1], row[2 * c], row[2 * c + 1] = cs, sn, -cs, -sn
+            row[2 * b + k], row[2 * a + k] = 1.0, -1.0
+            if free(row):
+                out.append(("dx", a, b, k, v * scale))
+    return out
+
+
+def _rows(conds, x):
+    """Jacobian rows and values of the conditions at x."""
+    size = len(x)
+    rows, res = [], []
+    for cond in conds:
+        cond = _plain(cond)
+        row = np.zeros(size)
+        kind = cond[0]
+        if kind == "dir":
+            _, a, b, th = cond
+            sn, cs = math.sin(th), math.cos(th)
+            val = (x[2 * b] - x[2 * a]) * sn - (x[2 * b + 1] - x[2 * a + 1]) * cs
+            row[2 * b], row[2 * a], row[2 * b + 1], row[2 * a + 1] = sn, -sn, -cs, cs
+        elif kind in ("circle", "dist", "circleR"):
+            _, i, c, r = cond
+            dx, dy = x[2 * i] - x[2 * c], x[2 * i + 1] - x[2 * c + 1]
+            d = math.hypot(dx, dy) or 1.0
+            if kind == "circleR":
+                val = d - x[2 * r]
+                row[2 * r] = -1.0
             else:
-                if kind == "online":
-                    _, i, a, b = cond
-                    ax, ay, bx, by = x[2 * a], x[2 * a + 1], x[2 * b], x[2 * b + 1]
-                else:
-                    _, i, (ax, ay), (bx, by) = cond
-                px, py = x[2 * i], x[2 * i + 1]
-                L = math.hypot(bx - ax, by - ay) or 1.0
-                val = ((bx - ax) * (py - ay) - (by - ay) * (px - ax)) / L
-                row[2 * i] = -(by - ay) / L
-                row[2 * i + 1] = (bx - ax) / L
-                if kind == "online":
-                    row[2 * a] = (by - py) / L
-                    row[2 * a + 1] = (px - bx) / L
-                    row[2 * b] = (py - ay) / L
-                    row[2 * b + 1] = -(px - ax) / L
-            rows.append(W * row)
-            res.append(-W * val)
-        A = np.vstack(rows + [np.eye(size)]) if rows else np.eye(size)
-        rhs = np.concatenate([np.array(res), x0 - x]) if rows else x0 - x
-        step, *_ = np.linalg.lstsq(A, rhs, rcond=None)
+                val = d - r
+            row[2 * i], row[2 * i + 1] = dx / d, dy / d
+            row[2 * c], row[2 * c + 1] = -dx / d, -dy / d
+        elif kind == "tangent":
+            _, i, c, th = cond
+            cs, sn = math.cos(th), math.sin(th)
+            val = (x[2 * i] - x[2 * c]) * cs + (x[2 * i + 1] - x[2 * c + 1]) * sn
+            row[2 * i], row[2 * i + 1], row[2 * c], row[2 * c + 1] = cs, sn, -cs, -sn
+        elif kind == "dx":
+            _, a, b, k, t = cond
+            val = x[2 * b + k] - x[2 * a + k] - t
+            row[2 * b + k], row[2 * a + k] = 1.0, -1.0
+        elif kind == "fix":
+            _, i, k, v = cond
+            val = x[2 * i + k] - v
+            row[2 * i + k] = 1.0
+        elif kind == "sym":
+            _, a, b, k, v = cond
+            val = x[2 * a + k] + x[2 * b + k] - 2 * v
+            row[2 * a + k], row[2 * b + k] = 1.0, 1.0
+        else:
+            if kind == "online":
+                _, i, a, b = cond
+                ax, ay, bx, by = x[2 * a], x[2 * a + 1], x[2 * b], x[2 * b + 1]
+            else:
+                _, i, (ax, ay), (bx, by) = cond
+            px, py = x[2 * i], x[2 * i + 1]
+            L = math.hypot(bx - ax, by - ay) or 1.0
+            val = ((bx - ax) * (py - ay) - (by - ay) * (px - ax)) / L
+            row[2 * i] = -(by - ay) / L
+            row[2 * i + 1] = (bx - ax) / L
+            if kind == "online":
+                row[2 * a] = (by - py) / L
+                row[2 * a + 1] = (px - bx) / L
+                row[2 * b] = (py - ay) / L
+                row[2 * b + 1] = -(px - ax) / L
+        rows.append(row)
+        res.append(val)
+    return (np.array(rows) if rows else np.zeros((0, size))), np.array(res)
+
+
+def _gauss_newton(conds, x0, size, start=None):
+    """Positions meeting the conditions (weight W², all but exactly: the
+    residual is about shift / W²) nearest to x0. Normal equations: the
+    weighted conditions plus the unit pull keep them positive definite, so a
+    plain solve does (an SVD least squares was the bulk of an assembly's time)."""
+    W2 = 1e12
+    x = (x0 if start is None else start).copy()
+    eye = np.eye(size)
+    for _ in range(30):
+        J, val = _rows(conds, x)
+        A = W2 * (J.T @ J) + eye
+        rhs = -W2 * (J.T @ val) + (x0 - x)
+        try:
+            step = np.linalg.solve(A, rhs)
+        except np.linalg.LinAlgError:
+            step, *_ = np.linalg.lstsq(A, rhs, rcond=None)
         x += step
-        if np.abs(step).max() < 1e-12:
+        if np.abs(step).max() < 1e-10:
             break
     return x
 

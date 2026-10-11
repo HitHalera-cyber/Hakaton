@@ -32,18 +32,22 @@ def _ends(arc):
 
 def _loops(arcs) -> list[list]:
     """Closed chains of arcs and lines (each joint shared by exactly two)."""
+    from .constraints import Grid
+
     nodes: list[tuple[float, float]] = []
     touch: list[list[int]] = []
     arc_nodes = []
+    grid = Grid(1.0)
     for i, arc in enumerate(arcs):
         ids = []
         for p in _ends(arc):
-            for k, q in enumerate(nodes):
-                if math.dist(p, q) <= JOIN:
-                    break
+            near = [k for k in grid.near(p, JOIN) if math.dist(p, nodes[k]) <= JOIN]
+            if near:
+                k = min(near)
             else:
                 k = len(nodes)
                 nodes.append(p)
+                grid.add(p, k)
                 touch.append([])
             touch[k].append(i)
             ids.append(k)
@@ -246,6 +250,13 @@ def chord_fillets(drawing: ir.Drawing, new_id, max_chord: float = 1.5) -> int:
     radii = sorted({d.nominal * scale for d in drawing.of_type(ir.Dimension)
                     if d.dim_type == "radius" and d.nominal})
     lines = [e for e in drawing.of_type(ir.Line) if e.style == ir.STYLE_MAIN]
+    from .constraints import Grid
+
+    ends = Grid(1.0)  # the lines by their ends: an assembly has thousands
+    pool, alive = list(lines), {id(l) for l in lines}  # a chord made an arc drops out
+    for k, l in enumerate(pool):
+        ends.add(l.p1, k)
+        ends.add(l.p2, k)
     made = 0
     for chord in list(lines):
         length = math.dist(chord.p1, chord.p2)
@@ -254,7 +265,8 @@ def chord_fillets(drawing: ir.Drawing, new_id, max_chord: float = 1.5) -> int:
         nbs, shared = [], []
         cdir = math.atan2(chord.p2[1] - chord.p1[1], chord.p2[0] - chord.p1[0])
         for p in (chord.p1, chord.p2):
-            hit = [l for l in lines if l is not chord and l.id != chord.id
+            hit = [l for l in (pool[k] for k in sorted(ends.near(p, 0.05)))
+                   if id(l) in alive and l is not chord and l.id != chord.id
                    and min(math.dist(p, l.p1), math.dist(p, l.p2)) <= 0.05]
             if not hit:
                 break
@@ -322,6 +334,7 @@ def chord_fillets(drawing: ir.Drawing, new_id, max_chord: float = 1.5) -> int:
                 a1, a2 = a2, a1
             drawing.entities = [e for e in drawing.entities if e.id != chord.id]
             lines.remove(chord)
+            alive.discard(id(chord))
             drawing.entities.append(ir.Arc(new_id("A"), chord.confidence,
                                            [f"Скругление вместо хорды {chord.id}"],
                                            center=(round(c[0], 6), round(c[1], 6)),
@@ -357,6 +370,7 @@ def chord_fillets(drawing: ir.Drawing, new_id, max_chord: float = 1.5) -> int:
             a1, a2 = a2, a1
         drawing.entities = [e for e in drawing.entities if e.id != chord.id]
         lines.remove(chord)
+        alive.discard(id(chord))
         drawing.entities.append(ir.Arc(new_id("A"), chord.confidence,
                                        [f"Скругление вместо хорды {chord.id}"],
                                        center=(round(c[0], 6), round(c[1], 6)), radius=round(r, 6),

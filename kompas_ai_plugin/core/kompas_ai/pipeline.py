@@ -145,7 +145,13 @@ def recognize_pdf(pdf_path: str | Path, page: int = 0, exact: bool = True,
         solved = solve_contour(drawing)
         drawing.processing.append(
             f"Контур решён как система: узлов {solved.get('nodes', 0)}, направлений задано "
-            f"{solved.get('directions', 0)}, наибольший сдвиг {solved.get('moved', 0.0):.3f} мм")
+            f"{solved.get('directions', 0)}, размеров точно {solved.get('dims', 0)}, "
+            f"округлено неуказанных {solved.get('rounded', 0)}, "
+            f"наибольший сдвиг {solved.get('moved', 0.0):.3f} мм")
+        if solved.get("dims_skipped"):
+            drawing.warnings.append(
+                "Размеры не удалось выдержать (число сильно расходится с линиями): "
+                + ", ".join(solved["dims_skipped"]))
         if solved.get("left_as_drawn"):
             drawing.warnings.append(
                 "Слишком сложная связка линий (сборочный чертёж?) — оставлена как в PDF, без "
@@ -154,6 +160,7 @@ def recognize_pdf(pdf_path: str | Path, page: int = 0, exact: bool = True,
         if rebuilt:
             drawing.processing.append(f"Штриховки построены заново по точному контуру: {rebuilt}")
         broken = check_rules(drawing)
+        drawing.issues = broken
         if broken:
             drawing.warnings.append(f"Правила контура не выполнены ({len(broken)}): "
                                     + "; ".join(broken[:15]))
@@ -302,6 +309,11 @@ def _build_entities(drawing, geometry, is_thin, found, plain_texts, regions, orp
     merged = merge_ellipses(drawing, new_id)
     if merged:
         drawing.processing.append(f"Эллипсов собрано из дуг: {merged}")
+    from .semantics.tables import find_tables
+
+    tables = find_tables(drawing, new_id)
+    if tables:
+        drawing.processing.append(f"Таблиц найдено: {tables} — в КОМПАС строятся таблицами")
 
 
 def _rebuild_hatches(drawing) -> int:

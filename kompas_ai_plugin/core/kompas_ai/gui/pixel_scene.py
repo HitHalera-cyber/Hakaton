@@ -46,11 +46,19 @@ def _assets() -> dict:
     if not _A:
         d = _asset_dir()
         got = {"room_bg": QImage(str(d / "room_bg.png")).convertToFormat(QImage.Format_ARGB32)}
+        if got["room_bg"].isNull():
+            raise RuntimeError("нет картинки комнаты")
         got["lights"] = _city_lights(got["room_bg"])
         layers = {}
         for name in POSES:
             path = d / ("room_man.png" if name == "man" else f"pose_{name}.png")
-            v = _view(QImage(str(path)).convertToFormat(QImage.Format_ARGB32)).astype(np.float32)
+            # the image stays referenced while its pixels are copied: a view
+            # into a freed temporary read garbage (noise over the scene)
+            img = QImage(str(path)).convertToFormat(QImage.Format_ARGB32)
+            if img.isNull() or (img.width(), img.height()) != (W, H):
+                raise RuntimeError(f"нет картинки {path.name}")
+            v = np.array(_view(img), dtype=np.float32, copy=True)
+            del img
             v[:, :, 3] /= 255.0
             layers[name] = v  # BGR and the share of the pose, 0 or 1
         got["layers"] = layers
@@ -59,6 +67,8 @@ def _assets() -> dict:
 
 
 def _view(img: QImage) -> np.ndarray:
+    """The pixels of ``img`` as a writable array (BGRA) — valid only while
+    ``img`` lives: copy it to keep it."""
     a = np.frombuffer(img.bits(), np.uint8, img.sizeInBytes())
     return a.reshape(img.height(), img.bytesPerLine() // 4, 4)[:, :img.width()]
 
