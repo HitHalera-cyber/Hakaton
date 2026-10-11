@@ -120,6 +120,12 @@ class DrawingWriter:
             if moved:
                 report.notes.append(f"Размерные линии разнесены по ГОСТ 2.307 (≥7 мм): {moved}")
         refs: dict[str, object] = {}
+        self._refs, self._tied = refs, 0
+        self._nodes = {}
+        for e in drawing.entities:
+            if isinstance(e, (ir.Line, ir.Arc)) and e.style == ir.STYLE_MAIN:
+                for idx, p in _ends(e):
+                    self._nodes.setdefault((round(p[0], 6), round(p[1], 6)), (e.id, idx))
         for cls in order:
             for e in drawing.of_type(cls):
                 try:
@@ -135,6 +141,8 @@ class DrawingWriter:
             if cls is ir.Text and getattr(self.b, "parametric", False):
                 made, tried = self._constraints(drawing, refs)
                 report.notes.append(f"Параметризация: создано связей {made} из {tried}")
+        if self._tied:
+            report.notes.append(f"Точки размеров привязаны к контуру: {self._tied}")
         if self._ovals:
             report.notes.append(f"Эллипсы ({self._ovals}) КОМПАС не построил — нарисованы "
                                 "замкнутыми овалами из четырёх дуг")
@@ -193,6 +201,26 @@ class DrawingWriter:
         if isinstance(e, ir.Dimension):
             return self._dimension(e)
         return False
+
+    def _tie(self, ref, d: ir.Dimension) -> None:
+        """Tie the dimension's two points to the contour points they measure
+        (ksCMergePoints, point 0/1 of a dimension — api_test15): KOMPAS then
+        keeps the dimension exactly on the contour."""
+        if not ref or isinstance(ref, int) or not getattr(self.b, "parametric", False):
+            return
+        for k, p in enumerate((d.p1, d.p2)):
+            hit = self._nodes.get((round(p[0], 6), round(p[1], 6))) if p else None
+            if not hit:
+                continue
+            eid, idx = hit
+            geom = self._refs.get(eid)
+            if geom is None or isinstance(geom, int):
+                continue
+            try:
+                if self.b.constrain("coincident", ref, geom, k, idx):
+                    self._tied += 1
+            except Exception:
+                pass
 
     def _ellipse(self, e: ir.Ellipse):
         style = STYLE_IDS.get(e.style, 1)
@@ -276,8 +304,10 @@ class DrawingWriter:
                     extra["text_right"] = d.text_center[0] > max(d.p1[0], d.p2[0]) + 1.0
                     if d.text_center[0] < min(d.p1[0], d.p2[0]) - 1.0:
                         extra["text_offset"] = _text_offset(d)
-                return self.b.linear_dim(p1, p2, offset, kind, text, line_point=self._p(lp),
-                                         text_at=self._p(d.text_pos), **extra)
+                ref = self.b.linear_dim(p1, p2, offset, kind, text, line_point=self._p(lp),
+                                        text_at=self._p(d.text_pos), **extra)
+                self._tie(ref, d)
+                return ref
             if kind == LINEAR_HORIZONTAL and d.text_center and d.line_point \
                     and "text_right" in _params(self.b.linear_dim):
                 # a small size whose value stands right of it on the source

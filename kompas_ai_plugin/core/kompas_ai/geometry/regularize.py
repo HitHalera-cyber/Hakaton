@@ -197,6 +197,7 @@ def _set_radii(drawing: ir.Drawing, scale: float, report: RegularizeReport) -> N
 
 
 SNAP_ANNOTATION = 0.15  # sheet mm
+DIM_NODE = 0.6  # sheet mm: a dimension point this near a contour node measures from it
 
 
 def snap_annotations(drawing: ir.Drawing, tol: float = SNAP_ANNOTATION) -> int:
@@ -235,6 +236,37 @@ def snap_annotations(drawing: ir.Drawing, tol: float = SNAP_ANNOTATION) -> int:
                     near, gap = q, math.dist(p, q)
         return near or p
 
+    # dimensions measure from the contour's own points: an end of the main
+    # contour within DIM_NODE is the point, exactly
+    nodes = []
+    for e in drawing.entities:
+        if isinstance(e, ir.Line) and e.style == ir.STYLE_MAIN:
+            nodes += [tuple(e.p1), tuple(e.p2)]
+        elif isinstance(e, ir.Arc) and e.style == ir.STYLE_MAIN:
+            for a in (e.start_angle, e.end_angle):
+                t = math.radians(a)
+                nodes.append((e.center[0] + e.radius * math.cos(t),
+                              e.center[1] + e.radius * math.sin(t)))
+
+    curves = [e for e in drawing.entities if isinstance(e, (ir.Arc, ir.Circle))
+              and e.style == ir.STYLE_MAIN]
+    centres = [tuple(e.center) for e in drawing.entities
+               if isinstance(e, (ir.Arc, ir.Circle, ir.Ellipse))]
+
+    def snap_dim(p):
+        best = min(nodes, key=lambda q: math.dist(p, q), default=None)
+        if best is not None and math.dist(p, best) <= DIM_NODE:
+            return best
+        c = min(centres, key=lambda q: math.dist(p, q), default=None)
+        if c is not None and math.dist(p, c) <= tol:
+            return c  # from the centre of a hole or an arc
+        for e in curves:  # a point of an arc (the bottom of a notch)
+            d = math.dist(p, e.center)
+            if d > 0 and abs(d - e.radius) <= tol:
+                return (e.center[0] + (p[0] - e.center[0]) * e.radius / d,
+                        e.center[1] + (p[1] - e.center[1]) * e.radius / d)
+        return snap(p)
+
     moved = 0
     for d in drawing.of_type(ir.Dimension):
         if d.dim_type != "linear":
@@ -242,7 +274,7 @@ def snap_annotations(drawing: ir.Drawing, tol: float = SNAP_ANNOTATION) -> int:
         for name in ("p1", "p2"):
             p = getattr(d, name)
             if p is not None:
-                q = snap(tuple(p))
+                q = snap_dim(tuple(p))
                 if q != tuple(p):
                     setattr(d, name, (round(q[0], 6), round(q[1], 6)))
                     moved += 1
