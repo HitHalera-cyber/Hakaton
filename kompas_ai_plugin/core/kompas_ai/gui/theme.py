@@ -98,6 +98,12 @@ QToolTip {{ background: {c['card']}; color: {c['text']}; border: 1px solid {c['b
 #kompas {{ background: {c['card_alt']}; border-radius: 14px; padding: 12px 14px;
            color: {c['muted']}; font-size: 13px; }}
 
+QDialog, QMessageBox {{ background: {c['card']}; }}
+QMessageBox QLabel {{ color: {c['text']}; font-size: 14px; }}
+QPushButton {{ min-height: 34px; min-width: 88px; padding: 0 16px; border: 1px solid {c['border']};
+               border-radius: 10px; background: {c['card_alt']}; color: {c['text']}; }}
+QPushButton:hover {{ border-color: {c['select']}; }}
+
 QPushButton#nav {{ text-align: left; padding: 0 14px; min-height: 42px; border: none;
                    border-radius: 12px; background: transparent; color: {c['muted']}; }}
 QPushButton#nav:hover {{ background: {c['card_alt']}; color: {c['text']}; }}

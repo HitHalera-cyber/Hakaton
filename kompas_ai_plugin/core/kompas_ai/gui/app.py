@@ -480,8 +480,7 @@ class MainWindow(QMainWindow):
         entity = self.drawing.get(item.data(Qt.UserRole))
         anchor = _anchor(entity) if entity else None
         if anchor:
-            self.nav.button(0).setChecked(True)
-            self.pages.setCurrentIndex(0)
+            self.show_page(0)
             x, y = sheet_to_pixel(self.drawing, self.page_height, PREVIEW_DPI, anchor)
             self.preview.point_at(x, y)
 
@@ -497,6 +496,7 @@ class MainWindow(QMainWindow):
             return
         self._set_ready(False)
         self.statusBar().showMessage("Строю чертёж в КОМПАС…")
+        self.show_page(PAGES.index("Журнал"))
         job = KompasJob(self.drawing, Path(name), BUILD_MODES[self.build_mode.currentIndex()][1],
                         with_dimensions=self.dims_box.isChecked(),
                         parametric=self.param_box.isChecked())
@@ -515,16 +515,22 @@ class MainWindow(QMainWindow):
             return
         self._set_ready(False)
         self.statusBar().showMessage("Строю 3D-модель в КОМПАС…")
+        self.show_page(PAGES.index("Журнал"))
         job = RevolveJob(self.drawing, Path(name))
         job.progress.connect(self._log)
         job.finished.connect(self.on_built)
         job.failed.connect(self.on_failed)
         self._start(job)
 
+    def show_page(self, index: int) -> None:
+        self.nav.button(index).setChecked(True)
+        self.pages.setCurrentIndex(index)
+
     def on_built(self, report: str) -> None:
         self._log(report)
-        self.statusBar().showMessage("Чертёж построен в КОМПАС")
+        self.statusBar().showMessage("Построено в КОМПАС — подробности в журнале")
         self._set_ready(True)
+        self.show_page(PAGES.index("Журнал"))
         QMessageBox.information(self, APP_NAME, report)
 
     def save_dxf(self) -> None:
@@ -549,6 +555,7 @@ class MainWindow(QMainWindow):
         self._log(message)
         self.statusBar().showMessage("Ошибка — подробности в журнале")
         self._set_ready(self.drawing is not None)
+        self.show_page(PAGES.index("Журнал"))
         QMessageBox.warning(self, APP_NAME, message.strip().splitlines()[-1])
 
     def _log(self, text: str) -> None:

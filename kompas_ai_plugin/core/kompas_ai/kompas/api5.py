@@ -478,8 +478,22 @@ class Api5Backend:
     def radial_dim(self, center, radius, angle, diameter, text, text_dist=None, text_at=None,
                    branches=()):
         """``branches``: more arcs of the same value — [center, radius, arrow,
-        leader start]: added to the dimension as leaders where KOMPAS takes
-        them (IRadialDimension.AddBranchByArcParam), else drawn as thin lines."""
+        leader start, arrow length]: added to the dimension as leaders where
+        KOMPAS takes them (IRadialDimension.AddBranchByArcParam), else drawn as
+        a thin line with an arrow.
+
+        A radius with ``text_dist`` goes through API5: the arrow stays at
+        ``angle`` and the value may stand past the centre (negative textPos,
+        api_test13). API7 SetTextPosition turned the leader towards the value,
+        so the arrow landed on the open side of a notch (R3) or of a fillet."""
+        if text_dist is not None and not diameter:
+            ref = self._radial5(center, radius, angle, diameter, text, text_dist)
+            if ref:
+                dim = self._from_ref(ref) if branches else None
+                for b in branches:
+                    if dim is None or not self._branch(dim, b):
+                        self._leader(b[3], b[2], b[4] if len(b) > 4 else 2.5)
+                return ref
         if text_at is not None:
             try:
                 from win32com.client import CastTo
@@ -496,29 +510,72 @@ class Api5Backend:
                     self._place_text(dim, text_at)
                     for b in branches:
                         if not self._branch(dim, b):
-                            self.line(b[3], b[2], 2)
+                            self._leader(b[3], b[2], b[4] if len(b) > 4 else 2.5)
                     return dim
             except Exception as exc:
                 self._once("radial7", f"  радиус через API7: {exc!r} — строю через API5")
         ref = self._radial5(center, radius, angle, diameter, text, text_dist)
         for b in branches:
-            self.line(b[3], b[2], 2)
+            self._leader(b[3], b[2], b[4] if len(b) > 4 else 2.5)
         return ref
 
+    def _from_ref(self, ref):
+        """The API7 object of an API5 reference (IApplication.TransferReference)."""
+        try:
+            from win32com.client import gencache
+
+            app = gencache.EnsureDispatch("Kompas.Application.7")
+            return app.TransferReference(ref, self.doc.reference)
+        except Exception as exc:
+            self._once("transfer", f"  объект API7 по ссылке API5: {exc!r}")
+            return None
+
     def _branch(self, dim, b) -> bool:
-        (cx, cy), r, tip, _ = b
+        (cx, cy), r, tip = b[0], b[1], b[2]
         ang = math.degrees(math.atan2(tip[1] - cy, tip[0] - cx))
         last = "False"
-        for args in ((cx, cy, r, ang), (cx, cy, r)):
+        for target in (dim, "IRadialDimension", "IBranchs"):
             try:
-                ok = dim.AddBranchByArcParam(*args)
-                if ok is not False:
-                    dim.Update()
-                    return True
+                if isinstance(target, str):
+                    from win32com.client import CastTo
+
+                    target = CastTo(dim, target)
+                for args in ((cx, cy, r, ang), (cx, cy, r)):
+                    try:
+                        ok = target.AddBranchByArcParam(*args)
+                        if ok is not False:
+                            target.Update()
+                            return True
+                    except Exception as exc:
+                        last = exc
             except Exception as exc:
                 last = exc
-        self._once("branch", f"  вторая выноска радиуса: {last!r} — рисую линией")
+        self._once("branch", f"  вторая выноска радиуса: {last!r} — рисую линией со стрелкой")
         return False
+
+    def _leader(self, start, tip, size):
+        """A thin line ending in a filled arrow at ``tip`` (``size`` long, a
+        third as wide): the second leader of a radius when KOMPAS takes none."""
+        dx, dy = tip[0] - start[0], tip[1] - start[1]
+        n = math.hypot(dx, dy)
+        if n < 1e-6:
+            return
+        ux, uy = dx / n, dy / n
+        bx, by = tip[0] - ux * size, tip[1] - uy * size
+        w = size / 6
+        left, right = (bx - uy * w, by + ux * w), (bx + uy * w, by - ux * w)
+        self.line(start, (bx, by), 2)
+        try:
+            self.doc.ksColouring(0)  # a solid fill bounded by the objects up to ksEndObj
+            for a, c in ((tip, left), (left, right), (right, tip)):
+                self.doc.ksLineSeg(a[0], a[1], c[0], c[1], 1)
+            if self.doc.ksEndObj():
+                return
+        except Exception as exc:
+            self._once("colouring", f"  заливка стрелки: {exc!r} — штриховкой")
+        self.hatch([[tip, left, right, tip]], 45.0, 0.1)
+        for a, c in ((tip, left), (left, right), (right, tip)):
+            self.line(a, c, 2)
 
     def _radial5(self, center, radius, angle, diameter, text, text_dist=None):
         """``text_dist``: distance in sheet mm from the arrow on the arc to the

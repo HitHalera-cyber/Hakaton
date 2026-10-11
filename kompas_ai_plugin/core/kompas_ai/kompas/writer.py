@@ -54,6 +54,7 @@ PLAIN_VALUE_RE = re.compile(r"^\d+(?:[.,]\d+)?°?$")
 MIN_ANGULAR_RADIUS = 12.0  # sheet mm
 ANG_TEXT_INSIDE = 2.75  # sheet mm from a KOMPAS angular dimension arc to the middle of its value
 ANG_GROWTH = 1.4  # the dimension arc grows at most this much over the source one
+ARROW = 3.0  # sheet mm: the arrow of a leader drawn by hand (a radius's second leader)
 EXT_OVERSHOOT = 2.0  # sheet mm an extension line goes past the dimension line
 
 
@@ -347,8 +348,14 @@ class DrawingWriter:
                 extra = {"text_at": self._p(d.text_pos)} \
                     if "text_at" in _params(self.b.radial_dim) else {}
                 if d.branches and "branches" in _params(self.b.radial_dim):
-                    extra["branches"] = [[self._p(c), self._len(r), self._p(t), self._p(s0)]
-                                         for c, r, t, s0 in d.branches]
+                    # each second leader starts on the leader KOMPAS draws: from
+                    # the arrow through the centre towards the value
+                    tip = (d.center[0] + d.radius * math.cos(math.radians(angle)),
+                           d.center[1] + d.radius * math.sin(math.radians(angle)))
+                    extra["branches"] = [
+                        [self._p(c), self._len(r), self._p(t),
+                         self._p(_onto_line(s0, tip, d.text_pos)), self._len(ARROW)]
+                        for c, r, t, s0 in d.branches]
                 return self.b.radial_dim(self._p(d.center), self._len(d.radius), angle, False,
                                          text, text_dist=round(dist, 2), **extra)
             extra = {"text_at": self._p(d.text_pos)} \
@@ -525,8 +532,11 @@ def ring_segments(ring, curves, tol: float = 1e-4):
     """A hatch outline (points) as lines and arcs: runs of points on one arc
     or circle of the drawing become that arc, so the hatch boundary is the
     contour itself and not chords inside or outside it."""
-    pts = [tuple(p) for p in ring]
-    if len(pts) > 1 and math.dist(pts[0], pts[-1]) < 1e-9:
+    pts = []
+    for p in ring:  # a repeated point has no direction: it turned small arcs inside out
+        if not pts or math.dist(pts[-1], p) > 1e-7:
+            pts.append(tuple(p))
+    if len(pts) > 1 and math.dist(pts[0], pts[-1]) < 1e-7:
         pts = pts[:-1]
     n = len(pts)
     if n < 3:
@@ -553,10 +563,19 @@ def ring_segments(ring, curves, tol: float = 1e-4):
         while j + 1 < n and marks[(start + j + 1) % n] is c and c is not None:
             j += 1
         a, b = pts[k], pts[(start + j + 1) % n]
+        if c is not None and j == i:
+            # one step whose ends happen to lie on some circle: an arc only when
+            # it would not bulge visibly off the chord (a bit of a real arc)
+            half = math.dist(a, b) / 2
+            if c.radius - math.sqrt(max(c.radius ** 2 - half ** 2, 0.0)) > 0.02:
+                c = None
         if c is None:
             segs.append(("line", a, b))
         else:
-            mid = pts[(k + 1) % n] if j > i else ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
+            # the middle of the run decides the direction (its first point
+            # can lie a hair from the start)
+            mid = pts[(k + (j - i + 1) // 2) % n] if j > i \
+                else ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
             ang = [math.degrees(math.atan2(p[1] - c.center[1], p[0] - c.center[0])) % 360.0
                    for p in (a, mid, b)]
             # counter-clockwise from a to b must pass the middle point
@@ -593,6 +612,16 @@ def oval_arcs(center, a, b, angle):
              ((-h, 0.0), r1, 180.0 - phi, 180.0 + phi), ((0.0, v), r2, 180.0 + phi, 360.0 - phi))
     return [(at(cx, cy), r, (a1 + angle) % 360.0, (a2 + angle) % 360.0)
             for (cx, cy), r, a1, a2 in parts]
+
+
+def _onto_line(p, a, b):
+    """``p`` dropped onto the line through ``a`` and ``b``."""
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    n = dx * dx + dy * dy
+    if n < 1e-12:
+        return p
+    t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / n
+    return (a[0] + t * dx, a[1] + t * dy)
 
 
 def _text_offset(d: ir.Dimension) -> float:

@@ -125,3 +125,27 @@ def test_index_item_sequence():
         ("P", 0), ("", 7), ("", 8), ("кав", 9), ("", 16), ("=3,38", 0)]
     assert index_items([("D", "normal"), ("2", "sup")]) == [
         ("D", 0), ("", 7), ("2", 8), ("", 9), ("", 16)]
+
+
+def test_ring_segments_small_fillet_with_repeated_point():
+    """A repeated point at the start of a fillet turned its arc inside out
+    (a 320° arc instead of 40°): the hatch went outside the contour."""
+    from kompas_ai.kompas.writer import ring_segments
+
+    c, r = (0.0, 0.0), 2.0
+    arc = ir.Arc("A1", center=c, radius=r, start_angle=230.0, end_angle=270.0)
+    pts = [(c[0] + r * math.cos(math.radians(a)), c[1] + r * math.sin(math.radians(a)))
+           for a in range(230, 271, 5)]
+    ring = [(-5.0, 5.0), pts[0], pts[0]] + pts[1:] + [pts[-1], (5.0, -2.0), (5.0, 5.0), (-5.0, 5.0)]
+    arcs = [s for s in ring_segments(ring, [arc]) if s[0] == "arc"]
+    assert len(arcs) == 1
+    a1, a2 = arcs[0][3], arcs[0][4]
+    assert abs((a2 - a1) % 360.0 - 40.0) < 1e-6
+
+
+def test_ring_segments_line_on_a_foreign_circle_stays_a_line():
+    from kompas_ai.kompas.writer import ring_segments
+
+    circle = ir.Circle("C1", center=(0.0, -10.0), radius=math.hypot(3.0, 10.0))
+    ring = [(-3.0, 0.0), (3.0, 0.0), (3.0, 5.0), (-3.0, 5.0), (-3.0, 0.0)]
+    assert all(s[0] == "line" for s in ring_segments(ring, [circle]))
