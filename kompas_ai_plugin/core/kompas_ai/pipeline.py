@@ -265,7 +265,12 @@ def _build_entities(drawing, geometry, is_thin, found, plain_texts, regions, orp
         style = ir.STYLE_AXIAL if "axial" in p.tags else ir.STYLE_DASHED if "dashed" in p.tags \
             else ir.STYLE_THIN if is_thin(p) else ir.STYLE_MAIN
         conf, notes = _geometry_confidence(p)
-        if p.kind == "line":
+        if p.kind == "arc" and p.radius > MAX_ARC_RADIUS and p.points:
+            # a line read as an arc of a radius bigger than any sheet: its ends
+            # from the points read (its angles lose millimetres at that radius)
+            e = ir.Line(new_id("L"), conf, notes, p1=_r(p.points[0]), p2=_r(p.points[-1]),
+                        style=style)
+        elif p.kind == "line":
             e = ir.Line(new_id("L"), conf, notes, p1=_r(p.p1), p2=_r(p.p2), style=style)
         elif p.kind == "circle":
             e = ir.Circle(new_id("C"), conf, notes, center=_r(p.center), radius=round(p.radius, 4),
@@ -310,6 +315,9 @@ def _build_entities(drawing, geometry, is_thin, found, plain_texts, regions, orp
     arcs = chords_to_arcs(drawing, new_id) + chord_fillets(drawing, new_id)
     if arcs:
         drawing.processing.append(f"Скругления, распознанные отрезками, заменены дугами: {arcs}")
+    flat = _flat_arcs(drawing, new_id)
+    if flat:
+        drawing.processing.append(f"Почти прямые «дуги» огромного радиуса заменены отрезками: {flat}")
     merged = merge_ellipses(drawing, new_id)
     if merged:
         drawing.processing.append(f"Эллипсов собрано из дуг: {merged}")
@@ -331,17 +339,21 @@ def _rebuild_hatches(drawing) -> int:
     from .model3d.revolve import main_primitives
     from .semantics.regions import contour_faces
 
+    from shapely import STRtree
+
     faces = contour_faces(main_primitives(drawing))
+    tree = STRtree(faces) if faces else None
     done = 0
     for h in drawing.of_type(ir.Hatch):
-        if not h.contours:
+        if not h.contours or tree is None:
             continue
         old = Polygon(h.contours[0], h.contours[1:]).buffer(0)
         if old.is_empty:
             continue
         # a face is the hatch's when most of it lies in the hatch as read (a
         # small neighbour touching it with its inner point is not)
-        mine = [f for f in faces if f.area > 0
+        near = [faces[int(k)] for k in sorted(tree.query(old))]
+        mine = [f for f in near if f.area > 0
                 and f.intersection(old).area >= 0.7 * f.area]
         if not mine:
             continue
@@ -385,6 +397,29 @@ def _radius_branches(drawing, near_leader: float = 3.0, on_arc: float = 0.3) -> 
                 break
     drawing.entities = [e for e in drawing.entities if e.id not in drop]
     return made
+
+
+MAX_ARC_RADIUS = 2000.0  # sheet mm: more than any sheet — a straight line fitted as an arc
+
+
+def _flat_arcs(drawing, new_id) -> int:
+    """An "arc" of a radius bigger than the sheet is a line read as an arc (a
+    few points almost in a row): it becomes the line between its ends."""
+    out, count = [], 0
+    for e in drawing.entities:
+        if isinstance(e, ir.Arc) and e.radius > MAX_ARC_RADIUS:
+            ends = []
+            for a in (e.start_angle, e.end_angle):
+                t = math.radians(a)
+                ends.append((e.center[0] + e.radius * math.cos(t),
+                             e.center[1] + e.radius * math.sin(t)))
+            out.append(ir.Line(new_id("L"), e.confidence, e.notes, p1=_r(ends[0]), p2=_r(ends[1]),
+                               style=e.style))
+            count += 1
+        else:
+            out.append(e)
+    drawing.entities = out
+    return count
 
 
 def _drop_extension_lines(drawing, tol: float = 0.3) -> int:

@@ -380,8 +380,8 @@ class MainWindow(QMainWindow):
         lay.addStretch(1)
         bottom.addWidget(options, 3)
 
-        def build_card(title, note, button_text, action, accent=False):
-            frame, box = _card("cardAccent" if accent else "card")
+        def build_card(title, note, button_text, action):
+            frame, box = _card()
             box.addWidget(_label(title, "cardTitle"))
             text = _label(note, "sub")
             text.setWordWrap(True)
@@ -402,7 +402,7 @@ class MainWindow(QMainWindow):
             self.build_in_kompas)
         self.model_button, self.model_note = build_card(
             "3D-модель", "Тело вращения: профиль над осью вращается на 360°, лыски, отверстия, "
-            "резьба", "Построить модель", self.build_3d, accent=True)
+            "резьба", "Построить модель", self.build_3d)
         self.both_button, _ = build_card(
             "Модель и чертёж", "Главный вид чертежа — вид модели: изменили модель — чертёж "
             "перестроился", "Построить всё", self.build_both)

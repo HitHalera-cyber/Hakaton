@@ -126,6 +126,7 @@ def hatch_regions(groups: list[HatchGroup], contour: list[Primitive]) -> tuple[l
     for (_, _), pattern_groups in patterns.items():
         lines = [l for g in pattern_groups for l in g.lines]
         hit: dict[int, int] = {}
+        strokes: dict[int, list] = {}
         missed = 0
         for line in lines:
             mid = Point((line.p1[0] + line.p2[0]) / 2, (line.p1[1] + line.p2[1]) / 2)
@@ -134,17 +135,77 @@ def hatch_regions(groups: list[HatchGroup], contour: list[Primitive]) -> tuple[l
                 missed += 1
             else:
                 hit[idx] = hit.get(idx, 0) + 1
+                strokes.setdefault(idx, []).append(line)
         if not hit:
             orphans.extend(pattern_groups)
             continue
-        merged = unary_union([faces[i] for i in hit])
-        parts = list(merged.geoms) if merged.geom_type == "MultiPolygon" else [merged]
         angle = pattern_groups[0].angle
         spacing = sum(g.spacing for g in pattern_groups) / len(pattern_groups)
+        # a face the strokes do not fill is not the hatch's outline (a contour
+        # left open by the PDF joins it with its neighbours): the hatch is
+        # where its strokes are
+        pieces = []
+        for i in hit:
+            covered = sum(l.length for l in strokes[i]) * spacing
+            if areas[i] <= OVERFILL * covered + 4 * spacing * spacing:
+                pieces.append(faces[i])
+            else:
+                band = _stroke_area(strokes[i], spacing).intersection(faces[i])
+                if not band.is_empty and band.area >= MIN_FACE_AREA:
+                    pieces.append(band)
+        merged = unary_union(pieces) if pieces else Polygon()
+        if merged.is_empty:
+            orphans.extend(pattern_groups)
+            continue
+        parts = [g for g in (list(merged.geoms) if hasattr(merged, "geoms") else [merged])
+                 if g.geom_type == "Polygon" and g.area >= MIN_FACE_AREA]
         for part in parts:
-            count = sum(n for i, n in hit.items() if part.buffer(0.01).contains(faces[i]))
+            count = sum(n for i, n in hit.items() if part.buffer(0.01).intersects(faces[i]))
             regions.append(HatchRegion(angle, spacing, part, count))
     return regions, orphans
+
+
+OVERFILL = 1.8  # a face this much bigger than its strokes cover is not filled by them
+
+
+def _stroke_area(strokes, spacing: float):
+    """The area hatched by parallel strokes: each run of neighbouring strokes
+    (one stroke per row, rows a spacing apart) as the polygon through their
+    ends — the true outline where the strokes end on it — half a spacing
+    wider on either side."""
+    ref = max(strokes, key=lambda l: l.length)
+    ux, uy = ref.p2[0] - ref.p1[0], ref.p2[1] - ref.p1[1]
+    n = math.hypot(ux, uy) or 1.0
+    ux, uy = ux / n, uy / n
+    rows = []
+    for l in strokes:
+        ts = sorted(((p[0] * ux + p[1] * uy) for p in (l.p1, l.p2)))
+        s = ((l.p1[0] + l.p2[0]) / 2) * -uy + ((l.p1[1] + l.p2[1]) / 2) * ux
+        rows.append((s, ts[0], ts[1]))
+    rows.sort()
+    runs: list[list] = []
+    for row in rows:
+        if runs and row[0] - runs[-1][-1][0] <= 1.6 * spacing \
+                and min(row[2], runs[-1][-1][2]) > max(row[1], runs[-1][-1][1]):
+            runs[-1].append(row)
+        else:
+            runs.append([row])
+
+    def point(s, t):
+        return (t * ux - s * uy, t * uy + s * ux)
+
+    polys = []
+    h = spacing / 2
+    for run in runs:
+        first, last = run[0], run[-1]
+        left = [point(first[0] - h, first[1])] + [point(s, a) for s, a, _ in run] \
+            + [point(last[0] + h, last[1])]
+        right = [point(first[0] - h, first[2])] + [point(s, b) for s, _, b in run] \
+            + [point(last[0] + h, last[2])]
+        poly = Polygon(left + right[::-1]).buffer(0)
+        if not poly.is_empty:
+            polys.append(poly)
+    return unary_union(polys) if polys else Polygon()
 
 
 def _smallest_face_containing(faces: list[Polygon], point: Point, tree=None,
