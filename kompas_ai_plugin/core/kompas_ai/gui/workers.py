@@ -353,6 +353,15 @@ def make_model(drawing, out: Path, exact: bool, parametric: bool, log):
         log(f"Каналы поперёк оси не разобраны: {exc!r}")
     for ch in channels:
         log("Сверление: " + ch.text())
+    holes = []
+    try:
+        from ..model3d.holes import find_axial_holes
+
+        holes = find_axial_holes(drawing, profile)
+    except Exception as exc:
+        log(f"Отверстия вдоль оси не разобраны: {exc!r}")
+    for h in holes:
+        log("Отверстие вдоль оси: " + h.text())
     fillets = []
     if flange is not None:
         log(flange.summary())
@@ -376,7 +385,8 @@ def make_model(drawing, out: Path, exact: bool, parametric: bool, log):
             f.x += shift
     link = _view_link(profile, loops, shift if flange is not None else 0.0)
     saved = backend.revolve_part(loops, str(out), threads, log=log, flange=flange,
-                                 fillets=fillets, channels=channels, parametric=parametric)
+                                 fillets=fillets, channels=channels, parametric=parametric,
+                                 holes=holes)
     return (profile.summary() + "\n" + (f"3D-деталь сохранена: {out}" if saved
                                         else f"Не удалось сохранить {out}"), saved, link)
 

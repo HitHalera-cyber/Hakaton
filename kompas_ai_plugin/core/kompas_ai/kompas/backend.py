@@ -31,6 +31,7 @@ class DimText:
     auto: bool
     value: str = ""
     diameter_sign: bool = False
+    prefix: str = ""  # before the sign: «2 отв.» of «2 отв. Ø8»
 
 
 class Backend(Protocol):

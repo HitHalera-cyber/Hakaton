@@ -74,12 +74,56 @@ def find_revolve_profile(drawing: ir.Drawing) -> RevolveProfile | None:
     if best is None:
         return None
     _, region, axis, side, source = best
+    region = _bridge_holes(region, axis, side)
     rings = _to_model(region, axis, side, scale)
     if not rings:
         return None
     sheet_rings = [[tuple(p) for p in ring.coords] for part in _polygons(region)
                    for ring in [part.exterior] + list(part.interiors)]
     return RevolveProfile(rings, axis, source, region.area / scale ** 2, sheet_rings, side, scale)
+
+
+def _bridge_holes(region, axis, side):
+    """A section through holes on a pitch circle (a flange's bolt holes) cuts
+    the material in two along the radius: pieces one above the other along
+    the same stretch of the axis. A part is one body — the gap is a hole, made
+    by drilling (holes.py), not by the revolve — so it is filled."""
+    parts = [g for g in _polygons(region)]
+    if len(parts) < 2:
+        return region
+    (x1, y1), (x2, y2) = axis
+    n = math.hypot(x2 - x1, y2 - y1) or 1.0
+    ux, uy = (x2 - x1) / n, (y2 - y1) / n
+    nx, ny = -uy * side, ux * side
+
+    def local(p):
+        vx, vy = p[0] - x1, p[1] - y1
+        return vx * ux + vy * uy, vx * nx + vy * ny
+
+    def sheet(t, s):
+        return (x1 + ux * t + nx * s, y1 + uy * t + ny * s)
+
+    spans = []
+    for g in parts:
+        pts = [local(p) for p in g.exterior.coords]
+        spans.append((min(s for _, s in pts), max(s for _, s in pts), pts))
+    fills = []
+    for i, (lo_a, hi_a, pa) in enumerate(spans):
+        for j, (lo_b, hi_b, pb) in enumerate(spans):
+            if i == j or hi_a >= lo_b or lo_b - hi_a > 0.5 * hi_b:
+                continue  # b is not just above a
+            # the stretch where a's top and b's bottom face each other
+            top = [t for t, s in pa if abs(s - hi_a) <= 0.05]
+            bottom = [t for t, s in pb if abs(s - lo_b) <= 0.05]
+            if not top or not bottom:
+                continue
+            t0, t1 = max(min(top), min(bottom)), min(max(top), max(bottom))
+            if t1 - t0 > 0.1:
+                fills.append(Polygon([sheet(t0, hi_a), sheet(t1, hi_a), sheet(t1, lo_b),
+                                      sheet(t0, lo_b)]))
+    if not fills:
+        return region
+    return unary_union([region] + fills).buffer(0)
 
 
 def _along(p, axis):

@@ -288,9 +288,17 @@ class DrawingWriter:
     def _dim_text(self, d: ir.Dimension) -> DimText:
         """Auto value when KOMPAS can compute it; otherwise the text read from the PDF."""
         written = d.text.strip()
+        prefix = ""
+        inner = re.match(r"^(.*?\S)\s*Ø\s*(\S.*)$", written)
+        if inner and not written.startswith("Ø"):
+            # «2 отв. Ø8»: the count is the dimension's prefix, Ø its sign —
+            # the whole text as the value came out «Ø2 отв. Ш8»
+            prefix, written = inner.group(1) + " ", "Ø" + inner.group(2)
         diameter = written.startswith("Ø")
         if diameter:
             written = written[1:].strip()
+        if prefix:
+            return DimText(auto=False, value=written, diameter_sign=True, prefix=prefix)
         # The value written on the source drawing is exact; KOMPAS' own measure
         # is used only where the geometry is in model units (a scaled view) or
         # for angles (their sides are set to the written value).

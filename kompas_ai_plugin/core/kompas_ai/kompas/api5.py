@@ -430,6 +430,8 @@ class Api5Backend:
                 t.Sign = 1  # the diameter sign, as txt.sign = 1 in API5
             except Exception as exc:
                 self._once("dim_sign", f"  знак диаметра через API7: {exc!r}")
+        if getattr(text, "prefix", ""):
+            t.Prefix.Str = kompas_text(text.prefix)
         if text.auto:
             return
         t.AutoNominalValue = False
@@ -494,7 +496,8 @@ class Api5Backend:
                     if dim is None or not self._branch(dim, b):
                         self._leader(b[3], b[2], b[4] if len(b) > 4 else 2.5)
                 return ref
-        if text_at is not None:
+        if text_at is not None or getattr(text, "prefix", ""):
+            # a prefix («2 отв.») goes only through API7 (IDimensionText.Prefix)
             try:
                 from win32com.client import CastTo
 
@@ -506,8 +509,11 @@ class Api5Backend:
                     t = CastTo(dim, "IDimensionText")
                     t.AutoNominalValue = False
                     t.NominalText.Str = kompas_text(text.value.lstrip("RØ"))
+                    if getattr(text, "prefix", ""):
+                        t.Prefix.Str = kompas_text(text.prefix)
                 if dim.Update():
-                    self._place_text(dim, text_at)
+                    if text_at is not None:
+                        self._place_text(dim, text_at)
                     for b in branches:
                         if not self._branch(dim, b):
                             self._leader(b[3], b[2], b[4] if len(b) > 4 else 2.5)
@@ -647,7 +653,8 @@ class Api5Backend:
     # --- 3D -----------------------------------------------------------------------------
 
     def revolve_part(self, loops, path: str, threads=(), log=None, flange=None,
-                     fillets=(), channels=(), parametric: bool = True) -> bool:
+                     fillets=(), channels=(), parametric: bool = True,
+                     holes=()) -> bool:
         """A part made by revolving closed profile loops 360° around the X axis.
 
         Calls confirmed by prototype/api_test9.py and api_test11.py (KOMPAS v23):
@@ -671,28 +678,27 @@ class Api5Backend:
                 self._plane_axes(-alpha, log)
         for along in sorted({ch.along for ch in channels}):
             self._default_plane_axes(along, log)
-        doc3d = self.kompas.Document3D()
-        if not doc3d.Create(False, True):
-            raise RuntimeError(f"КОМПАС не создал деталь (код {self.last_error()})")
+        if holes:
+            self._plane_axes(0.0, log)  # the YOZ plane, square to the axis
+        doc3d = self._new_part(log)
         self._doc3d = doc3d
         part = doc3d.GetPart(c.pTop_Part)
         sketch = part.NewEntity(c.o3d_sketch)
         sdef = m.ksSketchDefinition(sketch.GetDefinition())
         sdef.SetPlane(part.GetDefaultEntity(c.o3d_planeXOY))
         sketch.Create()
-        d2 = sdef.BeginEdit()
-        if not parametric:
-            log("Эскиз без параметризации: простые отрезки и дуги")
-            self._sketch5(d2, loops)
-        else:
-            try:
-                made, tried = self._sketch7(loops, d2)
-                log(f"Эскиз через API7: связей и размеров создано {made} из {tried}"
-                    + (" — все наложены" if made == tried else ""))
-            except Exception as exc:
-                log(f"Эскиз через API7 не удался ({exc!r}) — строю через API5, без связей")
+        with _editing(sdef) as d2:
+            if not parametric:
+                log("Эскиз без параметризации: простые отрезки и дуги")
                 self._sketch5(d2, loops)
-        sdef.EndEdit()
+            else:
+                try:
+                    made, tried = self._sketch7(loops, d2)
+                    log(f"Эскиз через API7: связей и размеров создано {made} из {tried}"
+                        + (" — все наложены" if made == tried else ""))
+                except Exception as exc:
+                    log(f"Эскиз через API7 не удался ({exc!r}) — строю через API5, без связей")
+                    self._sketch5(d2, loops)
         rot = part.NewEntity(c.o3d_baseRotated)
         rdef = m.ksBaseRotatedDefinition(rot.GetDefinition())
         rdef.SetSideParam(True, 360.0)
@@ -711,6 +717,13 @@ class Api5Backend:
                         f"{'выполнено' if ok else 'не выполнено'}")
                 except Exception as exc:
                     log(f"Скругление R{f.radius:g} после фрезеровки: {exc!r}")
+        if holes:
+            try:
+                ok = self._axial_holes(part, holes)
+                log(f"Отверстия вдоль оси ({len(holes)} × Ø{2 * holes[0].radius:g}): "
+                    f"{'просверлены' if ok else 'не выполнены'}")
+            except Exception as exc:
+                log(f"Отверстия вдоль оси: {exc!r}")
         for ch in channels:
             try:
                 log(f"Канал Ø{2 * ch.radius:g} (сверление): "
@@ -724,6 +737,30 @@ class Api5Backend:
             except Exception as exc:
                 log(f"Резьба {t.text()}: {exc!r}")
         return bool(doc3d.SaveAs(path))
+
+    def _axial_holes(self, part, holes) -> bool:
+        """Holes along the axis (model3d.holes.AxialHole: Y, Z of the centre):
+        circles in a sketch on the YOZ plane, cut through everything both ways."""
+        m, c = self.m, self.constants
+        ex, ey = self._plane_axes(0.0)
+        sketch = part.NewEntity(c.o3d_sketch)
+        sdef = m.ksSketchDefinition(sketch.GetDefinition())
+        sdef.SetPlane(part.GetDefaultEntity(c.o3d_planeYOZ))
+        sketch.Create()
+        with _editing(sdef) as d2:
+            for h in holes:
+                p = (0.0, h.y, h.z)
+                sx = sum(a * b for a, b in zip(p, ex))
+                sy = sum(a * b for a, b in zip(p, ey))
+                d2.ksCircle(sx, sy, h.radius, 1)
+        cut = part.NewEntity(c.o3d_cutExtrusion)
+        cd = m.ksCutExtrusionDefinition(cut.GetDefinition())
+        cd.cut = True
+        cd.directionType = c.dtBoth
+        cd.SetSideParam(True, c.etThroughAll, 0.0, 0.0, False)
+        cd.SetSideParam(False, c.etThroughAll, 0.0, 0.0, False)
+        cd.SetSketch(sketch)
+        return bool(cut.Create())
 
     def _flange(self, part, flange, log) -> None:
         """The flange outline of the end view (model3d.endview.FlangeSpec): the
@@ -789,9 +826,8 @@ class Api5Backend:
         sdef = m.ksSketchDefinition(sketch.GetDefinition())
         sdef.SetPlane(plane)
         sketch.Create()
-        d2 = sdef.BeginEdit()
-        d2.ksCircle(local[0], local[1], h.radius, 1)
-        sdef.EndEdit()
+        with _editing(sdef) as d2:
+            d2.ksCircle(local[0], local[1], h.radius, 1)
         cut = part.NewEntity(c.o3d_cutExtrusion)
         cd = m.ksCutExtrusionDefinition(cut.GetDefinition())
         cd.cut = True
@@ -838,9 +874,8 @@ class Api5Backend:
             sdef = m.ksSketchDefinition(sketch.GetDefinition())
             sdef.SetPlane(plane)
             sketch.Create()
-            d2 = sdef.BeginEdit()
-            d2.ksCircle(sx * local[0], sy * local[1], ch.radius, 1)
-            sdef.EndEdit()
+            with _editing(sdef) as d2:
+                d2.ksCircle(sx * local[0], sy * local[1], ch.radius, 1)
             cut = part.NewEntity(c.o3d_cutExtrusion)
             cd = m.ksCutExtrusionDefinition(cut.GetDefinition())
             cd.cut = True
@@ -906,9 +941,7 @@ class Api5Backend:
 
     def _probe_default_plane(self, along, normal, in_plane):
         c, m = self.constants, self.m
-        doc = self.kompas.Document3D()
-        if not doc.Create(True, True):  # invisible: the test part is not shown
-            raise RuntimeError("пробная деталь не создана")
+        doc = self._new_part(self.log, invisible=True)  # the test part is not shown
         try:
             part = doc.GetPart(c.pTop_Part)
             sk = part.NewEntity(c.o3d_sketch)
@@ -966,10 +999,7 @@ class Api5Backend:
                 raise RuntimeError("направление выреза не совпало")
             return found[1.0][0], found[2.0][0], found[1.0][1]
         finally:
-            try:
-                doc.close()
-            except Exception:
-                pass
+            _close(doc)
 
     def _angle_plane(self, part, alpha):
         c, m = self.constants, self.m
@@ -1012,9 +1042,7 @@ class Api5Backend:
 
     def _probe_plane_axes(self, alpha, y_axis, w):
         c, m = self.constants, self.m
-        doc = self.kompas.Document3D()
-        if not doc.Create(True, True):  # invisible: the test part is not shown
-            raise RuntimeError("пробная деталь не создана")
+        doc = self._new_part(self.log, invisible=True)  # the test part is not shown
         try:
             part = doc.GetPart(c.pTop_Part)
             sk = part.NewEntity(c.o3d_sketch)
@@ -1076,10 +1104,7 @@ class Api5Backend:
                 raise RuntimeError(f"неоднозначно: x {len(ex)}, y {len(ey)}")
             return ex[0], ey[0]
         finally:
-            try:
-                doc.close()
-            except Exception:
-                pass
+            _close(doc)
 
     def _plane_sketch(self, part, plane, loops):
         m = self.m
@@ -1087,9 +1112,8 @@ class Api5Backend:
         sdef = m.ksSketchDefinition(sketch.GetDefinition())
         sdef.SetPlane(part.GetDefaultEntity(plane))
         sketch.Create()
-        d2 = sdef.BeginEdit()
-        self._draw5(d2, loops)
-        sdef.EndEdit()
+        with _editing(sdef) as d2:
+            self._draw5(d2, loops)
         return sketch
 
     @staticmethod
@@ -1198,33 +1222,66 @@ class Api5Backend:
         finally:
             self.parametric, self._drawing7 = saved
 
+    def _new_part(self, log, invisible: bool = False):
+        """A new part document. When KOMPAS refuses (code -2 after a long
+        session: a sketch left open, test parts piling up), the documents
+        nobody sees are closed and it is asked once more."""
+        doc3d = self.kompas.Document3D()
+        if doc3d.Create(invisible, True):
+            return doc3d
+        code = self.last_error()
+        closed = self._close_hidden_documents()
+        log(f"  КОМПАС не создал деталь (код {code}); закрыто невидимых документов: {closed}, "
+            "пробую ещё раз")
+        doc3d = self.kompas.Document3D()
+        if doc3d.Create(invisible, True):
+            return doc3d
+        raise RuntimeError(
+            f"КОМПАС не создаёт новую деталь (код {self.last_error()}). Закройте лишние "
+            "документы в КОМПАС или перезапустите его и постройте ещё раз.")
+
+    def _close_hidden_documents(self) -> int:
+        closed = 0
+        try:
+            from win32com.client import gencache
+
+            app = gencache.EnsureDispatch("Kompas.Application.7")
+            docs = [app.Documents.Item(i) for i in range(app.Documents.Count)]
+            for doc in docs:
+                try:
+                    if not doc.Visible:
+                        doc.Close(getattr(self.constants, "kdDoNotSaveChanges", 0))
+                        closed += 1
+                except Exception:
+                    continue
+        except Exception as exc:
+            self._once("close_hidden", f"  закрыть невидимые документы: {exc!r}")
+        return closed
+
     def extrude_part(self, loops, thickness: float, path: str, log=None,
                      parametric: bool = True) -> bool:
         """A part made by extruding closed loops (the outline and its through
         cuts) on the XOY plane by ``thickness`` mm along Z."""
         log = log or self.log
         m, c = self.m, self.constants
-        doc3d = self.kompas.Document3D()
-        if not doc3d.Create(False, True):
-            raise RuntimeError(f"КОМПАС не создал деталь (код {self.last_error()})")
+        doc3d = self._new_part(log)
         self._doc3d = doc3d
         part = doc3d.GetPart(c.pTop_Part)
         sketch = part.NewEntity(c.o3d_sketch)
         sdef = m.ksSketchDefinition(sketch.GetDefinition())
         sdef.SetPlane(part.GetDefaultEntity(c.o3d_planeXOY))
         sketch.Create()
-        d2 = sdef.BeginEdit()
-        if not parametric:
-            log("Эскиз без параметризации: простые отрезки и дуги")
-            self._sketch5(d2, loops, axis=False)
-        else:
-            try:
-                made, tried = self._sketch7(loops, d2, with_axis=False)
-                log(f"Эскиз через API7: связей и размеров создано {made} из {tried}")
-            except Exception as exc:
-                log(f"Эскиз через API7 не удался ({exc!r}) — строю через API5, без связей")
+        with _editing(sdef) as d2:
+            if not parametric:
+                log("Эскиз без параметризации: простые отрезки и дуги")
                 self._sketch5(d2, loops, axis=False)
-        sdef.EndEdit()
+            else:
+                try:
+                    made, tried = self._sketch7(loops, d2, with_axis=False)
+                    log(f"Эскиз через API7: связей и размеров создано {made} из {tried}")
+                except Exception as exc:
+                    log(f"Эскиз через API7 не удался ({exc!r}) — строю через API5, без связей")
+                    self._sketch5(d2, loops, axis=False)
         ext = part.NewEntity(c.o3d_baseExtrusion)
         ed = m.ksBaseExtrusionDefinition(ext.GetDefinition())
         ed.directionType = c.dtNormal
@@ -1626,3 +1683,31 @@ def _remember_axes(key: str, found) -> None:
         path.write_text(json.dumps(data), encoding="utf-8")
     except OSError:
         pass
+
+
+class _editing:
+    """``with _editing(sdef) as d2:`` — a sketch edited and always closed: a
+    sketch left open after an error kept KOMPAS from making new parts."""
+
+    def __init__(self, sdef):
+        self.sdef = sdef
+
+    def __enter__(self):
+        return self.sdef.BeginEdit()
+
+    def __exit__(self, *exc):
+        try:
+            self.sdef.EndEdit()
+        except Exception:
+            pass
+        return False
+
+
+def _close(doc) -> None:
+    """Close an API5 document (its method is spelled differently by versions)."""
+    for name in ("close", "Close", "ksCloseDocument"):
+        try:
+            getattr(doc, name)()
+            return
+        except Exception:
+            continue
