@@ -25,11 +25,15 @@ from ..report.summary import TYPE_NAMES, summary_text
 from ..pipeline import STAGES
 from .loader import DraftingLoader
 from .theme import THEME_ICONS, THEME_NAMES, THEMES, style_sheet
-from .workers import (CANCELLED, MODEL_STAGE, PREVIEW_DPI, PREVIEW_STAGE, BothJob, CheckJob, KompasJob,
-                      RecognizeJob, RevolveJob)
+from .workers import (CANCELLED, IMAGE_SUFFIXES, MODEL_STAGE, PHOTO_STAGE, PREVIEW_DPI, PREVIEW_STAGE, BothJob, CheckJob,
+                      KompasJob, ModelDrawingJob, RecognizeJob, RevolveJob)
 
 APP_NAME = "КОМПАС-AI"
 MODES = [("Точно по размерам", True), ("Как в PDF (без выравнивания)", False)]
+SCALES = [("Масштаб как на чертеже", None)] + [
+    (f"Масштаб {name}", value) for name, value in (
+        ("1:1", 1.0), ("1:2", 0.5), ("1:2,5", 0.4), ("1:4", 0.25), ("1:5", 0.2), ("1:10", 0.1),
+        ("2:1", 2.0), ("2,5:1", 2.5), ("4:1", 4.0), ("5:1", 5.0), ("10:1", 10.0))]
 PAGES = ["Чертёж", "Отчёт", "Проверка", "Журнал"]
 GRID = 20  # px between grid lines behind the drawing
 
@@ -309,9 +313,15 @@ class MainWindow(QMainWindow):
         self.sheet_chip = _label("", "chip")
         self.sheet_chip.hide()
         head.addWidget(self.sheet_chip)
-        open_button = QPushButton("Открыть PDF", objectName="secondary")
+        open_button = QPushButton("Открыть PDF / фото", objectName="secondary")
         open_button.clicked.connect(self.open_dialog)
         open_button.setCursor(Qt.PointingHandCursor)
+        model_button = QPushButton("Чертёж по модели…", objectName="secondary")
+        model_button.setToolTip("Открыть 3D-модель КОМПАС (.m3d) и построить её чертёж: виды "
+                                "спереди, сверху, слева и изометрия, связанные с моделью")
+        model_button.clicked.connect(self.drawing_from_model)
+        model_button.setCursor(Qt.PointingHandCursor)
+        head.addWidget(model_button)
         head.addWidget(open_button)
         return head
 
@@ -375,6 +385,13 @@ class MainWindow(QMainWindow):
             "(совпадение, горизонталь, вертикаль, касание): изменили размер — модель "
             "перестроилась. Без галочки — эскиз из простых линий.")
         lay.addWidget(self.mode)
+        self.scale_box = QComboBox()
+        for name, _ in SCALES:
+            self.scale_box.addItem(name)
+        self.scale_box.setToolTip(
+            "Масштаб вида на построенном чертеже. Деталь остаётся в настоящих размерах, "
+            "размеры не меняются; не помещается — берётся лист большего формата.")
+        lay.addWidget(self.scale_box)
         lay.addWidget(self.dims_box)
         lay.addWidget(self.param_box)
         lay.addStretch(1)
@@ -476,7 +493,10 @@ class MainWindow(QMainWindow):
 
     def open_dialog(self) -> None:
         start = self.settings.value("last_dir", str(Path.home()))
-        name, _ = QFileDialog.getOpenFileName(self, "Открыть чертёж", start, "PDF (*.pdf)")
+        name, _ = QFileDialog.getOpenFileName(
+            self, "Открыть чертёж", start,
+            "Чертёж (*.pdf *.png *.jpg *.jpeg *.bmp *.tif *.tiff *.webp);;PDF (*.pdf);;"
+            "Фото или скан (*.png *.jpg *.jpeg *.bmp *.tif *.tiff *.webp)")
         if name:
             self.open_file(Path(name))
 
@@ -487,7 +507,7 @@ class MainWindow(QMainWindow):
     def dropEvent(self, event):
         for url in event.mimeData().urls():
             path = Path(url.toLocalFile())
-            if path.suffix.lower() == ".pdf":
+            if path.suffix.lower() in (".pdf",) + IMAGE_SUFFIXES:
                 self.open_file(path)
                 break
 
@@ -535,6 +555,8 @@ class MainWindow(QMainWindow):
         exact = MODES[self.mode.currentIndex()][1]
         stages = [s for s in STAGES if exact or s not in STAGES[5:]] + [MODEL_STAGE,
                                                                        PREVIEW_STAGE]
+        if self.pdf.suffix.lower() in IMAGE_SUFFIXES:
+            stages = [PHOTO_STAGE] + stages
         self.loader.start(f"Читаю {self.pdf.name}", stages)
         job.stage.connect(self.loader.stage)
         self._cancel_target = job
@@ -688,7 +710,8 @@ class MainWindow(QMainWindow):
         self._set_ready(False)
         self.statusBar().showMessage("Строю чертёж в КОМПАС…")
         self.show_page(PAGES.index("Журнал"))
-        job = KompasJob(self.drawing, Path(name), with_dimensions=self.dims_box.isChecked())
+        job = KompasJob(self.drawing, Path(name), with_dimensions=self.dims_box.isChecked(),
+                        view_scale=SCALES[self.scale_box.currentIndex()][1])
         job.progress.connect(self._log)
         job.finished.connect(self.on_built)
         job.failed.connect(self.on_failed)
@@ -726,7 +749,29 @@ class MainWindow(QMainWindow):
         self.show_page(PAGES.index("Журнал"))
         job = BothJob(self.drawing, Path(name), exact=MODES[self.mode.currentIndex()][1],
                       parametric=self.param_box.isChecked(),
-                      with_dimensions=self.dims_box.isChecked())
+                      with_dimensions=self.dims_box.isChecked(),
+                      view_scale=SCALES[self.scale_box.currentIndex()][1])
+        job.progress.connect(self._log)
+        job.finished.connect(self.on_built)
+        job.failed.connect(self.on_failed)
+        self._start(job)
+
+    def drawing_from_model(self) -> None:
+        if self._busy():
+            return
+        start = self.settings.value("last_dir", str(Path.home()))
+        name, _ = QFileDialog.getOpenFileName(self, "3D-модель КОМПАС", start,
+                                              "Деталь КОМПАС (*.m3d)")
+        if not name:
+            return
+        model = Path(name)
+        out, _ = QFileDialog.getSaveFileName(self, "Сохранить чертёж", str(
+            model.with_name(model.stem + "_чертёж.cdw")), "КОМПАС (*.cdw)")
+        if not out:
+            return
+        self.show_page(PAGES.index("Журнал"))
+        self.statusBar().showMessage("Строю чертёж по модели…")
+        job = ModelDrawingJob(model, Path(out), SCALES[self.scale_box.currentIndex()][1])
         job.progress.connect(self._log)
         job.finished.connect(self.on_built)
         job.failed.connect(self.on_failed)

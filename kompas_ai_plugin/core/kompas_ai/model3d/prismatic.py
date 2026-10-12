@@ -67,6 +67,10 @@ def find_extrude_profile(drawing: ir.Drawing) -> ExtrudeProfile | None:
         cuts += [Polygon(r) for r in part.interiors if Polygon(r).area >= 1.0]
     cuts += [Polygon(r) for r in main.interiors if Polygon(r).area >= 1.0]
     cuts = _unique(cuts)
+    if getattr(drawing, "raster", False):
+        # a photo's letters are lines too: the loops of «0», «8», «Ø» are no
+        # holes — a cut is round (a hole) or bigger than a letter
+        cuts = [q for q in cuts if q.area >= 25.0 or _round(q)]
     scale = drawing.scale.value or 1.0
     x0, y0, x1, y1 = outer.bounds
     thickness, how = _thickness(drawing, main, views[1:], scale)
@@ -93,6 +97,15 @@ def _shape_score(view, faces) -> int:
             corners += 1
     inner = sum(1 for f in faces if f.within(view) and f.exterior.distance(view.exterior) > 0.05)
     return corners + 2 * inner
+
+
+def _round(poly) -> bool:
+    """A circle bigger than a letter: as round as a circle, over 2.5 mm across."""
+    if poly.area <= 0:
+        return False
+    roundness = 4 * math.pi * poly.area / poly.length ** 2
+    x0, y0, x1, y1 = poly.bounds
+    return roundness > 0.85 and min(x1 - x0, y1 - y0) >= 5.0
 
 
 def _unique(polys):

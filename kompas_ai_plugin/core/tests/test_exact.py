@@ -96,3 +96,33 @@ def test_plate_is_extruded_with_its_holes():
     assert math.isclose(prof.width, 60.0) and math.isclose(prof.height, 40.0)
     _, _, left = full_definition(prof.loops, None)
     assert left == 0  # the sketch is fully defined
+
+
+def test_photo_of_a_plate_becomes_a_part(tmp_path):
+    import numpy as np
+    import pytest
+
+    cv2 = pytest.importorskip("cv2")
+    from kompas_ai.model3d.prismatic import find_extrude_profile
+    from kompas_ai.pipeline import recognize_pdf
+    from kompas_ai.raster.photo import photo_to_pdf
+
+    # a sheet 297×210 mm at 5 px/mm on a grey table, a plate 100×60 with a
+    # hole Ø20 (main lines) and its side view 10 wide beside it
+    k = 5
+    img = np.full((210 * k, 297 * k), 255, np.uint8)
+    cv2.rectangle(img, (40 * k, 60 * k), (140 * k, 120 * k), 0, 3)
+    cv2.circle(img, (90 * k, 90 * k), 10 * k, 0, 3)
+    cv2.rectangle(img, (170 * k, 60 * k), (180 * k, 120 * k), 0, 3)
+    table = np.full((img.shape[0] + 200, img.shape[1] + 200), 80, np.uint8)
+    table[100:-100, 100:-100] = img
+    photo = tmp_path / "plate.png"
+    cv2.imwrite(str(photo), table)
+    pdf = tmp_path / "plate.pdf"
+    result = photo_to_pdf(photo, pdf)
+    assert result.sheet_found
+    d = recognize_pdf(pdf, exact=True, raster=True)
+    prof = find_extrude_profile(d)
+    assert prof is not None and prof.holes == 1
+    assert abs(prof.width - 100) < 1.5 and abs(prof.height - 60) < 1.5
+    assert abs(prof.thickness - 10) < 1.0

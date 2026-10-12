@@ -26,6 +26,13 @@ from .backend import (LINEAR_HORIZONTAL, LINEAR_PARALLEL, LINEAR_VERTICAL, STYLE
 FORMAT_INDEX = {"A0": 0, "A1": 1, "A2": 2, "A3": 3, "A4": 4}
 
 
+def scale_name(value: float) -> str:
+    """4.0 → «4:1», 0.5 → «1:2», 0.4 → «1:2,5»."""
+    if value >= 1.0:
+        return f"{value:g}:1".replace(".", ",")
+    return f"1:{1.0 / value:g}".replace(".", ",")
+
+
 @dataclass
 class WriteReport:
     mode: str = "sheet"
@@ -69,8 +76,13 @@ def _params(func) -> set[str]:
 
 
 class DrawingWriter:
-    def __init__(self, backend: Backend, mode: str = "sheet", with_dimensions: bool = True):
+    def __init__(self, backend: Backend, mode: str = "sheet", with_dimensions: bool = True,
+                 view_scale: float | None = None):
         self.b = backend
+        # another scale than the drawing's: the part drawn bigger or smaller,
+        # centred on the sheet (of a bigger format when it does not fit)
+        self.view_scale = view_scale
+        self.place = lambda p: p  # sheet point of the source → of the new sheet
         self.mode = mode
         # False: a plain drawing (lines, arcs, texts, hatches) without dimensions
         self.with_dimensions = with_dimensions
@@ -90,6 +102,46 @@ class DrawingWriter:
             return ((p[0] - self.origin[0]) / self.scale, (p[1] - self.origin[1]) / self.scale)
         return (p[0], p[1])
 
+    def _rescale(self, drawing, old, new, fmt, landscape, report):
+        """The format that holds the drawing at the new scale (the source's
+        when it fits) and the view origin that centres it there."""
+        pts = []
+        for e in drawing.entities:
+            for name in ("p1", "p2", "center", "position", "line_point", "text_pos"):
+                q = getattr(e, name, None)
+                if q is not None:
+                    pts.append(q)
+        if not pts:
+            return fmt, landscape, (0.0, 0.0)
+        x0, x1 = min(q[0] for q in pts), max(q[0] for q in pts)
+        y0, y1 = min(q[1] for q in pts), max(q[1] for q in pts)
+        k = new / old
+        w, h = (x1 - x0) * k, (y1 - y0) * k
+        sizes = {0: (1189, 841), 1: (841, 594), 2: (594, 420), 3: (420, 297), 4: (297, 210)}
+
+        def fits(f, land):
+            a, b = sizes[f]
+            W, H = (a, b) if land else (b, a)
+            return w <= W - 45 and h <= H - 85, W, H
+
+        ok, W, H = fits(fmt, landscape)
+        if not ok:
+            for f in (4, 3, 2, 1, 0):
+                for land in (True, False):
+                    ok, W, H = fits(f, land)
+                    if ok:
+                        fmt, landscape = f, land
+                        break
+                if ok:
+                    break
+            report.notes.append(f"Масштаб {scale_name(new)}: лист A{fmt}"
+                                + (" альбомный" if landscape else " книжный"))
+        cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+        tx, ty = (30.0 + W - 15.0) / 2, (65.0 + H - 15.0) / 2
+        origin = (tx - cx / old * new, ty - cy / old * new)
+        self.place = lambda p: (tx + (p[0] - cx) * k, ty + (p[1] - cy) * k)
+        return fmt, landscape, origin
+
     def _len(self, v: float) -> float:
         """Sheet mm → view mm for geometry. Text heights and hatch steps are not
         scaled: KOMPAS keeps them in sheet millimetres in any view."""
@@ -107,7 +159,14 @@ class DrawingWriter:
         if fmt is None:
             report.notes.append(f"Формат {sheet.format} не стандартный — создан A4")
             fmt = 4
-        self.b.new_sheet(fmt, sheet.orientation == "landscape")
+        landscape = sheet.orientation == "landscape"
+        old = drawing.scale.value or 1.0
+        new = self.view_scale or old
+        view_origin = (0.0, 0.0)
+        if self.mode == "view" and abs(new - old) > 1e-9:
+            fmt, landscape, view_origin = self._rescale(drawing, old, new, fmt, landscape,
+                                                        report)
+        self.b.new_sheet(fmt, landscape)
 
         # tables first, in the sheet's own view (in sheet millimetres); a
         # table KOMPAS takes replaces the lines and texts it was read from
@@ -116,7 +175,8 @@ class DrawingWriter:
             if not hasattr(self.b, "table"):
                 break
             try:
-                if self.b.table(t.top_left, t.widths, t.heights, t.cells, t.text_height):
+                if self.b.table(self.place(t.top_left), t.widths, t.heights, t.cells,
+                                t.text_height):
                     self._skip.update(t.members)
                     report.count("table")
                     continue
@@ -129,9 +189,10 @@ class DrawingWriter:
         if self.on_sheet is not None:
             self._skip |= set(self.on_sheet(self.b, drawing) or ())
 
-        self.scale = drawing.scale.value or 1.0
-        if self.mode == "view" and self.scale != 1.0:
-            if not self.b.open_view(self.origin, self.scale, f"Вид {drawing.scale.text}"):
+        self.scale = old  # the geometry in model mm: sheet mm of the source / its scale
+        if self.mode == "view" and (new != 1.0 or view_origin != (0.0, 0.0)):
+            name = f"Вид {scale_name(new)}"
+            if not self.b.open_view(view_origin, new, name):
                 report.notes.append("КОМПАС не создал вид с масштабом (нужна лицензия) — "
                                     "чертёж построен в мм листа, числа размеров вписаны вручную")
                 self.mode = report.mode = "sheet"

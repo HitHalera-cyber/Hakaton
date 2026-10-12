@@ -35,13 +35,14 @@ from .semantics.sheet import analyse_sheet, is_title_block_text, read_title_bloc
 
 
 # what recognize_pdf reports through ``progress``, in this order
+RASTER_JOIN = 1.0  # sheet mm: ends of a drawing from a photo this close are one point
 STAGES = ["Читаю PDF", "Рамка и основная надпись", "Линии, дуги и стрелки", "Размеры",
           "Контур и штриховки", "Выравниваю по размерам", "Замыкаю контур",
           "Привязываю размеры"]
 
 
 def recognize_pdf(pdf_path: str | Path, page: int = 0, exact: bool = True,
-                  progress=None) -> ir.Drawing:
+                  progress=None, raster: bool = False) -> ir.Drawing:
     """Recognise one PDF page. ``exact`` corrects the geometry to the written
     dimensions (see geometry/regularize.py); False keeps the measured PDF values.
     ``progress(stage)`` is called with each of STAGES as it starts."""
@@ -49,6 +50,7 @@ def recognize_pdf(pdf_path: str | Path, page: int = 0, exact: bool = True,
     step(STAGES[0])
     content = extract_page(pdf_path, page)
     drawing = ir.Drawing(source=str(pdf_path))
+    drawing.raster = raster  # read from a photo: looser joints, letters drawn as lines
     if not content.is_vector:
         drawing.warnings.append(
             "Страница не содержит векторной геометрии (скан или изображение). "
@@ -142,7 +144,7 @@ def recognize_pdf(pdf_path: str | Path, page: int = 0, exact: bool = True,
         step(STAGES[5])
         drawing.processing.append(regularize(drawing).text())
         step(STAGES[6])
-        solved = solve_contour(drawing)
+        solved = solve_contour(drawing, join=RASTER_JOIN if raster else None)
         drawing.processing.append(
             f"Контур решён как система: узлов {solved.get('nodes', 0)}, направлений задано "
             f"{solved.get('directions', 0)}, размеров точно {solved.get('dims', 0)}, "

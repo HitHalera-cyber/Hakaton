@@ -581,7 +581,7 @@ def _dimensioned_angles(drawing: ir.Drawing) -> tuple:
     return tuple(out)
 
 
-def solve_contour(drawing: ir.Drawing) -> dict:
+def solve_contour(drawing: ir.Drawing, join: float | None = None) -> dict:
     """The contour as one system of conditions, solved together (a sketch
     solver in small). Unknowns: the nodes where ends meet and the centres of
     the arcs and circles. Conditions:
@@ -600,6 +600,7 @@ def solve_contour(drawing: ir.Drawing) -> dict:
     joining two ends tilted the horizontal that had just been made exact."""
     from .constraints import Grid
 
+    JOIN = join or globals()["JOIN"]  # wider for a photo: a pixel is a tenth of a mm
     _SKIPPED.clear()
     _REJECTED.clear()
     scale = drawing.scale.value or 1.0

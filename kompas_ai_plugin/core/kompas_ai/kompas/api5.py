@@ -1457,6 +1457,23 @@ class Api5Backend:
                 self.log(f"  вид модели через API5 («{name}»): {exc!r}")
         return False
 
+    def model_gabarit(self, source: str):
+        """(x1, y1, z1, x2, y2, z2) of a saved part: opened unseen, measured,
+        closed."""
+        doc = self.kompas.Document3D()
+        if not doc.Open(source, True):
+            raise RuntimeError(f"КОМПАС не открыл модель {source} (код {self.last_error()})")
+        try:
+            part = doc.GetPart(self.constants.pTop_Part)
+            got = part.GetGabarit(True, True)
+            nums = [float(v) for v in (got if isinstance(got, (tuple, list)) else [got])
+                    if isinstance(v, (int, float)) and not isinstance(v, bool)]
+            if len(nums) < 6:
+                raise RuntimeError(f"габарит модели не прочитан: {got!r}")
+            return tuple(nums[-6:])
+        finally:
+            _close(doc)
+
     def _model_view7(self, source, at, scale, angle, projection, hidden) -> bool:
         from win32com.client import CastTo, gencache
 

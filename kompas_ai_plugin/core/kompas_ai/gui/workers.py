@@ -20,6 +20,8 @@ from ..report.preview import render_preview_png
 PREVIEW_DPI = 150
 PREVIEW_STAGE = "Рисую предпросмотр"
 MODEL_STAGE = "Ищу профиль для 3D-модели"
+PHOTO_STAGE = "Перевожу фото в линии"
+IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp")
 CANCELLED = "Распознавание отменено"
 
 
@@ -57,9 +59,23 @@ class RecognizeJob(QObject):
 
     def run(self) -> None:
         try:
+            raster = self.pdf.suffix.lower() in IMAGE_SUFFIXES
+            if raster:
+                # a photo or a scan: its lines into a PDF the recognition reads
+                self._stage(PHOTO_STAGE)
+                from ..raster.photo import photo_to_pdf
+
+                import tempfile
+
+                vector = Path(tempfile.gettempdir()) / f"kompas_ai_photo_{self.pdf.stem}.pdf"
+                photo = photo_to_pdf(self.pdf, vector)
+                self.pdf = vector
             try:
                 drawing = recognize_pdf(self.pdf, self.page, exact=self.exact,
-                                        progress=self._stage)
+                                        progress=self._stage, raster=raster)
+                if raster:
+                    drawing.warnings.insert(0, photo.text() + ". Надписи с фото не читаются: "
+                                            "числа размеров впишите в КОМПАС")
             except Cancelled:
                 raise
             except Exception:
@@ -68,7 +84,7 @@ class RecognizeJob(QObject):
                 # the drawing opens anyway: as in the PDF, without the exact fitting
                 error = traceback.format_exc().strip().splitlines()[-1]
                 drawing = recognize_pdf(self.pdf, self.page, exact=False,
-                                        progress=self._stage)
+                                        progress=self._stage, raster=raster)
                 drawing.warnings.insert(0, "Точный режим не удался, чертёж открыт как в PDF "
                                            f"(без выравнивания): {error}")
             self._stage(MODEL_STAGE)
@@ -118,10 +134,12 @@ class KompasJob(QObject):
     finished = Signal(str)  # report text
     failed = Signal(str)
 
-    def __init__(self, drawing, out_cdw: Path, with_dimensions: bool = True):
+    def __init__(self, drawing, out_cdw: Path, with_dimensions: bool = True,
+                 view_scale: float | None = None):
         super().__init__()
         self.drawing, self.out = drawing, out_cdw
         self.with_dimensions = with_dimensions
+        self.view_scale = view_scale
 
     def run(self) -> None:
         if sys.platform != "win32":
@@ -133,7 +151,8 @@ class KompasJob(QObject):
             pythoncom.CoInitialize()  # COM must be initialised in every thread that uses it
             try:
                 self.finished.emit(write_drawing(self.drawing, self.out, self.with_dimensions,
-                                                 self.progress.emit))
+                                                 self.progress.emit,
+                                                 view_scale=self.view_scale))
             finally:
                 pythoncom.CoUninitialize()
         except Exception:
@@ -141,7 +160,7 @@ class KompasJob(QObject):
 
 
 def write_drawing(drawing, out: Path, with_dimensions: bool, log, model: Path | None = None,
-                  link=None) -> str:
+                  link=None, view_scale: float | None = None) -> str:
     """The drawing built and saved. With ``model`` (a saved part) and ``link``
     (where its main view is on the sheet, from make_model) that view is the
     part's associative view: the lines it shows are not drawn by hand, and a
@@ -153,11 +172,16 @@ def write_drawing(drawing, out: Path, with_dimensions: bool, log, model: Path | 
     # the drawing is not parametrised: constraints only ever move its lines
     backend = Api5Backend(log=log, parametric=False)
     log("Построение объектов…")
-    writer = DrawingWriter(backend, mode="view", with_dimensions=with_dimensions)
+    writer = DrawingWriter(backend, mode="view", with_dimensions=with_dimensions,
+                           view_scale=view_scale)
     linked = []
     if model is not None and link is not None:
         def on_sheet(b, d):
-            skip = _link_view(b, d, model, link, log)
+            old = d.scale.value or 1.0
+            k = (view_scale or old) / old
+            # where the main view lies on the sheet at the scale chosen
+            placed = dict(link, origin=writer.place(link["origin"]), scale=link["scale"] * k)
+            skip = _link_view(b, d, model, placed, log, source=link)
             linked.append(bool(skip))
             return skip
 
@@ -172,9 +196,10 @@ def write_drawing(drawing, out: Path, with_dimensions: bool, log, model: Path | 
     return text + "\n" + (f"Сохранено: {out}" if saved else f"Не удалось сохранить {out}")
 
 
-def _link_view(backend, drawing, model: Path, link, log) -> set:
+def _link_view(backend, drawing, model: Path, link, log, source=None) -> set:
     """The model's front view over the main view of the drawing; the ids of
-    the drawn lines, arcs and hatches it replaces (empty when not made)."""
+    the drawn lines, arcs and hatches it replaces (empty when not made).
+    ``source``: the link in the source's sheet mm, for finding those ids."""
     try:
         ok = backend.model_view(str(model), link["origin"], link["scale"], angle=link["angle"],
                                 projection="#Спереди", hidden=True)
@@ -183,6 +208,7 @@ def _link_view(backend, drawing, model: Path, link, log) -> set:
         ok = False
     if not ok:
         return set()
+    link = source or link
     if "box" in link:
         bx0, by0, bx1, by1 = link["box"]
 
@@ -254,10 +280,11 @@ class BothJob(QObject):
     failed = Signal(str)
 
     def __init__(self, drawing, out_cdw: Path, exact: bool = True, parametric: bool = True,
-                 with_dimensions: bool = True):
+                 with_dimensions: bool = True, view_scale: float | None = None):
         super().__init__()
         self.drawing, self.out, self.exact = drawing, out_cdw, exact
         self.parametric, self.with_dimensions = parametric, with_dimensions
+        self.view_scale = view_scale
 
     def run(self) -> None:
         if sys.platform != "win32":
@@ -275,7 +302,7 @@ class BothJob(QObject):
                 self.progress.emit("— 2. Чертёж —")
                 drawing_text = write_drawing(self.drawing, self.out, self.with_dimensions,
                                              self.progress.emit, model=m3d if saved else None,
-                                             link=link)
+                                             link=link, view_scale=self.view_scale)
                 self.finished.emit(text + "\n\n" + drawing_text)
             finally:
                 pythoncom.CoUninitialize()
@@ -308,6 +335,97 @@ class CheckJob(QObject):
                 pythoncom.CoUninitialize()
         except Exception:
             self.failed.emit(traceback.format_exc())
+
+
+class ModelDrawingJob(QObject):
+    """A drawing of a saved 3D part: its standard views, linked to it."""
+
+    progress = Signal(str)
+    finished = Signal(str)
+    failed = Signal(str)
+
+    def __init__(self, model: Path, out_cdw: Path, view_scale: float | None = None):
+        super().__init__()
+        self.model, self.out, self.view_scale = model, out_cdw, view_scale
+
+    def run(self) -> None:
+        if sys.platform != "win32":
+            self.failed.emit("Построение в КОМПАС возможно только в Windows с установленным КОМПАС-3D.")
+            return
+        try:
+            import pythoncom
+
+            pythoncom.CoInitialize()
+            try:
+                self.finished.emit(drawing_of_model(self.model, self.out, self.view_scale,
+                                                    self.progress.emit))
+            finally:
+                pythoncom.CoUninitialize()
+        except Exception:
+            self.failed.emit(traceback.format_exc())
+
+
+SHEETS = [(4, False, 210, 297), (3, True, 420, 297), (2, True, 594, 420), (1, True, 841, 594),
+          (0, True, 1189, 841)]
+STANDARD_SCALES = (10.0, 5.0, 4.0, 2.5, 2.0, 1.0, 0.5, 0.4, 0.25, 0.2, 0.1)
+
+
+def lay_out_views(size, view_scale=None):
+    """Sheet and places of the views of a part ``size`` = (Lx, Ly, Lz) mm by
+    ГОСТ 2.305: the front view, the top view under it, the left view to its
+    right, the isometry in the free corner. Returns (format, landscape, scale,
+    {projection: centre on the sheet})."""
+    lx, ly, lz = size
+    gap = 25.0
+    scales = [view_scale] if view_scale else STANDARD_SCALES
+    # the biggest scale on A4/A3 down to 1:2, else the sheets that keep 1:2 or more
+    tries = [(s, sh) for s in scales if s >= 0.5 or view_scale for sh in SHEETS[:2]] \
+        + [(s, sh) for s in scales for sh in SHEETS]
+    for s, (fmt, land, W, H) in tries:
+        free_w, free_h = W - 20 - 5 - 20, H - 5 - 5 - 55 - 20  # frame, title block, margins
+        w = (lx + lz) * s + gap
+        h = (ly + lz) * s + gap
+        if w <= free_w and h <= free_h:
+            x0 = 20 + 10 + (free_w - w) / 2
+            y0 = 5 + 55 + 10 + (free_h - h) / 2
+            front = (x0 + lx * s / 2, y0 + lz * s + gap + ly * s / 2)
+            top = (front[0], y0 + lz * s / 2)
+            left = (x0 + lx * s + gap + lz * s / 2, front[1])
+            iso = (left[0], top[1])
+            return fmt, land, s, {"#Спереди": front, "#Сверху": top, "#Слева": left,
+                                  "#Изометрия XYZ": iso}
+    raise RuntimeError("Модель не помещается даже на листе A0 в масштабе 1:10")
+
+
+def drawing_of_model(model: Path, out: Path, view_scale, log) -> str:
+    from ..kompas.api5 import Api5Backend
+
+    log("Подключение к КОМПАС…")
+    backend = Api5Backend(log=log, parametric=False)
+    x1, y1, z1, x2, y2, z2 = backend.model_gabarit(str(model))
+    size = (x2 - x1, y2 - y1, z2 - z1)
+    log(f"Габарит модели: {size[0]:.1f} × {size[1]:.1f} × {size[2]:.1f} мм")
+    fmt, land, s, places = lay_out_views(size, view_scale)
+    from ..kompas.writer import scale_name
+
+    log(f"Лист A{fmt}{' альбомный' if land else ''}, масштаб {scale_name(s)}")
+    backend.new_sheet(fmt, land)
+    centre = ((x1 + x2) / 2, (y1 + y2) / 2, (z1 + z2) / 2)
+    # where each view shows the model's centre (front: X, Y; top: X, Z; left: Z, Y)
+    shown = {"#Спереди": (centre[0], centre[1]), "#Сверху": (centre[0], -centre[2]),
+             "#Слева": (-centre[2], centre[1]), "#Изометрия XYZ": (0.0, 0.0)}
+    made = []
+    for projection, (cx, cy) in places.items():
+        sc = s * (0.6 if projection.startswith("#Изометрия") else 1.0)
+        u, v = shown[projection]
+        at = (cx - u * sc, cy - v * sc)
+        ok = backend.model_view(str(model), at, sc, projection=projection,
+                                hidden=not projection.startswith("#Изометрия"))
+        made.append(f"{projection.lstrip('#')}: {'да' if ok else 'нет'}")
+    saved = backend.save(str(out))
+    return ("Чертёж по модели " + model.name + "\nВиды (связаны с моделью): " + ", ".join(made)
+            + "\nРазмеры на виды ставятся в КОМПАС (Авторазмеры или вручную)\n"
+            + (f"Сохранено: {out}" if saved else f"Не удалось сохранить {out}"))
 
 
 class ModelError(RuntimeError):
