@@ -87,23 +87,26 @@ class RecognizeJob(QObject):
 
 
 def judge_model(drawing, exact: bool):
-    """(True/None/False, why): whether a body of revolution can be made — if
-    not, only the drawing."""
+    """(True/None/False, why): what 3D part can be made — a body of revolution
+    (turned), else a prismatic part (the main view's outline extruded); False
+    only when there is no closed outline at all."""
     try:
         from ..model3d.revolve import find_revolve_profile, revolve_verdict
 
         ok, why = revolve_verdict(drawing)
-        if ok is False and exact:
-            return ok, why
-        found = find_revolve_profile(drawing) is not None
-        if ok is False and found:
+        found = ok is not False or not exact
+        found = found and find_revolve_profile(drawing) is not None
+        if found and ok is False:
             # without the fitting the model follows the lines, whatever the sizes say
-            return None, "режим без выравнивания: модель строится по линиям чертежа"
-        if not found:
-            return False, "не найден профиль над осевой линией"
-        return ok, why
+            return None, "тело вращения; режим без выравнивания: модель строится по линиям"
+        if found:
+            return ok, "тело вращения: " + why
     except Exception as exc:  # the drawing stays usable whatever happens here
-        return None, f"не удалось проверить: {exc!r}"
+        why = f"тело вращения не проверено: {exc!r}"
+    from ..model3d.prismatic import extrude_verdict
+
+    ok2, why2 = extrude_verdict(drawing)
+    return (True, why2) if ok2 else (False, why2)
 
 
 class KompasJob(QObject):
@@ -180,14 +183,20 @@ def _link_view(backend, drawing, model: Path, link, log) -> set:
         ok = False
     if not ok:
         return set()
-    (ox, oy), (ux, uy), k = link["origin"], link["u"], link["scale"]
-    half = link["radius"] * k + 0.5
+    if "box" in link:
+        bx0, by0, bx1, by1 = link["box"]
 
-    def inside(p):
-        vx, vy = p[0] - ox, p[1] - oy
-        along = (vx * ux + vy * uy) / k
-        return link["x_from"] - 0.5 / k <= along <= link["x_to"] + 0.5 / k \
-            and abs(-vx * uy + vy * ux) <= half
+        def inside(p):
+            return bx0 - 0.5 <= p[0] <= bx1 + 0.5 and by0 - 0.5 <= p[1] <= by1 + 0.5
+    else:
+        (ox, oy), (ux, uy), k = link["origin"], link["u"], link["scale"]
+        half = link["radius"] * k + 0.5
+
+        def inside(p):
+            vx, vy = p[0] - ox, p[1] - oy
+            along = (vx * ux + vy * uy) / k
+            return link["x_from"] - 0.5 / k <= along <= link["x_to"] + 0.5 / k \
+                and abs(-vx * uy + vy * ux) <= half
 
     skip = set()
     for e in drawing.entities:
@@ -313,10 +322,13 @@ def make_model(drawing, out: Path, exact: bool, parametric: bool, log):
         drawing = geometry_only(drawing)
         log("Модель по геометрии чертежа (без выравнивания по размерам): "
             "концы контура сомкнуты, размеры не используются")
-    profile = find_revolve_profile(drawing)
+    profile = None
+    from ..model3d.revolve import revolve_verdict
+
+    if revolve_verdict(drawing)[0] is not False or not exact:
+        profile = find_revolve_profile(drawing)
     if profile is None:
-        raise ModelError("Не найден профиль тела вращения: нужна осевая линия вдоль детали "
-                         "и контур (лучше — разрез со штриховкой) по одну сторону от неё.")
+        return make_extruded(drawing, out, parametric, log)
     log(profile.summary())
     from ..kompas.api5 import Api5Backend
     from ..model3d.endview import find_flange
@@ -367,6 +379,29 @@ def make_model(drawing, out: Path, exact: bool, parametric: bool, log):
                                  fillets=fillets, channels=channels, parametric=parametric)
     return (profile.summary() + "\n" + (f"3D-деталь сохранена: {out}" if saved
                                         else f"Не удалось сохранить {out}"), saved, link)
+
+
+def make_extruded(drawing, out: Path, parametric: bool, log):
+    """A part that is not a body of revolution: the main view's outline with
+    its through cuts, extruded to the thickness."""
+    from ..kompas.api5 import Api5Backend
+    from ..model3d.prismatic import find_extrude_profile
+
+    prof = find_extrude_profile(drawing)
+    if prof is None:
+        raise ModelError("Не найден замкнутый контур детали: ни тело вращения, ни контур "
+                         "для выдавливания.")
+    log(prof.summary())
+    log("Подключение к КОМПАС…")
+    backend = Api5Backend(log=log)
+    log("Эскиз контура и выдавливание…")
+    saved = backend.extrude_part(prof.loops, prof.thickness, str(out), log=log,
+                                 parametric=parametric)
+    x0, y0, x1, y1 = prof.sheet_box
+    # the part's front view lies on the main view: its origin at the outline's corner
+    link = {"origin": (x0, y0), "angle": 0.0, "scale": prof.scale, "box": prof.sheet_box}
+    return (prof.summary() + "\n" + (f"3D-деталь сохранена: {out}" if saved
+                                     else f"Не удалось сохранить {out}"), saved, link)
 
 
 def _view_link(profile, loops, shift: float):

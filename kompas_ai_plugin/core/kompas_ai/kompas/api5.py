@@ -1117,7 +1117,7 @@ class Api5Backend:
                     xs += [seg[1][0] - seg[2], seg[1][0] + seg[2]]
         return min(xs), max(xs)
 
-    def _sketch5(self, d2, loops):
+    def _sketch5(self, d2, loops, axis: bool = True):
         for loop in loops:
             for seg in loop:
                 if seg[0] == "line":
@@ -1127,10 +1127,11 @@ class Api5Backend:
                 else:
                     (cx, cy), r, a1, a2 = seg[1], seg[2], seg[3], seg[4]
                     d2.ksArcByAngle(cx, cy, r, a1, a2, 1, 1)
-        x0, x1 = self._sketch_extent(loops)
-        d2.ksLineSeg(x0 - 5.0, 0.0, x1 + 5.0, 0.0, 3)  # the axis of revolution
+        if axis:
+            x0, x1 = self._sketch_extent(loops)
+            d2.ksLineSeg(x0 - 5.0, 0.0, x1 + 5.0, 0.0, 3)  # the axis of revolution
 
-    def _sketch7(self, loops, d2) -> tuple[int, int]:
+    def _sketch7(self, loops, d2, with_axis: bool = True) -> tuple[int, int]:
         """Sketch objects through API7 + constraints that define the sketch
         fully (model3d.sketch_dof): joints, horizontal/vertical lines, tangent
         fillets, then fixed points and lengths for what is still free — each
@@ -1141,13 +1142,14 @@ class Api5Backend:
         self.parametric, self._drawing7 = True, None  # the active document: the sketch
         try:
             x0, x1 = self._sketch_extent(loops)
-            axis = ((x0 - 5.0, 0.0), (x1 + 5.0, 0.0))
+            axis = ((x0 - 5.0, 0.0), (x1 + 5.0, 0.0)) if with_axis else None
             segments, jobs, left = full_definition(loops, axis)
             objs = []
-            for seg in segments[:-1]:
+            for seg in (segments[:-1] if with_axis else segments):
                 objs.append(self.line(seg[1], seg[2], 1) if seg[0] == "line"
                             else self._sketch_arc(d2, seg))
-            objs.append(self.line(axis[0], axis[1], 3))  # the axis of revolution
+            if with_axis:
+                objs.append(self.line(axis[0], axis[1], 3))  # the axis of revolution
             if not all(objs):
                 raise RuntimeError("не все объекты эскиза созданы")
             made, failed, dims = 0, {}, 0
@@ -1195,6 +1197,43 @@ class Api5Backend:
             return made, len(jobs)
         finally:
             self.parametric, self._drawing7 = saved
+
+    def extrude_part(self, loops, thickness: float, path: str, log=None,
+                     parametric: bool = True) -> bool:
+        """A part made by extruding closed loops (the outline and its through
+        cuts) on the XOY plane by ``thickness`` mm along Z."""
+        log = log or self.log
+        m, c = self.m, self.constants
+        doc3d = self.kompas.Document3D()
+        if not doc3d.Create(False, True):
+            raise RuntimeError(f"КОМПАС не создал деталь (код {self.last_error()})")
+        self._doc3d = doc3d
+        part = doc3d.GetPart(c.pTop_Part)
+        sketch = part.NewEntity(c.o3d_sketch)
+        sdef = m.ksSketchDefinition(sketch.GetDefinition())
+        sdef.SetPlane(part.GetDefaultEntity(c.o3d_planeXOY))
+        sketch.Create()
+        d2 = sdef.BeginEdit()
+        if not parametric:
+            log("Эскиз без параметризации: простые отрезки и дуги")
+            self._sketch5(d2, loops, axis=False)
+        else:
+            try:
+                made, tried = self._sketch7(loops, d2, with_axis=False)
+                log(f"Эскиз через API7: связей и размеров создано {made} из {tried}")
+            except Exception as exc:
+                log(f"Эскиз через API7 не удался ({exc!r}) — строю через API5, без связей")
+                self._sketch5(d2, loops, axis=False)
+        sdef.EndEdit()
+        ext = part.NewEntity(c.o3d_baseExtrusion)
+        ed = m.ksBaseExtrusionDefinition(ext.GetDefinition())
+        ed.directionType = c.dtNormal
+        ed.SetSideParam(True, c.etBlind, float(thickness), 0.0, False)
+        ed.SetSketch(sketch)
+        if not ext.Create():
+            raise RuntimeError(f"Выдавливание не выполнено (код {self.last_error()})")
+        log(f"Выдавливание на {thickness:g} мм")
+        return bool(doc3d.SaveAs(path))
 
     def _sketch_dimension(self, obj, seg) -> bool:
         """A driving dimension in the sketch (api_test14/15): a line's length

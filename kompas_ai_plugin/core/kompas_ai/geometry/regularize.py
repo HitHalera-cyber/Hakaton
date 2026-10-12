@@ -1298,7 +1298,10 @@ def _nice_conds(conds, x, scale, levels, radii=()):
                 row[2 * i + k] = 1.0
                 if free(row):
                     out.append(("fix", i, k, axis + math.copysign(v * scale / 2, value - axis)))
-        for (va, a), (vb, b) in zip(lv, lv[1:]):
+        # from the outline's base (its lowest / leftmost level), as a designer
+        # sizes a part; then between neighbouring levels
+        pairs = [(lv[0], q) for q in lv[1:]] + list(zip(lv, lv[1:])) if lv else []
+        for (va, a), (vb, b) in pairs:
             v = _nice((vb - va) / scale, scale)
             if v is None or abs(v * scale - (vb - va)) < 1e-9:
                 continue

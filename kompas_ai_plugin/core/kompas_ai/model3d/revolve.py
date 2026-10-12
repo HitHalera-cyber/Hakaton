@@ -23,7 +23,7 @@ from .. import ir
 from ..geometry.segmentation import Primitive
 from ..semantics.regions import contour_faces
 
-MIN_AXIS = 20.0  # sheet mm
+MIN_AXIS = 12.0  # sheet mm
 TOUCH = 0.05  # sheet mm
 
 
@@ -254,6 +254,11 @@ def _connected_half(all_faces, axis, side):
     tree = STRtree(faces)
     line = LineString(axis)
     component = [i for i, f in enumerate(faces) if f.distance(line) <= TOUCH]
+    if not component:
+        # a hollow part in section (a bush): the bore lies between the axis and
+        # the material, so the faces nearest the axis start the half
+        gap = min(f.distance(line) for f in faces)
+        component = [i for i, f in enumerate(faces) if f.distance(line) <= gap + 0.5]
     seen = set(component)
     while component:  # faces sharing a boundary with the ones already taken
         i = component.pop()

@@ -401,8 +401,9 @@ class MainWindow(QMainWindow):
             "Чертёж", "Лист в КОМПАС: геометрия, размеры, таблицы", "Построить чертёж",
             self.build_in_kompas)
         self.model_button, self.model_note = build_card(
-            "3D-модель", "Тело вращения: профиль над осью вращается на 360°, лыски, отверстия, "
-            "резьба", "Построить модель", self.build_3d)
+            "3D-модель", "Тело вращения (профиль вращается на 360°, лыски, отверстия, резьба) "
+            "или призматическая деталь (контур выдавливается на толщину)", "Построить модель",
+            self.build_3d)
         self.both_button, _ = build_card(
             "Модель и чертёж", "Главный вид чертежа — вид модели: изменили модель — чертёж "
             "перестроился", "Построить всё", self.build_both)
@@ -575,11 +576,11 @@ class MainWindow(QMainWindow):
         ok, why = getattr(drawing, "model_verdict", None) or (None, "не проверено")
         self.model_ok = ok
         if ok is False:
-            self.model_note.setText(f"Не тело вращения — будет только чертёж. {why[:1].upper() + why[1:]}.")
+            self.model_note.setText(f"3D-модель не строится — будет только чертёж: {why}.")
             self.model_note.setObjectName("subWarn")
             self._log(f"3D-модель не строится: {why}")
         else:
-            self.model_note.setText("Тело вращения: " + why + (
+            self.model_note.setText(why[:1].upper() + why[1:] + (
                 "" if ok else ". Проверьте модель после построения") + ".")
             self.model_note.setObjectName("sub")
         self.model_note.style().unpolish(self.model_note)

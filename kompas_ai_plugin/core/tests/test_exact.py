@@ -79,3 +79,20 @@ def test_table_is_found_and_read():
     assert t.cells == [["a", "b", "c"], ["1,5", "2,5", "3,5"]]
     assert t.widths == [20.0, 20.0, 20.0] and t.heights == [10.0, 10.0]
     assert t.top_left == (0.0, 20.0)
+
+
+def test_plate_is_extruded_with_its_holes():
+    from kompas_ai.model3d.prismatic import find_extrude_profile
+    from kompas_ai.model3d.sketch_dof import full_definition
+
+    d = ir.Drawing(scale=ir.Scale(value=1.0))
+    pts = [(10.0, 10.0), (70.0, 10.0), (70.0, 50.0), (10.0, 50.0)]
+    d.entities = [ir.Line(f"L{i}", p1=a, p2=b) for i, (a, b) in
+                  enumerate(zip(pts, pts[1:] + pts[:1]))]
+    d.entities += [ir.Circle("C1", center=(30.0, 30.0), radius=5.0),
+                   ir.Text("T1", text="s3", position=(80.0, 60.0))]
+    prof = find_extrude_profile(d)
+    assert prof is not None and prof.holes == 1 and prof.thickness == 3.0
+    assert math.isclose(prof.width, 60.0) and math.isclose(prof.height, 40.0)
+    _, _, left = full_definition(prof.loops, None)
+    assert left == 0  # the sketch is fully defined
