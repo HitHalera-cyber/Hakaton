@@ -48,15 +48,18 @@ class RevolveProfile:
 def find_revolve_profile(drawing: ir.Drawing) -> RevolveProfile | None:
     scale = drawing.scale.value or 1.0
     best = None
+    prims = main_primitives(drawing)  # once: an assembly has thousands
+    hatches = _hatch_polygons(drawing)
     for axis in _axes(drawing):
         if _end_view(drawing, axis):
             continue  # a circle seen from the end: its half is no profile
         on_axis = None
+        faces_here = _axis_faces(prims, axis)
         for side in (1, -1):
-            faces = _view_half(drawing, axis, side)
+            faces = _connected_half(faces_here, axis, side)
             if not faces:
                 continue
-            region, source = _hatched(drawing, faces), "hatch"
+            region, source = _hatched(drawing, faces, hatches), "hatch"
             if region is None or region.is_empty:
                 region, source = unary_union(faces), "outline"
             # A section shows the bore; a plain view on the other side of a
@@ -159,17 +162,23 @@ def _half_plane(axis, side, extent=1000.0) -> Polygon:
                     (x1 + nx * extent, y1 + ny * extent)])
 
 
-def _hatched(drawing, faces):
-    """The faces of the half view that are hatched (the material of a section).
-    The faces come from the final (dimension-exact) geometry; the hatch only
-    tells which of them are material — its own outline predates the
-    regularisation."""
+def _hatch_polygons(drawing):
     hatches = []
     for h in drawing.of_type(ir.Hatch):
         if h.contours:
             poly = Polygon(h.contours[0], h.contours[1:]).buffer(0)
             if not poly.is_empty:
                 hatches.append(poly.buffer(0.2))
+    return hatches
+
+
+def _hatched(drawing, faces, hatches=None):
+    """The faces of the half view that are hatched (the material of a section).
+    The faces come from the final (dimension-exact) geometry; the hatch only
+    tells which of them are material — its own outline predates the
+    regularisation."""
+    if hatches is None:
+        hatches = _hatch_polygons(drawing)
     if not hatches:
         return None
     material = [f for f in faces if any(h.contains(f.representative_point()) for h in hatches)]
@@ -188,9 +197,34 @@ def _within_axis_span(poly, axis) -> bool:
 def _view_half(drawing, axis, side):
     """The faces of the outline on one side of the axis that are connected to
     the axis — one half of the view, without the other views of the sheet."""
-    prims = main_primitives(drawing)
-    prims.append(Primitive("line", list(axis), 0.25, 0.0, p1=axis[0], p2=axis[1]))
-    return _connected_half(prims, axis, side)
+    return _connected_half(_axis_faces(main_primitives(drawing), axis), axis, side)
+
+
+def _axis_faces(prims, axis):
+    """The faces of the outline around an axis, cut by the axis: only the
+    lines near it take part (the rest of the sheet, other views and other
+    parts of an assembly, makes no face the view could join)."""
+    (x1, y1), (x2, y2) = axis
+    n = math.hypot(x2 - x1, y2 - y1) or 1.0
+    ux, uy = (x2 - x1) / n, (y2 - y1) / n
+    reach = max(n, 80.0)
+
+    def local(p):
+        vx, vy = p[0] - x1, p[1] - y1
+        return vx * ux + vy * uy, -vx * uy + vy * ux
+
+    near = []
+    for p in prims:
+        if p.kind == "line":
+            pts = [local(p.p1), local(p.p2)]
+        else:
+            (t, s), r = local(p.center), p.radius
+            pts = [(t - r, s - r), (t + r, s + r)]
+        ts, ss = [q[0] for q in pts], [q[1] for q in pts]
+        if max(ts) >= -2.0 and min(ts) <= n + 2.0 and max(ss) >= -reach and min(ss) <= reach:
+            near.append(p)
+    near.append(Primitive("line", list(axis), 0.25, 0.0, p1=axis[0], p2=axis[1]))
+    return contour_faces(near)
 
 
 def main_primitives(drawing) -> list[Primitive]:
@@ -209,18 +243,22 @@ def main_primitives(drawing) -> list[Primitive]:
     return prims
 
 
-def _connected_half(prims, axis, side):
+def _connected_half(all_faces, axis, side):
+    from shapely import STRtree
+
     half = _half_plane(axis, side)
-    faces = [f for f in contour_faces(prims) if f.intersection(half).area >= 0.95 * f.area
+    faces = [f for f in all_faces if f.intersection(half).area >= 0.95 * f.area
              and _within_axis_span(f, axis)]
     if not faces:
         return None
+    tree = STRtree(faces)
     line = LineString(axis)
     component = [i for i, f in enumerate(faces) if f.distance(line) <= TOUCH]
     seen = set(component)
     while component:  # faces sharing a boundary with the ones already taken
         i = component.pop()
-        for j, g in enumerate(faces):
+        for j in sorted(int(k) for k in tree.query(faces[i].buffer(TOUCH))):
+            g = faces[j]
             if j not in seen and faces[i].distance(g) <= TOUCH \
                     and faces[i].boundary.intersection(g.boundary).length > TOUCH:
                 seen.add(j)

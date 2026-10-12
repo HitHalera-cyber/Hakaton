@@ -8,9 +8,11 @@ import time
 
 from PySide6.QtCore import QRectF, Qt, QTimer
 from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPainterPath, QPen
-from PySide6.QtWidgets import QWidget
+from PySide6.QtWidgets import QPushButton, QWidget
 
 from .pixel_scene import H, W, paint
+
+STATUS = 90  # px under the scene: the file, the stage, the bar, «Отменить»
 
 
 class DraftingLoader(QWidget):
@@ -26,6 +28,10 @@ class DraftingLoader(QWidget):
         self.timer = QTimer(self)
         self.timer.setInterval(50)
         self.timer.timeout.connect(self.update)
+        # stops the reading: the work gives up at its next stage
+        self.cancel_button = QPushButton("Отменить", self, objectName="secondary")
+        self.cancel_button.setCursor(Qt.PointingHandCursor)
+        self.cancel_button.hide()
         self.hide()
 
     def set_colors(self, colors: dict[str, str]) -> None:
@@ -38,6 +44,10 @@ class DraftingLoader(QWidget):
         self.started = time.monotonic()
         if self.parentWidget() is not None:
             self.setGeometry(self.parentWidget().rect())
+        self.cancel_button.setText("Отменить")
+        self.cancel_button.setEnabled(True)
+        self.cancel_button.show()
+        self._place_button()
         self.raise_()
         self.show()
         self.timer.start()
@@ -46,6 +56,24 @@ class DraftingLoader(QWidget):
         if name in self.stages:
             self.current = self.stages.index(name)
         self.update()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._place_button()
+
+    def _geometry(self):
+        """(scene frame x, y, width, height) for the widget's size."""
+        w, h = self.width(), self.height()
+        pad, status = 16, STATUS
+        k = min((w - 2 * pad) / W, (h - 2 * pad - status) / H)
+        if k >= 3:
+            k = int(k)
+        sw, sh = int(W * k), int(H * k)
+        return (w - sw) // 2, max(pad, (h - status - sh) // 2), sw, sh
+
+    def _place_button(self) -> None:
+        x, y, sw, sh = self._geometry()
+        self.cancel_button.setGeometry(x + sw - 120, y + sh + 48, 120, 34)
 
     def stop(self) -> None:
         self.timer.stop()
@@ -66,12 +94,7 @@ class DraftingLoader(QWidget):
         p.setBrush(self._col("card", "#232528"))
         p.drawRoundedRect(QRectF(0.5, 0.5, w - 1, h - 1), 18, 18)
         # the scene: as large as fits above the status, whole pixels when large
-        pad, status = 16, 46
-        k = min((w - 2 * pad) / W, (h - 2 * pad - status) / H)
-        if k >= 3:
-            k = int(k)
-        sw, sh = int(W * k), int(H * k)
-        x, y = (w - sw) // 2, max(pad, (h - status - sh) // 2)
+        x, y, sw, sh = self._geometry()
         frame = QRectF(x, y, sw, sh)
         scene = QImage(W, H, QImage.Format_ARGB32)
         scene.fill(self._col("card_alt", "#2B2E33"))
@@ -89,7 +112,7 @@ class DraftingLoader(QWidget):
         p.setPen(QPen(self._col("border", "#303338"), 1))
         p.setBrush(Qt.NoBrush)
         p.drawRoundedRect(frame.adjusted(0.5, 0.5, -0.5, -0.5), 12, 12)
-        self._status(p, QRectF(x, y + sh + 12, sw, status - 12), now)
+        self._status(p, QRectF(x, y + sh + 12, sw, 34), now)
         p.end()
 
     def _status(self, p: QPainter, box: QRectF, now: float) -> None:

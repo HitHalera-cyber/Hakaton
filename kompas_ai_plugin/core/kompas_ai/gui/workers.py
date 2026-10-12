@@ -19,6 +19,12 @@ from ..report.preview import render_preview_png
 
 PREVIEW_DPI = 150
 PREVIEW_STAGE = "Рисую предпросмотр"
+MODEL_STAGE = "Ищу профиль для 3D-модели"
+CANCELLED = "Распознавание отменено"
+
+
+class Cancelled(Exception):
+    """The user stopped the recognition."""
 
 
 MAX_PREVIEW_PIXELS = 10_000_000  # an A1 sheet at 150 dpi is 17 million: hundreds of MB
@@ -39,30 +45,65 @@ class RecognizeJob(QObject):
         super().__init__()
         self.pdf, self.exact, self.page = pdf, exact, page
         self.dpi = PREVIEW_DPI
+        self.cancelled = False
+
+    def cancel(self) -> None:
+        self.cancelled = True  # seen at the next stage of the recognition
+
+    def _stage(self, name: str) -> None:
+        if self.cancelled:
+            raise Cancelled()
+        self.stage.emit(name)
 
     def run(self) -> None:
         try:
             try:
                 drawing = recognize_pdf(self.pdf, self.page, exact=self.exact,
-                                        progress=self.stage.emit)
+                                        progress=self._stage)
+            except Cancelled:
+                raise
             except Exception:
                 if not self.exact:
                     raise
                 # the drawing opens anyway: as in the PDF, without the exact fitting
                 error = traceback.format_exc().strip().splitlines()[-1]
                 drawing = recognize_pdf(self.pdf, self.page, exact=False,
-                                        progress=self.stage.emit)
+                                        progress=self._stage)
                 drawing.warnings.insert(0, "Точный режим не удался, чертёж открыт как в PDF "
                                            f"(без выравнивания): {error}")
-            self.stage.emit(PREVIEW_STAGE)
+            self._stage(MODEL_STAGE)
+            drawing.model_verdict = judge_model(drawing, self.exact)
+            self._stage(PREVIEW_STAGE)
             with pymupdf.open(str(self.pdf)) as doc:
                 rect = doc[self.page].rect
             height = rect.height
             self.dpi = preview_dpi(rect.width, rect.height)
             png = render_preview_png(drawing, self.pdf, self.page, self.dpi, legend=False)
             self.finished.emit(drawing, png, height)
+        except Cancelled:
+            self.failed.emit(CANCELLED)
         except Exception:
             self.failed.emit(traceback.format_exc())
+
+
+def judge_model(drawing, exact: bool):
+    """(True/None/False, why): whether a body of revolution can be made — if
+    not, only the drawing."""
+    try:
+        from ..model3d.revolve import find_revolve_profile, revolve_verdict
+
+        ok, why = revolve_verdict(drawing)
+        if ok is False and exact:
+            return ok, why
+        found = find_revolve_profile(drawing) is not None
+        if ok is False and found:
+            # without the fitting the model follows the lines, whatever the sizes say
+            return None, "режим без выравнивания: модель строится по линиям чертежа"
+        if not found:
+            return False, "не найден профиль над осевой линией"
+        return ok, why
+    except Exception as exc:  # the drawing stays usable whatever happens here
+        return None, f"не удалось проверить: {exc!r}"
 
 
 class KompasJob(QObject):
@@ -231,6 +272,33 @@ class BothJob(QObject):
                 pythoncom.CoUninitialize()
         except Exception as exc:
             self.failed.emit(str(exc) if isinstance(exc, ModelError) else traceback.format_exc())
+
+
+class CheckJob(QObject):
+    """«Проверить КОМПАС»: which ways of making a linked view and a table
+    this KOMPAS takes (kompas/diagnose.py)."""
+
+    progress = Signal(str)
+    finished = Signal(str)
+    failed = Signal(str)
+
+    def run(self) -> None:
+        if sys.platform != "win32":
+            self.failed.emit("Проверка КОМПАС возможна только в Windows с установленным КОМПАС-3D.")
+            return
+        try:
+            import pythoncom
+
+            pythoncom.CoInitialize()
+            try:
+                from ..kompas.diagnose import run
+
+                report = run(self.progress.emit)
+                self.finished.emit(f"Проверка КОМПАС закончена. Пришлите файл отчёта:\n{report}")
+            finally:
+                pythoncom.CoUninitialize()
+        except Exception:
+            self.failed.emit(traceback.format_exc())
 
 
 class ModelError(RuntimeError):

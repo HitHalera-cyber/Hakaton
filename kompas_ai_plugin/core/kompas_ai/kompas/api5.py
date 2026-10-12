@@ -1342,30 +1342,53 @@ class Api5Backend:
                    projection: str = "#Спереди", hidden: bool = False) -> bool:
         """A view of a saved part, linked to it (the view follows the model):
         the model's origin at ``at`` on the sheet, turned by ``angle``°;
-        ``hidden`` shows the hidden edges (bores) dashed. API7 first, then API5."""
-        try:
-            from win32com.client import CastTo, gencache
+        ``hidden`` shows the hidden edges (bores) dashed. API7 first, then API5;
+        the projection's name with and without «#» (KOMPAS versions differ)."""
+        names = [projection, projection.lstrip("#")] if projection.startswith("#") else [projection]
+        for name in names:
+            try:
+                if self._model_view7(source, at, scale, angle, name, hidden):
+                    self.log(f"  вид модели: API7, проекция «{name}»")
+                    return True
+            except Exception as exc:
+                self.log(f"  вид модели через API7 («{name}»): {exc!r}")
+        for name in names:
+            try:
+                if self._model_view5(source, at, scale, angle, name, hidden):
+                    self.log(f"  вид модели: API5, проекция «{name}»")
+                    return True
+            except Exception as exc:
+                self.log(f"  вид модели через API5 («{name}»): {exc!r}")
+        return False
 
-            app = gencache.EnsureDispatch("Kompas.Application.7")
-            doc2d = CastTo(app.ActiveDocument, "IKompasDocument2D")
-            view = doc2d.ViewsAndLayersManager.Views.Add(self.constants.vt_Arbitrary)
-            assoc = CastTo(view, "IAssociationView")
-            assoc.SourceFileName = source
-            assoc.ProjectionName = projection
-            if hidden:
-                try:
-                    assoc.HiddenLinesVisible = True
-                except Exception:
-                    pass
-            view.X, view.Y = at
-            view.Scale = scale
-            view.Angle = angle
-            view.Name = "Модель"
-            if view.Update():
-                self._drawing7 = None
-                return True
-        except Exception as exc:
-            self._once("model_view7", f"  вид модели через API7: {exc!r} — пробую API5")
+    def _model_view7(self, source, at, scale, angle, projection, hidden) -> bool:
+        from win32com.client import CastTo, gencache
+
+        app = gencache.EnsureDispatch("Kompas.Application.7")
+        doc2d = CastTo(app.ActiveDocument, "IKompasDocument2D")
+        view = doc2d.ViewsAndLayersManager.Views.Add(self.constants.vt_Arbitrary)
+        assoc = CastTo(view, "IAssociationView")
+        assoc.SourceFileName = source
+        assoc.ProjectionName = projection
+        if hidden:
+            try:
+                assoc.HiddenLinesVisible = True
+            except Exception:
+                pass
+        view.X, view.Y = at
+        view.Scale = scale
+        view.Angle = angle
+        view.Name = "Модель"
+        ok = bool(view.Update())
+        if not ok:
+            try:
+                view.Delete()
+            except Exception:
+                pass
+        self._drawing7 = None
+        return ok
+
+    def _model_view5(self, source, at, scale, angle, projection, hidden) -> bool:
         par = self._param("ko_AssociationViewParam", "ksAssociationViewParam")
         par.Init()
         par.fileName, par.projectionName = source, projection

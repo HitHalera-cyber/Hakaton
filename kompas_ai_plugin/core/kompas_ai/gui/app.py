@@ -25,7 +25,8 @@ from ..report.summary import TYPE_NAMES, summary_text
 from ..pipeline import STAGES
 from .loader import DraftingLoader
 from .theme import THEME_ICONS, THEME_NAMES, THEMES, style_sheet
-from .workers import PREVIEW_DPI, PREVIEW_STAGE, BothJob, KompasJob, RecognizeJob, RevolveJob
+from .workers import (CANCELLED, MODEL_STAGE, PREVIEW_DPI, PREVIEW_STAGE, BothJob, CheckJob, KompasJob,
+                      RecognizeJob, RevolveJob)
 
 APP_NAME = "КОМПАС-AI"
 MODES = [("Точно по размерам", True), ("Как в PDF (без выравнивания)", False)]
@@ -45,6 +46,7 @@ class PreviewView(QGraphicsView):
         self.setFrameShape(QFrame.NoFrame)
         self.marker: QGraphicsEllipseItem | None = None
         self.png: bytes | None = None
+        self.marks: list = []  # (x, y, number) of broken rules, in preview pixels
         self.colors = THEMES["light"]
 
     def set_colors(self, colors: dict[str, str]) -> None:
@@ -78,11 +80,37 @@ class PreviewView(QGraphicsView):
         pix = QPixmap.fromImage(image)
         self.scene().addPixmap(pix)
         self.scene().setSceneRect(pix.rect())
+        self._draw_marks()
         if keep_view:
             self.setTransform(transform)
             self.centerOn(center)
         else:
             self.fit()
+
+    def set_marks(self, marks) -> None:
+        """Rings with numbers where the contour breaks its rules."""
+        self.marks = list(marks)
+        if self.png is not None:
+            self.show_png(self.png, keep_view=True)
+
+    def _draw_marks(self) -> None:
+        from PySide6.QtGui import QFont
+
+        red = QColor("#E5484D")
+        pen = QPen(red, 3)
+        pen.setCosmetic(True)  # as thick at any zoom
+        font = QFont()
+        font.setPixelSize(16)
+        font.setBold(True)
+        for x, y, number in self.marks:
+            r = 14
+            ring = self.scene().addEllipse(x - r, y - r, 2 * r, 2 * r, pen, QBrush(Qt.NoBrush))
+            ring.setZValue(5)
+            ring.setToolTip(f"Нарушение {number} — подробности на странице «Проверка»")
+            label = self.scene().addSimpleText(str(number), font)
+            label.setBrush(QBrush(red))
+            label.setPos(x + r, y - r - 18)
+            label.setZValue(5)
 
     def fit(self) -> None:
         if not self.scene().sceneRect().isEmpty():
@@ -314,6 +342,7 @@ class MainWindow(QMainWindow):
         grid.addWidget(sheet, 0, 0, 2, 2)
         self.sheet_card = sheet
         self.loader = DraftingLoader(sheet)
+        self.loader.cancel_button.clicked.connect(self.cancel_recognition)
         sheet.installEventFilter(self)
 
         self.rules_card = StatCard("Правила контура")
@@ -395,6 +424,12 @@ class MainWindow(QMainWindow):
         self.dxf_button.clicked.connect(self.save_dxf)
         self.report_button = QPushButton("Сохранить отчёт…", objectName="secondary")
         self.report_button.clicked.connect(self.save_report)
+        self.check_button = QPushButton("Проверить КОМПАС", objectName="secondary")
+        self.check_button.setToolTip(
+            "Пробует в вашем КОМПАС все способы сделать таблицу и вид, связанный с моделью, "
+            "и пишет отчёт — пришлите его, если таблицы или «Построить всё» не работают")
+        self.check_button.clicked.connect(self.check_kompas)
+        top.addWidget(self.check_button)
         top.addWidget(self.dxf_button)
         top.addWidget(self.report_button)
         lay.addLayout(top)
@@ -497,18 +532,29 @@ class MainWindow(QMainWindow):
         self._log(f"Распознавание: {self.pdf}")
         job = RecognizeJob(self.pdf, exact=MODES[self.mode.currentIndex()][1])
         exact = MODES[self.mode.currentIndex()][1]
-        stages = [s for s in STAGES if exact or s not in STAGES[5:]] + [PREVIEW_STAGE]
+        stages = [s for s in STAGES if exact or s not in STAGES[5:]] + [MODEL_STAGE,
+                                                                       PREVIEW_STAGE]
         self.loader.start(f"Читаю {self.pdf.name}", stages)
         job.stage.connect(self.loader.stage)
+        self._cancel_target = job
         job.finished.connect(self.on_recognized)
         job.failed.connect(self.on_failed)
         self._start(job)
+
+    def cancel_recognition(self) -> None:
+        job = getattr(self, "_cancel_target", None)
+        if job is not None and self._busy():
+            job.cancel()
+            self.loader.cancel_button.setText("Отменяю…")
+            self.loader.cancel_button.setEnabled(False)
+            self.statusBar().showMessage("Отменяю — остановлюсь после текущего шага")
 
     def on_recognized(self, drawing: ir.Drawing, png: bytes, page_height: float) -> None:
         self.loader.stop()
         self.drawing, self.page_height = drawing, page_height
         self.preview_dpi = getattr(self.job, "dpi", PREVIEW_DPI)
         self.preview.show_png(png)
+        self.preview.set_marks(self._issue_marks(drawing))
         self.summary.setPlainText(summary_text(drawing))
         self._fill_review(drawing)
         self._show_results(drawing)
@@ -524,18 +570,9 @@ class MainWindow(QMainWindow):
 
     def _judge_model(self, drawing: ir.Drawing) -> None:
         """Whether a body of revolution can be made: if not, only the drawing."""
-        try:
-            from ..model3d.revolve import find_revolve_profile, revolve_verdict
-
-            ok, why = revolve_verdict(drawing)
-            if ok is False and not MODES[self.mode.currentIndex()][1] \
-                    and find_revolve_profile(drawing) is not None:
-                # without the fitting the model follows the lines, whatever the sizes say
-                ok, why = None, "режим без выравнивания: модель строится по линиям чертежа"
-            if ok is not False and find_revolve_profile(drawing) is None:
-                ok, why = False, "не найден профиль над осевой линией"
-        except Exception as exc:  # the drawing stays usable whatever happens here
-            ok, why = None, f"не удалось проверить: {exc!r}"
+        # judged in the background with the recognition (on an assembly the
+        # search for a profile took minutes and froze the window)
+        ok, why = getattr(drawing, "model_verdict", None) or (None, "не проверено")
         self.model_ok = ok
         if ok is False:
             self.model_note.setText(f"Не тело вращения — будет только чертёж. {why[:1].upper() + why[1:]}.")
@@ -574,6 +611,24 @@ class MainWindow(QMainWindow):
         count = len(drawing.review) + len(drawing.issues)
         self.nav.button(2).setText(f"Проверка · {count}" if count else "Проверка")
 
+    def _issue_place(self, drawing: ir.Drawing, text: str):
+        """Sheet point of a broken rule: its coordinates, or its object's middle."""
+        m = re.search(r"\((-?[\d.]+); (-?[\d.]+)\)", text)
+        if m:
+            return float(m.group(1)), float(m.group(2))
+        entity = drawing.get(text.split(":", 1)[0])
+        return _anchor(entity) if entity else None
+
+    def _issue_marks(self, drawing: ir.Drawing) -> list:
+        out = []
+        for number, text in enumerate(drawing.issues, 1):
+            place = self._issue_place(drawing, text)
+            if place:
+                x, y = sheet_to_pixel(drawing, self.page_height,
+                                      getattr(self, "preview_dpi", PREVIEW_DPI), place)
+                out.append((x, y, number))
+        return out
+
     def _fill_review(self, drawing: ir.Drawing) -> None:
         """Broken contour rules first (what each means in the tooltip), then
         the objects recognised with doubt."""
@@ -589,12 +644,12 @@ class MainWindow(QMainWindow):
 
         if drawing.issues:
             header(f"Правила контура — нарушений {len(drawing.issues)}")
-            for text in drawing.issues:
-                item = QListWidgetItem(text)
+            for number, text in enumerate(drawing.issues, 1):
+                item = QListWidgetItem(f"{number}. {text}")
                 item.setData(Qt.UserRole, text.split(":", 1)[0])
-                m = re.search(r"\((-?[\d.]+); (-?[\d.]+)\)", text)
-                if m:
-                    item.setData(Qt.UserRole + 1, (float(m.group(1)), float(m.group(2))))
+                place = self._issue_place(drawing, text)
+                if place:
+                    item.setData(Qt.UserRole + 1, place)
                 item.setToolTip(_rule_meaning(text))
                 self.review.addItem(item)
         if drawing.review:
@@ -676,6 +731,17 @@ class MainWindow(QMainWindow):
         job.failed.connect(self.on_failed)
         self._start(job)
 
+    def check_kompas(self) -> None:
+        if self._busy():
+            return
+        self.show_page(PAGES.index("Журнал"))
+        self.statusBar().showMessage("Проверяю КОМПАС…")
+        job = CheckJob()
+        job.progress.connect(self._log)
+        job.finished.connect(self.on_built)
+        job.failed.connect(self.on_failed)
+        self._start(job)
+
     def show_page(self, index: int) -> None:
         self.nav.button(index).setChecked(True)
         self.pages.setCurrentIndex(index)
@@ -707,6 +773,11 @@ class MainWindow(QMainWindow):
 
     def on_failed(self, message: str) -> None:
         self.loader.stop()
+        if message == CANCELLED:
+            self._log(message)
+            self.statusBar().showMessage(message)
+            self._set_ready(self.drawing is not None)
+            return
         self._log(message)
         self.statusBar().showMessage("Ошибка — подробности в журнале")
         self._set_ready(self.drawing is not None)
