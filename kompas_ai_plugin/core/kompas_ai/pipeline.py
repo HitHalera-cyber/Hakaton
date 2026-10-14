@@ -42,10 +42,12 @@ STAGES = ["Читаю PDF", "Рамка и основная надпись", "Л
 
 
 def recognize_pdf(pdf_path: str | Path, page: int = 0, exact: bool = True,
-                  progress=None, raster: bool = False) -> ir.Drawing:
+                  progress=None, raster: bool = False,
+                  scale: float | None = None) -> ir.Drawing:
     """Recognise one PDF page. ``exact`` corrects the geometry to the written
     dimensions (see geometry/regularize.py); False keeps the measured PDF values.
-    ``progress(stage)`` is called with each of STAGES as it starts."""
+    ``progress(stage)`` is called with each of STAGES as it starts. ``scale``:
+    the drawing's scale when the sheet does not say it (a photo)."""
     step = progress or (lambda stage: None)
     step(STAGES[0])
     content = extract_page(pdf_path, page)
@@ -83,13 +85,18 @@ def recognize_pdf(pdf_path: str | Path, page: int = 0, exact: bool = True,
 
     # A thin line with an arrowhead at its end is a dimension or leader line,
     # never a hatch stroke (even when it runs at the hatch angle).
-    hatch_candidates = [p for p in prims if is_thin(p) and p.kind == "line"
-                        and not _ends_in_arrow(p, arrows)]
+    # (a photo: a hatch stroke in a small cell may come out as wide as a main
+    # line — the darkness of the outline around it — so slanted ones count too)
+    hatch_candidates = [p for p in prims if p.kind == "line" and (is_thin(p) or raster and _slanted(p))
+                        and not _ends_in_arrow(p, arrows)
+                        and not (raster and p.length < PHOTO_STUB)]
     hatch_groups, _ = detect_hatches(hatch_candidates)
     hatch_ids = {id(l) for g in hatch_groups for l in g.lines}
     prims = [p for p in prims if id(p) not in hatch_ids]
+    if raster:
+        _square_dashes(prims, thin_w)
     if thin_w > 0:
-        prims = merge_dashed(prims, thin_w, [(a.tip, a.direction) for a in arrows])
+        prims = merge_dashed(prims, thin_w, [(a.tip, a.direction) for a in arrows], photo=raster)
 
     # Dimensions
     texts = [t for t in content.texts if not is_title_block_text(t, layout)]
@@ -125,6 +132,9 @@ def recognize_pdf(pdf_path: str | Path, page: int = 0, exact: bool = True,
     ratios = [d.measured / d.text.value for d in found
               if d.dim_type != "angular" and d.text.value > 0]
     drawing.scale = resolve_scale(title_scale, ratios)
+    if scale and drawing.scale.source != "title_block":
+        # told by the user (a photo: its numbers are not read)
+        drawing.scale = ir.Scale(value=scale, text=scale_text(scale), source="user")
     drawing.warnings.extend(drawing.scale.conflicts)
 
     step(STAGES[4])
@@ -158,6 +168,10 @@ def recognize_pdf(pdf_path: str | Path, page: int = 0, exact: bool = True,
             drawing.warnings.append(
                 "Слишком сложная связка линий (сборочный чертёж?) — оставлена как в PDF, без "
                 f"выравнивания: узлов {', '.join(map(str, solved['left_as_drawn']))}")
+        gone = _drop_degenerate(drawing)
+        if gone:
+            drawing.processing.append(f"Убраны скругления нулевого размера (углы, сглаженные при "
+                                      f"распознавании): {gone}")
         rebuilt = _rebuild_hatches(drawing)
         if rebuilt:
             drawing.processing.append(f"Штриховки построены заново по точному контуру: {rebuilt}")
@@ -301,9 +315,13 @@ def _build_entities(drawing, geometry, is_thin, found, plain_texts, regions, orp
                                          spacing=round(region.spacing, 3),
                                          contours=region.contours(), line_count=region.line_count))
     for g in orphan_groups:
-        drawing.entities.append(ir.Hatch(
-            new_id("H"), 0.5, ["Граница штриховки не найдена"], angle=round(g.angle, 2),
-            spacing=round(g.spacing, 3), contours=[], line_count=len(g.lines)))
+        h = ir.Hatch(new_id("H"), 0.5, ["Граница штриховки не найдена"], angle=round(g.angle, 2),
+                     spacing=round(g.spacing, 3), contours=[], line_count=len(g.lines))
+        # where its strokes lie: the region is looked for again on the final
+        # contour (a photo's outline closes only once it is solved)
+        h.strokes = [(((l.p1[0] + l.p2[0]) / 2, (l.p1[1] + l.p2[1]) / 2), l.length)
+                     for l in g.lines]
+        drawing.entities.append(h)
     branches = _radius_branches(drawing)
     if branches:
         drawing.processing.append(f"Дополнительные выноски радиусов: {branches}")
@@ -346,7 +364,10 @@ def _rebuild_hatches(drawing) -> int:
     faces = contour_faces(main_primitives(drawing))
     tree = STRtree(faces) if faces else None
     done = 0
-    for h in drawing.of_type(ir.Hatch):
+    for h in list(drawing.of_type(ir.Hatch)):
+        if not h.contours and tree is not None and getattr(h, "strokes", None):
+            done += _hatch_from_strokes(drawing, h, faces, tree)
+            continue
         if not h.contours or tree is None:
             continue
         old = Polygon(h.contours[0], h.contours[1:]).buffer(0)
@@ -366,6 +387,41 @@ def _rebuild_hatches(drawing) -> int:
         h.contours = [[(float(x), float(y)) for x, y in r.coords] for r in rings]
         done += 1
     return done
+
+
+def _hatch_from_strokes(drawing, h, faces, tree) -> int:
+    """A hatch whose border was not found: the faces of the final contour its
+    strokes lie in (a face no bigger than its strokes could fill). Each
+    separate piece is a hatch of its own."""
+    from shapely.geometry import Point
+    from shapely.ops import unary_union
+
+    count: dict[int, int] = {}
+    longest = max(length for _, length in h.strokes)
+    for mid, _ in h.strokes:
+        q = Point(mid)
+        for k in tree.query(q):
+            if faces[int(k)].contains(q):
+                count[int(k)] = count.get(int(k), 0) + 1
+    mine = [faces[k] for k, n in count.items()
+            if faces[k].area <= (n + 2) * max(h.spacing, 0.5) * longest * 2.0]
+    if not mine:
+        return 0
+    region = unary_union(mine)
+    parts = list(region.geoms) if hasattr(region, "geoms") else [region]
+    made = 0
+    for i, part in enumerate(p for p in parts if p.geom_type == "Polygon" and p.area > 0):
+        rings = [part.exterior] + list(part.interiors)
+        contours = [[(float(x), float(y)) for x, y in r.coords] for r in rings]
+        if i == 0:
+            target = h
+            h.contours, h.notes = contours, []
+        else:
+            target = ir.Hatch(f"{h.id}.{i}", h.confidence, [], angle=h.angle, spacing=h.spacing,
+                              contours=contours, line_count=0)
+            drawing.entities.append(target)
+        made += 1
+    return made
 
 
 def _radius_branches(drawing, near_leader: float = 3.0, on_arc: float = 0.3) -> int:
@@ -402,6 +458,57 @@ def _radius_branches(drawing, near_leader: float = 3.0, on_arc: float = 0.3) -> 
 
 
 MAX_ARC_RADIUS = 2000.0  # sheet mm: more than any sheet — a straight line fitted as an arc
+
+
+PHOTO_STUB = 1.0  # mm: a photo's line this short is a corner cut by the thinning, no stroke
+
+
+def _slanted(p) -> bool:
+    """A short line at about 45°, as a hatch stroke runs."""
+    ang = math.degrees(math.atan2(p.p2[1] - p.p1[1], p.p2[0] - p.p1[0])) % 90.0
+    return 35.0 <= ang <= 55.0 and p.length <= 6.0
+
+
+SQUARE_DEG = 2.0  # a short thin line of a photo this close to level is level
+
+
+def _square_dashes(prims, thin_w: float) -> None:
+    """Short thin lines of a photo set exactly level or upright: a traced dash
+    of a few millimetres tilts by a pixel's slope, and the dashes of one axis
+    would not line up."""
+    for p in prims:
+        if p.kind != "line" or abs(round(p.width, 3) - thin_w) > 1e-6 or p.length > 20.0:
+            continue
+        (x1, y1), (x2, y2) = p.p1, p.p2
+        ang = math.degrees(math.atan2(y2 - y1, x2 - x1)) % 180.0
+        # a dot of a dash-dot line: its slope is a pixel over a millimetre
+        tol = max(SQUARE_DEG, math.degrees(math.atan2(0.25, max(p.length, 1e-6))))
+        if min(ang, 180.0 - ang) <= tol:
+            y = (y1 + y2) / 2
+            p.p1, p.p2 = (x1, y), (x2, y)
+        elif abs(ang - 90.0) <= tol:
+            x = (x1 + x2) / 2
+            p.p1, p.p2 = (x, y1), (x, y2)
+        else:
+            continue
+        p.points = [p.p1, p.p2]
+
+
+DEGENERATE = 0.01  # sheet mm: an arc this small (or this short) is a sharp corner
+
+
+def _drop_degenerate(drawing) -> int:
+    """Arcs the fitting shrank to nothing: a corner of a photo, rounded by
+    the thinning, read as a fillet, is a sharp corner; its lines meet."""
+    keep, gone = [], 0
+    for e in drawing.entities:
+        if isinstance(e, ir.Arc) and (e.radius < DEGENERATE or e.radius * math.radians(
+                (e.end_angle - e.start_angle) % 360.0) < DEGENERATE):
+            gone += 1
+            continue
+        keep.append(e)
+    drawing.entities = keep
+    return gone
 
 
 def _flat_arcs(drawing, new_id) -> int:

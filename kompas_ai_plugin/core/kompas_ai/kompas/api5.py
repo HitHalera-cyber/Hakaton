@@ -648,7 +648,27 @@ class Api5Backend:
         return self.doc.ksEndObj()
 
     def save(self, path):
+        if getattr(self, "_model_views", 0):
+            self.rebuild()
         return bool(self.doc.ksSaveDocument(path))
+
+    def rebuild(self) -> bool:
+        """The sheet rebuilt (F5): a view of a model stays an empty frame until
+        KOMPAS rebuilds the document — the drawing came out blank."""
+        try:
+            if self.doc.ksRebuildDocument():
+                return True
+        except Exception as exc:
+            self.log(f"  перестроение через API5: {exc!r}")
+        try:
+            from win32com.client import CastTo, gencache
+
+            app = gencache.EnsureDispatch("Kompas.Application.7")
+            doc = CastTo(app.ActiveDocument, "IKompasDocument2D")
+            return bool(doc.RebuildDocument())
+        except Exception as exc:
+            self.log(f"  перестроение через API7: {exc!r}")
+        return False
 
     # --- 3D -----------------------------------------------------------------------------
 
@@ -1445,6 +1465,7 @@ class Api5Backend:
             try:
                 if self._model_view7(source, at, scale, angle, name, hidden):
                     self.log(f"  вид модели: API7, проекция «{name}»")
+                    self._model_views = getattr(self, "_model_views", 0) + 1
                     return True
             except Exception as exc:
                 self.log(f"  вид модели через API7 («{name}»): {exc!r}")
@@ -1452,6 +1473,7 @@ class Api5Backend:
             try:
                 if self._model_view5(source, at, scale, angle, name, hidden):
                     self.log(f"  вид модели: API5, проекция «{name}»")
+                    self._model_views = getattr(self, "_model_views", 0) + 1
                     return True
             except Exception as exc:
                 self.log(f"  вид модели через API5 («{name}»): {exc!r}")

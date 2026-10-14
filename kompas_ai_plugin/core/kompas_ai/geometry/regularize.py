@@ -582,6 +582,27 @@ def _dimensioned_angles(drawing: ir.Drawing) -> tuple:
 
 
 def solve_contour(drawing: ir.Drawing, join: float | None = None) -> dict:
+    """The contour solved (see ``_solve_contour``); ``join`` given (a photo):
+    every tolerance loosened alike."""
+    _LOOSE[0] = PHOTO_LOOSE if join else 1.0
+    try:
+        return _solve_contour(drawing, join)
+    finally:
+        _LOOSE[0] = 1.0
+
+
+def _small_turn(c, x0, allow: float) -> bool:
+    """A direction condition that moves its line's ends by little: not what
+    dragged a point far (a line turned to a standard slope it is far from,
+    a wrong contact is), kept when the conditions round a far point go."""
+    if c[0] != "dir":
+        return False
+    _, a, b, th = c
+    dx, dy = x0[2 * b] - x0[2 * a], x0[2 * b + 1] - x0[2 * a + 1]
+    return abs(dx * math.sin(th) - dy * math.cos(th)) < 0.5 * allow
+
+
+def _solve_contour(drawing: ir.Drawing, join: float | None = None) -> dict:
     """The contour as one system of conditions, solved together (a sketch
     solver in small). Unknowns: the nodes where ends meet and the centres of
     the arcs and circles. Conditions:
@@ -744,7 +765,7 @@ def solve_contour(drawing: ir.Drawing, join: float | None = None) -> dict:
               if abs(a.p1[0] - a.p2[0]) < 1e-9 or abs(a.p1[1] - a.p2[1]) < 1e-9]
 
     x, dropped = x0.copy(), 0
-    allow = MAX_NODE_SHIFT + correction
+    allow = MAX_NODE_SHIFT * _LOOSE[0] + correction
     cache: dict = {}  # outlines whose conditions a round left alone are not solved again
     for round_ in range(5):
         x, plain = _solve_parts(conds, x0, size, nice=(scale, levels, set(radius_var.values())),
@@ -758,7 +779,9 @@ def solve_contour(drawing: ir.Drawing, join: float | None = None) -> dict:
         # slope that is not a standard one, a wrong contact): left out there;
         # the written sizes go last
         keep = [c for c in conds if not far & _cond_vars(c)
-                or (c[0][0] == "D" and round_ < 3)]
+                or (c[0][0] == "D" and round_ < 3) or _small_turn(c, x0, allow)]
+        if len(keep) == len(conds):
+            keep = [c for c in conds if not far & _cond_vars(c) or _small_turn(c, x0, allow)]
         if len(keep) == len(conds):
             keep = [c for c in conds if not far & _cond_vars(c)]
         lost = {id(c) for c in conds} - {id(c) for c in keep}
@@ -862,6 +885,8 @@ DIM_SLIDE = 0.6  # sheet mm a dimension's point may be off the coordinate it mea
 DIM_LIMIT = 1.5  # sheet mm: a size asking more of the lines measures something else
 NICE_STEPS = (1.0, 0.5, 0.1, 0.05)  # model mm: round values, the roundest first
 NICE_TOL = 0.15  # sheet mm an unwritten size may be off a round value (PDF rounding)
+PHOTO_LOOSE = 3.0  # tolerances of a drawing from a photo: its lines are traced pixels
+_LOOSE = [1.0]  # the factor of the solve under way
 _NICE = [0]  # sizes made round by the last solve (read by solve_contour)
 
 
@@ -917,7 +942,7 @@ def _view_scale(d, scale: float) -> float:
 
 def _nice(value: float, scale: float, factor: float = 1.0):
     """The roundest value near ``value`` (model mm), or None."""
-    tol = max(NICE_TOL * factor / scale, 0.01 * abs(value))
+    tol = max(NICE_TOL * _LOOSE[0] * factor / scale, 0.01 * abs(value))
     for step in NICE_STEPS:
         v = round(value / step) * step
         if abs(v - value) <= tol and v > 0:
@@ -941,7 +966,7 @@ def _round_radii(drawing, scale: float) -> int:
             fixed.add(id(e))
             continue
         r = e.radius / scale
-        tol = max(NICE_TOL / scale, 0.01 * r)
+        tol = max(NICE_TOL * _LOOSE[0] / scale, 0.01 * r)
         same = [v for v in values if abs(v - r) <= tol]
         if same:
             v = min(same, key=lambda v: abs(v - r))
@@ -1190,7 +1215,7 @@ def _solve_parts(conds, x0, size, nice=None, cache=None):
                 # a round value is a small touch: one that drags the outline
                 # (a joint near a tangent) is not taken
                 moved = np.hypot((xn - xs)[0::2], (xn - xs)[1::2])
-                far = {j for j in range(len(moved)) if moved[j] > 2 * NICE_TOL}
+                far = {j for j in range(len(moved)) if moved[j] > 2 * NICE_TOL * _LOOSE[0]}
                 if not far:
                     xs = xn
                     _NICE[0] += len(extra)
@@ -1408,8 +1433,9 @@ def _write_back(drawing, nodes, arcs, arc_var, x, end, moved, n, directions, dro
     for i, (p, members) in enumerate(nodes):
         q = (float(x[2 * i]), float(x[2 * i + 1]))
         # where an arc meets the node, its own end point is the exact one
+        # (an arc whose conditions gave way is off the node: the lines keep it)
         for e, k in members:
-            if isinstance(e, ir.Arc):
+            if isinstance(e, ir.Arc) and abs(math.dist(q, e.center) - e.radius) <= 1e-4:
                 ang = math.degrees(math.atan2(q[1] - e.center[1], q[0] - e.center[0])) % 360.0
                 if k == 0:
                     e.start_angle = ang

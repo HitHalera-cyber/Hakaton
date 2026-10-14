@@ -98,7 +98,10 @@ def contour_faces(contour: list[Primitive], grid: float | None = None) -> list[P
             free.append(not snapped)
         moved = Primitive("line", ends, p.width, p.error, p1=ends[0], p2=ends[1])
         lines.append(LineString(_curve_points(moved, extend=tuple(free))))
-    lines += [LineString(_curve_points(c, extra[id(c)])) for c in curves]
+    for c in curves:
+        pts = _curve_points(c, extra[id(c)])
+        if len(set(pts)) >= 2:  # an arc of no sweep (a speck of a photo) is no edge
+            lines.append(LineString(pts))
     if not lines:
         return []
     noded = unary_union(lines)

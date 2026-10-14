@@ -83,6 +83,9 @@ def find_revolve_profile(drawing: ir.Drawing) -> RevolveProfile | None:
     return RevolveProfile(rings, axis, source, region.area / scale ** 2, sheet_rings, side, scale)
 
 
+FACING = 0.5  # sheet mm: a point this near a piece's top (bottom) is on that edge
+
+
 def _bridge_holes(region, axis, side):
     """A section through holes on a pitch circle (a flange's bolt holes) cuts
     the material in two along the radius: pieces one above the other along
@@ -113,8 +116,9 @@ def _bridge_holes(region, axis, side):
             if i == j or hi_a >= lo_b or lo_b - hi_a > 0.5 * hi_b:
                 continue  # b is not just above a
             # the stretch where a's top and b's bottom face each other
-            top = [t for t, s in pa if abs(s - hi_a) <= 0.05]
-            bottom = [t for t, s in pb if abs(s - lo_b) <= 0.05]
+            # (within a fifth of the piece: the edges of a drawing from a photo tilt)
+            top = [t for t, s in pa if abs(s - hi_a) <= max(FACING, 0.2 * (hi_a - lo_a))]
+            bottom = [t for t, s in pb if abs(s - lo_b) <= max(FACING, 0.2 * (hi_b - lo_b))]
             if not top or not bottom:
                 continue
             t0, t1 = max(min(top), min(bottom)), min(max(top), max(bottom))
@@ -223,9 +227,14 @@ def _hatched(drawing, faces, hatches=None):
     regularisation."""
     if hatches is None:
         hatches = _hatch_polygons(drawing)
-    if not hatches:
+    # a hatch whose border was not found (a photo): its strokes still show
+    # which faces are material
+    strokes = [Point(mid) for h in drawing.of_type(ir.Hatch) if not h.contours
+               for mid, _ in getattr(h, "strokes", ())]
+    if not hatches and not strokes:
         return None
-    material = [f for f in faces if any(h.contains(f.representative_point()) for h in hatches)]
+    material = [f for f in faces if any(h.contains(f.representative_point()) for h in hatches)
+                or any(f.contains(q) for q in strokes)]
     return unary_union(material) if material else None
 
 

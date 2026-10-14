@@ -97,6 +97,10 @@ def run(log) -> Path:
                b.model_view(str(shaft), (200.0, 230.0), 1.0, projection="#Спереди"))
     except Exception as exc:
         result("API5 ассоциативный вид", False, last(exc))
+    try:  # a view of a model is an empty frame until the sheet is rebuilt
+        result("Перестроение листа (виды модели заполняются)", b.rebuild())
+    except Exception as exc:
+        result("Перестроение листа", False, last(exc))
 
     say("3. Таблица")
     view = views.ActiveView

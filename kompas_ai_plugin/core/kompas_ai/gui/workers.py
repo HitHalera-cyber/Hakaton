@@ -43,9 +43,13 @@ class RecognizeJob(QObject):
     failed = Signal(str)
     stage = Signal(str)  # one of pipeline.STAGES, then PREVIEW_STAGE
 
-    def __init__(self, pdf: Path, exact: bool, page: int = 0):
+    def __init__(self, pdf: Path, exact: bool, page: int = 0, sheet_mm=None,
+                 scale: float | None = None):
+        """``sheet_mm``, ``scale``: of a photo — its sheet format and the
+        drawing's scale, as the user read them on the photo's title block."""
         super().__init__()
         self.pdf, self.exact, self.page = pdf, exact, page
+        self.sheet_mm, self.scale = sheet_mm, scale
         self.dpi = PREVIEW_DPI
         self.cancelled = False
 
@@ -68,11 +72,11 @@ class RecognizeJob(QObject):
                 import tempfile
 
                 vector = Path(tempfile.gettempdir()) / f"kompas_ai_photo_{self.pdf.stem}.pdf"
-                photo = photo_to_pdf(self.pdf, vector)
+                photo = photo_to_pdf(self.pdf, vector, self.sheet_mm)
                 self.pdf = vector
             try:
                 drawing = recognize_pdf(self.pdf, self.page, exact=self.exact,
-                                        progress=self._stage, raster=raster)
+                                        progress=self._stage, raster=raster, scale=self.scale)
                 if raster:
                     drawing.warnings.insert(0, photo.text() + ". Надписи с фото не читаются: "
                                             "числа размеров впишите в КОМПАС")
@@ -84,7 +88,7 @@ class RecognizeJob(QObject):
                 # the drawing opens anyway: as in the PDF, without the exact fitting
                 error = traceback.format_exc().strip().splitlines()[-1]
                 drawing = recognize_pdf(self.pdf, self.page, exact=False,
-                                        progress=self._stage, raster=raster)
+                                        progress=self._stage, raster=raster, scale=self.scale)
                 drawing.warnings.insert(0, "Точный режим не удался, чертёж открыт как в PDF "
                                            f"(без выравнивания): {error}")
             self._stage(MODEL_STAGE)

@@ -126,3 +126,42 @@ def test_photo_of_a_plate_becomes_a_part(tmp_path):
     assert prof is not None and prof.holes == 1
     assert abs(prof.width - 100) < 1.5 and abs(prof.height - 60) < 1.5
     assert abs(prof.thickness - 10) < 1.0
+
+
+def test_photo_frame_concentric_circles_and_letters(tmp_path):
+    """A photographed sheet with its ГОСТ frame and title block, a flange seen
+    from the end (a bore inside the outer circle: one centre, two circles)
+    and numbers written beside it: the frame goes (KOMPAS draws its own), both
+    circles are found at their sizes, the numbers make no circles."""
+    import numpy as np
+    import pytest
+
+    cv2 = pytest.importorskip("cv2")
+    from kompas_ai import ir
+    from kompas_ai.pipeline import recognize_pdf
+    from kompas_ai.raster.photo import photo_to_pdf
+
+    k = 5
+    img = np.full((210 * k, 297 * k), 255, np.uint8)
+    cv2.rectangle(img, (20 * k, 5 * k), (292 * k, 205 * k), 0, 4)  # the frame
+    cv2.rectangle(img, (107 * k, 150 * k), (292 * k, 205 * k), 0, 4)  # the title block
+    cv2.line(img, (107 * k, 170 * k), (292 * k, 170 * k), 0, 2)
+    cv2.circle(img, (100 * k, 80 * k), 40 * k, 0, 3)
+    cv2.circle(img, (100 * k, 80 * k), 10 * k, 0, 3)
+    for i, text in enumerate(("060", "0200", "08")):
+        cv2.putText(img, text, ((150 + 30 * i) * k, 60 * k), cv2.FONT_HERSHEY_SIMPLEX, 0.9, 0, 2)
+    table = np.full((img.shape[0] + 200, img.shape[1] + 200), 80, np.uint8)
+    table[100:-100, 100:-100] = img
+    photo = tmp_path / "flange.png"
+    cv2.imwrite(str(photo), table)
+    pdf = tmp_path / "flange.pdf"
+    result = photo_to_pdf(photo, pdf)
+    assert result.sheet_found and result.frame_found
+    d = recognize_pdf(pdf, exact=True, raster=True)
+    radii = sorted(round(c.radius, 1) for c in d.of_type(ir.Circle))
+    assert radii == [10.0, 40.0]
+    centres = {tuple(round(v, 1) for v in c.center) for c in d.of_type(ir.Circle)}
+    assert len(centres) == 1
+    # nothing of the frame is left as lines along the sheet's edges
+    long_lines = [e for e in d.of_type(ir.Line) if math.dist(e.p1, e.p2) > 150]
+    assert not long_lines

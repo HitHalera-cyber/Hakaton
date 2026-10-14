@@ -15,7 +15,8 @@ from PySide6.QtGui import (QAction, QBrush, QColor, QIcon, QImage, QKeySequence,
 from PySide6.QtWidgets import (QApplication, QButtonGroup, QCheckBox, QComboBox, QFileDialog,
                                QFrame, QGraphicsEllipseItem, QGraphicsScene, QGraphicsView,
                                QGridLayout, QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
-                               QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QSizePolicy,
+                               QMainWindow, QMenu, QMessageBox, QPlainTextEdit, QPushButton,
+                               QSizePolicy,
                                QStackedWidget, QVBoxLayout, QWidget)
 
 from .. import ir
@@ -24,6 +25,7 @@ from ..report.preview import sheet_to_pixel
 from ..report.summary import TYPE_NAMES, summary_text
 from ..pipeline import STAGES
 from .loader import DraftingLoader
+from .session import SessionLog, app_folder, recent_files, remember_file, stamped
 from .theme import THEME_ICONS, THEME_NAMES, THEMES, style_sheet
 from .workers import (CANCELLED, IMAGE_SUFFIXES, MODEL_STAGE, PHOTO_STAGE, PREVIEW_DPI, PREVIEW_STAGE, BothJob, CheckJob,
                       KompasJob, ModelDrawingJob, RecognizeJob, RevolveJob)
@@ -35,6 +37,9 @@ SCALES = [("Масштаб как на чертеже", None)] + [
         ("1:1", 1.0), ("1:2", 0.5), ("1:2,5", 0.4), ("1:4", 0.25), ("1:5", 0.2), ("1:10", 0.1),
         ("2:1", 2.0), ("2,5:1", 2.5), ("4:1", 4.0), ("5:1", 5.0), ("10:1", 10.0))]
 PAGES = ["Чертёж", "Отчёт", "Проверка", "Журнал"]
+SHEET_FORMATS = [("A4", (210.0, 297.0)), ("A3", (297.0, 420.0)), ("A2", (420.0, 594.0)),
+                 ("A1", (594.0, 841.0)), ("A0", (841.0, 1189.0))]
+PHOTO_SCALES = [(name, value) for name, value in SCALES[1:]]
 GRID = 20  # px between grid lines behind the drawing
 
 
@@ -214,6 +219,7 @@ class MainWindow(QMainWindow):
         self.resize(1440, 900)
         self.setMinimumSize(1100, 720)
         self.settings = QSettings("KompasAI", "KompasAI")
+        self.session_log = SessionLog()
         self.pdf: Path | None = None
         self.drawing: ir.Drawing | None = None
         self.page_height = 0.0
@@ -251,15 +257,50 @@ class MainWindow(QMainWindow):
         lay.addLayout(column, 1)
         self.setCentralWidget(root)
 
-        open_act = QAction(self, shortcut=QKeySequence.Open)
-        open_act.triggered.connect(self.open_dialog)
-        self.addAction(open_act)
+        self._shortcuts()
+        self._restore_options()
         self.setAcceptDrops(True)
         self.apply_theme(self.settings.value("theme", "light"))
         self._set_ready(False)
         self.statusBar().showMessage("Откройте PDF чертежа (или перетащите его в окно)")
 
     # --- layout -------------------------------------------------------------------------
+
+    def _shortcuts(self) -> None:
+        def when_enabled(button):  # a key does no more than its button may
+            return lambda: button.isEnabled() and button.click()
+
+        keys = [(QKeySequence.Open, self.open_dialog),
+                ("Ctrl+B", when_enabled(self.build_button)),
+                ("Ctrl+M", when_enabled(self.model_button)),
+                ("Ctrl+Shift+B", when_enabled(self.both_button)), ("Ctrl+0", self.preview.fit),
+                ("Esc", self.cancel_recognition), ("Ctrl+L", self.open_log_folder)]
+        keys += [(f"Ctrl+{i + 1}", lambda i=i: self.show_page(i)) for i in range(len(PAGES))]
+        for key, action in keys:
+            act = QAction(self, shortcut=QKeySequence(key))
+            act.triggered.connect(action)
+            self.addAction(act)
+
+    def _restore_options(self) -> None:
+        """The build options as they were left last time (and kept on change)."""
+        s = self.settings
+
+        def index(key, box):
+            try:
+                i = int(s.value(key, 0))
+            except (TypeError, ValueError):
+                i = 0
+            if 0 <= i < box.count():
+                box.blockSignals(True)  # no recognition: nothing is open yet
+                box.setCurrentIndex(i)
+                box.blockSignals(False)
+            box.currentIndexChanged.connect(lambda i, key=key: s.setValue(key, i))
+
+        index("mode", self.mode)
+        index("scale", self.scale_box)
+        for key, box in (("dims", self.dims_box), ("parametric", self.param_box)):
+            box.setChecked(str(s.value(key, "true")).lower() in ("true", "1"))
+            box.toggled.connect(lambda on, key=key: s.setValue(key, on))
 
     def _sidebar(self) -> QFrame:
         side = QFrame(objectName="sidebar")
@@ -321,9 +362,26 @@ class MainWindow(QMainWindow):
                                 "спереди, сверху, слева и изометрия, связанные с моделью")
         model_button.clicked.connect(self.drawing_from_model)
         model_button.setCursor(Qt.PointingHandCursor)
+        self.recent_button = QPushButton("Недавние", objectName="secondary")
+        self.recent_button.setCursor(Qt.PointingHandCursor)
+        self.recent_button.setToolTip("Чертежи, открытые недавно")
+        self.recent_menu = QMenu(self)
+        self.recent_button.setMenu(self.recent_menu)
+        self._fill_recent()
+        open_button.setToolTip("Ctrl+O. Можно и перетащить файл в окно (PDF, фото, .m3d)")
+        head.addWidget(self.recent_button)
         head.addWidget(model_button)
         head.addWidget(open_button)
         return head
+
+    def _fill_recent(self, paths=None) -> None:
+        self.recent_menu.clear()
+        paths = recent_files(self.settings) if paths is None else paths
+        for path in paths:
+            act = self.recent_menu.addAction(path.name)
+            act.setToolTip(str(path))
+            act.triggered.connect(lambda _=False, p=path: self.open_file(p))
+        self.recent_button.setEnabled(bool(paths))
 
     def _drawing_page(self) -> QWidget:
         page = QWidget()
@@ -343,11 +401,17 @@ class MainWindow(QMainWindow):
         self.view_label = _label("Чертёж", "cardTitle")
         top.addWidget(self.view_label)
         top.addStretch(1)
+        self.marks_box = QCheckBox("Нарушения на листе")
+        self.marks_box.setChecked(True)
+        self.marks_box.setToolTip("Красные кольца с номерами там, где контур нарушает правила")
+        self.marks_box.toggled.connect(self._toggle_marks)
+        top.addWidget(self.marks_box)
         self.contour_chip = _label("", "chipOk")
         self.contour_chip.hide()
         top.addWidget(self.contour_chip)
         lay.addLayout(top)
-        self.preview.setToolTip("Колесо — масштаб, перетаскивание — сдвиг, двойной щелчок — весь лист")
+        self.preview.setToolTip("Колесо — масштаб, перетаскивание — сдвиг, двойной щелчок или "
+                                "Ctrl+0 — весь лист")
         lay.addWidget(self.preview, 1)
         grid.addWidget(sheet, 0, 0, 2, 2)
         self.sheet_card = sheet
@@ -424,6 +488,10 @@ class MainWindow(QMainWindow):
         self.both_button, _ = build_card(
             "Модель и чертёж", "Главный вид чертежа — вид модели: изменили модель — чертёж "
             "перестроился", "Построить всё", self.build_both)
+        if sys.platform == "win32":
+            for button, key in ((self.build_button, "Ctrl+B"), (self.model_button, "Ctrl+M"),
+                                (self.both_button, "Ctrl+Shift+B")):
+                button.setToolTip(key)
         grid.addLayout(bottom, 2, 0, 1, 3)
         return page
 
@@ -447,6 +515,11 @@ class MainWindow(QMainWindow):
             "Пробует в вашем КОМПАС все способы сделать таблицу и вид, связанный с моделью, "
             "и пишет отчёт — пришлите его, если таблицы или «Построить всё» не работают")
         self.check_button.clicked.connect(self.check_kompas)
+        logs_button = QPushButton("Папка журналов", objectName="secondary")
+        logs_button.setToolTip("Ctrl+L. Журнал каждого запуска сохраняется в файл — пришлите его, "
+                               "если что-то пошло не так")
+        logs_button.clicked.connect(self.open_log_folder)
+        top.addWidget(logs_button)
         top.addWidget(self.check_button)
         top.addWidget(self.dxf_button)
         top.addWidget(self.report_button)
@@ -510,6 +583,9 @@ class MainWindow(QMainWindow):
             if path.suffix.lower() in (".pdf",) + IMAGE_SUFFIXES:
                 self.open_file(path)
                 break
+            if path.suffix.lower() == ".m3d":
+                self.drawing_from_model(path)
+                break
 
     def open_file(self, path: Path) -> None:
         if self._busy():
@@ -519,14 +595,58 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(f"{path.name} откроется, когда закончится текущая операция")
             return
         self.pending = None
+        if path.suffix.lower() in IMAGE_SUFFIXES:
+            self.photo_options = self._ask_photo(path)
+            if self.photo_options is None:
+                return
         self.pdf = path
         self.drawing = None
         self.model_ok = None
         self.show_page(0)
         self.settings.setValue("last_dir", str(path.parent))
+        self._fill_recent(remember_file(self.settings, path))
         self.setWindowTitle(f"{APP_NAME} — {path.name}")
         self._show_title()
         self.recognize()
+
+    def _ask_photo(self, path: Path):
+        """The sheet format and the scale of a photographed drawing: its numbers
+        are not read, so without them the part comes out of the wrong size.
+        (sheet sides in mm, scale) or None when cancelled."""
+        from PySide6.QtWidgets import QDialog, QDialogButtonBox, QFormLayout
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Чертёж с фото")
+        form = QFormLayout(dialog)
+        note = _label("Числа размеров с фото не читаются. Укажите, что написано в основной "
+                      "надписи, — тогда деталь получит настоящие размеры (неуказанные округлятся "
+                      "до круглых значений).", "sub")
+        note.setWordWrap(True)
+        form.addRow(note)
+        fmt = QComboBox()
+        for name, _ in SHEET_FORMATS:
+            fmt.addItem(name)
+        scale = QComboBox()
+        for name, _ in PHOTO_SCALES:
+            scale.addItem(name.replace("Масштаб ", ""))
+        for key, box in (("photo_format", fmt), ("photo_scale", scale)):
+            try:
+                box.setCurrentIndex(min(int(self.settings.value(key, 0)), box.count() - 1))
+            except (TypeError, ValueError):
+                pass
+        form.addRow("Формат листа", fmt)
+        form.addRow("Масштаб", scale)
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.button(QDialogButtonBox.Ok).setText("Распознать")
+        buttons.button(QDialogButtonBox.Cancel).setText("Отмена")
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        form.addRow(buttons)
+        if dialog.exec() != QDialog.Accepted:
+            return None
+        self.settings.setValue("photo_format", fmt.currentIndex())
+        self.settings.setValue("photo_scale", scale.currentIndex())
+        return SHEET_FORMATS[fmt.currentIndex()][1], PHOTO_SCALES[scale.currentIndex()][1]
 
     def _show_title(self) -> None:
         if getattr(self, "pdf", None) is None or not hasattr(self, "title"):
@@ -551,7 +671,10 @@ class MainWindow(QMainWindow):
         self._set_ready(False)
         self.statusBar().showMessage(f"Распознаю {self.pdf.name}…")
         self._log(f"Распознавание: {self.pdf}")
-        job = RecognizeJob(self.pdf, exact=MODES[self.mode.currentIndex()][1])
+        sheet_mm, scale = (getattr(self, "photo_options", None) or (None, None)) \
+            if self.pdf.suffix.lower() in IMAGE_SUFFIXES else (None, None)
+        job = RecognizeJob(self.pdf, exact=MODES[self.mode.currentIndex()][1],
+                           sheet_mm=sheet_mm, scale=scale)
         exact = MODES[self.mode.currentIndex()][1]
         stages = [s for s in STAGES if exact or s not in STAGES[5:]] + [MODEL_STAGE,
                                                                        PREVIEW_STAGE]
@@ -566,7 +689,7 @@ class MainWindow(QMainWindow):
 
     def cancel_recognition(self) -> None:
         job = getattr(self, "_cancel_target", None)
-        if job is not None and self._busy():
+        if job is not None and job is self.job and self._busy():
             job.cancel()
             self.loader.cancel_button.setText("Отменяю…")
             self.loader.cancel_button.setEnabled(False)
@@ -577,14 +700,17 @@ class MainWindow(QMainWindow):
         self.drawing, self.page_height = drawing, page_height
         self.preview_dpi = getattr(self.job, "dpi", PREVIEW_DPI)
         self.preview.show_png(png)
-        self.preview.set_marks(self._issue_marks(drawing))
+        self.preview.set_marks(self._issue_marks(drawing) if self.marks_box.isChecked() else [])
         self.summary.setPlainText(summary_text(drawing))
         self._fill_review(drawing)
         self._show_results(drawing)
         self._judge_model(drawing)
+        # the whole account into the journal (and its file): what to send
+        # when the drawing came out wrong
+        for line in drawing.processing:
+            self._log("  " + line)
         for w in drawing.warnings:
-            if w.startswith("Точный режим"):
-                self._log(w)
+            self._log("! " + w[:600])
         counts = drawing.summary()
         self.statusBar().showMessage(
             f"Готово: {len(drawing.entities)} объектов, требуют проверки {counts['review']}")
@@ -756,15 +882,16 @@ class MainWindow(QMainWindow):
         job.failed.connect(self.on_failed)
         self._start(job)
 
-    def drawing_from_model(self) -> None:
+    def drawing_from_model(self, model: Path | None = None) -> None:
         if self._busy():
             return
-        start = self.settings.value("last_dir", str(Path.home()))
-        name, _ = QFileDialog.getOpenFileName(self, "3D-модель КОМПАС", start,
-                                              "Деталь КОМПАС (*.m3d)")
-        if not name:
-            return
-        model = Path(name)
+        if not isinstance(model, Path):  # from the button: the click's flag
+            start = self.settings.value("last_dir", str(Path.home()))
+            name, _ = QFileDialog.getOpenFileName(self, "3D-модель КОМПАС", start,
+                                                  "Деталь КОМПАС (*.m3d)")
+            if not name:
+                return
+            model = Path(name)
         out, _ = QFileDialog.getSaveFileName(self, "Сохранить чертёж", str(
             model.with_name(model.stem + "_чертёж.cdw")), "КОМПАС (*.cdw)")
         if not out:
@@ -831,7 +958,20 @@ class MainWindow(QMainWindow):
         QMessageBox.warning(self, APP_NAME, message.strip().splitlines()[-1])
 
     def _log(self, text: str) -> None:
-        self.log.appendPlainText(text)
+        line = stamped(text)
+        self.log.appendPlainText(line)
+        self.session_log.write(line)
+
+    def open_log_folder(self) -> None:
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+
+        folder = self.session_log.folder if self.session_log.path else app_folder()
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
+
+    def _toggle_marks(self, on: bool) -> None:
+        if self.drawing is not None:
+            self.preview.set_marks(self._issue_marks(self.drawing) if on else [])
 
     def _busy(self) -> bool:
         return self.thread is not None and self.thread.isRunning()
@@ -898,12 +1038,9 @@ def _crash_log() -> None:
     """Where the program died, if it ever does without a Python error (memory,
     a library): %APPDATA%/KompasAI/crash.log — send it with the PDF."""
     import faulthandler
-    import os
 
     try:
-        folder = Path(os.environ.get("APPDATA") or Path.home()) / "KompasAI"
-        folder.mkdir(parents=True, exist_ok=True)
-        stream = open(folder / "crash.log", "w", encoding="utf-8")
+        stream = open(app_folder() / "crash.log", "w", encoding="utf-8")
         faulthandler.enable(stream, all_threads=True)
         globals()["_CRASH_STREAM"] = stream  # kept open for the whole run
     except OSError:
@@ -936,6 +1073,10 @@ def main(argv: list[str] | None = None) -> int:
     window = MainWindow()
     window.show()
     args = app.arguments()[1:]
-    if args and Path(args[0]).suffix.lower() == ".pdf" and Path(args[0]).exists():
-        window.open_file(Path(args[0]))
+    if args and Path(args[0]).exists():
+        path = Path(args[0])
+        if path.suffix.lower() in (".pdf",) + IMAGE_SUFFIXES:
+            window.open_file(path)
+        elif path.suffix.lower() == ".m3d":
+            window.drawing_from_model(path)
     return app.exec()

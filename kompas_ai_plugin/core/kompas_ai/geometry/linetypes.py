@@ -20,17 +20,29 @@ OFFSET_TOLERANCE = 0.12  # mm
 ANGLE_TOLERANCE = 0.8  # deg
 RHO_BUCKET = 2.0  # mm: buckets of line distance from the origin, for grouping
 DOT_MAX = 2.5  # mm; a "dot" of a dash-dot line
+PHOTO_LOOSE = 3.0  # tolerances for the dashes of a photo: traced pixels, not exact strokes
+_LOOSE = [1.0]  # the factor of the merge under way
 CIRCLE_COVERAGE = 300.0  # deg of dashes+gaps to call a dashed arc set a full circle
 
 
 def merge_dashed(prims: list[Primitive], thin_width: float,
-                 arrow_tips: list[tuple[tuple[float, float], tuple[float, float]]] = ()
-                 ) -> list[Primitive]:
+                 arrow_tips: list[tuple[tuple[float, float], tuple[float, float]]] = (),
+                 photo: bool = False) -> list[Primitive]:
     """Return primitives with dash groups replaced by single styled primitives.
 
     ``arrow_tips``: (tip, direction) of the arrows. A gap with an arrow
     pointing along the line separates two dimension lines of a chain; it is
-    not a gap of a dash pattern."""
+    not a gap of a dash pattern. ``photo``: the dashes were traced from a
+    picture — looser alignment, and long dashes with wide gaps are an axis
+    whose dots were lost."""
+    _LOOSE[0] = PHOTO_LOOSE if photo else 1.0
+    try:
+        return _merge_dashed(prims, thin_width, arrow_tips)
+    finally:
+        _LOOSE[0] = 1.0
+
+
+def _merge_dashed(prims, thin_width, arrow_tips):
     thin = [p for p in prims if abs(p.width - thin_width) < 1e-3]
     rest = [p for p in prims if abs(p.width - thin_width) >= 1e-3]
     lines = [p for p in thin if p.kind == "line"]
@@ -98,8 +110,10 @@ def _merge_lines(lines: list[Primitive], arrow_tips=()) -> list[Primitive]:
     # assembly has thousands of lines): only neighbouring buckets are tried,
     # in the order the groups were made — the same groups as trying them all
     reach = max((abs(c) for l in lines for p in (l.p1, l.p2) for c in p), default=0.0) * 1.5
-    span = int(math.ceil((reach * math.radians(ANGLE_TOLERANCE) + OFFSET_TOLERANCE) / RHO_BUCKET))
+    angle_tol, offset_tol = ANGLE_TOLERANCE * _LOOSE[0], OFFSET_TOLERANCE * _LOOSE[0]
+    span = int(math.ceil((reach * math.radians(angle_tol) + offset_tol) / RHO_BUCKET))
     buckets: dict[tuple[int, int], list[int]] = {}
+    refs: list[tuple] = []  # the line each group's dashes must lie on
 
     def key(line):
         a = direction_deg(line.p1, line.p2)
@@ -121,20 +135,38 @@ def _merge_lines(lines: list[Primitive], arrow_tips=()) -> list[Primitive]:
             for dr in range(-span, span + 1):
                 cands.update(buckets.get((bucket_a, r + dr), ()))
         for g in sorted(cands):
-            ref = groups[g][0]
-            if angle_diff(direction_deg(ref.p1, ref.p2), a) <= ANGLE_TOLERANCE \
-                    and point_line_distance(line.p1, ref.p1, ref.p2) <= OFFSET_TOLERANCE \
-                    and point_line_distance(line.p2, ref.p1, ref.p2) <= OFFSET_TOLERANCE:
+            r1, r2 = refs[g]
+            if angle_diff(direction_deg(r1, r2), a) <= angle_tol \
+                    and point_line_distance(line.p1, r1, r2) <= offset_tol \
+                    and point_line_distance(line.p2, r1, r2) <= offset_tol:
                 groups[g].append(line)
+                if _LOOSE[0] > 1.0:
+                    # traced dashes each tilt a little: the group's own line,
+                    # not its first dash, is what the next one must lie on
+                    refs[g] = _fit_line(groups[g])
                 break
         else:
             buckets.setdefault((ka, kr), []).append(len(groups))
             groups.append([line])
+            refs.append((line.p1, line.p2))
 
     out = []
     for group in groups:
         out.extend(_runs_on_line(group, arrow_tips))
     return out
+
+
+def _fit_line(group: list[Primitive]) -> tuple:
+    """The straight line through the ends of a group (least squares), as two
+    points."""
+    import numpy as np
+
+    pts = np.array([q for p in group for q in (p.p1, p.p2)], dtype=float)
+    mid = pts.mean(axis=0)
+    _, _, vt = np.linalg.svd(pts - mid)
+    d = vt[0]
+    t = (pts - mid) @ d
+    return tuple(mid + d * t.min()), tuple(mid + d * t.max())
 
 
 def _runs_on_line(group: list[Primitive], arrow_tips=()) -> list[Primitive]:
@@ -166,7 +198,7 @@ def _runs_on_line(group: list[Primitive], arrow_tips=()) -> list[Primitive]:
     for iv in intervals[1:]:
         reach = max(x[1] for x in runs[-1])
         blocked = iv[0] - reach > 0.05 and any(reach - 0.3 <= s <= iv[0] + 0.3 for s in stops)
-        if iv[0] - reach <= MAX_GAP and not blocked:
+        if iv[0] - reach <= MAX_GAP * (1.5 if _LOOSE[0] > 1.0 else 1.0) and not blocked:
             runs[-1].append(iv)
         else:
             runs.append([iv])
@@ -177,6 +209,9 @@ def _runs_on_line(group: list[Primitive], arrow_tips=()) -> list[Primitive]:
     for run in runs:
         dash_dot = len(run) == 2 and min(x[1] - x[0] for x in run) <= 1.0 \
             and max(x[1] - x[0] for x in run) > 2 * DOT_MAX  # a short axis: dash + dot
+        if _LOOSE[0] > 1.0 and len(run) == 2 and min(x[1] - x[0] for x in run) > 2 * DOT_MAX \
+                and DOT_MAX <= run[1][0] - run[0][1] <= MAX_GAP:
+            dash_dot = True  # a photo: two long dashes of an axis, the dot between not traced
         if len(run) > 1 and _gaps([(x[0], x[1]) for x in run]) and not dash_dot and \
                 (len(run) < MIN_DASHES or not _regular(run)):
             # Two pieces with a gap are two lines (e.g. a leader broken by its
@@ -194,6 +229,9 @@ def _runs_on_line(group: list[Primitive], arrow_tips=()) -> list[Primitive]:
             dashes = [x[1] - x[0] for x in run]
             style_tag = "axial" if (min(dashes) <= DOT_MAX and max(dashes) > 2 * DOT_MAX) \
                 or _long_short(dashes) else "dashed"
+            if style_tag == "dashed" and _LOOSE[0] > 1.0 and min(gaps) >= DOT_MAX \
+                    and max(dashes) >= 2 * DOT_MAX:
+                style_tag = "axial"  # a photo: the dots between long dashes not traced
         p1 = (ref.p1[0] + ux * lo, ref.p1[1] + uy * lo)
         p2 = (ref.p1[0] + ux * hi, ref.p1[1] + uy * hi)
         merged = Primitive("line", [p1, p2], run[0][2].width,
