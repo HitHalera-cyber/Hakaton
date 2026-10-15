@@ -39,11 +39,13 @@ class PhotoResult:
     width_mm: float
     height_mm: float
     frame_found: bool = False
+    detected: str | None = None  # the format told by the title block («A3»)
 
     def text(self) -> str:
         return (f"Фото переведено в линии: {self.lines} полилиний, лист "
                 f"{self.width_mm:.0f}×{self.height_mm:.0f} мм"
                 + ("" if self.sheet_found else " (край листа не найден — взят весь снимок)")
+                + (f" (формат {self.detected} — по основной надписи)" if self.detected else "")
                 + (", рамка и основная надпись с фото заменены листом КОМПАС"
                    if self.frame_found else ""))
 
@@ -67,6 +69,7 @@ def photo_to_pdf(image: str | Path, out_pdf: str | Path, sheet_mm=None) -> Photo
     h, w = sheet.shape
     # the A format by the sheet's size in the picture is unknown: A4 unless
     # told (the window asks), turned as the sheet lies in the photo
+    auto = sheet_mm is None  # the format from the title block, when the photo has one
     short, long_ = sorted(sheet_mm or (210.0, 297.0))
     sheet_mm = (long_, short) if w >= h else (short, long_)
     ink = _ink(sheet)
@@ -84,6 +87,10 @@ def photo_to_pdf(image: str | Path, out_pdf: str | Path, sheet_mm=None) -> Photo
     frame = _frame(ink)
     if frame is not None:
         (fx0, fy0, fx1, fy1), pixels = frame
+        if auto:
+            fmt = _format_by_title_block(pixels, (fx0, fy0, fx1, fy1))
+            if fmt is not None:
+                sheet_mm, detected = fmt[1], fmt[0]
         ink[pixels] = 0
         kx = (sheet_mm[0] - FRAME_LEFT - FRAME_OTHER) / (fx1 - fx0)
         ky = (sheet_mm[1] - 2 * FRAME_OTHER) / (fy1 - fy0)
@@ -167,7 +174,7 @@ def photo_to_pdf(image: str | Path, out_pdf: str | Path, sheet_mm=None) -> Photo
     doc.save(str(out_pdf))
     doc.close()
     return PhotoResult(Path(out_pdf), found, len(simple) + len(circles), sheet_mm[0],
-                       sheet_mm[1], frame is not None)
+                       sheet_mm[1], frame is not None, locals().get("detected"))
 
 
 def _simplify(piece):
@@ -416,6 +423,54 @@ def _frame(ink):
     if best is None:
         return None
     return best[1], best[2]
+
+
+TITLE_BLOCK_W = 185.0  # mm: the main title block of ГОСТ 2.104, on every format
+FORMATS = [("A4", (210.0, 297.0)), ("A3", (297.0, 420.0)), ("A2", (420.0, 594.0)),
+           ("A1", (594.0, 841.0)), ("A0", (841.0, 1189.0))]
+
+
+def _format_by_title_block(pixels, box):
+    """The sheet's format from its frame: the title block is 185 mm wide on
+    every format, so the frame is as many title blocks wide as it shows —
+    (name, (width, height) in mm) or None without a title block."""
+    fx0, fy0, fx1, fy1 = (int(v) for v in box)
+    fw, fh = fx1 - fx0, fy1 - fy0
+    if fw <= 0 or fh <= 0:
+        return None
+    top = None
+    # rows of the lower part, from the top down: the first run of ink that
+    # leaves the frame's right side is the title block's upper edge
+    for y in range(fy0 + int(0.5 * fh), fy1 - 4):
+        # a band of rows: a photo's lines lean a little after straightening
+        row = pixels[max(0, y - 6):y + 7, fx0:fx1 + 1].any(axis=0)
+        if row[-4:].any() and row[-int(0.1 * fw):].mean() > 0.8:
+            top = y
+            break
+    if top is None or fy1 - top < 0.08 * fh:
+        return None
+    # its left side: the leftmost upright line from that edge down to the
+    # frame (the upper edge itself may be broken in a photo)
+    width = None
+    lower = pixels[top + 8:fy1 - 8]
+    if lower.shape[0] < 10:
+        return None
+    for x in range(fx0 + int(0.25 * fw), fx1 - int(0.05 * fw)):
+        column = lower[:, max(0, x - 3):x + 4].any(axis=1)
+        if column.mean() > 0.85:
+            width = fx1 - x
+            break
+    if width is None:
+        return None
+    frame_mm = TITLE_BLOCK_W * fw / width
+    landscape = fw >= fh
+    best = None
+    for name, (short, long_) in FORMATS:
+        inner = (long_ if landscape else short) - FRAME_LEFT - FRAME_OTHER
+        miss = abs(inner - frame_mm) / inner
+        if miss <= 0.12 and (best is None or miss < best[0]):
+            best = (miss, name, (long_, short) if landscape else (short, long_))
+    return None if best is None else (best[1], best[2])
 
 
 def _drop_letters(ink, px):

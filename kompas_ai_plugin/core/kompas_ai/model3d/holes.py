@@ -50,10 +50,10 @@ def find_axial_holes(drawing: ir.Drawing, profile) -> list[AxialHole]:
                                  round(c.radius / scale, 4)))
         if out:
             break
-    return _regular(out)
+    return _regular(out, photo=bool(getattr(drawing, "raster", False)))
 
 
-def _regular(holes: list[AxialHole]) -> list[AxialHole]:
+def _regular(holes: list[AxialHole], photo: bool = False) -> list[AxialHole]:
     """Holes of one size on one circle: one pitch radius (its round value),
     equally spaced when they are about so (6 holes every 60°) — the PDF's
     positions are a tenth of a millimetre off."""
@@ -63,6 +63,10 @@ def _regular(holes: list[AxialHole]) -> list[AxialHole]:
     for h in holes:
         key = next((k for k in groups if abs(k - h.radius) <= 0.02 * k), h.radius)
         groups.setdefault(key, []).append(h)
+    if photo and any(len(g) >= 2 for g in groups.values()):
+        # a photo: a single small "hole" beside the pattern of bolt holes is
+        # the blot of a letter of a size's number, not a hole of the part
+        groups = {k: g for k, g in groups.items() if len(g) >= 2}
     out = []
     for size, group in groups.items():
         radii = [math.hypot(h.y, h.z) for h in group]

@@ -195,3 +195,41 @@ def test_refine_rows_and_questions():
     assert math.isclose(rows[0]["lines"], 60.04)
     assert [q["id"] for q in questions(d)] == ["D1"]
     assert parse_value("Ø12,5") == 12.5 and parse_value("—") is None
+
+
+def test_photo_profile_is_tidied_to_the_end_view():
+    """A flange profile traced from a low-resolution screenshot: radii a
+    millimetre off, edges leaning, the outer corner of the section lost as a
+    spike — made the turned part the end view shows (Ø200 and Ø60)."""
+    from kompas_ai.model3d.revolve import tidy_photo_profile
+
+    pts = [(0.3, 30.1), (40.0, 29.98), (39.93, 55.1), (40.0, 88.1), (34.56, 88.33),
+           (32.5, 98.67), (24.42, 88.33), (20.15, 88.62), (20.16, 63.1), (20.58, 54.2),
+           (19.29, 48.97), (0.25, 48.97)]
+    loop = [("line", a, b) for a, b in zip(pts, pts[1:] + pts[:1])]
+    (out,) = tidy_photo_profile([loop], [30.0, 100.0])
+    corners = [s[1] for s in out]
+    assert set(corners) == {(0.0, 30.0), (40.0, 30.0), (40.0, 100.0), (20.0, 100.0),
+                            (20.0, 49.0), (0.0, 49.0)}
+
+
+def test_format_of_a_photo_by_its_title_block(tmp_path):
+    """An A3 sheet photographed without saying its format: the title block
+    (185 mm wide on every format) tells it."""
+    import numpy as np
+    import pytest
+
+    cv2 = pytest.importorskip("cv2")
+    from kompas_ai.raster.photo import photo_to_pdf
+
+    k = 4
+    img = np.full((297 * k, 420 * k), 255, np.uint8)
+    cv2.rectangle(img, (20 * k, 5 * k), (415 * k, 292 * k), 0, 4)
+    cv2.rectangle(img, (230 * k, 237 * k), (415 * k, 292 * k), 0, 3)
+    cv2.circle(img, (120 * k, 120 * k), 40 * k, 0, 3)
+    table = np.full((img.shape[0] + 160, img.shape[1] + 160), 80, np.uint8)
+    table[80:-80, 80:-80] = img
+    photo = tmp_path / "a3.png"
+    cv2.imwrite(str(photo), table)
+    result = photo_to_pdf(photo, tmp_path / "a3.pdf")
+    assert result.detected == "A3" and (result.width_mm, result.height_mm) == (420.0, 297.0)

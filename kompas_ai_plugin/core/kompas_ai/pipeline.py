@@ -175,6 +175,8 @@ def recognize_pdf(pdf_path: str | Path, page: int = 0, exact: bool = True,
                 "Слишком сложная связка линий (сборочный чертёж?) — оставлена как в PDF, без "
                 f"выравнивания: узлов {', '.join(map(str, solved['left_as_drawn']))}")
         gone = _drop_degenerate(drawing)
+        if raster:
+            gone += _drop_photo_specks(drawing)
         if gone:
             drawing.processing.append(f"Убраны скругления нулевого размера (углы, сглаженные при "
                                       f"распознавании): {gone}")
@@ -519,6 +521,27 @@ def _square_dashes(prims, thin_w: float) -> None:
 
 
 DEGENERATE = 0.01  # sheet mm: an arc this small (or this short) is a sharp corner
+
+
+PHOTO_SPECK = 1.25  # sheet mm: a circle of a photo this small is a letter's blot
+
+
+def _drop_photo_specks(drawing) -> int:
+    """What a photo leaves of the sizes it cannot read: tiny circles (the 0
+    of a number) and short thin bits (letters, arrow heads). The geometry
+    of the part stays."""
+    keep, gone = [], 0
+    for e in drawing.entities:
+        if isinstance(e, ir.Circle) and e.radius < PHOTO_SPECK:
+            gone += 1
+            continue
+        if isinstance(e, ir.Line) and e.style == ir.STYLE_THIN \
+                and math.dist(e.p1, e.p2) < 3.0:
+            gone += 1
+            continue
+        keep.append(e)
+    drawing.entities = keep
+    return gone
 
 
 def _drop_degenerate(drawing) -> int:

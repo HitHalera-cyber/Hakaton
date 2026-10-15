@@ -463,6 +463,11 @@ def make_model(drawing, out: Path, exact: bool, parametric: bool, log):
     backend = Api5Backend(log=log)
     log("Эскиз профиля и операция вращения…")
     loops = profile_segments(profile, drawing_radii(drawing) if exact else ())
+    if getattr(drawing, "raster", False):
+        # a photo: radii onto the end view's circles, edges square, round sizes
+        from ..model3d.revolve import end_view_radii, tidy_photo_profile
+
+        loops = tidy_photo_profile(loops, end_view_radii(drawing, profile))
     threads = thread_specs(drawing, profile, loops)
     flange = None
     try:

@@ -1458,25 +1458,20 @@ class Api5Backend:
                    projection: str = "#Спереди", hidden: bool = False) -> bool:
         """A view of a saved part, linked to it (the view follows the model):
         the model's origin at ``at`` on the sheet, turned by ``angle``°;
-        ``hidden`` shows the hidden edges (bores) dashed. API7 first, then API5;
-        the projection's name with and without «#» (KOMPAS versions differ)."""
+        ``hidden`` shows the hidden edges (bores) dashed. API5 first (the SDK
+        example), then API7; the projection's name with and without «#»
+        (KOMPAS versions differ)."""
         names = [projection, projection.lstrip("#")] if projection.startswith("#") else [projection]
-        for name in names:
-            try:
-                if self._model_view7(source, at, scale, angle, name, hidden):
-                    self.log(f"  вид модели: API7, проекция «{name}»")
-                    self._model_views = getattr(self, "_model_views", 0) + 1
-                    return True
-            except Exception as exc:
-                self.log(f"  вид модели через API7 («{name}»): {exc!r}")
-        for name in names:
-            try:
-                if self._model_view5(source, at, scale, angle, name, hidden):
-                    self.log(f"  вид модели: API5, проекция «{name}»")
-                    self._model_views = getattr(self, "_model_views", 0) + 1
-                    return True
-            except Exception as exc:
-                self.log(f"  вид модели через API5 («{name}»): {exc!r}")
+        # API5 first: the way of the SDK's own example
+        for api, make in (("API5", self._model_view5), ("API7", self._model_view7)):
+            for name in names:
+                try:
+                    if make(source, at, scale, angle, name, hidden):
+                        self.log(f"  вид модели: {api}, проекция «{name}»")
+                        self._model_views = getattr(self, "_model_views", 0) + 1
+                        return True
+                except Exception as exc:
+                    self.log(f"  вид модели через {api} («{name}»): {exc!r}")
         return False
 
     def model_gabarit(self, source: str):
@@ -1505,11 +1500,13 @@ class Api5Backend:
         assoc = CastTo(view, "IAssociationView")
         assoc.SourceFileName = source
         assoc.ProjectionName = projection
-        if hidden:
+        for key, value in (("HiddenLinesVisible", bool(hidden)), ("TangentEdgesVisible", True),
+                           ("VisibleLinesStyle", 1), ("HiddenLinesStyle", 4),
+                           ("TangentEdgesStyle", 2)):
             try:
-                assoc.HiddenLinesVisible = True
-            except Exception:
-                pass
+                setattr(assoc, key, value)
+            except Exception as exc:
+                self.log(f"    IAssociationView.{key}: {exc!r}")
         view.X, view.Y = at
         view.Scale = scale
         view.Angle = angle
@@ -1524,18 +1521,35 @@ class Api5Backend:
         return ok
 
     def _model_view5(self, source, at, scale, angle, projection, hidden) -> bool:
+        """API5 as the KOMPAS SDK's own example does it: the file, the
+        projection and how its lines are drawn on ksAssociationViewParam; the
+        place, scale and name on ITS view parameters (GetViewParam) — set on
+        the association parameters themselves (as before) they were refused
+        or lost, and the view came out empty. Line styles given: left at 0,
+        the edges are drawn in no style at all."""
         par = self._param("ko_AssociationViewParam", "ksAssociationViewParam")
         par.Init()
-        par.fileName, par.projectionName = source, projection
-        par.x, par.y, par.scale_, par.angle, par.name = at[0], at[1], scale, angle, "Модель"
-        if hidden:
+        for key, value in (("disassembly", False), ("fileName", source),
+                           ("hiddenLinesShow", bool(hidden)), ("projectionLink", False),
+                           ("projectionName", projection), ("scale_", scale), ("section", False),
+                           ("sameHatch", True), ("tangentEdgesShow", True),
+                           ("visibleLinesStyle", 1), ("hiddenLinesStyle", 4),
+                           ("tangentEdgesStyle", 2)):
             try:
-                par.hiddenLinesShow = True
-            except Exception:
-                pass
+                setattr(par, key, value)
+            except Exception as exc:
+                self.log(f"    ksAssociationViewParam.{key}: {exc!r}")
+        view = self._sub("ksViewParam", par.GetViewParam())
+        view.Init()
+        view.angle, view.color, view.name, view.scale_ = angle, 0, "Модель", scale
+        view.state = 3  # the current view, open for its contents
+        view.x, view.y = at
         ref = self.doc.ksCreateSheetArbitraryView(par, 0)
+        number = ref[0] if isinstance(ref, tuple) else ref
         self._drawing7 = None
-        return bool(ref[0] if isinstance(ref, tuple) else ref)
+        if not number:
+            self.log(f"    ksCreateSheetArbitraryView: 0 (код {self.last_error()})")
+        return bool(number)
 
     def _sketch_arc(self, d2, seg):
         """API7 arc (constrainable) or, when API7 arcs fail, an API5 one (an int

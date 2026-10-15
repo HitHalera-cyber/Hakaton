@@ -619,3 +619,115 @@ def shift_loops(loops, dx: float):
                 moved.append(("arc", (s[1][0] + dx, s[1][1]), s[2], s[3], s[4]))
         out.append(moved)
     return out
+
+
+PHOTO_LEVEL = 0.03  # a photo profile's radius this close (share) to an end-view circle is it
+PHOTO_STEP = 0.5  # model mm: a photo's sizes are no finer than this
+PHOTO_SLANT = 12.0  # degrees: a photo's edge this near level or upright is so
+
+
+def end_view_radii(drawing: ir.Drawing, profile) -> list[float]:
+    """Radii (model mm) of the circles of the part's end view: the outside
+    and the bore of a flange are drawn there as circles."""
+    from .channels import _end_views
+
+    scale = drawing.scale.value or 1.0
+    out = []
+    for centre, outer in _end_views(drawing, profile.axis):
+        for c in drawing.of_type(ir.Circle):
+            if c.style == ir.STYLE_MAIN and math.dist(c.center, centre) < 0.5:
+                out.append(c.radius / scale)
+    return sorted(set(round(r, 3) for r in out))
+
+
+def tidy_photo_profile(loops, levels=()):
+    """A profile traced from a photo, made the turned part it shows: each
+    radius onto a circle of the end view when it is one (Ø200 → 100) or
+    onto a round half millimetre, the edges near level or upright made so,
+    and a spike — the corner of a section the photo did not show whole —
+    turned into the flat at the end view's radius it points at."""
+    def snap_y(y):
+        near = [r for r in levels if abs(r - y) <= max(PHOTO_LEVEL * r, PHOTO_STEP)]
+        if near:
+            return min(near, key=lambda r: abs(r - y))
+        return round(y / PHOTO_STEP) * PHOTO_STEP
+
+    def snap_x(x):
+        return round(x / PHOTO_STEP) * PHOTO_STEP
+
+    out = []
+    for loop in loops:
+        if any(s[0] != "line" for s in loop):
+            out.append(loop)  # arcs (fillets) are the drawing's own: left alone
+            continue
+        pts = [s[1] for s in loop]
+        pts = [(snap_x(x), snap_y(y)) for x, y in pts]
+        pts = _plateaus(pts, levels)
+        # near level / upright edges exactly so: the neighbour takes the value
+        n = len(pts)
+        for i in range(n):
+            (ax, ay), (bx, by) = pts[i], pts[(i + 1) % n]
+            ang = math.degrees(math.atan2(abs(by - ay), abs(bx - ax)))
+            if 0 < ang <= PHOTO_SLANT:
+                pts[(i + 1) % n] = (bx, ay)
+            elif 90 - PHOTO_SLANT <= ang < 90:
+                pts[(i + 1) % n] = (ax, by)
+        clean = []
+        for p in pts:  # repeated and in-line points out
+            if clean and math.dist(clean[-1], p) < 1e-9:
+                continue
+            clean.append(p)
+        while len(clean) > 1 and math.dist(clean[0], clean[-1]) < 1e-9:
+            clean.pop()
+        clean = _drop_collinear(clean)
+        if len(clean) >= 3:
+            out.append([("line", a, b) for a, b in zip(clean, clean[1:] + clean[:1])])
+    # the part starts at x = 0 (a half step of the snapping is no face)
+    x0 = min((min(s[1][0], s[2][0]) for loop in out for s in loop if s[0] == "line"),
+             default=0.0)
+    return shift_loops(out, -x0) if abs(x0) <= PHOTO_STEP else out
+
+
+def _plateaus(pts, levels):
+    """A vertex standing up between two slanted edges onto a radius of the
+    end view: the section's corner the photo lost — a flat at that radius,
+    reaching over the level edges at the spike's foot."""
+    if not levels:
+        return pts
+    top = max(levels)
+    n = len(pts)
+    for i in range(n):
+        p = pts[i]
+        if abs(p[1] - top) > 1e-9:
+            continue
+        a, b = pts[i - 1], pts[(i + 1) % n]
+        if a[1] >= top - 1e-9 or b[1] >= top - 1e-9:
+            continue  # already a flat there
+        # the feet: on along the level edges the spike stands on
+        j, k = (i - 1) % n, (i + 1) % n
+        while abs(pts[(j - 1) % n][1] - pts[j][1]) <= 1.0 and (j - 1) % n != i:
+            j = (j - 1) % n
+        while abs(pts[(k + 1) % n][1] - pts[k][1]) <= 1.0 and (k + 1) % n != i:
+            k = (k + 1) % n
+        xa, xb = pts[j][0], pts[k][0]
+        new = [(xa, top), (xb, top)]
+        keep = [q for m, q in enumerate(pts) if not _between_index(m, j, k, n)]
+        at = keep.index(pts[j]) + 1
+        return _plateaus(keep[:at] + new + keep[at:], [])
+    return pts
+
+
+def _between_index(m, j, k, n) -> bool:
+    """Whether index m lies strictly between j and k going forward (mod n)."""
+    return 0 < (m - j) % n < (k - j) % n
+
+
+def _drop_collinear(pts):
+    out = []
+    n = len(pts)
+    for i in range(n):
+        a, b, c = pts[i - 1], pts[i], pts[(i + 1) % n]
+        cross = (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0])
+        if abs(cross) > 1e-9:
+            out.append(b)
+    return out
