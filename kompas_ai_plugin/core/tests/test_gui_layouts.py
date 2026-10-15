@@ -60,3 +60,33 @@ def test_switching_keeps_the_options(window):
         assert window.scale_box.currentIndex() == 3
     assert window.settings.value("layout") == "engineer"
     assert os.environ["QT_QPA_PLATFORM"] == "offscreen"
+
+
+@pytest.mark.parametrize("size", [(1024, 700), (1280, 984), (1366, 728), (1920, 1040)])
+def test_every_layout_fits_the_window(window, size):
+    """On a laptop and on a big monitor alike nothing lies outside the window
+    and no button cuts its own label."""
+    from PySide6.QtCore import QPoint
+    from PySide6.QtWidgets import QAbstractScrollArea, QApplication, QPushButton
+
+    from kompas_ai.gui.layouts import LAYOUT_NAMES
+
+    window.show()
+    for key, _ in LAYOUT_NAMES:
+        window.apply_layout(key)
+        window.resize(*size)
+        QApplication.processEvents()
+        central = window.centralWidget()
+        for b in central.findChildren(QPushButton):
+            if not b.isVisibleTo(window) or b.objectName() == "link":
+                continue
+            inside_scroll = False
+            p = b.parentWidget()
+            while p is not None:
+                inside_scroll |= isinstance(p, QAbstractScrollArea)
+                p = p.parentWidget()
+            corner = b.mapTo(central, QPoint(b.width(), b.height()))
+            if not inside_scroll:
+                assert corner.x() <= central.width() + 1, (key, size, b.text())
+            if b.text():
+                assert b.width() >= b.fontMetrics().horizontalAdvance(b.text()), (key, size, b.text())

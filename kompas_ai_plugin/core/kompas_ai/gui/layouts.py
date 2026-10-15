@@ -21,8 +21,8 @@ from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import (QButtonGroup, QFrame, QGridLayout, QHBoxLayout, QLabel,
-                               QPushButton, QScrollArea, QStackedWidget, QTabWidget, QVBoxLayout,
-                               QWidget)
+                               QPushButton, QScrollArea, QSizePolicy, QStackedWidget, QTabWidget,
+                               QVBoxLayout, QWidget)
 
 from .widgets import (ClickCard, ElidedLabel, Ring, StatCard, action_button, card, chip, label,
                       restyle)
@@ -45,10 +45,25 @@ def _section(text: str) -> QLabel:
     return label(text.upper(), "section")
 
 
+def clamp(value: float, low: int, high: int) -> int:
+    return int(max(low, min(high, value)))
+
+
+class _Scroll(QScrollArea):
+    """A column that scrolls down when its cards are taller than the window,
+    and is never wider than itself: its content takes exactly its width, so
+    the texts wrap instead of running out of sight."""
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if self.widget() is not None:
+            self.widget().setFixedWidth(self.viewport().width())
+
+
 def _scroll(inner: QWidget, width: int) -> QScrollArea:
     """A side column that scrolls when its cards are taller than the window:
     nothing in it is squeezed over its neighbour."""
-    area = QScrollArea(objectName="clear")
+    area = _Scroll(objectName="clear")
     area.setWidgetResizable(True)
     area.setFrameShape(QFrame.NoFrame)
     area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -99,6 +114,30 @@ class Layout:
             self.ring.colors = colors
             self.ring.update()
 
+    def on_resize(self, width: int, height: int) -> None:
+        """The look fitted to the window: columns in proportion, shorter
+        labels on a narrow screen (a laptop, 1280 or 1024 wide)."""
+        compact = width < 1300
+        self.win.marks_box.setText("Нарушения" if compact else "Нарушения на листе")
+        self.roomy = not compact
+        if getattr(self, "contour_chip", None) is not None and compact:
+            self.contour_chip.hide()
+        # the format and scale are said by the sheet's own line too
+        self.chip_room = width >= 1150
+        sheet_chip = getattr(self, "sheet_chip", None)
+        if sheet_chip is not None:
+            sheet_chip.setVisible(self.chip_room and self.win.drawing is not None)
+        box = self.win.layout_box  # «Вид: Инженер» → «Инженер»
+        for i, (_, title) in enumerate(LAYOUT_NAMES):
+            box.setItemText(i, title if compact else f"Вид: {title}")
+        brand = getattr(self, "brand", None)
+        if brand is not None:
+            brand.setVisible(width >= 1150)
+        head = getattr(self, "head", None)
+        for key, short in (("open", "Открыть"), ("model", "По модели…"), ("theme", "icon")):
+            if head and key in head:
+                head[key].set_short(short if compact else None)
+
     # --- pieces several looks share -------------------------------------------------
 
     def _header_buttons(self) -> list[QWidget]:
@@ -107,8 +146,10 @@ class Layout:
         recent.setMenu(w.recent_menu)
         recent.setCursor(Qt.PointingHandCursor)
         self.recent_button = recent
-        return [recent, action_button(w.acts["from_model"]), action_button(w.acts["open"]),
-                w.layout_box, action_button(w.acts["theme"], "flat")]
+        self.head = {"model": action_button(w.acts["from_model"]),
+                     "open": action_button(w.acts["open"]),
+                     "theme": action_button(w.acts["theme"], "flat")}
+        return [recent, self.head["model"], self.head["open"], w.layout_box, self.head["theme"]]
 
     def _log_page(self) -> QWidget:
         w = self.win
@@ -169,9 +210,16 @@ class Layout:
             broken = info["issues"]
             self.contour_chip.setText("Есть нарушения" if broken else "Контур замкнут")
             restyle(self.contour_chip, "chipWarn" if broken else "chipOk")
-            self.contour_chip.show()
+            self.contour_chip.setVisible(getattr(self, "roomy", True))
         else:
             self.contour_chip.hide()
+
+    def _narrow_questions(self, column: int) -> None:
+        """Question buttons one under another in a column too narrow for two."""
+        narrow = column < 330
+        if narrow != getattr(self, "narrow_questions", False):
+            self.narrow_questions = narrow
+            self.show_drawing(self.win.info())
 
     def _questions(self, lay: QVBoxLayout, info, limit: int = 4, cards: bool = True) -> None:
         """The sizes not held, each with what can be done about it."""
@@ -179,8 +227,10 @@ class Layout:
         _clear(lay)
         rows = info["questions"] if info else []
         if not info:
-            lay.addWidget(label("Откройте чертёж — здесь появятся размеры, которые нужно "
-                                "уточнить.", "sub"))
+            empty = label("Откройте чертёж — здесь появятся размеры, которые нужно уточнить.",
+                          "sub")
+            empty.setWordWrap(True)
+            lay.addWidget(empty)
             return
         if not rows:
             text = label("Вопросов нет: все размеры выдержаны точно." if info["dims"] else
@@ -213,7 +263,12 @@ class Layout:
             own.clicked.connect(lambda _=False, i=r["id"]: w.refine(i))
             for b in (trust, own, show):
                 b.setCursor(Qt.PointingHandCursor)
-            inner.addLayout(_row(trust, own, stretch_at=2))
+                b.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)  # whole words
+            if getattr(self, "narrow_questions", False):  # one under another
+                inner.addWidget(trust)
+                inner.addWidget(own)
+            else:
+                inner.addLayout(_row(trust, own, stretch_at=2))
             lay.addWidget(box)
         if len(rows) > limit:
             more = QPushButton(f"Ещё {len(rows) - limit}…", objectName="flat")
@@ -238,7 +293,8 @@ class Engineer(Layout):
         top = QHBoxLayout(bar)
         top.setContentsMargins(16, 10, 16, 10)
         top.setSpacing(10)
-        top.addWidget(label(w.app_name, "topBrand"))
+        self.brand = label(w.app_name, "topBrand")
+        top.addWidget(self.brand)
         self.title = ElidedLabel("Чертёж не открыт", "topTitle")
         top.addWidget(self.title, 1)
         self.sheet_chip = chip("")
@@ -254,6 +310,7 @@ class Engineer(Layout):
 
         left, ll = card("panel")
         left.setFixedWidth(280)
+        self.left = left
         ll.addWidget(_section("Состав чертежа"))
         self.contents = QVBoxLayout()
         self.contents.setSpacing(4)
@@ -266,7 +323,10 @@ class Engineer(Layout):
         ll.addLayout(_row(self.ring, self.ring_note, spacing=12))
         ll.addSpacing(8)
         ll.addWidget(_section("Параметры"))
-        self._options(ll)
+        self.left_options = QVBoxLayout()
+        self.left_options.setSpacing(8)
+        ll.addLayout(self.left_options)
+        self._options(self.left_options)
         ll.addStretch(1)
         ll.addWidget(w.kompas_note)
         body.addWidget(left)
@@ -292,13 +352,21 @@ class Engineer(Layout):
         rl.addLayout(self.question_box)
         rl.addWidget(action_button(w.acts["refine"], "secondary", "Все размеры…"))
         rl.addSpacing(6)
+        # the options come here when the window is too narrow for the left panel
+        self.right_options_title = _section("Параметры")
+        self.right_options_title.hide()
+        rl.addWidget(self.right_options_title)
+        self.right_options = QVBoxLayout()
+        self.right_options.setSpacing(8)
+        rl.addLayout(self.right_options)
         rl.addWidget(_section("Нарушения"))
         self.issue_box = QVBoxLayout()
         self.issue_box.setSpacing(4)
         rl.addLayout(self.issue_box)
         rl.addStretch(1)
         self._build_buttons(rl)
-        body.addWidget(_scroll(right, 330))
+        self.right_scroll = _scroll(right, 330)
+        body.addWidget(self.right_scroll)
         col.addLayout(body, 1)
 
         foot = QFrame(objectName="footbar")
@@ -312,12 +380,27 @@ class Engineer(Layout):
     def show_page(self, index: int) -> None:
         self.tabs.setCurrentIndex(index)
 
+    def on_resize(self, width: int, height: int) -> None:
+        super().on_resize(width, height)
+        narrow = width < 1200
+        if narrow != getattr(self, "narrow", None):
+            # a narrow screen: the drawing's contents and the ring go (their
+            # figures are in the line below the sheet), the options move right
+            self.narrow = narrow
+            self._options(self.right_options if narrow else self.left_options)
+            self.left.setVisible(not narrow)
+            self.right_options_title.setVisible(narrow)
+        self.left.setFixedWidth(clamp(width * 0.2, 255, 300))
+        column = clamp(width * (0.3 if narrow else 0.23), 280, 380)
+        self.right_scroll.setFixedWidth(column)
+        self._narrow_questions(column)
+
     def show_drawing(self, info) -> None:
         w = self.win
         self.title.setText(info["name"] if info else (w.pdf.name if w.pdf else "Чертёж не открыт"))
         if info:
             self.sheet_chip.setText(f"{info['format']} · {info['scale']}")
-            self.sheet_chip.show()
+            self.sheet_chip.setVisible(getattr(self, "chip_room", True))
         else:
             self.sheet_chip.hide()
         self._show_sheet_head(info)
@@ -339,9 +422,14 @@ class Engineer(Layout):
         _clear(self.issue_box)
         issues = info["issue_list"] if info else []
         for number, text in issues[:5]:
-            b = QPushButton(f"{number}. {text}", objectName="issue")
-            b.setCursor(Qt.PointingHandCursor)
-            b.clicked.connect(lambda _=False, t=text: w.point_at_issue(t))
+            b = ClickCard("issueCard")  # the text wraps in a narrow column
+            bl = QVBoxLayout(b)
+            bl.setContentsMargins(10, 6, 10, 6)
+            t = label(f"{number}. {text}", "issueText")
+            t.setWordWrap(True)
+            bl.addWidget(t)
+            b.setToolTip("Показать на листе")
+            b.clicked.connect(lambda t=text: w.point_at_issue(t))
             self.issue_box.addWidget(b)
         if info and len(issues) > 5:
             more = QPushButton(f"все {len(issues)}…", objectName="flat")
@@ -382,7 +470,8 @@ class Wizard(Layout):
 
         head = QHBoxLayout()
         head.setSpacing(10)
-        head.addWidget(label(w.app_name, "brand"))
+        self.brand = label(w.app_name, "brand")
+        head.addWidget(self.brand)
         self.title = ElidedLabel("Чертёж не открыт", "title")
         head.addWidget(self.title, 1)
         self.sheet_chip = chip("")
@@ -477,7 +566,8 @@ class Wizard(Layout):
         ol.addStretch(1)
         self._build_buttons(ol)
         right.addWidget(out, 1)
-        body.addWidget(_scroll(side, 440))
+        self.side_scroll = _scroll(side, 440)
+        body.addWidget(self.side_scroll)
         col.addLayout(body, 1)
         self.show_drawing(None)
         return root
@@ -486,12 +576,20 @@ class Wizard(Layout):
         self.seg.button(index).setChecked(True)
         self.stack.setCurrentIndex(index)
 
+    def on_resize(self, width: int, height: int) -> None:
+        super().on_resize(width, height)
+        column = clamp(width * 0.3, 300, 470)
+        self.side_scroll.setFixedWidth(column)
+        self._narrow_questions(column - 40)
+        for _, _, sub in self.steps:  # the steps' second lines only where they fit
+            sub.setVisible(width >= 1150)
+
     def show_drawing(self, info) -> None:
         w = self.win
         self.title.setText(info["name"] if info else (w.pdf.name if w.pdf else "Чертёж не открыт"))
         if info:
             self.sheet_chip.setText(f"{info['format']} · {info['scale']}")
-            self.sheet_chip.show()
+            self.sheet_chip.setVisible(getattr(self, "chip_room", True))
         else:
             self.sheet_chip.hide()
         self._show_sheet_head(info)
@@ -543,6 +641,7 @@ class Console(Layout):
 
         side = QFrame(objectName="rail")
         side.setFixedWidth(230)
+        self.rail = side
         sl = QVBoxLayout(side)
         sl.setContentsMargins(16, 20, 16, 16)
         sl.setSpacing(6)
@@ -558,7 +657,8 @@ class Console(Layout):
         self.nav.idClicked.connect(self._go)
         sl.addStretch(1)
         sl.addWidget(w.layout_box)
-        sl.addWidget(action_button(w.acts["theme"], "flat"))
+        self.head = {"theme": action_button(w.acts["theme"], "flat")}
+        sl.addWidget(self.head["theme"])
         sl.addWidget(w.kompas_note)
         lay.addWidget(side)
 
@@ -591,6 +691,25 @@ class Console(Layout):
     def show_page(self, index: int) -> None:
         self._go(index + 1)
 
+    recent_cols = 3
+
+    def on_resize(self, width: int, height: int) -> None:
+        super().on_resize(width, height)
+        narrow = width < 1300
+        self.rail.setFixedWidth(170 if narrow else 230)
+        self.side_scroll.setFixedWidth(clamp(width * 0.3, 320, 390))
+        self.rules_card.set_title("Контур" if narrow else "Правила контура")
+        self.info_card.setFixedWidth(clamp(width * 0.22, 240, 330))
+        cols = 2 if narrow else 4
+        if cols != self.tile_cols:  # the big actions in two rows on a narrow screen
+            self.tile_cols = cols
+            for i, tile in enumerate(self.tiles):
+                self.tile_grid.addWidget(tile, i // cols, i % cols)
+        cols = 2 if width < 1400 else 3
+        if cols != self.recent_cols:
+            self.recent_cols = cols
+            self._fill_recent()
+
     def _home(self) -> QWidget:
         w = self.win
         page = QWidget()
@@ -602,6 +721,7 @@ class Console(Layout):
         col.addWidget(label("С какого чертежа начнём?", "title"))
         tiles = QGridLayout()
         tiles.setSpacing(14)
+        self.tiles, self.tile_grid, self.tile_cols = [], tiles, 4
         for i, (key, text, note) in enumerate((
                 ("open", "Открыть PDF", "или перетащите файл в окно"),
                 ("photo", "Чертёж с фото", "телефон, скан, скриншот"),
@@ -621,6 +741,7 @@ class Console(Layout):
             act.enabledChanged.connect(b.setEnabled)
             b.setMinimumHeight(80)
             tiles.addWidget(b, 0, i)
+            self.tiles.append(b)
         col.addLayout(tiles)
         body = QHBoxLayout()
         body.setSpacing(20)
@@ -640,6 +761,7 @@ class Console(Layout):
         body.addLayout(recent, 1)
         info, il = card()
         info.setFixedWidth(300)
+        self.info_card = info
         il.addWidget(label("Этот запуск", "cardHead"))
         self.session_figures = {}
         grid = QGridLayout()
@@ -692,9 +814,10 @@ class Console(Layout):
             bl.addWidget(when)
             b.setFixedHeight(200)
             b.clicked.connect(lambda p=path: w.open_file(p))
-            self.recent_grid.addWidget(b, i // 3, i % 3)
+            cols = self.recent_cols
+            self.recent_grid.addWidget(b, i // cols, i % cols)
         for c in range(3):
-            self.recent_grid.setColumnStretch(c, 1)
+            self.recent_grid.setColumnStretch(c, 1 if c < self.recent_cols else 0)
         self.recent_grid.setRowStretch(self.recent_grid.rowCount(), 1)
 
     def _drawing(self) -> QWidget:
@@ -743,7 +866,8 @@ class Console(Layout):
         bl.addStretch(1)
         self._build_buttons(bl)
         right.addWidget(build, 1)
-        body.addWidget(_scroll(side, 350))
+        self.side_scroll = _scroll(side, 350)
+        body.addWidget(self.side_scroll)
         col.addLayout(body, 1)
         return page
 
@@ -752,7 +876,7 @@ class Console(Layout):
         self.title.setText(info["name"] if info else (w.pdf.name if w.pdf else "Чертёж не открыт"))
         if info:
             self.sheet_chip.setText(f"{info['format']} · {info['scale']}")
-            self.sheet_chip.show()
+            self.sheet_chip.setVisible(getattr(self, "chip_room", True))
         else:
             self.sheet_chip.hide()
         self._show_sheet_head(info)

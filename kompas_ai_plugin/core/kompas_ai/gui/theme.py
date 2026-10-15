@@ -238,6 +238,9 @@ QPushButton#thumbCard {{ border: 1px solid {c['border']}; border-radius: 16px; b
                          padding: 0; text-align: left; }}
 QPushButton#thumbCard:hover {{ border-color: {c['select']}; }}
 #clear {{ background: transparent; }}
+#issueCard {{ background: {c['card_alt']}; border-radius: 8px; }}
+#issueCard:hover {{ background: {c['warn_soft']}; }}
+#issueText {{ font-size: 12px; }}
 QPushButton#small {{ min-height: 30px; min-width: 0; padding: 0 12px; border-radius: 8px;
                      border: 1px solid {c['border']}; background: {c['card']}; font-size: 13px;
                      font-weight: 600; }}

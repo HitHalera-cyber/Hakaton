@@ -43,6 +43,7 @@ SCALES = [("Масштаб как на чертеже", None)] + [
 SHEET_FORMATS = [("A4", (210.0, 297.0)), ("A3", (297.0, 420.0)), ("A2", (420.0, 594.0)),
                  ("A1", (594.0, 841.0)), ("A0", (841.0, 1189.0))]
 PHOTO_SCALES = [(name, value) for name, value in SCALES[1:]]
+MIN_W, MIN_H = 960, 600  # a 1024×768 screen with its taskbar still holds the window
 IMAGE_FILTER = "Фото или скан (*.png *.jpg *.jpeg *.bmp *.tif *.tiff *.webp)"
 KINDS = [("Основные линии", lambda e: isinstance(e, ir.Line) and e.style == ir.STYLE_MAIN),
          ("Тонкие линии", lambda e: isinstance(e, ir.Line) and e.style == ir.STYLE_THIN),
@@ -59,8 +60,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.app_name = APP_NAME
         self.setWindowTitle(APP_NAME)
-        self.resize(1440, 900)
-        self.setMinimumSize(1100, 720)
+        self.setMinimumSize(MIN_W, MIN_H)
         self.settings = QSettings("KompasAI", "KompasAI")
         self.session_log = SessionLog()
         self.pdf: Path | None = None
@@ -83,6 +83,7 @@ class MainWindow(QMainWindow):
         name = self.settings.value("layout", "engineer")
         self.apply_layout(name if name in LAYOUTS else "engineer")
         self.apply_theme(self.theme)
+        self._fit_to_screen()
         self._set_ready(False)
         self.statusBar().showMessage("Откройте PDF чертежа (или перетащите его в окно)")
 
@@ -174,6 +175,7 @@ class MainWindow(QMainWindow):
         self.marks_box.setToolTip("Красные кольца с номерами там, где контур нарушает правила")
         self.marks_box.toggled.connect(self._toggle_marks)
         self.layout_box = QComboBox()
+        self.layout_box.setSizeAdjustPolicy(QComboBox.AdjustToContents)
         for _, title in LAYOUT_NAMES:
             self.layout_box.addItem(f"Вид: {title}")
         self.layout_box.setToolTip("Оформление окна. Всё, что умеет программа, есть в каждом")
@@ -213,6 +215,38 @@ class MainWindow(QMainWindow):
             box.setChecked(str(s.value(key, "true")).lower() in ("true", "1"))
             box.toggled.connect(lambda on, key=key: s.setValue(key, on))
 
+    # --- the window on the screen -------------------------------------------------------------
+
+    def _fit_to_screen(self) -> None:
+        """The size it was left at, or a size that fits this screen: a window
+        wider than the monitor (1440 on a 1280 one) had its right column out
+        of sight."""
+        screen = self.screen().availableGeometry() if self.screen() else None
+        saved = self.settings.value("geometry")
+        if saved is not None and self.restoreGeometry(saved) and screen is not None \
+                and screen.contains(self.frameGeometry().center()) \
+                and self.width() <= screen.width() and self.height() <= screen.height():
+            return
+        if screen is None:
+            self.resize(1440, 900)
+            return
+        w = min(1440, int(screen.width() * 0.94))
+        h = min(900, int(screen.height() * 0.92))
+        self.resize(max(w, MIN_W), max(h, MIN_H))
+        self.move(screen.x() + (screen.width() - self.width()) // 2,
+                  screen.y() + (screen.height() - self.height()) // 2)
+        # a small screen (a laptop): the whole of it
+        self.start_maximized = screen.width() < 1366 or screen.height() < 800
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if self.ui is not None:
+            self.ui.on_resize(self.width(), self.height())
+
+    def closeEvent(self, event):
+        self.settings.setValue("geometry", self.saveGeometry())
+        super().closeEvent(event)
+
     # --- layouts and themes ----------------------------------------------------------------
 
     def apply_layout(self, key: str) -> None:
@@ -241,6 +275,7 @@ class MainWindow(QMainWindow):
             self.loader.raise_()
         self.ui.set_colors(THEMES.get(getattr(self, "theme", "light"), THEMES["light"]))
         self.ui.show_drawing(self.info())
+        self.ui.on_resize(self.width(), self.height())
         if page:
             self.ui.show_page(page)
         self.preview.fit()
@@ -835,7 +870,10 @@ def main(argv: list[str] | None = None) -> int:
     if icon:
         app.setWindowIcon(QIcon(str(icon)))
     window = MainWindow()
-    window.show()
+    if getattr(window, "start_maximized", False):
+        window.showMaximized()
+    else:
+        window.show()
     args = app.arguments()[1:]
     if args and Path(args[0]).exists():
         path = Path(args[0])

@@ -161,7 +161,8 @@ class StatCard(QFrame):
         super().__init__(objectName="card")
         lay = QVBoxLayout(self)
         lay.setContentsMargins(20, 16, 20, 18)
-        lay.addWidget(label(title, "cardTitle"))
+        self.title = label(title, "cardTitle")
+        lay.addWidget(self.title)
         lay.addStretch(1)
         self.value = label("—", "big")
         self.note = label("откройте чертёж", "sub")
@@ -173,6 +174,9 @@ class StatCard(QFrame):
         if event.button() == Qt.LeftButton:
             self.clicked.emit()
         super().mouseReleaseEvent(event)
+
+    def set_title(self, title: str) -> None:
+        self.title.setText(title)
 
     def set_value(self, value: str, note: str, state: str = "") -> None:
         self.value.setText(value)
@@ -201,11 +205,27 @@ class ActionButton(QPushButton):
     def __init__(self, action, text, kind):
         super().__init__(text or action.text(), objectName=kind)
         self._action = action
+        self._fixed = text
+        self._short: str | None = None
         if not text:
             action.changed.connect(self._sync)
 
+    def set_short(self, short: str | None) -> None:
+        """A shorter label for a narrow window («icon»: the first sign only);
+        the full one is in the tooltip. None: the full label again."""
+        self._short = short
+        self._sync()
+
     def _sync(self) -> None:
-        self.setText(self._action.text())
+        full = self._fixed or self._action.text()
+        tip = self._action.toolTip()
+        tip = "" if tip in ("", self._action.text()) else tip
+        if self._short:
+            self.setText(full.split()[0] if self._short == "icon" else self._short)
+            self.setToolTip(full + (f"\n{tip}" if tip else ""))
+        else:
+            self.setText(full)
+            self.setToolTip(tip)
 
 
 def action_button(action, kind: str = "secondary", text: str | None = None) -> QPushButton:
