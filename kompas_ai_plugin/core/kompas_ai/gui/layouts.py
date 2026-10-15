@@ -134,9 +134,12 @@ class Layout:
         if brand is not None:
             brand.setVisible(width >= 1150)
         head = getattr(self, "head", None)
+        # the header's full labels only where they fit with room to spare
+        # (Windows' fonts are wider than they look on another system)
+        tight = width < 1500
         for key, short in (("open", "Открыть"), ("model", "По модели…"), ("theme", "icon")):
-            if head and key in head:
-                head[key].set_short(short if compact else None)
+            if head and key in head and head[key].fixed_short is None:
+                head[key].set_short(short if tight else None)
 
     # --- pieces several looks share -------------------------------------------------
 
@@ -555,7 +558,8 @@ class Wizard(Layout):
         self.question_box = QVBoxLayout()
         self.question_box.setSpacing(8)
         al.addLayout(self.question_box)
-        al.addWidget(action_button(w.acts["refine"], "secondary", "Уточнить все размеры…"))
+        self.all_sizes = action_button(w.acts["refine"], "secondary", "Уточнить все размеры…")
+        al.addWidget(self.all_sizes)
         right.addWidget(ask)
         out, ol = card()
         ol.addWidget(label("Что получится в КОМПАС", "cardHead"))
@@ -580,6 +584,7 @@ class Wizard(Layout):
         super().on_resize(width, height)
         column = clamp(width * 0.3, 300, 470)
         self.side_scroll.setFixedWidth(column)
+        self.all_sizes.set_short("Все размеры…" if column < 400 else None)
         self._narrow_questions(column - 40)
         for _, _, sub in self.steps:  # the steps' second lines only where they fit
             sub.setVisible(width >= 1150)
@@ -658,6 +663,7 @@ class Console(Layout):
         sl.addStretch(1)
         sl.addWidget(w.layout_box)
         self.head = {"theme": action_button(w.acts["theme"], "flat")}
+        self.head["theme"].set_short("icon+Тема")  # a narrow menu: «☾  Тема»
         sl.addWidget(self.head["theme"])
         sl.addWidget(w.kompas_note)
         lay.addWidget(side)

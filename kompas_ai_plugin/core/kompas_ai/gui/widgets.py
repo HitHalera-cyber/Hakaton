@@ -198,6 +198,9 @@ def restyle(widget: QWidget, name: str) -> None:
     widget.style().polish(widget)
 
 
+PAD = 40  # px of a button's padding and border around its label (theme.py: 18 + 18 + 2)
+
+
 class ActionButton(QPushButton):
     """A button that follows its action's text (the theme button names the
     next theme); a slot of its own, so a deleted button is let go."""
@@ -207,13 +210,32 @@ class ActionButton(QPushButton):
         self._action = action
         self._fixed = text
         self._short: str | None = None
+        self.fixed_short: str | None = None  # a short label for good (a narrow menu)
         if not text:
             action.changed.connect(self._sync)
+
+    def sizeHint(self):  # noqa: N802 (Qt's name)
+        """Never narrower than its label in the font it has now: a hint
+        measured in another font (Windows' default before the window's
+        style) cut «Открыть PDF / фото» by a pixel."""
+        hint = super().sizeHint()
+        need = self.fontMetrics().horizontalAdvance(self.text()) + PAD
+        if hint.width() < need:
+            hint.setWidth(need)
+        return hint
+
+    def minimumSizeHint(self):  # noqa: N802
+        hint = super().minimumSizeHint()
+        if self.objectName() != "primary":
+            hint.setWidth(max(hint.width(), self.sizeHint().width()))
+        return hint
 
     def set_short(self, short: str | None) -> None:
         """A shorter label for a narrow window («icon»: the first sign only);
         the full one is in the tooltip. None: the full label again."""
         self._short = short
+        if short and short.startswith("icon+"):
+            self.fixed_short = short
         self._sync()
 
     def _sync(self) -> None:
@@ -221,7 +243,11 @@ class ActionButton(QPushButton):
         tip = self._action.toolTip()
         tip = "" if tip in ("", self._action.text()) else tip
         if self._short:
-            self.setText(full.split()[0] if self._short == "icon" else self._short)
+            if self._short.startswith("icon+"):  # the sign and a word: «☾  Тема»
+                text = f"{full.split()[0]}  {self._short[5:]}"
+            else:
+                text = full.split()[0] if self._short == "icon" else self._short
+            self.setText(text)
             self.setToolTip(full + (f"\n{tip}" if tip else ""))
         else:
             self.setText(full)
