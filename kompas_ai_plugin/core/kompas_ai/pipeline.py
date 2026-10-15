@@ -13,6 +13,7 @@ Stages (each in its own module):
 from __future__ import annotations
 
 import math
+import re
 from pathlib import Path
 
 from . import ir
@@ -43,11 +44,12 @@ STAGES = ["Читаю PDF", "Рамка и основная надпись", "Л
 
 def recognize_pdf(pdf_path: str | Path, page: int = 0, exact: bool = True,
                   progress=None, raster: bool = False,
-                  scale: float | None = None) -> ir.Drawing:
+                  scale: float | None = None, overrides: dict | None = None) -> ir.Drawing:
     """Recognise one PDF page. ``exact`` corrects the geometry to the written
     dimensions (see geometry/regularize.py); False keeps the measured PDF values.
     ``progress(stage)`` is called with each of STAGES as it starts. ``scale``:
-    the drawing's scale when the sheet does not say it (a photo)."""
+    the drawing's scale when the sheet does not say it (a photo). ``overrides``:
+    dimension id → the value the user means (the window's «Уточнить размеры»)."""
     step = progress or (lambda stage: None)
     step(STAGES[0])
     content = extract_page(pdf_path, page)
@@ -145,6 +147,9 @@ def recognize_pdf(pdf_path: str | Path, page: int = 0, exact: bool = True,
 
     _build_entities(drawing, geometry, is_thin, found, plain_texts, regions, orphan_groups,
                     suspicious)
+    refined = _apply_overrides(drawing, overrides or {})
+    if refined:
+        drawing.processing.append(f"Размеры уточнены вручную: {refined}")
     implied = implied_diameters(drawing)
     if implied:
         drawing.warnings.append(
@@ -160,6 +165,7 @@ def recognize_pdf(pdf_path: str | Path, page: int = 0, exact: bool = True,
             f"{solved.get('directions', 0)}, размеров точно {solved.get('dims', 0)}, "
             f"округлено неуказанных {solved.get('rounded', 0)}, "
             f"наибольший сдвиг {solved.get('moved', 0.0):.3f} мм")
+        drawing.dims_skipped = list(solved.get("dims_skipped") or ())
         if solved.get("dims_skipped"):
             drawing.warnings.append(
                 "Размеры не удалось выдержать (число сильно расходится с линиями): "
@@ -467,6 +473,24 @@ def _slanted(p) -> bool:
     """A short line at about 45°, as a hatch stroke runs."""
     ang = math.degrees(math.atan2(p.p2[1] - p.p1[1], p.p2[0] - p.p1[0])) % 90.0
     return 35.0 <= ang <= 55.0 and p.length <= 6.0
+
+
+def _apply_overrides(drawing, overrides: dict) -> int:
+    """The user's values for sizes: the number written becomes theirs (its
+    sign and prefix kept), so the fitting and KOMPAS hold that one."""
+    done = 0
+    for d in drawing.of_type(ir.Dimension):
+        value = overrides.get(d.id)
+        if value is None or value <= 0:
+            continue
+        d.original_nominal = d.nominal
+        number = f"{value:.3f}".rstrip("0").rstrip(".").replace(".", ",")
+        d.text = re.sub(r"\d+(?:[.,]\d+)?", number, d.text, count=1) if re.search(r"\d", d.text) \
+            else number
+        d.nominal = float(value)
+        d.notes = list(d.notes) + ["уточнён вручную"]
+        done += 1
+    return done
 
 
 SQUARE_DEG = 2.0  # a short thin line of a photo this close to level is level

@@ -1,6 +1,11 @@
 """Main window: open a drawing, look at what was recognised, build it in KOMPAS.
 
     py -m kompas_ai.gui            (or KompasAI.exe)
+
+The window is the program; its look is one of three layouts (layouts.py) —
+«Инженер», «Мастер», «Пульт» — chosen at the top and switched on the fly.
+Every command is a QAction here and every control holding a state one
+widget here, so all the layouts can do all of it.
 """
 
 from __future__ import annotations
@@ -9,26 +14,25 @@ import re
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QSettings, Qt, QThread, Signal
-from PySide6.QtGui import (QAction, QBrush, QColor, QIcon, QImage, QKeySequence, QPainter, QPen,
-                           QPixmap)
-from PySide6.QtWidgets import (QApplication, QButtonGroup, QCheckBox, QComboBox, QFileDialog,
-                               QFrame, QGraphicsEllipseItem, QGraphicsScene, QGraphicsView,
-                               QGridLayout, QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
-                               QMainWindow, QMenu, QMessageBox, QPlainTextEdit, QPushButton,
-                               QSizePolicy,
-                               QStackedWidget, QVBoxLayout, QWidget)
+from PySide6.QtCore import QEvent, QSettings, Qt, QThread, QTimer
+from PySide6.QtGui import QAction, QIcon, QKeySequence
+from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog, QListWidget,
+                               QListWidgetItem, QMainWindow, QMenu, QMessageBox, QPlainTextEdit)
 
 from .. import ir
 from ..export.dxf_writer import write_dxf
+from ..pipeline import STAGES
 from ..report.preview import sheet_to_pixel
 from ..report.summary import TYPE_NAMES, summary_text
-from ..pipeline import STAGES
+from .layouts import LAYOUT_NAMES, LAYOUTS, PAGES
 from .loader import DraftingLoader
+from .refine import RefineDialog, dimension_rows, questions
 from .session import SessionLog, app_folder, recent_files, remember_file, stamped
 from .theme import THEME_ICONS, THEME_NAMES, THEMES, style_sheet
-from .workers import (CANCELLED, IMAGE_SUFFIXES, MODEL_STAGE, PHOTO_STAGE, PREVIEW_DPI, PREVIEW_STAGE, BothJob, CheckJob,
-                      KompasJob, ModelDrawingJob, RecognizeJob, RevolveJob)
+from .widgets import PreviewView, label
+from .workers import (CANCELLED, IMAGE_SUFFIXES, MODEL_STAGE, PHOTO_STAGE, PREVIEW_DPI,
+                      PREVIEW_STAGE, BothJob, CheckJob, KompasJob, ModelDrawingJob, RecognizeJob,
+                      RevolveJob)
 
 APP_NAME = "КОМПАС-AI"
 MODES = [("Точно по размерам", True), ("Как в PDF (без выравнивания)", False)]
@@ -36,185 +40,24 @@ SCALES = [("Масштаб как на чертеже", None)] + [
     (f"Масштаб {name}", value) for name, value in (
         ("1:1", 1.0), ("1:2", 0.5), ("1:2,5", 0.4), ("1:4", 0.25), ("1:5", 0.2), ("1:10", 0.1),
         ("2:1", 2.0), ("2,5:1", 2.5), ("4:1", 4.0), ("5:1", 5.0), ("10:1", 10.0))]
-PAGES = ["Чертёж", "Отчёт", "Проверка", "Журнал"]
 SHEET_FORMATS = [("A4", (210.0, 297.0)), ("A3", (297.0, 420.0)), ("A2", (420.0, 594.0)),
                  ("A1", (594.0, 841.0)), ("A0", (841.0, 1189.0))]
 PHOTO_SCALES = [(name, value) for name, value in SCALES[1:]]
-GRID = 20  # px between grid lines behind the drawing
-
-
-class PreviewView(QGraphicsView):
-    """Zoomable, draggable preview of the source drawing with the recognised objects."""
-
-    def __init__(self):
-        super().__init__()
-        self.setScene(QGraphicsScene(self))
-        self.setRenderHints(QPainter.Antialiasing | QPainter.SmoothPixmapTransform)
-        self.setDragMode(QGraphicsView.ScrollHandDrag)
-        self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
-        self.setFrameShape(QFrame.NoFrame)
-        self.marker: QGraphicsEllipseItem | None = None
-        self.png: bytes | None = None
-        self.marks: list = []  # (x, y, number) of broken rules, in preview pixels
-        self.colors = THEMES["light"]
-
-    def set_colors(self, colors: dict[str, str]) -> None:
-        self.colors = colors
-        self.setBackgroundBrush(QBrush(QColor(colors["sheet"])))
-        if self.png is not None:
-            self.show_png(self.png, keep_view=True)
-        self.viewport().update()
-
-    def drawBackground(self, painter, rect):
-        super().drawBackground(painter, rect)
-        painter.save()
-        painter.resetTransform()
-        painter.setPen(QPen(QColor(self.colors["grid"]), 1))
-        area = self.viewport().rect()
-        for x in range(0, area.width(), GRID):
-            painter.drawLine(x, 0, x, area.height())
-        for y in range(0, area.height(), GRID):
-            painter.drawLine(0, y, area.width(), y)
-        painter.restore()
-
-    def show_png(self, png: bytes, keep_view: bool = False) -> None:
-        self.png = png
-        image = QImage.fromData(png, "PNG").convertToFormat(QImage.Format_ARGB32)
-        if QColor(self.colors["sheet"]).lightness() < 128:
-            image = _night(image, QColor(self.colors["sheet"]))
-        transform = self.transform()
-        center = self.mapToScene(self.viewport().rect().center())
-        self.scene().clear()
-        self.marker = None
-        pix = QPixmap.fromImage(image)
-        self.scene().addPixmap(pix)
-        self.scene().setSceneRect(pix.rect())
-        self._draw_marks()
-        if keep_view:
-            self.setTransform(transform)
-            self.centerOn(center)
-        else:
-            self.fit()
-
-    def set_marks(self, marks) -> None:
-        """Rings with numbers where the contour breaks its rules."""
-        self.marks = list(marks)
-        if self.png is not None:
-            self.show_png(self.png, keep_view=True)
-
-    def _draw_marks(self) -> None:
-        from PySide6.QtGui import QFont
-
-        red = QColor("#E5484D")
-        pen = QPen(red, 3)
-        pen.setCosmetic(True)  # as thick at any zoom
-        font = QFont()
-        font.setPixelSize(16)
-        font.setBold(True)
-        for x, y, number in self.marks:
-            r = 14
-            ring = self.scene().addEllipse(x - r, y - r, 2 * r, 2 * r, pen, QBrush(Qt.NoBrush))
-            ring.setZValue(5)
-            ring.setToolTip(f"Нарушение {number} — подробности на странице «Проверка»")
-            label = self.scene().addSimpleText(str(number), font)
-            label.setBrush(QBrush(red))
-            label.setPos(x + r, y - r - 18)
-            label.setZValue(5)
-
-    def fit(self) -> None:
-        if not self.scene().sceneRect().isEmpty():
-            self.fitInView(self.scene().sceneRect(), Qt.KeepAspectRatio)
-
-    def mouseDoubleClickEvent(self, event):
-        self.fit()  # the whole sheet again
-
-    def wheelEvent(self, event):
-        factor = 1.25 if event.angleDelta().y() > 0 else 0.8
-        self.scale(factor, factor)
-
-    def point_at(self, x: float, y: float) -> None:
-        if self.marker is not None:
-            self.scene().removeItem(self.marker)
-        r = 30
-        self.marker = self.scene().addEllipse(x - r, y - r, 2 * r, 2 * r,
-                                              QPen(QColor(self.colors["warn"]), 6),
-                                              QBrush(Qt.NoBrush))
-        self.resetTransform()
-        self.scale(1.2, 1.2)
-        self.centerOn(x, y)
-
-
-def _night(image: QImage, ground: QColor) -> QImage:
-    """Light lines on a dark sheet with the hues kept: blue stays blue, red stays red.
-
-    Lightness is mirrored (c + 255 - max - min per pixel), so white paper turns
-    black and black lines white; the paper is then lifted to the sheet colour.
-    """
-    import numpy as np
-
-    width, height = image.width(), image.height()
-    ptr = image.constBits()
-    rgba = np.frombuffer(ptr, np.uint8, image.bytesPerLine() * height)
-    rgba = rgba.reshape(height, image.bytesPerLine())[:, :width * 4].reshape(height, width, 4)
-    floor = np.array([ground.blue(), ground.green(), ground.red()], np.int16)
-    result = np.empty((height, width, 4), np.uint8)
-    result[..., 3] = 255
-    for y0 in range(0, height, 256):  # in bands: a big sheet stays small in memory
-        rgb = rgba[y0:y0 + 256, :, :3].astype(np.int16)  # BGRA order; symmetric anyway
-        shift = 255 - rgb.max(axis=2, keepdims=True) - rgb.min(axis=2, keepdims=True)
-        result[y0:y0 + 256, :, :3] = np.maximum(np.clip(rgb + shift, 0, 255), floor)
-    night = QImage(result.data, width, height, width * 4, QImage.Format_ARGB32)
-    return night.copy()  # its own pixels: ``result`` goes away with this function
-
-
-def _card(name: str = "card") -> tuple[QFrame, QVBoxLayout]:
-    frame = QFrame(objectName=name)
-    lay = QVBoxLayout(frame)
-    lay.setContentsMargins(20, 16, 20, 18)
-    lay.setSpacing(8)
-    return frame, lay
-
-
-def _label(text: str, name: str = "") -> QLabel:
-    label = QLabel(text)
-    if name:
-        label.setObjectName(name)
-    return label
-
-
-class StatCard(QFrame):
-    """A big number with a caption: rules, dimensions. A click opens its list."""
-
-    clicked = Signal()
-
-    def __init__(self, title: str):
-        super().__init__(objectName="card")
-        lay = QVBoxLayout(self)
-        lay.setContentsMargins(20, 16, 20, 18)
-        lay.addWidget(_label(title, "cardTitle"))
-        lay.addStretch(1)
-        self.value = _label("—", "big")
-        self.note = _label("откройте чертёж", "sub")
-        self.note.setWordWrap(True)
-        lay.addWidget(self.value)
-        lay.addWidget(self.note)
-
-    def mouseReleaseEvent(self, event):
-        if event.button() == Qt.LeftButton:
-            self.clicked.emit()
-        super().mouseReleaseEvent(event)
-
-    def set_value(self, value: str, note: str, state: str = "") -> None:
-        self.value.setText(value)
-        self.note.setText(note)
-        self.note.setObjectName({"ok": "subOk", "warn": "subWarn"}.get(state, "sub"))
-        self.note.style().unpolish(self.note)
-        self.note.style().polish(self.note)
+IMAGE_FILTER = "Фото или скан (*.png *.jpg *.jpeg *.bmp *.tif *.tiff *.webp)"
+KINDS = [("Основные линии", lambda e: isinstance(e, ir.Line) and e.style == ir.STYLE_MAIN),
+         ("Тонкие линии", lambda e: isinstance(e, ir.Line) and e.style == ir.STYLE_THIN),
+         ("Осевые", lambda e: isinstance(e, ir.Line) and e.style == ir.STYLE_AXIAL),
+         ("Окружности и дуги", lambda e: isinstance(e, (ir.Circle, ir.Arc, ir.Ellipse))),
+         ("Штриховки", lambda e: isinstance(e, ir.Hatch)),
+         ("Размеры", lambda e: isinstance(e, ir.Dimension)),
+         ("Тексты", lambda e: isinstance(e, ir.Text)),
+         ("Таблицы", lambda e: isinstance(e, ir.Table))]
 
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
+        self.app_name = APP_NAME
         self.setWindowTitle(APP_NAME)
         self.resize(1440, 900)
         self.setMinimumSize(1100, 720)
@@ -227,10 +70,75 @@ class MainWindow(QMainWindow):
         self.job = None
         self.pending: Path | None = None
         self.model_ok: bool | None = None
+        self.ready = False
+        self.overrides: dict = {}  # dimension id → the user's value, for the open drawing
+        self.counters = {"opened": 0, "built": 0, "refined": 0, "photos": 0}
+        self.ui = None
 
+        self._make_actions()
+        self._make_shared()
+        self._restore_options()
+        self.setAcceptDrops(True)
+        self.theme = self.settings.value("theme", "light")
+        name = self.settings.value("layout", "engineer")
+        self.apply_layout(name if name in LAYOUTS else "engineer")
+        self.apply_theme(self.theme)
+        self._set_ready(False)
+        self.statusBar().showMessage("Откройте PDF чертежа (или перетащите его в окно)")
+
+    # --- the commands and the shared controls ---------------------------------------------
+
+    def _make_actions(self) -> None:
+        def act(key, text, slot, shortcut=None, tip=""):
+            a = QAction(text, self)
+            if shortcut:
+                a.setShortcut(QKeySequence(shortcut))
+            if tip:
+                a.setToolTip(tip)
+            a.triggered.connect(lambda _=False: slot())
+            self.addAction(a)  # the key works whatever layout shows the button
+            self.acts[key] = a
+            return a
+
+        self.acts: dict[str, QAction] = {}
+        act("open", "Открыть PDF / фото", self.open_dialog, QKeySequence.Open,
+            "Можно и перетащить файл в окно (PDF, фото, .m3d)")
+        act("photo", "Чертёж с фото", self.open_photo_dialog)
+        act("from_model", "Чертёж по модели…", self.drawing_from_model, None,
+            "Открыть 3D-модель КОМПАС (.m3d) и построить её чертёж: виды спереди, сверху, слева "
+            "и изометрия, связанные с моделью")
+        act("build", "Построить чертёж", self.build_in_kompas, "Ctrl+B",
+            "Лист в КОМПАС: геометрия, размеры, таблицы")
+        act("model", "Построить модель", self.build_3d, "Ctrl+M",
+            "Тело вращения или призматическая деталь в КОМПАС")
+        act("both", "Построить всё", self.build_both, "Ctrl+Shift+B",
+            "Модель и чертёж, главный вид которого — вид модели: изменили модель — чертёж "
+            "перестроился")
+        act("refine", "Уточнить размеры…", lambda: self.refine(), "Ctrl+R",
+            "Все размеры чертежа: что написано, что по линиям, выдержан ли; своё число — и "
+            "чертёж пересчитается")
+        act("dxf", "Сохранить DXF…", self.save_dxf)
+        act("report", "Сохранить отчёт…", self.save_report)
+        act("check", "Проверить КОМПАС", self.check_kompas, None,
+            "Пробует в вашем КОМПАС все способы сделать таблицу и вид, связанный с моделью, и "
+            "пишет отчёт — пришлите его, если таблицы или «Построить всё» не работают")
+        act("logs", "Папка журналов", self.open_log_folder, "Ctrl+L",
+            "Журнал каждого запуска сохраняется в файл — пришлите его, если что-то пошло не так")
+        act("fit", "Весь лист", lambda: self.preview.fit(), "Ctrl+0")
+        act("cancel", "Отменить", self.cancel_recognition, "Esc")
+        act("theme", "◐  Тема", self.toggle_theme, None, "Сменить тему")
+        for i in range(len(PAGES)):
+            act(f"page{i}", PAGES[i], lambda i=i: self.show_page(i), f"Ctrl+{i + 1}")
+        if sys.platform != "win32":
+            for key in ("build", "model", "both", "from_model", "check"):
+                self.acts[key].setToolTip("Доступно в Windows с установленным КОМПАС-3D")
+
+    def _make_shared(self) -> None:
         self.preview = PreviewView()
         self.preview.setAcceptDrops(False)  # a PDF dropped on the drawing reaches the window
         self.preview.viewport().setAcceptDrops(False)
+        self.preview.setToolTip("Колесо — масштаб, перетаскивание — сдвиг, двойной щелчок или "
+                                "Ctrl+0 — весь лист")
         self.summary = QPlainTextEdit(readOnly=True, objectName="report")
         self.summary.setLineWrapMode(QPlainTextEdit.NoWrap)
         self.review = QListWidget()
@@ -238,48 +146,51 @@ class MainWindow(QMainWindow):
         self.log = QPlainTextEdit(readOnly=True, objectName="log")
         self.log.setMaximumBlockCount(500)
 
-        root = QWidget(objectName="root")
-        lay = QHBoxLayout(root)
-        lay.setContentsMargins(20, 20, 20, 8)
-        lay.setSpacing(18)
-        lay.addWidget(self._sidebar())
-        column = QVBoxLayout()
-        column.setSpacing(18)
-        column.addLayout(self._header())
-        self.pages = QStackedWidget()
-        self.pages.addWidget(self._drawing_page())
-        self.pages.addWidget(self._text_page("Результат распознавания", self.summary))
-        self.pages.addWidget(self._text_page(
-            "Нарушения правил контура и объекты под вопросом — щёлкните, покажу на листе",
-            self.review))
-        self.pages.addWidget(self._log_page())
-        column.addWidget(self.pages, 1)
-        lay.addLayout(column, 1)
-        self.setCentralWidget(root)
-
-        self._shortcuts()
-        self._restore_options()
-        self.setAcceptDrops(True)
-        self.apply_theme(self.settings.value("theme", "light"))
-        self._set_ready(False)
-        self.statusBar().showMessage("Откройте PDF чертежа (или перетащите его в окно)")
-
-    # --- layout -------------------------------------------------------------------------
-
-    def _shortcuts(self) -> None:
-        def when_enabled(button):  # a key does no more than its button may
-            return lambda: button.isEnabled() and button.click()
-
-        keys = [(QKeySequence.Open, self.open_dialog),
-                ("Ctrl+B", when_enabled(self.build_button)),
-                ("Ctrl+M", when_enabled(self.model_button)),
-                ("Ctrl+Shift+B", when_enabled(self.both_button)), ("Ctrl+0", self.preview.fit),
-                ("Esc", self.cancel_recognition), ("Ctrl+L", self.open_log_folder)]
-        keys += [(f"Ctrl+{i + 1}", lambda i=i: self.show_page(i)) for i in range(len(PAGES))]
-        for key, action in keys:
-            act = QAction(self, shortcut=QKeySequence(key))
-            act.triggered.connect(action)
-            self.addAction(act)
+        self.mode = QComboBox()
+        for name, _ in MODES:
+            self.mode.addItem(name)
+        self.mode.setToolTip(
+            "Точно по размерам: длина каждой линии равна числу на её размере (6, а не 6,001); "
+            "неуказанное — из других размеров или ближайшее круглое.\n"
+            "Как в PDF: точная копия листа, линии не двигаются; в размерах — числа из PDF.")
+        self.mode.currentIndexChanged.connect(lambda _: self.recognize())
+        self.scale_box = QComboBox()
+        for name, _ in SCALES:
+            self.scale_box.addItem(name)
+        self.scale_box.setToolTip(
+            "Масштаб вида на построенном чертеже. Деталь остаётся в настоящих размерах, "
+            "размеры не меняются; не помещается — берётся лист большего формата.")
+        self.dims_box = QCheckBox("Размеры по ГОСТ")
+        self.dims_box.setChecked(True)
+        self.dims_box.setToolTip("Снимите, чтобы построить просто чертёж — без размеров")
+        self.param_box = QCheckBox("Параметризация эскиза модели")
+        self.param_box.setChecked(True)
+        self.param_box.setToolTip(
+            "Эскиз 3D-модели с управляющими размерами на отрезках и дугах и связями "
+            "(совпадение, горизонталь, вертикаль, касание): изменили размер — модель "
+            "перестроилась. Без галочки — эскиз из простых линий.")
+        self.marks_box = QCheckBox("Нарушения на листе")
+        self.marks_box.setChecked(True)
+        self.marks_box.setToolTip("Красные кольца с номерами там, где контур нарушает правила")
+        self.marks_box.toggled.connect(self._toggle_marks)
+        self.layout_box = QComboBox()
+        for _, title in LAYOUT_NAMES:
+            self.layout_box.addItem(f"Вид: {title}")
+        self.layout_box.setToolTip("Оформление окна. Всё, что умеет программа, есть в каждом")
+        self.layout_box.currentIndexChanged.connect(
+            lambda i: QTimer.singleShot(0, lambda: self.apply_layout(LAYOUT_NAMES[i][0])))
+        ready = sys.platform == "win32"
+        self.kompas_note = label("КОМПАС-3D v23<br>" + (
+            "строит в Windows" if ready else "доступен только в Windows"), "kompas")
+        self.kompas_note.setTextFormat(Qt.RichText)
+        self.kompas_note.setWordWrap(True)
+        self.recent_menu = QMenu(self)
+        self._fill_recent()
+        self.loader = DraftingLoader(None)
+        self.loader.cancel_button.clicked.connect(self.cancel_recognition)
+        self.shared = [self.preview, self.summary, self.review, self.log, self.mode,
+                       self.scale_box, self.dims_box, self.param_box, self.marks_box,
+                       self.layout_box, self.kompas_note]
 
     def _restore_options(self) -> None:
         """The build options as they were left last time (and kept on change)."""
@@ -302,237 +213,45 @@ class MainWindow(QMainWindow):
             box.setChecked(str(s.value(key, "true")).lower() in ("true", "1"))
             box.toggled.connect(lambda on, key=key: s.setValue(key, on))
 
-    def _sidebar(self) -> QFrame:
-        side = QFrame(objectName="sidebar")
-        side.setFixedWidth(232)
-        lay = QVBoxLayout(side)
-        lay.setContentsMargins(16, 20, 16, 16)
-        lay.setSpacing(6)
-        brand = QHBoxLayout()
-        brand.setSpacing(10)
-        icon = _icon_path()
-        if icon:
-            logo = QLabel()
-            logo.setPixmap(QPixmap(str(icon)).scaled(34, 34, Qt.KeepAspectRatio,
-                                                     Qt.SmoothTransformation))
-            brand.addWidget(logo)
-        brand.addWidget(_label(APP_NAME, "brand"))
-        brand.addStretch(1)
-        lay.addLayout(brand)
-        lay.addSpacing(18)
+    # --- layouts and themes ----------------------------------------------------------------
 
-        self.nav = QButtonGroup(self)
-        for i, name in enumerate(PAGES):
-            button = QPushButton(name, objectName="nav", checkable=True)
-            button.setCursor(Qt.PointingHandCursor)
-            self.nav.addButton(button, i)
-            lay.addWidget(button)
-        self.nav.button(0).setChecked(True)
-        self.nav.idClicked.connect(lambda i: self.pages.setCurrentIndex(i))
+    def apply_layout(self, key: str) -> None:
+        """Build the chosen look and move the shared controls into it; the
+        drawing, the options and a running job stay as they are."""
+        if self.ui is not None and self.ui.key == key:
+            return
+        page = self.current_page()
+        for widget in self.shared + [self.loader]:
+            widget.setParent(None)  # out of the old look before it is deleted
+        self.ui = LAYOUTS[key](self)
+        central = self.ui.build()
+        self.setCentralWidget(central)
+        index = [k for k, _ in LAYOUT_NAMES].index(key)
+        if self.layout_box.currentIndex() != index:
+            self.layout_box.blockSignals(True)
+            self.layout_box.setCurrentIndex(index)
+            self.layout_box.blockSignals(False)
+        self.settings.setValue("layout", key)
+        host = self.ui.sheet_host
+        self.loader.setParent(host)
+        self.loader.setGeometry(host.rect())
+        host.installEventFilter(self)
+        if self.loader.timer.isActive():  # a recognition running
+            self.loader.show()
+            self.loader.raise_()
+        self.ui.set_colors(THEMES.get(getattr(self, "theme", "light"), THEMES["light"]))
+        self.ui.show_drawing(self.info())
+        if page:
+            self.ui.show_page(page)
+        self.preview.fit()
 
-        lay.addStretch(1)
-        self.theme_button = QPushButton(objectName="flat")
-        self.theme_button.setCursor(Qt.PointingHandCursor)
-        self.theme_button.clicked.connect(self.toggle_theme)
-        lay.addWidget(self.theme_button)
-        ready = sys.platform == "win32"
-        self.kompas_note = _label("КОМПАС-3D v23<br>" + (
-            "строит в Windows" if ready else "доступен только в Windows"), "kompas")
-        self.kompas_note.setTextFormat(Qt.RichText)
-        self.kompas_note.setWordWrap(True)
-        lay.addWidget(self.kompas_note)
-        return side
-
-    def _header(self) -> QHBoxLayout:
-        head = QHBoxLayout()
-        head.setSpacing(14)
-        self.title = _label("Чертёж не открыт", "title")
-        # a long file name is shortened, never pushes the buttons off the window
-        self.title.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
-        self.title.setMinimumWidth(120)
-        head.addWidget(self.title, 1)
-        self.sheet_chip = _label("", "chip")
-        self.sheet_chip.hide()
-        head.addWidget(self.sheet_chip)
-        open_button = QPushButton("Открыть PDF / фото", objectName="secondary")
-        open_button.clicked.connect(self.open_dialog)
-        open_button.setCursor(Qt.PointingHandCursor)
-        model_button = QPushButton("Чертёж по модели…", objectName="secondary")
-        model_button.setToolTip("Открыть 3D-модель КОМПАС (.m3d) и построить её чертёж: виды "
-                                "спереди, сверху, слева и изометрия, связанные с моделью")
-        model_button.clicked.connect(self.drawing_from_model)
-        model_button.setCursor(Qt.PointingHandCursor)
-        self.recent_button = QPushButton("Недавние", objectName="secondary")
-        self.recent_button.setCursor(Qt.PointingHandCursor)
-        self.recent_button.setToolTip("Чертежи, открытые недавно")
-        self.recent_menu = QMenu(self)
-        self.recent_button.setMenu(self.recent_menu)
-        self._fill_recent()
-        open_button.setToolTip("Ctrl+O. Можно и перетащить файл в окно (PDF, фото, .m3d)")
-        head.addWidget(self.recent_button)
-        head.addWidget(model_button)
-        head.addWidget(open_button)
-        return head
-
-    def _fill_recent(self, paths=None) -> None:
-        self.recent_menu.clear()
-        paths = recent_files(self.settings) if paths is None else paths
-        for path in paths:
-            act = self.recent_menu.addAction(path.name)
-            act.setToolTip(str(path))
-            act.triggered.connect(lambda _=False, p=path: self.open_file(p))
-        self.recent_button.setEnabled(bool(paths))
-
-    def _drawing_page(self) -> QWidget:
-        page = QWidget()
-        grid = QGridLayout(page)
-        grid.setContentsMargins(0, 0, 0, 0)
-        grid.setSpacing(18)
-        for i in range(3):
-            grid.setColumnStretch(i, 1)
-        grid.setRowStretch(0, 3)
-        grid.setRowStretch(1, 3)
-        grid.setRowStretch(2, 3)
-
-        sheet, lay = _card()
-        lay.setContentsMargins(14, 14, 14, 14)
-        top = QHBoxLayout()
-        top.setSpacing(8)
-        self.view_label = _label("Чертёж", "cardTitle")
-        top.addWidget(self.view_label)
-        top.addStretch(1)
-        self.marks_box = QCheckBox("Нарушения на листе")
-        self.marks_box.setChecked(True)
-        self.marks_box.setToolTip("Красные кольца с номерами там, где контур нарушает правила")
-        self.marks_box.toggled.connect(self._toggle_marks)
-        top.addWidget(self.marks_box)
-        self.contour_chip = _label("", "chipOk")
-        self.contour_chip.hide()
-        top.addWidget(self.contour_chip)
-        lay.addLayout(top)
-        self.preview.setToolTip("Колесо — масштаб, перетаскивание — сдвиг, двойной щелчок или "
-                                "Ctrl+0 — весь лист")
-        lay.addWidget(self.preview, 1)
-        grid.addWidget(sheet, 0, 0, 2, 2)
-        self.sheet_card = sheet
-        self.loader = DraftingLoader(sheet)
-        self.loader.cancel_button.clicked.connect(self.cancel_recognition)
-        sheet.installEventFilter(self)
-
-        self.rules_card = StatCard("Правила контура")
-        self.rules_card.setCursor(Qt.PointingHandCursor)
-        self.rules_card.setToolTip("Щёлкните — список нарушений, каждое можно показать на листе")
-        self.rules_card.clicked.connect(lambda: self.show_page(PAGES.index("Проверка")))
-        grid.addWidget(self.rules_card, 0, 2)
-        self.dims_card = StatCard("Размеров")
-        grid.addWidget(self.dims_card, 1, 2)
-
-        bottom = QHBoxLayout()
-        bottom.setSpacing(18)
-        options, lay = _card()
-        lay.addWidget(_label("Параметры построения", "cardTitle"))
-        self.mode = QComboBox()
-        for name, _ in MODES:
-            self.mode.addItem(name)
-        self.mode.setToolTip(
-            "Точно по размерам: длина каждой линии равна числу на её размере (6, а не 6,001); "
-            "неуказанное — из других размеров или ближайшее круглое.\n"
-            "Как в PDF: точная копия листа, линии не двигаются; в размерах — числа из PDF.")
-        self.mode.currentIndexChanged.connect(lambda _: self.recognize())
-        self.dims_box = QCheckBox("Размеры по ГОСТ")
-        self.dims_box.setChecked(True)
-        self.dims_box.setToolTip("Снимите, чтобы построить просто чертёж — без размеров")
-        self.param_box = QCheckBox("Параметризация эскиза модели")
-        self.param_box.setChecked(True)
-        self.param_box.setToolTip(
-            "Эскиз 3D-модели с управляющими размерами на отрезках и дугах и связями "
-            "(совпадение, горизонталь, вертикаль, касание): изменили размер — модель "
-            "перестроилась. Без галочки — эскиз из простых линий.")
-        lay.addWidget(self.mode)
-        self.scale_box = QComboBox()
-        for name, _ in SCALES:
-            self.scale_box.addItem(name)
-        self.scale_box.setToolTip(
-            "Масштаб вида на построенном чертеже. Деталь остаётся в настоящих размерах, "
-            "размеры не меняются; не помещается — берётся лист большего формата.")
-        lay.addWidget(self.scale_box)
-        lay.addWidget(self.dims_box)
-        lay.addWidget(self.param_box)
-        lay.addStretch(1)
-        bottom.addWidget(options, 3)
-
-        def build_card(title, note, button_text, action):
-            frame, box = _card()
-            box.addWidget(_label(title, "cardTitle"))
-            text = _label(note, "sub")
-            text.setWordWrap(True)
-            box.addWidget(text)
-            box.addStretch(1)
-            button = QPushButton(button_text, objectName="primary")
-            button.setStyleSheet("padding: 0 6px; font-size: 14px;")  # a narrow card
-            button.setCursor(Qt.PointingHandCursor)
-            button.clicked.connect(action)
-            if sys.platform != "win32":
-                button.setToolTip("Доступно в Windows с установленным КОМПАС-3D")
-            box.addWidget(button)
-            bottom.addWidget(frame, 2)
-            return button, text
-
-        self.build_button, _ = build_card(
-            "Чертёж", "Лист в КОМПАС: геометрия, размеры, таблицы", "Построить чертёж",
-            self.build_in_kompas)
-        self.model_button, self.model_note = build_card(
-            "3D-модель", "Тело вращения (профиль вращается на 360°, лыски, отверстия, резьба) "
-            "или призматическая деталь (контур выдавливается на толщину)", "Построить модель",
-            self.build_3d)
-        self.both_button, _ = build_card(
-            "Модель и чертёж", "Главный вид чертежа — вид модели: изменили модель — чертёж "
-            "перестроился", "Построить всё", self.build_both)
-        if sys.platform == "win32":
-            for button, key in ((self.build_button, "Ctrl+B"), (self.model_button, "Ctrl+M"),
-                                (self.both_button, "Ctrl+Shift+B")):
-                button.setToolTip(key)
-        grid.addLayout(bottom, 2, 0, 1, 3)
-        return page
-
-    def _text_page(self, title: str, body: QWidget) -> QWidget:
-        frame, lay = _card()
-        lay.addWidget(_label(title, "cardTitle"))
-        lay.addWidget(body, 1)
-        return frame
-
-    def _log_page(self) -> QWidget:
-        frame, lay = _card()
-        top = QHBoxLayout()
-        top.addWidget(_label("Журнал", "cardTitle"))
-        top.addStretch(1)
-        self.dxf_button = QPushButton("Сохранить DXF…", objectName="secondary")
-        self.dxf_button.clicked.connect(self.save_dxf)
-        self.report_button = QPushButton("Сохранить отчёт…", objectName="secondary")
-        self.report_button.clicked.connect(self.save_report)
-        self.check_button = QPushButton("Проверить КОМПАС", objectName="secondary")
-        self.check_button.setToolTip(
-            "Пробует в вашем КОМПАС все способы сделать таблицу и вид, связанный с моделью, "
-            "и пишет отчёт — пришлите его, если таблицы или «Построить всё» не работают")
-        self.check_button.clicked.connect(self.check_kompas)
-        logs_button = QPushButton("Папка журналов", objectName="secondary")
-        logs_button.setToolTip("Ctrl+L. Журнал каждого запуска сохраняется в файл — пришлите его, "
-                               "если что-то пошло не так")
-        logs_button.clicked.connect(self.open_log_folder)
-        top.addWidget(logs_button)
-        top.addWidget(self.check_button)
-        top.addWidget(self.dxf_button)
-        top.addWidget(self.report_button)
-        lay.addLayout(top)
-        lay.addWidget(self.log, 1)
-        return frame
+    def current_page(self) -> int:
+        return getattr(self, "_page", 0)
 
     def eventFilter(self, obj, event):
-        if obj is self.sheet_card and event.type() == QEvent.Resize:
-            self.loader.setGeometry(self.sheet_card.rect())
+        if self.ui is not None and obj is self.ui.sheet_host and event.type() == QEvent.Resize:
+            self.loader.setGeometry(obj.rect())
         return super().eventFilter(obj, event)
-
-    # --- theme ----------------------------------------------------------------------------
 
     def apply_theme(self, name: str) -> None:
         self.theme = name if name in THEMES else "light"
@@ -540,8 +259,10 @@ class MainWindow(QMainWindow):
         self.setStyleSheet(style_sheet(colors))
         self.preview.set_colors(colors)
         self.loader.set_colors(colors)
+        if self.ui is not None:
+            self.ui.set_colors(colors)
         nxt = self._next_theme()
-        self.theme_button.setText(f"{THEME_ICONS[nxt]}  {THEME_NAMES[nxt]}")
+        self.acts["theme"].setText(f"{THEME_ICONS[nxt]}  {THEME_NAMES[nxt]}")
         self.settings.setValue("theme", self.theme)
 
     def _next_theme(self) -> str:
@@ -552,26 +273,83 @@ class MainWindow(QMainWindow):
         self.apply_theme(self._next_theme())
 
     def _set_ready(self, ready: bool) -> None:
-        for button in (self.build_button, self.model_button, self.both_button, self.dxf_button,
-                       self.report_button):
-            button.setEnabled(ready)
+        self.ready = ready
+        for key in ("build", "model", "both", "dxf", "report", "refine"):
+            self.acts[key].setEnabled(ready)
         if self.model_ok is False:
-            self.model_button.setEnabled(False)  # only the drawing for this part
-            self.both_button.setEnabled(False)
+            self.acts["model"].setEnabled(False)  # only the drawing for this part
+            self.acts["both"].setEnabled(False)
         if sys.platform != "win32":
-            for button in (self.build_button, self.model_button, self.both_button):
-                button.setEnabled(False)
+            for key in ("build", "model", "both"):
+                self.acts[key].setEnabled(False)
+
+    def recent_paths(self) -> list[Path]:
+        return recent_files(self.settings)
+
+    def _fill_recent(self, paths=None) -> None:
+        self.recent_menu.clear()
+        paths = recent_files(self.settings) if paths is None else paths
+        for path in paths:
+            act = self.recent_menu.addAction(path.name)
+            act.setToolTip(str(path))
+            act.triggered.connect(lambda _=False, p=path: self.open_file(p))
+        if not paths:
+            self.recent_menu.addAction("пока пусто").setEnabled(False)
+
+    # --- what the layouts show -------------------------------------------------------------
+
+    def info(self) -> dict | None:
+        """The drawing's figures, the same for every layout."""
+        d = self.drawing
+        if d is None:
+            return None
+        exact = MODES[self.mode.currentIndex()][1]
+        rows = dimension_rows(d)
+        ask = questions(d) if exact else []
+        ok, why = getattr(d, "model_verdict", None) or (None, "не проверено")
+        if ok is False:
+            model_text = f"3D-модель не строится — будет только чертёж: {why}."
+        else:
+            model_text = why[:1].upper() + why[1:] + (
+                "" if ok else ". Проверьте модель после построения") + "."
+        issues = _broken_rules(d) if exact else 0
+        held = sum(1 for r in rows if r["state"] == "выдержан") if exact else 0
+        chips = [(f"{d.sheet.format} · {d.scale.text}", "")]
+        if exact:
+            chips.append((f"размеров точно {held} из {len(rows)}",
+                          "ok" if held == len(rows) else "warn"))
+            chips.append((f"нарушений {issues}" if issues else "контур замкнут",
+                          "warn" if issues else "ok"))
+        else:
+            chips.append(("как в PDF, без выравнивания", ""))
+        if self.overrides:
+            chips.append((f"уточнено вручную: {len(self.overrides)}", ""))
+        return {
+            "name": self.pdf.name if self.pdf else "",
+            "format": d.sheet.format, "scale": d.scale.text, "exact": exact,
+            "photo": bool(getattr(d, "raster", False)),
+            "objects": len(d.entities), "dims": len(rows), "held": held,
+            "questions": ask, "issues": issues,
+            "issue_list": list(enumerate(d.issues, 1)) if exact else [],
+            "to_check": len(d.review) + len(d.issues),
+            "counts": [(name, n) for name, test in KINDS
+                       if (n := sum(1 for e in d.entities if test(e)))],
+            "model_ok": ok, "model_text": model_text, "chips": chips,
+        }
 
     # --- open / recognise -----------------------------------------------------------------
 
-    def open_dialog(self) -> None:
+    def open_dialog(self, image_only: bool = False) -> None:
         start = self.settings.value("last_dir", str(Path.home()))
-        name, _ = QFileDialog.getOpenFileName(
-            self, "Открыть чертёж", start,
+        filters = IMAGE_FILTER if image_only else (
             "Чертёж (*.pdf *.png *.jpg *.jpeg *.bmp *.tif *.tiff *.webp);;PDF (*.pdf);;"
-            "Фото или скан (*.png *.jpg *.jpeg *.bmp *.tif *.tiff *.webp)")
+            + IMAGE_FILTER)
+        name, _ = QFileDialog.getOpenFileName(self, "Открыть чертёж", start, filters)
         if name:
             self.open_file(Path(name))
+
+    def open_photo_dialog(self) -> None:
+        self.open_dialog(image_only=True)
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
@@ -599,14 +377,17 @@ class MainWindow(QMainWindow):
             self.photo_options = self._ask_photo(path)
             if self.photo_options is None:
                 return
+            self.counters["photos"] += 1
         self.pdf = path
         self.drawing = None
         self.model_ok = None
-        self.show_page(0)
+        self.overrides = {}
+        self.counters["opened"] += 1
         self.settings.setValue("last_dir", str(path.parent))
         self._fill_recent(remember_file(self.settings, path))
         self.setWindowTitle(f"{APP_NAME} — {path.name}")
-        self._show_title()
+        self.ui.show_drawing(None)
+        self.show_page(0)
         self.recognize()
 
     def _ask_photo(self, path: Path):
@@ -618,9 +399,9 @@ class MainWindow(QMainWindow):
         dialog = QDialog(self)
         dialog.setWindowTitle("Чертёж с фото")
         form = QFormLayout(dialog)
-        note = _label("Числа размеров с фото не читаются. Укажите, что написано в основной "
-                      "надписи, — тогда деталь получит настоящие размеры (неуказанные округлятся "
-                      "до круглых значений).", "sub")
+        note = label("Числа размеров с фото не читаются. Укажите, что написано в основной "
+                     "надписи, — тогда деталь получит настоящие размеры (неуказанные округлятся "
+                     "до круглых значений).", "sub")
         note.setWordWrap(True)
         form.addRow(note)
         fmt = QComboBox()
@@ -648,23 +429,6 @@ class MainWindow(QMainWindow):
         self.settings.setValue("photo_scale", scale.currentIndex())
         return SHEET_FORMATS[fmt.currentIndex()][1], PHOTO_SCALES[scale.currentIndex()][1]
 
-    def _show_title(self) -> None:
-        if getattr(self, "pdf", None) is None or not hasattr(self, "title"):
-            return
-        name = self.pdf.name
-        width = max(self.title.width() - 8, 120)
-        self.title.setText(self.title.fontMetrics().elidedText(name, Qt.ElideMiddle, width))
-        self.title.setToolTip(name)
-
-    def layout_title_later(self) -> None:
-        from PySide6.QtCore import QTimer
-
-        QTimer.singleShot(0, self._show_title)  # after the header has its new widths
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        self._show_title()
-
     def recognize(self) -> None:
         if self.pdf is None or self._busy():
             return
@@ -673,9 +437,9 @@ class MainWindow(QMainWindow):
         self._log(f"Распознавание: {self.pdf}")
         sheet_mm, scale = (getattr(self, "photo_options", None) or (None, None)) \
             if self.pdf.suffix.lower() in IMAGE_SUFFIXES else (None, None)
-        job = RecognizeJob(self.pdf, exact=MODES[self.mode.currentIndex()][1],
-                           sheet_mm=sheet_mm, scale=scale)
         exact = MODES[self.mode.currentIndex()][1]
+        job = RecognizeJob(self.pdf, exact=exact, sheet_mm=sheet_mm, scale=scale,
+                           overrides=self.overrides)
         stages = [s for s in STAGES if exact or s not in STAGES[5:]] + [MODEL_STAGE,
                                                                        PREVIEW_STAGE]
         if self.pdf.suffix.lower() in IMAGE_SUFFIXES:
@@ -703,8 +467,10 @@ class MainWindow(QMainWindow):
         self.preview.set_marks(self._issue_marks(drawing) if self.marks_box.isChecked() else [])
         self.summary.setPlainText(summary_text(drawing))
         self._fill_review(drawing)
-        self._show_results(drawing)
-        self._judge_model(drawing)
+        ok, why = getattr(drawing, "model_verdict", None) or (None, "не проверено")
+        self.model_ok = ok
+        if ok is False:
+            self._log(f"3D-модель не строится: {why}")
         # the whole account into the journal (and its file): what to send
         # when the drawing came out wrong
         for line in drawing.processing:
@@ -716,49 +482,64 @@ class MainWindow(QMainWindow):
             f"Готово: {len(drawing.entities)} объектов, требуют проверки {counts['review']}")
         self._log("Распознавание завершено")
         self._set_ready(True)
+        self.ui.show_drawing(self.info())
 
-    def _judge_model(self, drawing: ir.Drawing) -> None:
-        """Whether a body of revolution can be made: if not, only the drawing."""
-        # judged in the background with the recognition (on an assembly the
-        # search for a profile took minutes and froze the window)
-        ok, why = getattr(drawing, "model_verdict", None) or (None, "не проверено")
-        self.model_ok = ok
-        if ok is False:
-            self.model_note.setText(f"3D-модель не строится — будет только чертёж: {why}.")
-            self.model_note.setObjectName("subWarn")
-            self._log(f"3D-модель не строится: {why}")
-        else:
-            self.model_note.setText(why[:1].upper() + why[1:] + (
-                "" if ok else ". Проверьте модель после построения") + ".")
-            self.model_note.setObjectName("sub")
-        self.model_note.style().unpolish(self.model_note)
-        self.model_note.style().polish(self.model_note)
+    # --- «Уточнить размеры» -----------------------------------------------------------------
 
-    def _show_results(self, drawing: ir.Drawing) -> None:
-        self.sheet_chip.setText(f"{drawing.sheet.format} · {drawing.scale.text}")
-        self.sheet_chip.show()
-        self.layout_title_later()
-        self.view_label.setText(f"Чертёж · масштаб {drawing.scale.text}")
-        broken = _broken_rules(drawing)
-        exact = MODES[self.mode.currentIndex()][1]
-        if not exact:
-            self.rules_card.set_value("—", "выравнивание выключено")
-            self.contour_chip.hide()
-        else:
-            self.rules_card.set_value(str(broken), "нарушений" if broken else "нарушений · контур точный",
-                                      "warn" if broken else "ok")
-            self.contour_chip.setText("Есть нарушения" if broken else "Контур замкнут")
-            self.contour_chip.setObjectName("chipWarn" if broken else "chipOk")
-            self.contour_chip.style().unpolish(self.contour_chip)
-            self.contour_chip.style().polish(self.contour_chip)
-            self.contour_chip.show()
-        dims = drawing.of_type(ir.Dimension)
-        doubtful = sum(1 for d in dims if d.confidence < ir.REVIEW_THRESHOLD)
-        self.dims_card.set_value(str(len(dims)),
-                                 f"проверить: {doubtful}" if doubtful else "все распознаны уверенно",
-                                 "warn" if doubtful else "ok")
-        count = len(drawing.review) + len(drawing.issues)
-        self.nav.button(2).setText(f"Проверка · {count}" if count else "Проверка")
+    def refine(self, focus: str | None = None) -> None:
+        """The table of sizes; the drawing recognised again with the user's values."""
+        if self.drawing is None or self._busy():
+            return
+        photo = bool(getattr(self.drawing, "raster", False))
+        dialog = RefineDialog(self.drawing, self.overrides, self, photo=photo, focus=focus)
+        if dialog.exec() != RefineDialog.DialogCode.Accepted:
+            return
+        if dialog.photo_requested:
+            options = self._ask_photo(self.pdf)
+            if options is not None:
+                self.photo_options = options
+                self.recognize()
+            return
+        if dialog.overrides == self.overrides:
+            return
+        self.counters["refined"] += len(set(dialog.overrides) - set(self.overrides))
+        self.overrides = dialog.overrides
+        self._log("Размеры уточнены вручную: " + (", ".join(
+            f"{k} = {v:g}" for k, v in sorted(self.overrides.items())) or "сброшены"))
+        self.recognize()
+
+    def trust_lines(self, dim_id: str) -> None:
+        """A size that contradicts the others takes what its lines measure."""
+        if self.drawing is None or self._busy():
+            return
+        row = next((r for r in dimension_rows(self.drawing) if r["id"] == dim_id), None)
+        if row is None or row["lines"] is None:
+            return
+        self.overrides[dim_id] = round(row["lines"], 2)
+        self.counters["refined"] += 1
+        self._log(f"{dim_id}: принято значение по линиям {self.overrides[dim_id]:g}")
+        self.recognize()
+
+    def point_at_entity(self, entity_id: str) -> None:
+        if self.drawing is None:
+            return
+        entity = self.drawing.get(entity_id)
+        anchor = _anchor(entity) if entity else None
+        if anchor:
+            self._point(anchor)
+
+    def point_at_issue(self, text: str) -> None:
+        if self.drawing is None:
+            return
+        place = self._issue_place(self.drawing, text)
+        if place:
+            self._point(place)
+
+    def _point(self, anchor) -> None:
+        self.show_page(0)
+        x, y = sheet_to_pixel(self.drawing, self.page_height,
+                              getattr(self, "preview_dpi", PREVIEW_DPI), anchor)
+        self.preview.point_at(x, y)
 
     def _issue_place(self, drawing: ir.Drawing, text: str):
         """Sheet point of a broken rule: its coordinates, or its object's middle."""
@@ -818,12 +599,18 @@ class MainWindow(QMainWindow):
         entity = self.drawing.get(item.data(Qt.UserRole))
         anchor = item.data(Qt.UserRole + 1) or (_anchor(entity) if entity else None)
         if anchor:
-            self.show_page(0)
-            x, y = sheet_to_pixel(self.drawing, self.page_height,
-                                  getattr(self, "preview_dpi", PREVIEW_DPI), anchor)
-            self.preview.point_at(x, y)
+            self._point(anchor)
 
     # --- outputs -----------------------------------------------------------------------------
+
+    def _run_build(self, job, message: str) -> None:
+        self._set_ready(False)
+        self.statusBar().showMessage(message)
+        self.show_page(PAGES.index("Журнал"))
+        job.progress.connect(self._log)
+        job.finished.connect(self.on_built)
+        job.failed.connect(self.on_failed)
+        self._start(job)
 
     def build_in_kompas(self) -> None:
         if self.drawing is None or self._busy():
@@ -831,17 +618,11 @@ class MainWindow(QMainWindow):
         out = self.pdf.with_name(self.pdf.stem + "_kompas.cdw")
         name, _ = QFileDialog.getSaveFileName(self, "Сохранить чертёж КОМПАС", str(out),
                                               "КОМПАС (*.cdw)")
-        if not name:
-            return
-        self._set_ready(False)
-        self.statusBar().showMessage("Строю чертёж в КОМПАС…")
-        self.show_page(PAGES.index("Журнал"))
-        job = KompasJob(self.drawing, Path(name), with_dimensions=self.dims_box.isChecked(),
-                        view_scale=SCALES[self.scale_box.currentIndex()][1])
-        job.progress.connect(self._log)
-        job.finished.connect(self.on_built)
-        job.failed.connect(self.on_failed)
-        self._start(job)
+        if name:
+            self._run_build(KompasJob(self.drawing, Path(name),
+                                      with_dimensions=self.dims_box.isChecked(),
+                                      view_scale=SCALES[self.scale_box.currentIndex()][1]),
+                            "Строю чертёж в КОМПАС…")
 
     def build_3d(self) -> None:
         if self.drawing is None or self._busy():
@@ -849,17 +630,11 @@ class MainWindow(QMainWindow):
         out = self.pdf.with_name(self.pdf.stem + "_kompas.m3d")
         name, _ = QFileDialog.getSaveFileName(self, "Сохранить деталь КОМПАС", str(out),
                                               "Деталь КОМПАС (*.m3d)")
-        if not name:
-            return
-        self._set_ready(False)
-        self.statusBar().showMessage("Строю 3D-модель в КОМПАС…")
-        self.show_page(PAGES.index("Журнал"))
-        job = RevolveJob(self.drawing, Path(name), exact=MODES[self.mode.currentIndex()][1],
-                         parametric=self.param_box.isChecked())
-        job.progress.connect(self._log)
-        job.finished.connect(self.on_built)
-        job.failed.connect(self.on_failed)
-        self._start(job)
+        if name:
+            self._run_build(RevolveJob(self.drawing, Path(name),
+                                       exact=MODES[self.mode.currentIndex()][1],
+                                       parametric=self.param_box.isChecked()),
+                            "Строю 3D-модель в КОМПАС…")
 
     def build_both(self) -> None:
         """The model and the drawing with a view linked to it, side by side."""
@@ -868,19 +643,13 @@ class MainWindow(QMainWindow):
         out = self.pdf.with_name(self.pdf.stem + "_kompas.cdw")
         name, _ = QFileDialog.getSaveFileName(
             self, "Сохранить чертёж (деталь сохранится рядом, .m3d)", str(out), "КОМПАС (*.cdw)")
-        if not name:
-            return
-        self._set_ready(False)
-        self.statusBar().showMessage("Строю модель и чертёж в КОМПАС…")
-        self.show_page(PAGES.index("Журнал"))
-        job = BothJob(self.drawing, Path(name), exact=MODES[self.mode.currentIndex()][1],
-                      parametric=self.param_box.isChecked(),
-                      with_dimensions=self.dims_box.isChecked(),
-                      view_scale=SCALES[self.scale_box.currentIndex()][1])
-        job.progress.connect(self._log)
-        job.finished.connect(self.on_built)
-        job.failed.connect(self.on_failed)
-        self._start(job)
+        if name:
+            self._run_build(BothJob(self.drawing, Path(name),
+                                    exact=MODES[self.mode.currentIndex()][1],
+                                    parametric=self.param_box.isChecked(),
+                                    with_dimensions=self.dims_box.isChecked(),
+                                    view_scale=SCALES[self.scale_box.currentIndex()][1]),
+                            "Строю модель и чертёж в КОМПАС…")
 
     def drawing_from_model(self, model: Path | None = None) -> None:
         if self._busy():
@@ -894,39 +663,32 @@ class MainWindow(QMainWindow):
             model = Path(name)
         out, _ = QFileDialog.getSaveFileName(self, "Сохранить чертёж", str(
             model.with_name(model.stem + "_чертёж.cdw")), "КОМПАС (*.cdw)")
-        if not out:
-            return
-        self.show_page(PAGES.index("Журнал"))
-        self.statusBar().showMessage("Строю чертёж по модели…")
-        job = ModelDrawingJob(model, Path(out), SCALES[self.scale_box.currentIndex()][1])
-        job.progress.connect(self._log)
-        job.finished.connect(self.on_built)
-        job.failed.connect(self.on_failed)
-        self._start(job)
+        if out:
+            self._run_build(ModelDrawingJob(model, Path(out),
+                                            SCALES[self.scale_box.currentIndex()][1]),
+                            "Строю чертёж по модели…")
 
     def check_kompas(self) -> None:
         if self._busy():
             return
-        self.show_page(PAGES.index("Журнал"))
-        self.statusBar().showMessage("Проверяю КОМПАС…")
-        job = CheckJob()
-        job.progress.connect(self._log)
-        job.finished.connect(self.on_built)
-        job.failed.connect(self.on_failed)
-        self._start(job)
+        self._run_build(CheckJob(), "Проверяю КОМПАС…")
 
     def show_page(self, index: int) -> None:
-        self.nav.button(index).setChecked(True)
-        self.pages.setCurrentIndex(index)
+        self._page = index
+        if self.ui is not None:
+            self.ui.show_page(index)
 
     def on_built(self, report: str) -> None:
         self._log(report)
+        self.counters["built"] += 1
         self.statusBar().showMessage("Построено в КОМПАС — подробности в журнале")
-        self._set_ready(True)
+        self._set_ready(self.drawing is not None)
         self.show_page(PAGES.index("Журнал"))
         QMessageBox.information(self, APP_NAME, report)
 
     def save_dxf(self) -> None:
+        if self.drawing is None:
+            return
         name, _ = QFileDialog.getSaveFileName(
             self, "Сохранить DXF", str(self.pdf.with_suffix(".dxf")), "DXF (*.dxf)")
         if name:
@@ -934,6 +696,8 @@ class MainWindow(QMainWindow):
             self._log(f"DXF сохранён: {name}")
 
     def save_report(self) -> None:
+        if self.drawing is None:
+            return
         name, _ = QFileDialog.getSaveFileName(
             self, "Сохранить отчёт", str(self.pdf.with_name(self.pdf.stem + "_отчёт.txt")),
             "Текст (*.txt)")

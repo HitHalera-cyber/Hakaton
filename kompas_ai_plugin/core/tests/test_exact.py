@@ -165,3 +165,33 @@ def test_photo_frame_concentric_circles_and_letters(tmp_path):
     # nothing of the frame is left as lines along the sheet's edges
     long_lines = [e for e in d.of_type(ir.Line) if math.dist(e.p1, e.p2) > 150]
     assert not long_lines
+
+
+def test_a_size_the_user_typed_wins_over_the_drawing():
+    """«Уточнить размеры»: the user's value (40 for 30, far from the lines)
+    is held and moves them; of the drawing's own sizes the one now
+    contradicting gives way."""
+    d = _plate([_dim("D1", "60", 60.0, (10.0, 49.97), (70.04, 49.97), "horizontal")])
+    d.entities.insert(0, ir.Line("L5", p1=(35.0, 10.0), p2=(35.0, 49.97)))
+    d.entities += [_dim("D2", "25", 25.0, (10.0, 10.0), (35.0, 10.0), "horizontal"),
+                   _dim("D3", "30", 30.0, (35.0, 10.0), (70.04, 10.0), "horizontal")]
+    d.get("D3").notes = ["уточнён вручную"]  # as the pipeline marks a value given
+    d.get("D3").nominal = 40.0
+    report = solve_contour(d)
+    assert report["dims_skipped"] == ["D2"]  # the drawing's 25 gives way, not the user's 40
+    assert math.isclose(_length(d, "L1"), 60.0, abs_tol=1e-6)  # the overall size holds
+    assert math.isclose(d.get("L2").p1[0] - d.get("L5").p1[0], 40.0, abs_tol=1e-6)
+    assert check(d) == []
+
+
+def test_refine_rows_and_questions():
+    from kompas_ai.gui.refine import dimension_rows, parse_value, questions
+
+    d = _plate([_dim("D1", "60", 60.0, (10.0, 49.97), (70.04, 49.97), "horizontal")])
+    d.dims_skipped = ["D1"]
+    d.get("D1").measured = 60.04
+    rows = dimension_rows(d)
+    assert rows[0]["id"] == "D1" and rows[0]["conflict"]
+    assert math.isclose(rows[0]["lines"], 60.04)
+    assert [q["id"] for q in questions(d)] == ["D1"]
+    assert parse_value("Ø12,5") == 12.5 and parse_value("—") is None

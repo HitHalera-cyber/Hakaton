@@ -73,9 +73,33 @@ DAWN = {
     "log_text": "#E2D8F6",
 }
 
-THEMES = {"light": LIGHT, "dark": DARK, "dawn": DAWN}
-THEME_NAMES = {"light": "Светлая тема", "dark": "Тёмная тема", "dawn": "Тема «Рассвет»"}
-THEME_ICONS = {"light": "☀", "dark": "☾", "dawn": "◐"}
+# warm paper of a drawing office: the «Мастер» look's own, good for any layout
+PAPER = {
+    "ground": "#F6F4EF",
+    "card": "#FFFFFF",
+    "card_alt": "#EEEBE4",
+    "border": "#E2DED5",
+    "text": "#1F2328",
+    "muted": "#5F6670",
+    "select": "#2457C5",
+    "select_soft": "#E6ECF8",
+    "action": "#2457C5",
+    "action_hover": "#1A3F8F",
+    "action_text": "#FFFFFF",
+    "ok": "#2E7D4F",
+    "ok_soft": "#E5F2E9",
+    "warn": "#B45309",
+    "warn_soft": "#FFF4E5",
+    "sheet": "#FBFAF7",
+    "grid": "#EEEBE4",
+    "log": "#1F2328",
+    "log_text": "#D9DDE3",
+}
+
+THEMES = {"light": LIGHT, "paper": PAPER, "dark": DARK, "dawn": DAWN}
+THEME_NAMES = {"light": "Светлая тема", "paper": "Тема «Бумага»", "dark": "Тёмная тема",
+               "dawn": "Тема «Рассвет»"}
+THEME_ICONS = {"light": "☀", "paper": "▤", "dark": "☾", "dawn": "◐"}
 
 CHECK_SVG = ('<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18">'
              '<path d="M4.5 9.5l3 3 6-7" fill="none" stroke="{color}" stroke-width="2.2" '
@@ -170,6 +194,81 @@ QListWidget::item {{ padding: 8px 10px; border-radius: 8px; }}
 QListWidget::item:hover {{ background: {c['card_alt']}; }}
 QListWidget::item:selected {{ background: {c['select_soft']}; color: {c['select']}; }}
 QGraphicsView {{ border: none; border-radius: 12px; }}
+
+/* the three layouts (layouts.py) */
+#topbar {{ background: {c['log']}; border: none; }}
+#topbar QLabel {{ color: {c['log_text']}; }}
+#topBrand {{ font-size: 15px; font-weight: 700; letter-spacing: 0.5px; margin-right: 10px; }}
+#topTitle {{ font-size: 15px; font-weight: 600; }}
+#topbar QPushButton#secondary, #topbar QPushButton#flat {{ background: transparent;
+    color: {c['log_text']}; border: 1px solid #45526E; min-height: 34px; }}
+#topbar QPushButton#secondary:hover, #topbar QPushButton#flat:hover {{ border-color: {c['select']}; }}
+#topbar #chip {{ background: #2A3550; color: {c['log_text']}; }}
+#topbar QComboBox {{ background: transparent; color: {c['log_text']}; border-color: #45526E; }}
+#footbar {{ background: {c['card']}; border-top: 1px solid {c['border']}; }}
+#panel {{ background: {c['card']}; border: 1px solid {c['border']}; border-radius: 14px; }}
+#section {{ color: {c['muted']}; font-size: 11px; font-weight: 700; letter-spacing: 1px; }}
+#mono {{ font-family: {MONO}; color: {c['muted']}; font-size: 12px; }}
+#cardHead {{ font-size: 16px; font-weight: 700; }}
+#question {{ background: {c['warn_soft']}; border: 1px solid {c['warn']}; border-radius: 12px; }}
+#questionFlat {{ background: {c['card_alt']}; border: none; border-radius: 10px; }}
+#questionTitle {{ font-weight: 600; }}
+QPushButton#issue {{ text-align: left; min-height: 30px; padding: 4px 10px; border: none;
+                     border-radius: 8px; background: {c['card_alt']}; font-size: 12px; }}
+QPushButton#issue:hover {{ background: {c['warn_soft']}; color: {c['warn']}; }}
+#step {{ background: {c['card']}; border: 1px dashed {c['border']}; border-radius: 12px; }}
+#stepDone {{ background: {c['card']}; border: 1px solid {c['border']}; border-radius: 12px; }}
+#stepNow {{ background: {c['select_soft']}; border: 2px solid {c['select']}; border-radius: 12px; }}
+#stepTitle {{ font-weight: 700; }}
+#stepBadge {{ border: 2px solid {c['border']}; border-radius: 15px; color: {c['muted']};
+              font-weight: 700; }}
+#stepBadgeDone {{ background: {c['ok']}; border-radius: 15px; color: {c['card']}; font-weight: 700; }}
+#stepBadgeNow {{ background: {c['select']}; border-radius: 15px; color: {c['card']}; font-weight: 700; }}
+QPushButton#seg {{ min-height: 32px; min-width: 70px; border: none; border-radius: 9px;
+                   background: {c['card_alt']}; color: {c['muted']}; }}
+QPushButton#seg:checked {{ background: {c['card']}; color: {c['text']}; font-weight: 700;
+                           border: 1px solid {c['border']}; }}
+#mini {{ background: {c['card_alt']}; border-radius: 10px; }}
+#miniValue {{ font-size: 22px; font-weight: 700; }}
+#rail {{ background: {c['card']}; border: none; border-right: 1px solid {c['border']}; }}
+QPushButton#tile {{ text-align: left; padding: 14px 16px; border: 1px solid {c['border']};
+                    border-radius: 16px; background: {c['card']}; font-size: 15px; font-weight: 600; }}
+QPushButton#tile:hover {{ border-color: {c['select']}; background: {c['select_soft']}; }}
+QPushButton#thumbCard {{ border: 1px solid {c['border']}; border-radius: 16px; background: {c['card']};
+                         padding: 0; text-align: left; }}
+QPushButton#thumbCard:hover {{ border-color: {c['select']}; }}
+#clear {{ background: transparent; }}
+QPushButton#small {{ min-height: 30px; min-width: 0; padding: 0 12px; border-radius: 8px;
+                     border: 1px solid {c['border']}; background: {c['card']}; font-size: 13px;
+                     font-weight: 600; }}
+QPushButton#small:hover {{ border-color: {c['select']}; color: {c['select']}; }}
+QPushButton#link {{ min-height: 24px; min-width: 0; padding: 0 4px; border: none;
+                    background: transparent; color: {c['select']}; font-size: 13px; }}
+QPushButton#link:hover {{ text-decoration: underline; }}
+QPushButton#icon {{ min-width: 36px; padding: 0 8px; border: none; border-radius: 10px;
+                    background: transparent; color: {c['muted']}; font-size: 18px; }}
+QPushButton#icon:hover {{ background: {c['card_alt']}; color: {c['text']}; }}
+#tile {{ border: 1px solid {c['border']}; border-radius: 16px; background: {c['card']}; }}
+#tile:hover {{ border-color: {c['select']}; background: {c['select_soft']}; }}
+#tile:disabled {{ background: {c['card_alt']}; }}
+#tileTitle {{ font-size: 15px; font-weight: 700; }}
+#thumbCard {{ border: 1px solid {c['border']}; border-radius: 16px; background: {c['card']}; }}
+#thumbCard:hover {{ border-color: {c['select']}; }}
+#thumb {{ background: {c['sheet']}; border-top-left-radius: 16px; border-top-right-radius: 16px; }}
+#thumbName {{ font-weight: 700; }}
+QTabWidget::pane {{ border: none; }}
+QTabBar::tab {{ padding: 8px 16px; margin-right: 4px; border: none; border-radius: 10px;
+                background: transparent; color: {c['muted']}; }}
+QTabBar::tab:selected {{ background: {c['card']}; color: {c['text']}; font-weight: 700; }}
+QTabBar::tab:hover {{ color: {c['text']}; }}
+QTableWidget {{ background: {c['card']}; border: 1px solid {c['border']}; border-radius: 10px;
+                gridline-color: {c['border']}; selection-background-color: {c['select_soft']};
+                selection-color: {c['select']}; }}
+QHeaderView::section {{ background: {c['card_alt']}; color: {c['muted']}; border: none;
+                        padding: 6px 8px; font-weight: 600; }}
+QMenu {{ background: {c['card']}; border: 1px solid {c['border']}; padding: 4px; }}
+QMenu::item {{ padding: 6px 18px; border-radius: 6px; }}
+QMenu::item:selected {{ background: {c['select_soft']}; color: {c['select']}; }}
 
 QScrollBar:vertical, QScrollBar:horizontal {{ background: transparent; border: none;
                                              width: 10px; height: 10px; margin: 2px; }}

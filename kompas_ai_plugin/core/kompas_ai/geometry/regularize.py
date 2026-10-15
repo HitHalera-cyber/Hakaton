@@ -882,6 +882,7 @@ def _move_centre(c, new, axes) -> None:
 
 MAX_NODE_SHIFT = 0.15  # sheet mm
 DIM_SLIDE = 0.6  # sheet mm a dimension's point may be off the coordinate it measures
+MANUAL = "уточнён вручную"  # the note of a size whose value the user gave (pipeline)
 DIM_LIMIT = 1.5  # sheet mm: a size asking more of the lines measures something else
 NICE_STEPS = (1.0, 0.5, 0.1, 0.05)  # model mm: round values, the roundest first
 NICE_TOL = 0.15  # sheet mm an unwritten size may be off a round value (PDF rounding)
@@ -1108,8 +1109,8 @@ def _dimension_conds(drawing, points, axes, scale, curves=(), segments=()):
             else:
                 cond = ("dx", a[1], b[1], k, t - b[2] + a[2])
         miss = abs(abs(cur) - target)
-        if miss > max(DIM_LIMIT, 0.03 * target):
-            skipped.append(d.id)
+        if miss > max(DIM_LIMIT, 0.03 * target) and MANUAL not in d.notes:
+            skipped.append(d.id)  # (a size the user typed in is meant: it moves the lines)
             continue
         worst = max(worst, miss)
         conds.append(cond)
@@ -1125,7 +1126,11 @@ def _dimension_conds(drawing, points, axes, scale, curves=(), segments=()):
         last = owner.get(id(cond), last)
         tagged[id(cond)] = ("D" + cond[0],) + cond[1:] + (last,)
     used = [(tagged.get(id(u[0])), u[1], u[2], u[3]) for u in used]
-    conds = sorted(tagged.values(), key=lambda t: -nominal.get(t[-1], 0.0))
+    # the sizes the user typed in before all: where they contradict the
+    # drawing's own, the user's win
+    manual = {d.id for d in drawing.of_type(ir.Dimension) if MANUAL in d.notes}
+    conds = sorted(tagged.values(), key=lambda t: (t[-1] not in manual,
+                                                   -nominal.get(t[-1], 0.0)))
     return conds, used, skipped, worst
 
 
