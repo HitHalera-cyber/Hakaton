@@ -168,7 +168,7 @@ export function SettingsScreen() {
       </Card>
 
       <p className="text-center text-xs text-muted">
-        HitSnap 1.0 · Превью песен — Deezer и iTunes (30-секундные отрывки, предоставляемые сервисами)
+        HitSnap 1.1 · Превью песен — Deezer и iTunes (30-секундные отрывки, предоставляемые сервисами)
       </p>
     </div>
   )

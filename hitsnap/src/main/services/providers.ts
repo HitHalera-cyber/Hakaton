@@ -1,5 +1,5 @@
-import type { CatalogHit, Song } from '@shared/types'
-import { getJson } from './http'
+import type { CatalogHit, RemotePlaylist, Song } from '@shared/types'
+import { getJson, resolveRedirect } from './http'
 import { matchScore } from './match'
 
 export interface PreviewInfo {
@@ -112,18 +112,64 @@ export async function findPreview(song: Song): Promise<PreviewInfo | null> {
   return null
 }
 
+function toHit(t: DeezerTrack): CatalogHit {
+  return {
+    deezerId: t.id,
+    artist: t.artist.name,
+    title: t.title,
+    album: t.album?.title ?? '',
+    coverUrl: t.album?.cover_medium,
+    year: t.release_date ? Number(t.release_date.slice(0, 4)) || undefined : undefined
+  }
+}
+
 /** Free-text search in the Deezer catalogue — used to add songs to «Мои песни». */
 export async function searchCatalog(query: string): Promise<CatalogHit[]> {
   if (!query.trim()) return []
-  const hits = await deezerSearch(query)
-  return hits
-    .filter((t) => t.preview)
-    .map((t) => ({
-      deezerId: t.id,
-      artist: t.artist.name,
-      title: t.title,
-      album: t.album?.title ?? '',
-      coverUrl: t.album?.cover_medium,
-      year: t.release_date ? Number(t.release_date.slice(0, 4)) || undefined : undefined
-    }))
+  return (await deezerSearch(query)).filter((t) => t.preview).map(toHit)
+}
+
+const MAX_PLAYLIST_TRACKS = 500
+
+/** Accepts a playlist link (deezer.com/…/playlist/123, share links) or a bare id. */
+async function playlistId(link: string): Promise<string> {
+  const text = link.trim()
+  if (/^\d+$/.test(text)) return text
+  let url = text
+  // Share links (link.deezer.com, deezer.page.link) redirect to the real playlist URL.
+  if (!/\/playlist\/\d+/.test(url) && /^https:\/\//.test(url)) url = await resolveRedirect(url)
+  const m = url.match(/\/playlist\/(\d+)/)
+  if (!m) throw new Error('Не похоже на ссылку на плейлист Deezer')
+  return m[1]
+}
+
+export async function fetchPlaylist(link: string): Promise<RemotePlaylist> {
+  const id = await playlistId(link)
+  const info = await getJson<{ id: number; title: string; picture_medium?: string; error?: { message?: string } }>(
+    `https://api.deezer.com/playlist/${id}`
+  )
+  if (info.error) throw new Error(info.error.message ?? 'Плейлист не найден')
+  const tracks: DeezerTrack[] = []
+  for (let index = 0; index < MAX_PLAYLIST_TRACKS; index += 100) {
+    const page = await getJson<{ data?: DeezerTrack[]; next?: string }>(
+      `https://api.deezer.com/playlist/${id}/tracks?limit=100&index=${index}`
+    )
+    tracks.push(...(page.data ?? []))
+    if (!page.next) break
+  }
+  return {
+    id: `playlist-${id}`,
+    title: info.title,
+    coverUrl: info.picture_medium,
+    tracks: tracks.filter((t) => t.preview).map(toHit)
+  }
+}
+
+export async function fetchChart(): Promise<RemotePlaylist> {
+  const res = await getJson<{ data?: DeezerTrack[] }>('https://api.deezer.com/chart/0/tracks?limit=100')
+  return {
+    id: 'chart',
+    title: 'Чарт Deezer сейчас',
+    tracks: (res.data ?? []).filter((t) => t.preview).map(toHit)
+  }
 }

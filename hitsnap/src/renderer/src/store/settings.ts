@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { EMPTY_FILTERS, type Difficulty, type Filters } from '@/lib/game'
+import { EMPTY_FILTERS, PLAYER_COLORS, type ClipStart, type Difficulty, type Filters, type GameMode, type Player } from '@/lib/game'
 import { diskStorage } from './persist'
 
 export type ThemePref = 'system' | 'light' | 'dark'
@@ -16,6 +16,11 @@ export interface Settings {
   sfx: boolean
   visualizer: boolean
   filters: Filters
+  clipStart: ClipStart
+  /** Mode used by genre / era stations and personal collections. */
+  stationMode: Extract<GameMode, 'classic' | 'quiz' | 'year' | 'survival'>
+  players: Player[]
+  partyRounds: number
 }
 
 interface SettingsStore extends Settings {
@@ -31,7 +36,14 @@ export const DEFAULT_SETTINGS: Settings = {
   autoplay: true,
   sfx: true,
   visualizer: true,
-  filters: EMPTY_FILTERS
+  filters: EMPTY_FILTERS,
+  clipStart: 'random',
+  stationMode: 'classic',
+  players: [
+    { name: 'Игрок 1', color: PLAYER_COLORS[0] },
+    { name: 'Игрок 2', color: PLAYER_COLORS[1] }
+  ],
+  partyRounds: 10
 }
 
 export const useSettings = create<SettingsStore>()(

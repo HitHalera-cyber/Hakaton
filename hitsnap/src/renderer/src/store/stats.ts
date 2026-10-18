@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { ACHIEVEMENTS, wonDecade, type AchievementContext } from '@/lib/achievements'
 import type { Difficulty, GameMode, Round } from '@/lib/game'
+import { levelFor } from '@/lib/progress'
 import { diskStorage } from './persist'
 
 export interface GameRecord {
@@ -14,6 +15,8 @@ export interface GameRecord {
   total: number
   bestStreak: number
   dailyKey?: string
+  /** Station / playlist the game was drawn from. */
+  label?: string
   rounds: Array<{ songId: string; label: string; stage: number | null; points: number }>
 }
 
@@ -21,10 +24,12 @@ export interface SongStat {
   played: number
   won: number
   best: number | null // best stage index
+  /** Result of the latest round with this song — «Работа над ошибками» replays the misses. */
+  lastWon?: boolean
 }
 
 interface StatsData {
-  totals: { games: number; rounds: number; wins: number; hints: number; guessMs: number }
+  totals: { games: number; rounds: number; wins: number; hints: number; guessMs: number; points: number }
   /** Wins per stage (index 0..2) plus losses at index 3. */
   stageHist: [number, number, number, number]
   bestStreak: number
@@ -46,7 +51,7 @@ interface StatsStore extends StatsData {
 }
 
 const EMPTY: StatsData = {
-  totals: { games: 0, rounds: 0, wins: 0, hints: 0, guessMs: 0 },
+  totals: { games: 0, rounds: 0, wins: 0, hints: 0, guessMs: 0, points: 0 },
   stageHist: [0, 0, 0, 0],
   bestStreak: 0,
   bestScore: {},
@@ -66,6 +71,7 @@ function context(s: StatsData, game?: AchievementContext['game']): AchievementCo
     langsWon: s.langsWon,
     decadeWins: s.decadeWins,
     dailyDone: Object.keys(s.daily).length,
+    level: levelFor(s.totals.points ?? 0).level,
     game
   }
 }
@@ -93,7 +99,7 @@ export const useStats = create<StatsStore>()(
           const prev = s.songs[round.song.id] ?? { played: 0, won: 0, best: null }
           const best = win ? (prev.best === null ? round.stage : Math.min(prev.best, round.stage)) : prev.best
           const recent = [round.song.id, ...s.recent.filter((id) => id !== round.song.id)].slice(0, 120)
-          const songs = { ...s.songs, [round.song.id]: { played: prev.played + 1, won: prev.won + (win ? 1 : 0), best } }
+          const songs = { ...s.songs, [round.song.id]: { played: prev.played + 1, won: prev.won + (win ? 1 : 0), best, lastWon: win } }
           if (!scored) {
             set({ songs, recent })
             return []
@@ -110,6 +116,7 @@ export const useStats = create<StatsStore>()(
               rounds: s.totals.rounds + 1,
               wins: s.totals.wins + (win ? 1 : 0),
               hints: s.totals.hints + round.hints,
+              points: (s.totals.points ?? 0) + round.points,
               guessMs: s.totals.guessMs + (win && round.endedAt ? round.endedAt - round.startedAt : 0)
             },
             langsWon: win && !s.langsWon.includes(round.song.lang) ? [...s.langsWon, round.song.lang] : s.langsWon,
@@ -128,7 +135,8 @@ export const useStats = create<StatsStore>()(
               : s.daily
           set({
             totals: { ...s.totals, games: s.totals.games + 1 },
-            bestScore: { ...s.bestScore, [record.mode]: Math.max(s.bestScore[record.mode] ?? 0, record.score) },
+            bestScore:
+              record.mode === 'party' ? s.bestScore : { ...s.bestScore, [record.mode]: Math.max(s.bestScore[record.mode] ?? 0, record.score) },
             bestStreak: Math.max(s.bestStreak, record.bestStreak),
             history: [record, ...s.history].slice(0, 200),
             daily
@@ -138,6 +146,15 @@ export const useStats = create<StatsStore>()(
         reset: () => set({ ...EMPTY })
       }
     },
-    { name: 'stats', storage: diskStorage, version: 1 }
+    {
+      name: 'stats',
+      storage: diskStorage,
+      version: 1,
+      // Older saves lack newer counters: keep the defaults for them.
+      merge: (persisted, current) => {
+        const p = (persisted ?? {}) as Partial<StatsData>
+        return { ...current, ...p, totals: { ...current.totals, ...p.totals } }
+      }
+    }
   )
 )

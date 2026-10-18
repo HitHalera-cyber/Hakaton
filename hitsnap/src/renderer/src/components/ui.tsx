@@ -71,7 +71,7 @@ export function Segmented<T extends string | number>({
           key={String(o.value)}
           onClick={() => onChange(o.value)}
           className={cx(
-            'h-8 rounded-lg px-3 text-sm font-medium transition cursor-pointer',
+            'h-8 whitespace-nowrap rounded-lg px-3 text-sm font-medium transition cursor-pointer',
             o.value === value ? 'bg-surface-2 text-fg shadow' : 'text-muted hover:text-fg'
           )}
         >

@@ -6,6 +6,7 @@ import { useTheme } from './hooks/useTheme'
 import { audio } from './lib/audio'
 import { isDemo } from './lib/api'
 import { GameScreen } from './screens/GameScreen'
+import { CollectionsScreen } from './screens/CollectionsScreen'
 import { HomeScreen } from './screens/HomeScreen'
 import { LibraryScreen } from './screens/LibraryScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
@@ -16,6 +17,7 @@ import { useUi, type Screen } from './store/ui'
 const SCREENS: Record<Screen, () => React.JSX.Element> = {
   home: HomeScreen,
   game: GameScreen,
+  collections: CollectionsScreen,
   library: LibraryScreen,
   stats: StatsScreen,
   settings: SettingsScreen

@@ -2,7 +2,8 @@ import { app, BrowserWindow, ipcMain, nativeTheme, screen, shell } from 'electro
 import { join } from 'node:path'
 import type { Song } from '@shared/types'
 import { cacheInfo, clearCache, resolveTrack } from './services/audioCache'
-import { searchCatalog } from './services/providers'
+import { pickMusicFolder, scanMusicFolder } from './services/localMusic'
+import { fetchChart, fetchPlaylist, searchCatalog } from './services/providers'
 import { storage } from './services/storage'
 
 const isMac = process.platform === 'darwin'
@@ -48,6 +49,10 @@ function createWindow(): BrowserWindow {
 function registerIpc(): void {
   ipcMain.handle('track:resolve', (_e, song: Song) => resolveTrack(song))
   ipcMain.handle('catalog:search', (_e, query: string) => searchCatalog(query))
+  ipcMain.handle('catalog:playlist', (_e, link: string) => fetchPlaylist(link))
+  ipcMain.handle('catalog:chart', () => fetchChart())
+  ipcMain.handle('local:pick', (e) => pickMusicFolder(BrowserWindow.fromWebContents(e.sender)))
+  ipcMain.handle('local:scan', (_e, folder: string) => scanMusicFolder(folder))
   ipcMain.handle('cache:info', () => cacheInfo())
   ipcMain.handle('cache:clear', () => clearCache())
   ipcMain.handle('storage:get', (_e, key: string) => storage.get(key))

@@ -2,16 +2,21 @@ import { create } from 'zustand'
 import type { Song } from '@shared/types'
 import { ACHIEVEMENTS } from '@/lib/achievements'
 import { api } from '@/lib/api'
-import { audio } from '@/lib/audio'
+import { audio, leadingSilence } from '@/lib/audio'
 import {
+  answerKind,
   buildQueue,
   isCorrect,
   MAX_HINTS,
   pickOffset,
   pointsFor,
+  QUIZ_FACTOR,
+  quizOptions,
   sameArtist,
   STAGES,
   SURVIVAL_LIVES,
+  YEAR_WIN_DISTANCE,
+  yearCloseness,
   type GameConfig,
   type Round
 } from '@/lib/game'
@@ -21,7 +26,7 @@ import { useStats } from './stats'
 import { useUi } from './ui'
 
 // The game state machine:
-//   loading → playing ⇄ (guess / skip / hint) → reveal → loading … → finished
+//   loading → playing ⇄ (guess / skip / hint / buzz) → reveal → loading … → finished
 
 export type Phase = 'idle' | 'loading' | 'playing' | 'reveal' | 'finished' | 'error'
 
@@ -36,6 +41,8 @@ interface Loaded {
 interface GameStore {
   phase: Phase
   config: GameConfig | null
+  /** Songs the game is drawn from — also the source of quiz distractors. */
+  pool: Song[]
   queue: Song[]
   cursor: number
   rounds: Round[]
@@ -46,10 +53,16 @@ interface GameStore {
   lives: number
   lastPoints: number
   error: string | null
+  /** Party: points per player, who is answering now, who already missed this round. */
+  partyScores: number[]
+  buzzed: number | null
+  lockedOut: number[]
   start: (config: GameConfig, pool: Song[]) => Promise<void>
   playStage: () => void
   playReveal: () => void
   guess: (song: Song) => void
+  guessYear: (year: number) => void
+  buzz: (player: number) => void
   skip: () => void
   hint: () => void
   next: () => Promise<void>
@@ -57,7 +70,7 @@ interface GameStore {
   quit: () => void
 }
 
-const MAX_FAILURES = 6
+const MAX_FAILURES = 8
 
 let session = 0
 const prefetched = new Map<string, Promise<Loaded | null>>()
@@ -79,7 +92,7 @@ function loadCached(song: Song): Promise<Loaded | null> {
   return p
 }
 
-function stagesOf(config: GameConfig): number[] {
+export function stagesOf(config: GameConfig): number[] {
   return STAGES[config.mode === 'daily' ? 'normal' : config.difficulty]
 }
 
@@ -110,12 +123,19 @@ export const useGame = create<GameStore>()((set, get) => {
     return rounds.length >= config.rounds
   }
 
+  /** Where the clip starts: a random moment, or the very first sound. */
+  const offsetFor = (buffer: AudioBuffer, config: GameConfig): number => {
+    const stages = stagesOf(config)
+    if (config.clipStart === 'intro') return leadingSilence(buffer)
+    return pickOffset(buffer.duration, stages[stages.length - 1], rng)
+  }
+
   /** Loads the next playable song, skipping ones without a preview. */
   const loadNextRound = async (): Promise<void> => {
     const id = session
     const { config } = get()
     if (!config) return
-    set({ phase: 'loading', buffer: null })
+    set({ phase: 'loading', buffer: null, buzzed: null, lockedOut: [] })
     let failures = 0
     let cursor = get().cursor
     const queue = get().queue
@@ -131,16 +151,15 @@ export const useGame = create<GameStore>()((set, get) => {
           set({
             phase: 'error',
             cursor,
-            error: 'Не удаётся загрузить песни. Проверьте подключение к интернету — без сети доступны только уже прослушанные песни.'
+            error: 'Не удаётся загрузить песни. Проверьте подключение к интернету — без сети доступны только уже прослушанные песни и своя музыка.'
           })
           return
         }
         continue
       }
-      const stages = stagesOf(config)
       const round: Round = {
         song,
-        offset: pickOffset(loaded.buffer.duration, stages[stages.length - 1], rng),
+        offset: offsetFor(loaded.buffer, config),
         stage: 0,
         guesses: [],
         hints: 0,
@@ -149,7 +168,8 @@ export const useGame = create<GameStore>()((set, get) => {
         startedAt: Date.now(),
         coverUrl: loaded.coverUrl,
         link: loaded.link,
-        album: loaded.album
+        album: loaded.album,
+        options: answerKind(config.mode) === 'choice' ? quizOptions(song, get().pool, rng) : undefined
       }
       set({ phase: 'playing', cursor, buffer: loaded.buffer, rounds: [...get().rounds, round] })
       if (queue[cursor]) void loadCached(queue[cursor])
@@ -158,25 +178,26 @@ export const useGame = create<GameStore>()((set, get) => {
     }
     set({ cursor })
     if (get().rounds.length) get().finish()
-    else set({ phase: 'error', error: 'Под выбранные фильтры не нашлось ни одной песни. Ослабьте фильтры и попробуйте снова.' })
+    else set({ phase: 'error', error: 'Под выбранные условия не нашлось ни одной песни. Ослабьте фильтры или выберите другую подборку.' })
   }
 
-  const endRound = (won: boolean): void => {
+  const endRound = (won: boolean, points: number): void => {
     const { config, streak } = get()
     const round = current()
     if (!config || !round) return
-    const scored = config.mode !== 'practice'
-    const points = won && scored ? pointsFor(round.stage, streak, round.hints) : 0
+    const scored = config.mode !== 'practice' && config.mode !== 'party'
     const newStreak = won ? streak + 1 : 0
     const lives = config.mode === 'survival' && !won ? get().lives - 1 : get().lives
-    updateCurrent({ status: won ? 'won' : 'lost', points, endedAt: Date.now() })
+    audio.stop()
+    updateCurrent({ status: won ? 'won' : 'lost', points: scored ? points : 0, endedAt: Date.now() })
     set({
       phase: 'reveal',
-      score: get().score + points,
+      score: get().score + (scored ? points : 0),
       lastPoints: points,
       streak: newStreak,
       bestStreak: Math.max(get().bestStreak, newStreak),
-      lives
+      lives,
+      buzzed: null
     })
     const finished = current()!
     const settings = useSettings.getState()
@@ -196,7 +217,7 @@ export const useGame = create<GameStore>()((set, get) => {
     const round = current()
     if (!config || !round) return
     if (round.stage + 1 >= stagesOf(config).length) {
-      endRound(false)
+      endRound(false, 0)
       return
     }
     updateCurrent({ stage: round.stage + 1 })
@@ -206,6 +227,7 @@ export const useGame = create<GameStore>()((set, get) => {
   return {
     phase: 'idle',
     config: null,
+    pool: [],
     queue: [],
     cursor: 0,
     rounds: [],
@@ -216,6 +238,9 @@ export const useGame = create<GameStore>()((set, get) => {
     lives: SURVIVAL_LIVES,
     lastPoints: 0,
     error: null,
+    partyScores: [],
+    buzzed: null,
+    lockedOut: [],
 
     start: async (config, pool) => {
       session++
@@ -224,14 +249,16 @@ export const useGame = create<GameStore>()((set, get) => {
       rng = createRng(config.seed ^ 0x9e3779b9)
       const recent = config.mode === 'daily' ? [] : useStats.getState().recent
       let queue = buildQueue(pool, config, recent)
-      // Offline: put songs that are already on disk first.
+      // Offline: put songs that are already on disk (and own files) first.
       if (!navigator.onLine) {
         const cached = new Set((await api.cacheInfo()).songIds)
-        queue = [...queue.filter((s) => cached.has(s.id)), ...queue.filter((s) => !cached.has(s.id))]
+        const ready = (s: Song) => cached.has(s.id) || !!s.filePath
+        queue = [...queue.filter(ready), ...queue.filter((s) => !ready(s))]
       }
       set({
         phase: 'loading',
         config,
+        pool,
         queue,
         cursor: 0,
         rounds: [],
@@ -241,7 +268,10 @@ export const useGame = create<GameStore>()((set, get) => {
         bestStreak: 0,
         lives: SURVIVAL_LIVES,
         lastPoints: 0,
-        error: null
+        error: null,
+        partyScores: (config.players ?? []).map(() => 0),
+        buzzed: null,
+        lockedOut: []
       })
       useUi.getState().go('game')
       await loadNextRound()
@@ -262,24 +292,70 @@ export const useGame = create<GameStore>()((set, get) => {
     },
 
     guess: (song) => {
+      const { config, buzzed, streak } = get()
       const round = current()
-      if (get().phase !== 'playing' || !round) return
+      if (get().phase !== 'playing' || !round || !config) return
+      const party = config.mode === 'party'
+      if (party && buzzed === null) return
       const correct = isCorrect(round.song, song)
-      const guess = { songId: song.id, label: `${song.artist} — ${song.title}`, stage: round.stage, sameArtist: !correct && sameArtist(round.song, song) }
+      const guess = {
+        songId: song.id,
+        label: `${song.artist} — ${song.title}`,
+        stage: round.stage,
+        sameArtist: !correct && sameArtist(round.song, song),
+        player: party ? buzzed! : undefined
+      }
       updateCurrent({ guesses: [...round.guesses, guess] })
       if (correct) {
-        audio.stop()
-        endRound(true)
-      } else {
-        if (useSettings.getState().sfx) audio.sfx('wrong')
-        advanceStage()
+        if (party) {
+          const partyScores = [...get().partyScores]
+          const points = pointsFor(round.stage, 0, round.hints)
+          partyScores[buzzed!] += points
+          set({ partyScores })
+          updateCurrent({ winner: buzzed! })
+          endRound(true, points)
+          return
+        }
+        const factor = answerKind(config.mode) === 'choice' ? QUIZ_FACTOR : 1
+        endRound(true, pointsFor(round.stage, streak, round.hints, factor))
+        return
       }
+      if (useSettings.getState().sfx) audio.sfx('wrong')
+      if (party) {
+        const lockedOut = [...get().lockedOut, buzzed!]
+        set({ lockedOut, buzzed: null })
+        if (lockedOut.length >= (config.players?.length ?? 0)) {
+          endRound(false, 0)
+          return
+        }
+      }
+      advanceStage()
+    },
+
+    guessYear: (year) => {
+      const { config, streak } = get()
+      const round = current()
+      if (get().phase !== 'playing' || !round || !config) return
+      const closeness = yearCloseness(year, round.song.year)
+      const won = Math.abs(year - round.song.year) <= YEAR_WIN_DISTANCE
+      updateCurrent({ yearGuess: year })
+      endRound(won, Math.round((pointsFor(round.stage, won ? streak : 0, round.hints) * closeness) / 10) * 10)
+    },
+
+    buzz: (player) => {
+      const { config, buzzed, lockedOut, phase } = get()
+      if (phase !== 'playing' || config?.mode !== 'party' || buzzed !== null) return
+      if (player < 0 || player >= (config.players?.length ?? 0) || lockedOut.includes(player)) return
+      audio.stop()
+      if (useSettings.getState().sfx) audio.sfx('tick')
+      set({ buzzed: player })
     },
 
     skip: () => {
       const round = current()
       if (get().phase !== 'playing' || !round) return
       updateCurrent({ guesses: [...round.guesses, { songId: '', label: 'Пропуск', stage: round.stage, sameArtist: false, skipped: true }] })
+      set({ buzzed: null })
       advanceStage()
     },
 
@@ -296,7 +372,7 @@ export const useGame = create<GameStore>()((set, get) => {
     },
 
     finish: () => {
-      const { config, rounds, score, bestStreak } = get()
+      const { config, rounds, score, bestStreak, partyScores } = get()
       audio.stop()
       session++
       set({ phase: 'finished' })
@@ -309,11 +385,12 @@ export const useGame = create<GameStore>()((set, get) => {
           mode: config.mode,
           difficulty: config.difficulty,
           date: Date.now(),
-          score,
+          score: config.mode === 'party' ? Math.max(0, ...partyScores) : score,
           correct: done.filter((r) => r.status === 'won').length,
           total: done.length,
           bestStreak,
           dailyKey: config.dailyKey,
+          label: config.source?.label,
           rounds: done.map((r) => ({
             songId: r.song.id,
             label: `${r.song.artist} — ${r.song.title}`,
@@ -330,7 +407,7 @@ export const useGame = create<GameStore>()((set, get) => {
       session++
       audio.stop()
       prefetched.clear()
-      set({ phase: 'idle', config: null, rounds: [], buffer: null })
+      set({ phase: 'idle', config: null, rounds: [], buffer: null, pool: [] })
       useUi.getState().go('home')
     }
   }

@@ -3,7 +3,9 @@ import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { CacheInfo, ResolvedTrack, Song } from '@shared/types'
 import { getBytes } from './http'
+import { isAllowed } from './localMusic'
 import { findPreview } from './providers'
+import { storage } from './storage'
 
 // Previews are kept on disk: a song heard once plays instantly (and offline) later.
 // Provider URLs are signed and expire, so we keep the bytes, not the links.
@@ -24,6 +26,35 @@ const metaPath = (id: string): string => join(dir(), `${safe(id)}.json`)
 
 const inFlight = new Map<string, Promise<ResolvedTrack | null>>()
 
+// Songs no provider has a preview for are remembered for a while, so the game
+// does not waste time on them every session.
+const UNAVAILABLE_KEY = 'unavailable-previews'
+const UNAVAILABLE_DAYS = 14
+
+function unavailable(): Record<string, number> {
+  try {
+    return JSON.parse(storage.get(UNAVAILABLE_KEY) ?? '{}') as Record<string, number>
+  } catch {
+    return {}
+  }
+}
+
+function isUnavailable(id: string): boolean {
+  const at = unavailable()[id]
+  return !!at && Date.now() - at < UNAVAILABLE_DAYS * 86_400_000
+}
+
+function markUnavailable(id: string): void {
+  void storage.set(UNAVAILABLE_KEY, JSON.stringify({ ...unavailable(), [id]: Date.now() }))
+}
+
+async function fromLocalFile(song: Song): Promise<ResolvedTrack | null> {
+  if (!song.filePath || !isAllowed(song.filePath)) return null
+  const buf = await readFile(song.filePath)
+  const audio = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer
+  return { songId: song.id, audio, source: 'local' }
+}
+
 async function fromDisk(song: Song): Promise<ResolvedTrack | null> {
   try {
     const [buf, metaRaw] = await Promise.all([readFile(audioPath(song.id)), readFile(metaPath(song.id), 'utf8')])
@@ -36,8 +67,12 @@ async function fromDisk(song: Song): Promise<ResolvedTrack | null> {
 }
 
 async function download(song: Song): Promise<ResolvedTrack | null> {
+  if (isUnavailable(song.id)) return null
   const info = await findPreview(song)
-  if (!info) return null
+  if (!info) {
+    markUnavailable(song.id)
+    return null
+  }
   const audio = await getBytes(info.previewUrl)
   const meta: Meta = { coverUrl: info.coverUrl, link: info.link, album: info.album, source: info.source }
   await mkdir(dir(), { recursive: true })
@@ -49,7 +84,10 @@ async function download(song: Song): Promise<ResolvedTrack | null> {
 export function resolveTrack(song: Song): Promise<ResolvedTrack | null> {
   const pending = inFlight.get(song.id)
   if (pending) return pending
-  const job = (async () => (await fromDisk(song)) ?? (await download(song)))().finally(() => inFlight.delete(song.id))
+  const job = (async () => {
+    if (song.filePath) return fromLocalFile(song)
+    return (await fromDisk(song)) ?? (await download(song))
+  })().finally(() => inFlight.delete(song.id))
   inFlight.set(song.id, job)
   return job
 }
@@ -83,13 +121,18 @@ async function trim(): Promise<void> {
 
 export async function cacheInfo(): Promise<CacheInfo> {
   const files = await listAudio()
+  const now = Date.now()
   return {
     files: files.length,
     bytes: files.reduce((sum, f) => sum + f.size, 0),
-    songIds: files.map((f) => f.name.slice(0, -'.audio'.length))
+    songIds: files.map((f) => f.name.slice(0, -'.audio'.length)),
+    unavailable: Object.entries(unavailable())
+      .filter(([, at]) => now - at < UNAVAILABLE_DAYS * 86_400_000)
+      .map(([id]) => id)
   }
 }
 
 export async function clearCache(): Promise<void> {
   await rm(dir(), { recursive: true, force: true })
+  await storage.remove(UNAVAILABLE_KEY)
 }

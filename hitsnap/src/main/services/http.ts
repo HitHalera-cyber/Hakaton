@@ -22,3 +22,8 @@ export async function getJson<T>(url: string): Promise<T> {
 export async function getBytes(url: string): Promise<ArrayBuffer> {
   return (await request(url)).arrayBuffer()
 }
+
+/** The final URL after redirects (for share links). */
+export async function resolveRedirect(url: string): Promise<string> {
+  return (await request(url)).url || url
+}

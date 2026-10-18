@@ -140,3 +140,14 @@ class AudioEngine {
 }
 
 export const audio = new AudioEngine()
+
+/** Seconds of near-silence at the start of the buffer (fade-ins, pauses before the intro). */
+export function leadingSilence(buffer: AudioBuffer, threshold = 0.02): number {
+  const data = buffer.getChannelData(0)
+  const limit = Math.min(data.length, buffer.sampleRate * 8)
+  const step = Math.max(1, Math.floor(buffer.sampleRate / 200))
+  for (let i = 0; i < limit; i += step) {
+    if (Math.abs(data[i]) > threshold) return Math.max(0, i / buffer.sampleRate - 0.05)
+  }
+  return 0
+}

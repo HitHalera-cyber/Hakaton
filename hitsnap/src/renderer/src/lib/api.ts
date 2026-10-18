@@ -1,4 +1,4 @@
-import type { CatalogHit, HitSnapApi, ResolvedTrack, Song } from '@shared/types'
+import type { CatalogHit, HitSnapApi, RemotePlaylist, ResolvedTrack, Song } from '@shared/types'
 import { CATALOG } from '@shared/catalog'
 import { createRng, hashString } from './random'
 
@@ -43,6 +43,18 @@ function synthesize(seedText: string, seconds = 30, rate = 22050): ArrayBuffer {
   return buf
 }
 
+function demoPlaylist(id: string, title: string, size: number): RemotePlaylist {
+  const rng = createRng(hashString(id))
+  const tracks = CATALOG.filter(() => rng() < size / CATALOG.length).map((s, i) => ({
+    deezerId: 10_000 + i,
+    artist: s.artist,
+    title: s.title,
+    album: 'Demo',
+    year: s.year
+  }))
+  return { id, title, tracks }
+}
+
 const demoApi: HitSnapApi = {
   platform: 'web',
   async resolveTrack(song: Song): Promise<ResolvedTrack> {
@@ -55,8 +67,24 @@ const demoApi: HitSnapApi = {
       .slice(0, 12)
       .map((s, i) => ({ deezerId: 1000 + i, artist: s.artist, title: `${s.title} (Live)`, album: 'Demo', year: s.year }))
   },
+  async fetchPlaylist(link: string): Promise<RemotePlaylist> {
+    await new Promise((r) => setTimeout(r, 400))
+    return demoPlaylist(`playlist-${hashString(link)}`, 'Демо-плейлист', 40)
+  },
+  async fetchChart(): Promise<RemotePlaylist> {
+    await new Promise((r) => setTimeout(r, 400))
+    return demoPlaylist('chart', 'Чарт Deezer сейчас', 50)
+  },
+  async pickMusicFolder() {
+    return 'C:/Music (демо)'
+  },
+  async scanMusicFolder() {
+    return CATALOG.filter((s) => s.tier === 1)
+      .slice(0, 30)
+      .map((s) => ({ path: `C:/Music/${s.artist} - ${s.title}.mp3`, artist: s.artist, title: s.title }))
+  },
   async cacheInfo() {
-    return { files: 0, bytes: 0, songIds: [] }
+    return { files: 0, bytes: 0, songIds: [], unavailable: [] }
   },
   async clearCache() {},
   async storageGet(key) {

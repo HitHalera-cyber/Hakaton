@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import {
   ArrowRight,
   Check,
+  Copy,
   ExternalLink,
   Flag,
   Flame,
@@ -16,21 +17,26 @@ import {
   Users,
   X
 } from 'lucide-react'
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
+import { ChoiceGrid } from '@/components/ChoiceGrid'
 import { Cover } from '@/components/Cover'
+import { PartyBar } from '@/components/PartyBar'
 import { SearchBox, type SearchBoxHandle } from '@/components/SearchBox'
 import { StageTimeline } from '@/components/StageTimeline'
 import { Button, Card, cx, Kbd } from '@/components/ui'
 import { Visualizer } from '@/components/Visualizer'
+import { YearPicker } from '@/components/YearPicker'
 import { usePlayback } from '@/hooks/usePlayback'
+import { api } from '@/lib/api'
 import { audio } from '@/lib/audio'
 import { formatNumber, formatSeconds, plural } from '@/lib/format'
-import { hintsFor, MAX_HINTS, MODE_INFO, seedFor, STAGES, streakMultiplier, SURVIVAL_LIVES, type Round } from '@/lib/game'
-import { api } from '@/lib/api'
-import { useGame } from '@/store/game'
-import { useAllSongs } from '@/store/library'
+import { answerKind, hintsFor, MAX_HINTS, MODE_INFO, streakMultiplier, SURVIVAL_LIVES, YEAR_WIN_DISTANCE, type Round } from '@/lib/game'
+import { shareText } from '@/lib/progress'
+import { stagesOf, useGame } from '@/store/game'
+import { replay } from '@/store/launch'
+import { useLibrary } from '@/store/library'
 import { useSettings } from '@/store/settings'
-import { CATALOG } from '@shared/catalog'
+import { useUi } from '@/store/ui'
 
 export function GameScreen() {
   const phase = useGame((s) => s.phase)
@@ -48,20 +54,23 @@ function Idle() {
 
 function useStages(): number[] {
   const config = useGame((s) => s.config)
-  return STAGES[config?.mode === 'daily' ? 'normal' : (config?.difficulty ?? 'normal')]
+  return config ? stagesOf(config) : [1, 3, 5]
 }
 
 function Header() {
   const { config, rounds, score, streak, lives, finish } = useGame()
   if (!config) return null
-  const roundNo = rounds.length
+  const roundNo = rounds.length || 1
+  const endless = config.mode === 'survival' || config.mode === 'practice' || !Number.isFinite(config.rounds)
+  const scored = config.mode !== 'practice' && config.mode !== 'party'
   return (
     <div className="mb-6 flex items-center gap-4">
-      <div>
-        <div className="text-xs font-semibold uppercase tracking-wider text-muted">{MODE_INFO[config.mode].title}</div>
-        <div className="text-xl font-bold">
-          {config.mode === 'survival' || config.mode === 'practice' ? `Песня ${roundNo || 1}` : `Раунд ${roundNo || 1} из ${config.rounds}`}
+      <div className="min-w-0">
+        <div className="truncate text-xs font-semibold uppercase tracking-wider text-muted">
+          {config.source ? `${config.source.icon ?? ''} ${config.source.label} · ` : ''}
+          {MODE_INFO[config.mode].title}
         </div>
+        <div className="text-xl font-bold">{endless ? `Песня ${roundNo}` : `Раунд ${roundNo} из ${config.rounds}`}</div>
       </div>
       {config.mode === 'survival' && (
         <div className="ml-2 flex gap-1" title="Жизни">
@@ -74,7 +83,7 @@ function Header() {
       )}
       <div className="ml-auto flex items-center gap-3">
         <AnimatePresence>
-          {streak >= 2 && config.mode !== 'practice' && (
+          {streak >= 2 && scored && (
             <motion.div
               initial={{ opacity: 0, scale: 0.6 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -86,7 +95,7 @@ function Header() {
             </motion.div>
           )}
         </AnimatePresence>
-        {config.mode !== 'practice' && (
+        {scored && (
           <div className="glass rounded-xl px-4 py-1.5 text-right">
             <div className="text-[10px] font-semibold uppercase tracking-wider text-muted">Очки</div>
             <motion.div key={score} initial={{ scale: 1.25 }} animate={{ scale: 1 }} className="text-lg font-bold tabular-nums">
@@ -103,7 +112,7 @@ function Header() {
 }
 
 function Board() {
-  const { phase, rounds, playStage, playReveal, guess, skip, hint, next } = useGame()
+  const { phase, rounds, config, buzzed, lockedOut, partyScores, playStage, playReveal, guess, guessYear, buzz, skip, hint, next } = useGame()
   const visualizer = useSettings((s) => s.visualizer)
   const stages = useStages()
   const playback = usePlayback()
@@ -111,14 +120,18 @@ function Board() {
   const round: Round | undefined = rounds[rounds.length - 1]
   const playing = phase === 'playing'
   const reveal = phase === 'reveal'
+  const kind = config ? answerKind(config.mode) : 'search'
+  const party = config?.mode === 'party'
+  const players = config?.players ?? []
 
   useEffect(() => {
-    if (playing) searchRef.current?.focus()
-  }, [playing, round?.song.id])
+    if (playing && kind === 'search' && (!party || buzzed !== null)) searchRef.current?.focus()
+  }, [playing, round?.song.id, kind, party, buzzed])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const typing = e.target instanceof HTMLInputElement && e.target.value !== ''
+      const inInput = e.target instanceof HTMLInputElement
+      const typing = inInput && (e.target as HTMLInputElement).value !== ''
       if (reveal && e.key === 'Enter') {
         e.preventDefault()
         void next()
@@ -126,7 +139,10 @@ function Board() {
         e.preventDefault()
         if (audio.state().playing) audio.stop()
         else playReveal()
-      } else if (playing && e.code === 'Space' && !typing) {
+      } else if (playing && party && buzzed === null && /^[1-4]$/.test(e.key)) {
+        e.preventDefault()
+        buzz(Number(e.key) - 1)
+      } else if (playing && e.code === 'Space' && !typing && !(inInput && (e.target as HTMLInputElement).type === 'range')) {
         e.preventDefault()
         playStage()
       } else if (playing && e.key === 'Escape' && !typing) {
@@ -139,11 +155,18 @@ function Board() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [playing, reveal, next, playReveal, playStage, skip, hint])
+  }, [playing, reveal, party, buzzed, next, playReveal, playStage, skip, hint, buzz])
+
+  const pickChoice = useCallback((song: Parameters<typeof guess>[0]) => guess(song), [guess])
 
   return (
     <div className="mx-auto max-w-3xl">
       <Header />
+      {party && (
+        <div className="mb-5">
+          <PartyBar players={players} scores={partyScores} buzzed={buzzed} lockedOut={lockedOut} onBuzz={buzz} live={playing} />
+        </div>
+      )}
       {phase === 'loading' || !round ? (
         <Loading />
       ) : (
@@ -157,13 +180,9 @@ function Board() {
               />
               <div className="min-w-0 flex-1">
                 {visualizer && <Visualizer className="mb-4 h-20 w-full" />}
-                {!reveal && (
-                  <StageTimeline stages={stages} stage={round.stage} elapsed={playback.elapsed} playing={playback.playing} />
-                )}
+                {!reveal && <StageTimeline stages={stages} stage={round.stage} elapsed={playback.elapsed} playing={playback.playing} />}
                 {reveal && (
-                  <div className="text-sm text-muted">
-                    {playback.playing ? 'Звучит превью песни…' : 'Нажмите ▶, чтобы послушать ещё раз'}
-                  </div>
+                  <div className="text-sm text-muted">{playback.playing ? 'Звучит превью песни…' : 'Нажмите ▶, чтобы послушать ещё раз'}</div>
                 )}
               </div>
             </div>
@@ -176,9 +195,11 @@ function Board() {
                   <SkipForward size={16} />
                   {round.stage + 1 < stages.length ? `Дальше: ${formatSeconds(stages[round.stage + 1])}` : 'Сдаться'}
                 </Button>
-                <Button variant="ghost" onClick={hint} disabled={round.hints >= MAX_HINTS}>
-                  <Lightbulb size={16} /> Подсказка ({MAX_HINTS - round.hints})
-                </Button>
+                {!party && (
+                  <Button variant="ghost" onClick={hint} disabled={round.hints >= MAX_HINTS}>
+                    <Lightbulb size={16} /> Подсказка ({MAX_HINTS - round.hints})
+                  </Button>
+                )}
                 <div className="ml-auto hidden items-center gap-3 text-xs text-muted md:flex">
                   <span>
                     <Kbd>Пробел</Kbd> повтор
@@ -194,13 +215,31 @@ function Board() {
           <AnimatePresence mode="wait">
             {playing ? (
               <motion.div key="guess" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mt-5 space-y-4">
-                <SearchBox
-                  ref={searchRef}
-                  onPick={guess}
-                  excludeIds={round.guesses.map((g) => g.songId)}
-                  placeholder="Что это за песня? Начните вводить название или исполнителя…"
-                />
-                <HintsAndGuesses round={round} />
+                {kind === 'choice' && round.options && (
+                  <ChoiceGrid options={round.options} wrongIds={round.guesses.map((g) => g.songId)} onPick={pickChoice} />
+                )}
+                {kind === 'year' && <YearPicker key={round.song.id} onSubmit={guessYear} />}
+                {kind === 'search' && (
+                  <>
+                    {party && buzzed === null ? (
+                      <div className="glass flex h-14 items-center justify-center gap-2 rounded-2xl text-sm text-muted">
+                        <Users size={16} /> Кто узнал — жмите свою клавишу <Kbd>1</Kbd>–<Kbd>{players.length}</Kbd> или карточку игрока
+                      </div>
+                    ) : (
+                      <SearchBox
+                        ref={searchRef}
+                        onPick={guess}
+                        excludeIds={round.guesses.map((g) => g.songId)}
+                        placeholder={
+                          party && buzzed !== null
+                            ? `${players[buzzed]?.name}, что это за песня?`
+                            : 'Что это за песня? Начните вводить название или исполнителя…'
+                        }
+                      />
+                    )}
+                  </>
+                )}
+                <HintsAndGuesses round={round} kind={kind} players={players} />
               </motion.div>
             ) : (
               <motion.div key="reveal" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
@@ -221,17 +260,7 @@ function PlayDisc({ playing, onClick, progress }: { playing: boolean; onClick: (
     <button onClick={onClick} className="group relative h-28 w-28 shrink-0 cursor-pointer" aria-label={playing ? 'Стоп' : 'Слушать'}>
       <svg viewBox="0 0 100 100" className="absolute inset-0 -rotate-90">
         <circle cx="50" cy="50" r={r} fill="none" stroke="currentColor" strokeWidth="3" className="text-fg/10" />
-        <circle
-          cx="50"
-          cy="50"
-          r={r}
-          fill="none"
-          stroke="var(--accent)"
-          strokeWidth="3"
-          strokeLinecap="round"
-          strokeDasharray={c}
-          strokeDashoffset={c * (1 - progress)}
-        />
+        <circle cx="50" cy="50" r={r} fill="none" stroke="var(--accent)" strokeWidth="3" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * (1 - progress)} />
       </svg>
       <span
         className={cx(
@@ -248,10 +277,17 @@ function PlayDisc({ playing, onClick, progress }: { playing: boolean; onClick: (
   )
 }
 
-function HintsAndGuesses({ round }: { round: Round }) {
-  const hints = hintsFor(round.song).slice(0, round.hints)
-  if (!hints.length && !round.guesses.length) {
-    return <p className="px-1 text-sm text-muted">Неверный ответ открывает отрывок подлиннее, но приносит меньше очков.</p>
+function HintsAndGuesses({ round, kind, players }: { round: Round; kind: ReturnType<typeof answerKind>; players: { name: string; color: string }[] }) {
+  const hints = hintsFor(round.song, kind).slice(0, round.hints)
+  const guesses = kind === 'choice' ? round.guesses.filter((g) => g.skipped) : round.guesses
+  if (!hints.length && !guesses.length) {
+    return (
+      <p className="px-1 text-sm text-muted">
+        {kind === 'year'
+          ? 'Назовите год выхода песни: точный ответ — полные очки, ошибка в 1–2 года тоже засчитывается.'
+          : 'Неверный ответ открывает отрывок подлиннее, но приносит меньше очков.'}
+      </p>
+    )
   }
   return (
     <div className="space-y-2">
@@ -268,7 +304,7 @@ function HintsAndGuesses({ round }: { round: Round }) {
             <span className="font-semibold">{h.value}</span>
           </motion.div>
         ))}
-        {round.guesses.map((g, i) => (
+        {guesses.map((g, i) => (
           <motion.div
             key={`${g.songId}-${i}`}
             initial={{ opacity: 0, x: -10 }}
@@ -276,6 +312,11 @@ function HintsAndGuesses({ round }: { round: Round }) {
             className="flex items-center gap-2 rounded-xl border border-line px-4 py-2.5 text-sm"
           >
             {g.skipped ? <SkipForward size={16} className="text-muted" /> : <X size={16} className="text-bad" />}
+            {g.player !== undefined && players[g.player] && (
+              <span className="rounded-full px-2 py-0.5 text-xs font-semibold text-white" style={{ background: players[g.player].color }}>
+                {players[g.player].name}
+              </span>
+            )}
             <span className={cx(g.skipped ? 'text-muted' : 'line-through decoration-bad/60')}>{g.label}</span>
             {g.sameArtist && (
               <span className="ml-auto flex items-center gap-1 rounded-full bg-good/15 px-2 py-0.5 text-xs font-medium text-good">
@@ -289,35 +330,81 @@ function HintsAndGuesses({ round }: { round: Round }) {
   )
 }
 
+function FavoriteButton({ songId }: { songId: string }) {
+  const fav = useLibrary((s) => s.favorites.includes(songId))
+  const toggle = useLibrary((s) => s.toggleFavorite)
+  return (
+    <motion.button
+      whileTap={{ scale: 0.85 }}
+      onClick={() => toggle(songId)}
+      className={cx(
+        'flex h-10 w-10 items-center justify-center rounded-full transition cursor-pointer',
+        fav ? 'bg-bad/15 text-bad' : 'bg-fg/5 text-muted hover:text-bad'
+      )}
+      title={fav ? 'Убрать из избранного' : 'В избранное'}
+      aria-pressed={fav}
+    >
+      <Heart size={18} fill={fav ? 'currentColor' : 'none'} />
+    </motion.button>
+  )
+}
+
+function RevealBanner({ round, stages }: { round: Round; stages: number[] }) {
+  const { config } = useGame()
+  const won = round.status === 'won'
+  const players = config?.players ?? []
+  if (config && answerKind(config.mode) === 'year' && round.yearGuess !== undefined) {
+    const d = Math.abs(round.yearGuess - round.song.year)
+    return (
+      <span className="flex items-center gap-2">
+        {d === 0 ? '🎯 Точно в год!' : won ? `Почти! Ошибка ${d} ${plural(d, 'год', 'года', 'лет')}` : `Мимо на ${d} ${plural(d, 'год', 'года', 'лет')}`}
+        <span className="font-normal opacity-80">· ваш ответ {round.yearGuess}, верно {round.song.year}</span>
+        {round.points > 0 && <span className="ml-auto text-base">+{formatNumber(round.points)}</span>}
+      </span>
+    )
+  }
+  if (won) {
+    const winner = round.winner !== undefined ? players[round.winner] : undefined
+    return (
+      <span className="flex items-center gap-2">
+        <Check size={16} /> {winner ? `${winner.name} угадывает` : 'Угадано'} за {formatSeconds(stages[round.stage])}
+        {round.points > 0 && <span className="ml-auto text-base">+{formatNumber(round.points)}</span>}
+        {winner && <span className="ml-auto text-base">+{formatNumber(useGame.getState().lastPoints)}</span>}
+      </span>
+    )
+  }
+  return (
+    <span className="flex items-center gap-2">
+      <X size={16} /> Не угадано — это была…
+      {config?.mode === 'survival' && <span className="ml-auto">−1 жизнь</span>}
+    </span>
+  )
+}
+
 function RevealCard({ round, stages }: { round: Round; stages: number[] }) {
   const { next, config, lives } = useGame()
   const won = round.status === 'won'
   const lastRound = config && (config.mode === 'survival' ? lives <= 0 : useGame.getState().rounds.length >= config.rounds)
+  const yearMode = config && answerKind(config.mode) === 'year'
+  const good = yearMode ? round.yearGuess !== undefined && Math.abs(round.yearGuess - round.song.year) <= YEAR_WIN_DISTANCE : won
   return (
     <Card className="mt-5 overflow-hidden">
-      <div className={cx('px-6 py-3 text-sm font-semibold', won ? 'bg-good/15 text-good' : 'bg-bad/10 text-bad')}>
-        {won ? (
-          <span className="flex items-center gap-2">
-            <Check size={16} /> Угадано за {formatSeconds(stages[round.stage])}
-            {round.points > 0 && <span className="ml-auto text-base">+{formatNumber(round.points)}</span>}
-          </span>
-        ) : (
-          <span className="flex items-center gap-2">
-            <X size={16} /> Не угадано — это была…
-            {config?.mode === 'survival' && <span className="ml-auto">−1 жизнь</span>}
-          </span>
-        )}
+      <div className={cx('px-6 py-3 text-sm font-semibold', good ? 'bg-good/15 text-good' : 'bg-bad/10 text-bad')}>
+        <RevealBanner round={round} stages={stages} />
       </div>
       <div className="flex items-center gap-6 p-6">
         <motion.div initial={{ rotate: -8, scale: 0.8 }} animate={{ rotate: 0, scale: 1 }} transition={{ type: 'spring', stiffness: 200 }}>
           <Cover song={round.song} url={round.coverUrl} className="h-36 w-36 rounded-2xl shadow-2xl" />
         </motion.div>
         <div className="min-w-0 flex-1">
-          <div className="text-2xl font-bold leading-tight">{round.song.title}</div>
-          <div className="mt-1 text-lg text-muted">{round.song.artist}</div>
-          <div className="mt-2 text-sm text-muted">
-            {[round.song.year > 0 && round.song.year, round.album].filter(Boolean).join(' · ')}
+          <div className="flex items-start gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="text-2xl font-bold leading-tight">{round.song.title}</div>
+              <div className="mt-1 text-lg text-muted">{round.song.artist}</div>
+            </div>
+            <FavoriteButton songId={round.song.id} />
           </div>
+          <div className="mt-2 text-sm text-muted">{[round.song.year > 0 && round.song.year, round.album].filter(Boolean).join(' · ')}</div>
           <div className="mt-5 flex flex-wrap gap-2">
             <Button variant="primary" size="lg" onClick={() => void next()} autoFocus>
               {lastRound ? 'К итогам' : 'Следующая'} <ArrowRight size={18} />
@@ -352,8 +439,7 @@ function Loading() {
 }
 
 function ErrorView() {
-  const { error, config, start, quit } = useGame()
-  const songs = useAllSongs()
+  const { error, config, quit } = useGame()
   return (
     <div className="mx-auto mt-16 max-w-lg text-center">
       <div className="mb-4 text-5xl">🎧</div>
@@ -361,7 +447,7 @@ function ErrorView() {
       <p className="mt-2 text-muted">{error}</p>
       <div className="mt-6 flex justify-center gap-3">
         {config && (
-          <Button variant="primary" onClick={() => void start({ ...config, seed: seedFor(config.mode, config.dailyKey) }, config.mode === 'daily' ? CATALOG : songs)}>
+          <Button variant="primary" onClick={replay}>
             <RotateCcw size={16} /> Попробовать снова
           </Button>
         )}
@@ -373,21 +459,68 @@ function ErrorView() {
   )
 }
 
+function PartyPodium() {
+  const { config, partyScores } = useGame()
+  const players = (config?.players ?? []).map((p, i) => ({ ...p, score: partyScores[i] ?? 0 })).sort((a, b) => b.score - a.score)
+  const medals = ['🥇', '🥈', '🥉', '4']
+  return (
+    <div className="mt-6 grid gap-3" style={{ gridTemplateColumns: `repeat(${players.length}, minmax(0, 1fr))` }}>
+      {players.map((p, i) => (
+        <motion.div
+          key={p.name + i}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 * i }}
+          className="glass rounded-2xl p-4 text-center"
+          style={i === 0 ? { borderColor: p.color, boxShadow: `0 10px 40px -15px ${p.color}` } : undefined}
+        >
+          <div className="text-3xl">{medals[i]}</div>
+          <div className="mt-1 flex items-center justify-center gap-2 font-semibold">
+            <span className="h-3 w-3 rounded-full" style={{ background: p.color }} />
+            {p.name}
+          </div>
+          <div className="mt-1 text-2xl font-black tabular-nums">{formatNumber(p.score)}</div>
+        </motion.div>
+      ))}
+    </div>
+  )
+}
+
 function Results() {
-  const { rounds, score, bestStreak, config, start, quit } = useGame()
-  const songs = useAllSongs()
+  const { rounds, score, bestStreak, config, quit, partyScores } = useGame()
+  const toast = useUi((u) => u.toast)
   const done = rounds.filter((r) => r.status !== 'playing')
   const correct = done.filter((r) => r.status === 'won').length
   const accuracy = done.length ? Math.round((correct / done.length) * 100) : 0
+  const stages = useStages()
+  const kind = config ? answerKind(config.mode) : 'search'
+  const party = config?.mode === 'party'
   const hist = [0, 1, 2].map((stage) => done.filter((r) => r.status === 'won' && r.stage === stage).length)
   const lost = done.length - correct
-  const stages = useStages()
   const max = Math.max(1, ...hist, lost)
-  const grade = accuracy >= 90 ? 'Легенда! 🎸' : accuracy >= 70 ? 'Меломан 🎧' : accuracy >= 40 ? 'Неплохо 🎶' : 'Есть куда расти 🎵'
+  const top = Math.max(0, ...partyScores)
+  const leaders = partyScores.filter((p) => p === top).length
+  const winner = party && config?.players && top > 0 && leaders === 1 ? config.players[partyScores.indexOf(top)] : undefined
+  const grade = winner
+    ? `Победа: ${winner.name}! 🏆`
+    : party
+      ? 'Ничья! 🤝'
+      : accuracy >= 90
+      ? 'Легенда! 🎸'
+      : accuracy >= 70
+        ? 'Меломан 🎧'
+        : accuracy >= 40
+          ? 'Неплохо 🎶'
+          : 'Есть куда расти 🎵'
 
-  const again = () => {
+  const share = async () => {
     if (!config) return
-    void start({ ...config, seed: seedFor(config.mode, config.dailyKey) }, config.mode === 'daily' ? CATALOG : songs)
+    try {
+      await navigator.clipboard.writeText(shareText(config, rounds, score))
+      toast({ title: 'Результат скопирован', body: 'Вставьте его в чат друзьям', icon: '📋' })
+    } catch {
+      toast({ title: 'Не удалось скопировать', tone: 'error', icon: '⚠️' })
+    }
   }
 
   return (
@@ -396,13 +529,16 @@ function Results() {
         <div className="bg-gradient-accent absolute inset-0" />
         <div className="relative flex items-end justify-between gap-6">
           <div>
-            <div className="text-sm font-semibold uppercase tracking-wider text-white/75">{config ? MODE_INFO[config.mode].title : ''} · итоги</div>
+            <div className="text-sm font-semibold uppercase tracking-wider text-white/75">
+              {config?.source ? `${config.source.label} · ` : ''}
+              {config ? MODE_INFO[config.mode].title : ''} · итоги
+            </div>
             <div className="mt-1 text-3xl font-black">{grade}</div>
             <div className="mt-2 text-white/85">
-              Угадано {correct} из {done.length} {plural(done.length, 'песни', 'песен', 'песен')} · точность {accuracy}% · лучшая серия {bestStreak}
+              Угадано {correct} из {done.length} {plural(done.length, 'песни', 'песен', 'песен')} · точность {accuracy}%{!party && ` · лучшая серия ${bestStreak}`}
             </div>
           </div>
-          {config?.mode !== 'practice' && (
+          {config?.mode !== 'practice' && !party && (
             <div className="text-right">
               <div className="text-xs font-semibold uppercase tracking-wider text-white/75">Очки</div>
               <div className="text-5xl font-black tabular-nums">{formatNumber(score)}</div>
@@ -411,25 +547,31 @@ function Results() {
         </div>
       </motion.div>
 
+      {party && <PartyPodium />}
+
       <div className="mt-6 grid gap-6 md:grid-cols-[240px_1fr]">
         <Card className="p-5">
-          <div className="mb-4 text-sm font-semibold">С какой попытки</div>
-          <div className="space-y-2.5">
-            {[...hist, lost].map((n, i) => (
-              <div key={i} className="flex items-center gap-2 text-sm">
-                <span className="w-12 shrink-0 text-muted">{i < 3 ? formatSeconds(stages[i]) : 'мимо'}</span>
-                <div className="h-6 flex-1 overflow-hidden rounded-md bg-fg/5">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${(n / max) * 100}%` }}
-                    transition={{ delay: 0.1 * i, duration: 0.5 }}
-                    className={cx('h-full rounded-md', i < 3 ? 'bg-gradient-accent' : 'bg-bad/50')}
-                  />
+          <div className="mb-4 text-sm font-semibold">{kind === 'year' ? 'Точность по годам' : 'С какой попытки'}</div>
+          {kind === 'year' ? (
+            <YearSummary rounds={done} />
+          ) : (
+            <div className="space-y-2.5">
+              {[...hist, lost].map((n, i) => (
+                <div key={i} className="flex items-center gap-2 text-sm">
+                  <span className="w-12 shrink-0 text-muted">{i < 3 ? formatSeconds(stages[i]) : 'мимо'}</span>
+                  <div className="h-6 flex-1 overflow-hidden rounded-md bg-fg/5">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${(n / max) * 100}%` }}
+                      transition={{ delay: 0.1 * i, duration: 0.5 }}
+                      className={cx('h-full rounded-md', i < 3 ? 'bg-gradient-accent' : 'bg-bad/50')}
+                    />
+                  </div>
+                  <span className="w-5 text-right font-semibold tabular-nums">{n}</span>
                 </div>
-                <span className="w-5 text-right font-semibold tabular-nums">{n}</span>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </Card>
         <Card className="max-h-[360px] overflow-y-auto p-2">
           {done.length === 0 && <div className="p-4 text-sm text-muted">Ни одного раунда не сыграно.</div>}
@@ -438,28 +580,68 @@ function Results() {
               <Cover song={r.song} url={r.coverUrl} className="h-11 w-11 rounded-lg" />
               <div className="min-w-0 flex-1">
                 <div className="truncate font-medium">{r.song.title}</div>
-                <div className="truncate text-sm text-muted">{r.song.artist}</div>
+                <div className="truncate text-sm text-muted">
+                  {r.song.artist}
+                  {kind === 'year' && ` · ${r.song.year}`}
+                </div>
               </div>
-              {r.status === 'won' ? (
-                <span className="rounded-full bg-good/15 px-2.5 py-1 text-xs font-semibold text-good">{formatSeconds(stages[r.stage])}</span>
+              {kind === 'year' ? (
+                <span className={cx('rounded-full px-2.5 py-1 text-xs font-semibold', r.status === 'won' ? 'bg-good/15 text-good' : 'bg-bad/10 text-bad')}>
+                  {r.yearGuess ?? '—'}
+                </span>
+              ) : r.status === 'won' ? (
+                <span
+                  className="rounded-full bg-good/15 px-2.5 py-1 text-xs font-semibold text-good"
+                  style={party && r.winner !== undefined && config?.players ? { background: config.players[r.winner].color, color: 'white' } : undefined}
+                >
+                  {party && r.winner !== undefined && config?.players ? config.players[r.winner].name : formatSeconds(stages[r.stage])}
+                </span>
               ) : (
                 <span className="rounded-full bg-bad/10 px-2.5 py-1 text-xs font-semibold text-bad">мимо</span>
               )}
-              {config?.mode !== 'practice' && <span className="w-14 text-right text-sm font-semibold tabular-nums">+{r.points}</span>}
+              {config?.mode !== 'practice' && !party && <span className="w-14 text-right text-sm font-semibold tabular-nums">+{r.points}</span>}
+              <FavoriteButton songId={r.song.id} />
             </div>
           ))}
         </Card>
       </div>
 
-      <div className="mt-6 flex justify-center gap-3">
+      <div className="mt-6 flex flex-wrap justify-center gap-3">
         {config?.mode !== 'daily' && (
-          <Button variant="primary" size="lg" onClick={again}>
+          <Button variant="primary" size="lg" onClick={replay}>
             <RotateCcw size={18} /> Ещё раз
           </Button>
         )}
+        <Button size="lg" onClick={() => void share()} disabled={!done.length}>
+          <Copy size={18} /> Поделиться
+        </Button>
         <Button size="lg" onClick={quit}>
           <Home size={18} /> В меню
         </Button>
+      </div>
+    </div>
+  )
+}
+
+function YearSummary({ rounds }: { rounds: Round[] }) {
+  const diffs = rounds.map((r) => (r.yearGuess === undefined ? null : Math.abs(r.yearGuess - r.song.year))).filter((d): d is number => d !== null)
+  const exact = diffs.filter((d) => d === 0).length
+  const avg = diffs.length ? diffs.reduce((a, b) => a + b, 0) / diffs.length : 0
+  return (
+    <div className="space-y-3 text-sm">
+      <div className="flex justify-between">
+        <span className="text-muted">Точно в год</span>
+        <span className="font-semibold tabular-nums">{exact}</span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-muted">В пределах 2 лет</span>
+        <span className="font-semibold tabular-nums">{diffs.filter((d) => d <= YEAR_WIN_DISTANCE).length}</span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-muted">Средняя ошибка</span>
+        <span className="font-semibold tabular-nums">
+          {avg.toFixed(1).replace('.', ',')} {plural(Math.round(avg), 'год', 'года', 'лет')}
+        </span>
       </div>
     </div>
   )

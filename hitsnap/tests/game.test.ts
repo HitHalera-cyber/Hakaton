@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { CATALOG } from '@shared/catalog'
 import type { Song } from '@shared/types'
-import { buildQueue, EMPTY_FILTERS, isCorrect, matchesFilters, pickOffset, pointsFor, sameArtist, seedFor, type GameConfig } from '@/lib/game'
+import { buildQueue, EMPTY_FILTERS, isCorrect, matchesFilters, matchesPopularity, pickOffset, pointsFor, quizOptions, sameArtist, seedFor, yearCloseness, type GameConfig } from '@/lib/game'
 import { createRng, todayKey } from '@/lib/random'
 
 const song = (artist: string, title: string, extra: Partial<Song> = {}): Song => ({
@@ -11,6 +11,7 @@ const song = (artist: string, title: string, extra: Partial<Song> = {}): Song =>
   year: 2000,
   genre: 'pop',
   lang: 'en',
+  tier: 2,
   ...extra
 })
 
@@ -20,6 +21,7 @@ const config = (patch: Partial<GameConfig> = {}): GameConfig => ({
   rounds: 10,
   filters: EMPTY_FILTERS,
   seed: 42,
+  clipStart: 'random',
   ...patch
 })
 
@@ -87,5 +89,41 @@ describe('clip offset', () => {
       expect(o + 5).toBeLessThanOrEqual(30)
     }
     expect(pickOffset(3, 5, rng)).toBe(0)
+  })
+})
+
+describe('popularity', () => {
+  it('splits the base into hits, popular and rare songs', () => {
+    const hits = CATALOG.filter((s) => matchesPopularity(s, 'hits'))
+    const popular = CATALOG.filter((s) => matchesPopularity(s, 'popular'))
+    const rare = CATALOG.filter((s) => matchesPopularity(s, 'rare'))
+    expect(hits.length).toBeGreaterThan(150)
+    expect(popular.length).toBeGreaterThan(hits.length)
+    expect(rare.length + popular.length).toBe(CATALOG.length)
+    expect(hits.some((s) => s.title === 'Bohemian Rhapsody')).toBe(true)
+  })
+})
+
+describe('quiz', () => {
+  it('offers four different answers including the right one', () => {
+    const answer = CATALOG.find((s) => s.title === 'Bohemian Rhapsody')!
+    const options = quizOptions(answer, CATALOG, createRng(3))
+    expect(options).toHaveLength(4)
+    expect(options).toContainEqual(answer)
+    expect(new Set(options.map((o) => o.artist)).size).toBe(4)
+    expect(options.filter((o) => o.id !== answer.id).every((o) => o.genre === answer.genre)).toBe(true)
+  })
+})
+
+describe('year mode', () => {
+  it('rewards close answers', () => {
+    expect(yearCloseness(1985, 1985)).toBe(1)
+    expect(yearCloseness(1986, 1985)).toBeGreaterThan(yearCloseness(1988, 1985))
+    expect(yearCloseness(2000, 1985)).toBe(0)
+  })
+
+  it('only asks songs with a known year', () => {
+    const pool = [song('A', 'x', { year: 0 }), song('B', 'y', { year: 1999 })]
+    expect(buildQueue(pool, config({ mode: 'year' })).map((s) => s.artist)).toEqual(['B'])
   })
 })

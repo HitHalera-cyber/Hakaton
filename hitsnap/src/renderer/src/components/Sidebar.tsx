@@ -1,13 +1,15 @@
-import { BarChart3, Gamepad2, Library, Moon, Settings, Sun, SunMoon } from 'lucide-react'
+import { BarChart3, Gamepad2, LayoutGrid, Library, Moon, Settings, Sun, SunMoon } from 'lucide-react'
 import type { ComponentType } from 'react'
 import { useGame } from '@/store/game'
 import { useSettings, type ThemePref } from '@/store/settings'
 import { useUi, type Screen } from '@/store/ui'
+import { LevelBadge } from './LevelBadge'
 import { Logo } from './Logo'
 import { cx } from './ui'
 
 const NAV: Array<{ screen: Screen; label: string; icon: ComponentType<{ size?: number }> }> = [
   { screen: 'home', label: 'Играть', icon: Gamepad2 },
+  { screen: 'collections', label: 'Подборки', icon: LayoutGrid },
   { screen: 'library', label: 'Библиотека', icon: Library },
   { screen: 'stats', label: 'Статистика', icon: BarChart3 },
   { screen: 'settings', label: 'Настройки', icon: Settings }
@@ -56,6 +58,13 @@ export function Sidebar() {
         })}
       </nav>
       <div className="mt-auto">
+        <button
+          onClick={() => go('stats')}
+          className="mb-2 w-full rounded-xl px-3 py-2 text-left transition hover:bg-fg/5 cursor-pointer"
+          title="Уровень и статистика"
+        >
+          <LevelBadge />
+        </button>
         <button
           onClick={() => update({ theme: THEME_NEXT[theme] })}
           className="flex h-11 w-full items-center gap-3 rounded-xl px-3 text-sm font-medium text-muted transition hover:bg-fg/5 hover:text-fg cursor-pointer"

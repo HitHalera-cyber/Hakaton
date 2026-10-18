@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type Screen = 'home' | 'game' | 'library' | 'stats' | 'settings'
+export type Screen = 'home' | 'game' | 'collections' | 'library' | 'stats' | 'settings'
 
 export interface Toast {
   id: number

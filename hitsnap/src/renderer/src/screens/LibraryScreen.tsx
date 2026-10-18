@@ -1,6 +1,6 @@
-import { Check, Loader2, Pause, Play, Plus, Search, Trash2 } from 'lucide-react'
+import { Check, Heart, Loader2, Pause, Play, Plus, Search, Star, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { CatalogHit, Song } from '@shared/types'
+import type { CatalogHit, Genre, Song } from '@shared/types'
 import { Cover } from '@/components/Cover'
 import { Button, Card, Chip, cx, Segmented } from '@/components/ui'
 import { usePlayback } from '@/hooks/usePlayback'
@@ -14,7 +14,7 @@ import { useAllSongs, useLibrary, useSearchIndex } from '@/store/library'
 import { useStats } from '@/store/stats'
 import { useUi } from '@/store/ui'
 
-type Tab = 'all' | 'mine'
+type Tab = 'all' | 'fav' | 'mine'
 type Filter = 'all' | 'won' | 'missed' | 'new'
 
 /** Plays a song's preview from the library, one at a time. */
@@ -77,9 +77,10 @@ function PreviewButton({ song, preview }: { song: Song; preview: ReturnType<type
 export function LibraryScreen() {
   const [tab, setTab] = useState<Tab>('all')
   const custom = useLibrary((s) => s.custom)
+  const favCount = useLibrary((s) => s.favorites.length)
   return (
     <div className="mx-auto max-w-4xl">
-      <div className="mb-6 flex items-end justify-between gap-4">
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-black tracking-tight">Библиотека</h1>
           <p className="mt-1 text-muted">Все песни, которые может загадать игра, и ваши собственные добавления.</p>
@@ -89,43 +90,70 @@ export function LibraryScreen() {
           onChange={setTab}
           options={[
             { value: 'all', label: 'Все песни' },
+            { value: 'fav', label: `Избранное${favCount ? ` · ${favCount}` : ''}` },
             { value: 'mine', label: `Мои песни${custom.length ? ` · ${custom.length}` : ''}` }
           ]}
         />
       </div>
-      {tab === 'all' ? <AllSongs /> : <MySongs />}
+      {tab === 'mine' ? <MySongs /> : <AllSongs key={tab} favoritesOnly={tab === 'fav'} />}
     </div>
   )
 }
 
-function AllSongs() {
-  const songs = useAllSongs()
+function FavToggle({ id }: { id: string }) {
+  const fav = useLibrary((s) => s.favorites.includes(id))
+  const toggle = useLibrary((s) => s.toggleFavorite)
+  return (
+    <button
+      onClick={() => toggle(id)}
+      className={cx('rounded-lg p-1.5 transition cursor-pointer', fav ? 'text-bad' : 'text-muted/40 hover:text-bad')}
+      title={fav ? 'Убрать из избранного' : 'В избранное'}
+      aria-pressed={fav}
+    >
+      <Heart size={16} fill={fav ? 'currentColor' : 'none'} />
+    </button>
+  )
+}
+
+function AllSongs({ favoritesOnly }: { favoritesOnly?: boolean }) {
+  const allSongs = useAllSongs()
+  const favorites = useLibrary((s) => s.favorites)
+  const songs = useMemo(() => {
+    if (!favoritesOnly) return allSongs
+    const ids = new Set(favorites)
+    return allSongs.filter((s) => ids.has(s.id))
+  }, [allSongs, favorites, favoritesOnly])
   const index = useSearchIndex()
   const stats = useStats((s) => s.songs)
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
+  const [genre, setGenre] = useState<Genre | ''>('')
   const [limit, setLimit] = useState(80)
   const preview = usePreview()
 
   const list = useMemo(() => {
-    const base = query.trim() ? search(index, query, 200) : [...songs].sort((a, b) => a.artist.localeCompare(b.artist) || a.title.localeCompare(b.title))
+    const inSet = new Set(songs.map((s) => s.id))
+    const base = query.trim()
+      ? search(index, query, 300).filter((s) => inSet.has(s.id))
+      : [...songs].sort((a, b) => a.artist.localeCompare(b.artist) || a.title.localeCompare(b.title))
     return base.filter((s) => {
+      if (genre && s.genre !== genre) return false
       const st = stats[s.id]
       if (filter === 'won') return !!st?.won
       if (filter === 'missed') return !!st && st.won < st.played
       if (filter === 'new') return !st
       return true
     })
-  }, [songs, index, query, filter, stats])
+  }, [songs, index, query, filter, stats, genre])
 
-  useEffect(() => setLimit(80), [query, filter])
+  useEffect(() => setLimit(80), [query, filter, genre])
 
   const heard = Object.keys(stats).length
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="glass flex h-11 min-w-64 flex-1 items-center gap-2 rounded-xl px-3 focus-within:border-accent/60">
-          <Search size={18} className="text-muted" />
+          <Search size={18} className="shrink-0 text-muted" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -134,6 +162,19 @@ function AllSongs() {
             spellCheck={false}
           />
         </div>
+        <select
+          value={genre}
+          onChange={(e) => setGenre(e.target.value as Genre | '')}
+          className="glass h-11 rounded-xl px-3 text-sm outline-none cursor-pointer"
+          aria-label="Жанр"
+        >
+          <option value="">Все жанры</option>
+          {(Object.keys(GENRE_LABELS) as Genre[]).map((g) => (
+            <option key={g} value={g}>
+              {GENRE_LABELS[g]}
+            </option>
+          ))}
+        </select>
         <div className="flex gap-2">
           <Chip active={filter === 'all'} onClick={() => setFilter('all')}>Все</Chip>
           <Chip active={filter === 'won'} onClick={() => setFilter('won')}>Угаданные</Chip>
@@ -151,7 +192,19 @@ function AllSongs() {
             <div key={song.id} className="flex items-center gap-3 px-4 py-2.5">
               <PreviewButton song={song} preview={preview} />
               <div className="min-w-0 flex-1">
-                <div className="truncate font-medium">{song.title}</div>
+                <div className="flex items-center gap-2 truncate font-medium">
+                  <span className="truncate">{song.title}</span>
+                  {song.tier === 1 && (
+                    <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-warn/15 px-1.5 py-0.5 text-[10px] font-semibold text-warn" title="Мега-хит">
+                      <Star size={10} fill="currentColor" /> хит
+                    </span>
+                  )}
+                  {song.tier === 3 && (
+                    <span className="shrink-0 rounded-full bg-accent/10 px-1.5 py-0.5 text-[10px] font-semibold text-accent" title="Для знатоков">
+                      редкость
+                    </span>
+                  )}
+                </div>
                 <div className="truncate text-sm text-muted">{song.artist}</div>
               </div>
               <span className="hidden w-32 truncate text-right text-xs text-muted md:block">{GENRE_LABELS[song.genre]}</span>
@@ -165,10 +218,15 @@ function AllSongs() {
               >
                 {st ? `${st.won}/${st.played}` : '—'}
               </span>
+              <FavToggle id={song.id} />
             </div>
           )
         })}
-        {list.length === 0 && <div className="p-6 text-center text-sm text-muted">Ничего не найдено</div>}
+        {list.length === 0 && (
+          <div className="p-6 text-center text-sm text-muted">
+            {favoritesOnly && !songs.length ? 'Отмечайте песни сердечком — после раунда или здесь, в библиотеке.' : 'Ничего не найдено'}
+          </div>
+        )}
       </Card>
       {list.length > limit && (
         <div className="mt-4 text-center">

@@ -9,6 +9,7 @@ export interface AchievementContext {
   langsWon: string[]
   decadeWins: Record<string, number>
   dailyDone: number
+  level: number
   game?: { mode: GameMode; rounds: Round[]; score: number }
 }
 
@@ -49,7 +50,36 @@ export const ACHIEVEMENTS: Achievement[] = [
     test: (c) => !!c.game && c.game.rounds.filter(won).length >= 5 && c.game.rounds.every((r) => r.hints === 0)
   },
   { id: 'survivor', icon: '🛡️', title: 'Выживший', description: 'Угадать 15 песен в режиме «Выживание»', test: (c) => !!c.game && c.game.mode === 'survival' && c.game.rounds.filter(won).length >= 15 },
-  { id: 'score-8000', icon: '🏆', title: 'Рекордсмен', description: 'Набрать 8000 очков за игру', test: (c) => !!c.game && c.game.score >= 8000 }
+  { id: 'score-8000', icon: '🏆', title: 'Рекордсмен', description: 'Набрать 8000 очков за игру', test: (c) => !!c.game && c.game.score >= 8000 },
+  {
+    id: 'quiz-master',
+    icon: '🧩',
+    title: 'Эрудит',
+    description: 'Ответить верно на все вопросы викторины (от 5 раундов)',
+    test: (c) => !!c.game && c.game.mode === 'quiz' && c.game.rounds.length >= 5 && c.game.rounds.every(won)
+  },
+  {
+    id: 'year-sniper',
+    icon: '🎯',
+    title: 'Машина времени',
+    description: 'Назвать год песни точно',
+    test: (c) => !!c.game && c.game.rounds.some((r) => r.yearGuess !== undefined && r.yearGuess === r.song.year)
+  },
+  {
+    id: 'party',
+    icon: '🎉',
+    title: 'Душа компании',
+    description: 'Сыграть «Вечеринку» с друзьями',
+    test: (c) => !!c.game && c.game.mode === 'party' && c.game.rounds.length >= 3
+  },
+  {
+    id: 'rare-ear',
+    icon: '💎',
+    title: 'Слух на редкости',
+    description: 'Угадать малоизвестную песню с первой попытки',
+    test: (c) => !!c.game && c.game.rounds.some((r) => won(r) && r.stage === 0 && r.song.tier === 3)
+  },
+  { id: 'level-10', icon: '🚀', title: 'Десятый уровень', description: 'Дойти до 10-го уровня', test: (c) => c.level >= 10 }
 ]
 
 export function wonDecade(r: Round): string {
