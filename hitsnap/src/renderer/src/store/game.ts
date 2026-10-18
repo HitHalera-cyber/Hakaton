@@ -275,7 +275,7 @@ export const useGame = create<GameStore>()((set, get) => {
       audio.stop()
       prefetched.clear()
       rng = createRng(config.seed ^ 0x9e3779b9)
-      const recent = config.mode === 'daily' || config.weekKey ? [] : useStats.getState().recent
+      const recent = config.mode === 'daily' || config.weekKey || config.fixed ? [] : useStats.getState().recent
       let queue = buildQueue(pool, config, recent)
       // Offline: put songs that are already on disk (and own files) first.
       if (!navigator.onLine) {

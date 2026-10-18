@@ -93,6 +93,10 @@ export interface GameConfig {
   bot?: BotLevel
   /** «Испытание недели»: the week it belongs to (fixed songs, like the daily). */
   weekKey?: string
+  /** «Вызов другу»: the songs depend only on the seed and filters, so a friend gets the same game. */
+  fixed?: boolean
+  /** The friend whose challenge this is, and their result. */
+  rival?: { name: string; score: number; correct: number; total: number }
 }
 
 export interface Guess {
@@ -210,7 +214,7 @@ export function buildQueue(pool: Song[], config: GameConfig, recentIds: string[]
     const stable = [...pool].filter((s) => s.tier <= 2).sort((a, b) => a.id.localeCompare(b.id))
     return shuffle(stable, rng)
   }
-  if (config.weekKey) {
+  if (config.weekKey || config.fixed) {
     const stable = pool.filter((s) => !s.custom && matchesFilters(s, config.filters)).sort((a, b) => a.id.localeCompare(b.id))
     return shuffle(stable, rng)
   }

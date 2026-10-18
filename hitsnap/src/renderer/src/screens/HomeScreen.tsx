@@ -1,8 +1,9 @@
 import { motion } from 'framer-motion'
-import { CalendarDays, Dices, Flame, Play, Radio, Trophy } from 'lucide-react'
+import { CalendarDays, Dices, Flame, Play, Radio, Swords, Trophy } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import type { Genre, Lang } from '@shared/types'
 import { BotPicker } from '@/components/BotPicker'
+import { ChallengeModal } from '@/components/ChallengeModal'
 import { LevelBadge } from '@/components/LevelBadge'
 import { Modal } from '@/components/Modal'
 import { MODE_ICONS } from '@/components/modeIcons'
@@ -49,6 +50,7 @@ export function HomeScreen() {
   const [partyOpen, setPartyOpen] = useState(false)
   const [duelOpen, setDuelOpen] = useState(false)
   const [rouletteOpen, setRouletteOpen] = useState(false)
+  const [challengeOpen, setChallengeOpen] = useState(false)
   const go = useUi((u) => u.go)
   const week = weeklyChallenge()
   const weekResult = stats.weekly?.[week.key]
@@ -147,7 +149,7 @@ export function HomeScreen() {
       </div>
 
       <SectionTitle>Ещё во что поиграть</SectionTitle>
-      <div className="mb-8 grid gap-4 md:grid-cols-3">
+      <div className="mb-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <motion.button
           whileHover={{ y: -3 }}
           onClick={launchWeekly}
@@ -191,6 +193,19 @@ export function HomeScreen() {
           </span>
           <span className="relative mt-1 block text-xl font-black">Слушай и угадывай</span>
           <span className="relative mt-1 block text-sm text-white/85">Песни идут подряд, название скрыто — угадывайте вслух, без очков и спешки.</span>
+        </motion.button>
+        <motion.button
+          whileHover={{ y: -3 }}
+          onClick={() => setChallengeOpen(true)}
+          className="relative overflow-hidden rounded-2xl p-5 text-left text-white shadow-lg cursor-pointer"
+          style={{ background: 'linear-gradient(135deg, #f43f5e, #7c3aed)' }}
+        >
+          <span className="absolute -bottom-4 -right-1 text-7xl opacity-30">⚔️</span>
+          <span className="relative flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-white/80">
+            <Swords size={13} /> Вызов другу
+          </span>
+          <span className="relative mt-1 block text-xl font-black">Кто знает больше?</span>
+          <span className="relative mt-1 block text-sm text-white/85">Сыграйте и отправьте код — друг услышит те же песни и сравнит результат.</span>
         </motion.button>
       </div>
 
@@ -316,6 +331,7 @@ export function HomeScreen() {
       </div>
       <PartySetup open={partyOpen} onClose={() => setPartyOpen(false)} />
       <Roulette open={rouletteOpen} onClose={() => setRouletteOpen(false)} />
+      <ChallengeModal open={challengeOpen} onClose={() => setChallengeOpen(false)} />
       <Modal open={duelOpen} onClose={() => setDuelOpen(false)} title="Дуэль с ботом">
         <p className="-mt-2 mb-4 text-sm text-muted">
           Вы и бот слушаете одни и те же отрывки. Кто узнал песню на более короткой попытке, тот выиграл раунд. Выберите соперника:

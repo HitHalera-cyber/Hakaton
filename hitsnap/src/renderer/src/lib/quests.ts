@@ -5,7 +5,7 @@ import { createRng, hashString, shuffle, todayKey } from './random'
 
 // Three small goals a day, the same for everybody on that date, with XP as a reward.
 
-export type ArcadeGame = 'older' | 'timeline' | 'whose' | 'odd' | 'cover' | 'missing'
+export type ArcadeGame = 'older' | 'timeline' | 'whose' | 'odd' | 'cover' | 'missing' | 'hitster' | 'bingo' | 'chain' | 'battle'
 
 export const ARCADE_INFO: Record<ArcadeGame, { title: string; subtitle: string; emoji: string }> = {
   older: { title: 'Что старше?', subtitle: 'Из двух песен выберите ту, что вышла раньше', emoji: '⏳' },
@@ -13,7 +13,11 @@ export const ARCADE_INFO: Record<ArcadeGame, { title: string; subtitle: string; 
   whose: { title: 'Чья песня?', subtitle: 'По трём названиям угадайте исполнителя', emoji: '🎤' },
   odd: { title: 'Найди лишнее', subtitle: 'Три песни из одного десятилетия, одна — нет', emoji: '🔍' },
   cover: { title: 'По обложке', subtitle: 'Обложка проясняется на глазах — узнайте песню раньше', emoji: '🖼️' },
-  missing: { title: 'Допиши название', subtitle: 'В названии пропало слово — какое?', emoji: '✍️' }
+  missing: { title: 'Допиши название', subtitle: 'В названии пропало слово — какое?', emoji: '✍️' },
+  hitster: { title: 'Музыкальная лента', subtitle: 'Звучит песня — поставьте её на свою ленту по годам', emoji: '🎞️' },
+  bingo: { title: 'Музыкальное бинго', subtitle: 'Отмечайте исполнителей с карточки, соберите линию', emoji: '🎱' },
+  chain: { title: 'Цепочка артистов', subtitle: 'Исполнитель на последнюю букву предыдущего — против бота', emoji: '🔗' },
+  battle: { title: 'Битва хитов', subtitle: 'Турнир из 8 песен: выберите своего чемпиона', emoji: '🏆' }
 }
 
 export type QuestKind = 'wins' | 'win-genre' | 'win-decade' | 'first-try' | 'play-mode' | 'streak' | 'effect' | 'arcade'

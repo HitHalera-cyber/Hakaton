@@ -4,6 +4,7 @@ import type { Song } from '@shared/types'
 import { DAILY_ROUNDS, EMPTY_FILTERS, seedFor, type Filters, type GameMode, type GameSource } from '@/lib/game'
 import { todayKey } from '@/lib/random'
 import { WEEKLY_ROUNDS, weeklyChallenge } from '@/lib/weekly'
+import type { Challenge } from '@/lib/challenge'
 import { useGame } from './game'
 import { allSongs, useLibrary } from './library'
 import { useSettings } from './settings'
@@ -59,7 +60,7 @@ export function launch(mode: GameMode, opts: LaunchOptions = {}): void {
 export function replay(): void {
   const { config, pool } = useGame.getState()
   if (!config) return
-  void useGame.getState().start({ ...config, seed: config.weekKey ? config.seed : seedFor(config.mode, config.dailyKey) }, pool)
+  void useGame.getState().start({ ...config, seed: config.weekKey || config.fixed ? config.seed : seedFor(config.mode, config.dailyKey) }, pool)
 }
 
 /** «Испытание недели»: this week's ten songs, the same for everyone. */
@@ -79,4 +80,39 @@ export function launchWeekly(): void {
     },
     CATALOG
   )
+}
+
+/** «Вызов другу»: a game that can be replayed by code — fixed songs from the built-in base. */
+export function launchChallenge(c: Challenge): void {
+  void useGame.getState().start(
+    {
+      mode: c.mode,
+      difficulty: c.difficulty,
+      rounds: c.rounds,
+      filters: c.filters,
+      seed: c.seed,
+      clipStart: c.clipStart,
+      effect: c.effect,
+      bot: c.mode === 'duel' ? (c.bot ?? 'mid') : undefined,
+      fixed: true,
+      rival: c.from,
+      source: { label: c.from ? `Вызов от ${c.from.name}` : 'Вызов другу', icon: '⚔️' }
+    },
+    CATALOG
+  )
+}
+
+/** A new challenge with the player's own filters, difficulty and effect. */
+export function newChallenge(mode: GameMode): Challenge {
+  const s = useSettings.getState()
+  return {
+    mode,
+    difficulty: s.difficulty,
+    rounds: mode === 'survival' || mode === 'blitz' ? Infinity : s.roundsPerGame,
+    filters: s.filters,
+    seed: (Math.random() * 2 ** 32) >>> 0,
+    clipStart: s.clipStart,
+    effect: s.effect,
+    bot: mode === 'duel' ? s.botLevel : undefined
+  }
 }

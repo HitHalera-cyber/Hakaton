@@ -124,6 +124,9 @@ export const ACHIEVEMENTS: Achievement[] = [
   },
   { id: 'older-15', icon: '⏳', title: 'Историк', description: '«Что старше?»: серия из 15', test: (c) => (c.arcade.older ?? 0) >= 15 },
   { id: 'timeline-5', icon: '📅', title: 'Летописец', description: '«Хронология»: расставить все 5 песен верно', test: (c) => (c.arcade.timeline ?? 0) >= 5 },
+  { id: 'hitster-10', icon: '🎞️', title: 'Хранитель времени', description: '«Музыкальная лента»: собрать ленту из 10 песен', test: (c) => (c.arcade.hitster ?? 0) >= 9 },
+  { id: 'bingo', icon: '🎱', title: 'Бинго!', description: 'Собрать линию в «Музыкальном бинго»', test: (c) => (c.arcade.bingo ?? 0) >= 1 },
+  { id: 'chain-15', icon: '🔗', title: 'Звено за звеном', description: '«Цепочка артистов»: 15 ваших ходов за игру', test: (c) => (c.arcade.chain ?? 0) >= 15 },
   { id: 'quests-10', icon: '🎯', title: 'Исполнительный', description: 'Выполнить 10 ежедневных заданий', test: (c) => c.questsTotal >= 10 }
 ]
 

@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect } from 'react'
 import { Confetti } from './components/Confetti'
+import { ShortcutsHelp } from './components/ShortcutsHelp'
 import { Sidebar } from './components/Sidebar'
 import { Toasts } from './components/Toasts'
 import { useTheme } from './hooks/useTheme'
@@ -71,6 +72,7 @@ export function App() {
       </main>
       <Toasts />
       <Confetti />
+      <ShortcutsHelp />
     </div>
   )
 }

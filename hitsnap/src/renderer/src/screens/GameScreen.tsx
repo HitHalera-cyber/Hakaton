@@ -32,6 +32,7 @@ import { api } from '@/lib/api'
 import { audio, EFFECTS } from '@/lib/audio'
 import { formatNumber, formatSeconds, plural } from '@/lib/format'
 import { answerKind, BLITZ_SECONDS, BOT_LEVELS, hintsFor, MAX_HINTS, MODE_INFO, streakMultiplier, SURVIVAL_LIVES, YEAR_WIN_DISTANCE, type BotLevel, type Round } from '@/lib/game'
+import { encodeChallenge } from '@/lib/challenge'
 import { shareText } from '@/lib/progress'
 import { stagesOf, useGame } from '@/store/game'
 import { replay } from '@/store/launch'
@@ -608,6 +609,61 @@ function DuelScore({ you, bot, level }: { you: number; bot: number; level: BotLe
   )
 }
 
+/** «Вызов другу»: the rival's result next to yours, and a code to send back. */
+function ChallengeResult() {
+  const { config, rounds, score } = useGame()
+  const name = useSettings((s) => s.profileName) || 'Игрок'
+  const toast = useUi((u) => u.toast)
+  if (!config) return null
+  const done = rounds.filter((r) => r.status !== 'playing')
+  const correct = done.filter((r) => r.status === 'won').length
+  const code = encodeChallenge({
+    mode: config.mode,
+    difficulty: config.difficulty,
+    rounds: config.rounds,
+    filters: config.filters,
+    seed: config.seed,
+    clipStart: config.clipStart,
+    effect: config.effect ?? 'none',
+    bot: config.bot,
+    from: { name, score, correct, total: done.length }
+  })
+  const rival = config.rival
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(code)
+      toast({ title: 'Код скопирован', body: 'Отправьте его другу — он сыграет те же песни', icon: '⚔️' })
+    } catch {
+      toast({ title: 'Не удалось скопировать', tone: 'error', icon: '⚠️' })
+    }
+  }
+  return (
+    <Card className="mt-6 p-5">
+      {rival && (
+        <div className="mb-4 flex items-center justify-between text-lg font-bold">
+          <span>
+            {name}: {formatNumber(score)}
+          </span>
+          <span className={cx('rounded-full px-3 py-1 text-sm', score > rival.score ? 'bg-good/15 text-good' : score < rival.score ? 'bg-bad/10 text-bad' : 'bg-fg/5')}>
+            {score > rival.score ? 'Вы победили!' : score < rival.score ? `Победа за ${rival.name}` : 'Ничья'}
+          </span>
+          <span>
+            {rival.name}: {formatNumber(rival.score)}
+          </span>
+        </div>
+      )}
+      <div className="mb-2 text-sm font-semibold">{rival ? 'Ответный вызов' : 'Код для друга'}</div>
+      <div className="flex gap-2">
+        <code className="min-w-0 flex-1 truncate rounded-xl bg-fg/5 px-3 py-2.5 font-mono text-sm">{code}</code>
+        <Button variant="primary" onClick={() => void copy()}>
+          <Copy size={16} /> Скопировать
+        </Button>
+      </div>
+      <div className="mt-2 text-xs text-muted">Друг вставляет код на главном экране: «Вызов другу → Принять вызов».</div>
+    </Card>
+  )
+}
+
 function Results() {
   const { rounds, score, bestStreak, config, quit, partyScores, botScore } = useGame()
   const duel = config?.mode === 'duel'
@@ -677,6 +733,7 @@ function Results() {
       </motion.div>
 
       {party && <PartyPodium />}
+      {config?.fixed && <ChallengeResult />}
       {duel && config && <DuelScore you={score} bot={botScore} level={config.bot ?? 'mid'} />}
 
       <div className="mt-6 grid gap-6 md:grid-cols-[240px_1fr]">
