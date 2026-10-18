@@ -1,4 +1,4 @@
-import type { CatalogHit, HitSnapApi, RemotePlaylist, ResolvedTrack, Song } from '@shared/types'
+import type { CatalogHit, ClassifiedHit, HitSnapApi, RemotePlaylist, ResolvedTrack, Song } from '@shared/types'
 import { CATALOG } from '@shared/catalog'
 import { createRng, hashString } from './random'
 
@@ -43,6 +43,17 @@ function synthesize(seedText: string, seconds = 30, rate = 22050): ArrayBuffer {
   return buf
 }
 
+/** Demo classification: borrow the genre of a same-titled catalogue song when there is one. */
+function demoClassify(hit: CatalogHit): ClassifiedHit {
+  const twin = CATALOG.find((s) => s.title.toLowerCase() === hit.title.replace(/ \(Live\)$/, '').toLowerCase())
+  return {
+    ...hit,
+    meta: twin
+      ? { genre: twin.genre, year: twin.year, tier: twin.tier, lang: twin.lang }
+      : { genre: /[а-яё]/i.test(hit.artist) ? 'russian-pop' : 'pop', year: hit.year ?? 2020, tier: 2, lang: /[а-яё]/i.test(hit.artist) ? 'ru' : 'en' }
+  }
+}
+
 function demoPlaylist(id: string, title: string, size: number): RemotePlaylist {
   const rng = createRng(hashString(id))
   const tracks = CATALOG.filter(() => rng() < size / CATALOG.length).map((s, i) => ({
@@ -74,6 +85,23 @@ const demoApi: HitSnapApi = {
   async fetchChart(): Promise<RemotePlaylist> {
     await new Promise((r) => setTimeout(r, 400))
     return demoPlaylist('chart', 'Чарт Deezer сейчас', 50)
+  },
+  async classify(hits) {
+    await new Promise((r) => setTimeout(r, 300))
+    return hits.map(demoClassify)
+  },
+  async lookup(queries) {
+    await new Promise((r) => setTimeout(r, 500))
+    return queries.map((query, i) => {
+      const [artist, ...rest] = query.split(/\s+[-–—]\s+/)
+      const title = rest.join(' - ') || artist
+      const known = CATALOG.find((s) => s.title.toLowerCase() === title.toLowerCase())
+      if (!known && i % 4 === 3) return { query, hit: null }
+      return {
+        query,
+        hit: demoClassify({ deezerId: 50_000 + hashString(query) % 100_000, artist: known?.artist ?? artist, title: known?.title ?? title, album: 'Demo', year: known?.year })
+      }
+    })
   },
   async pickMusicFolder() {
     return 'C:/Music (демо)'
@@ -111,7 +139,11 @@ const demoApi: HitSnapApi = {
   async openExternal(url) {
     window.open(url, '_blank', 'noopener')
   },
-  setTitleBarTheme() {}
+  setTitleBarTheme() {},
+  toggleFullScreen() {
+    if (document.fullscreenElement) void document.exitFullscreen()
+    else void document.documentElement.requestFullscreen().catch(() => undefined)
+  }
 }
 
 export const api: HitSnapApi = (typeof window !== 'undefined' && window.hitsnap) || demoApi

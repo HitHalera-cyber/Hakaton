@@ -1,9 +1,13 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { ACHIEVEMENTS, wonDecade, type AchievementContext } from '@/lib/achievements'
+import type { SoundEffect } from '@/lib/audio'
 import type { Difficulty, GameMode, Round } from '@/lib/game'
 import { levelFor } from '@/lib/progress'
+import { advanceQuest, questsFor, type ArcadeGame, type QuestEvent } from '@/lib/quests'
+import { todayKey } from '@/lib/random'
 import { diskStorage } from './persist'
+import { useUi } from './ui'
 
 export interface GameRecord {
   id: string
@@ -41,11 +45,30 @@ interface StatsData {
   decadeWins: Record<string, number>
   daily: Record<string, { score: number; correct: number; total: number }>
   achievements: Record<string, number>
+  /** Rounds played per day (YYYY-MM-DD) — the activity calendar. */
+  activity: Record<string, number>
+  /** Best score per Игротека game. */
+  arcade: Partial<Record<ArcadeGame, number>>
+  /** Today's quests: the day they belong to, progress per quest id, finished ids. */
+  questDay: string
+  questProgress: Record<string, number>
+  questsDone: string[]
+  questsTotal: number
+  /** Wins with a sound effect on, per effect. */
+  effectWins: Partial<Record<SoundEffect, number>>
+}
+
+export interface RoundContext {
+  mode: GameMode
+  effect: SoundEffect
+  streak: number
 }
 
 interface StatsStore extends StatsData {
-  recordRound: (round: Round, scored: boolean) => string[]
+  recordRound: (round: Round, scored: boolean, ctx?: RoundContext) => string[]
   recordGame: (record: GameRecord, rounds: Round[]) => string[]
+  /** Игротека result; `xp` goes straight to the level. Returns unlocked achievements. */
+  recordArcade: (game: ArcadeGame, score: number, xp: number) => string[]
   noteStreak: (streak: number) => void
   reset: () => void
 }
@@ -61,7 +84,14 @@ const EMPTY: StatsData = {
   langsWon: [],
   decadeWins: {},
   daily: {},
-  achievements: {}
+  achievements: {},
+  activity: {},
+  arcade: {},
+  questDay: '',
+  questProgress: {},
+  questsDone: [],
+  questsTotal: 0,
+  effectWins: {}
 }
 
 function context(s: StatsData, game?: AchievementContext['game']): AchievementContext {
@@ -72,6 +102,9 @@ function context(s: StatsData, game?: AchievementContext['game']): AchievementCo
     decadeWins: s.decadeWins,
     dailyDone: Object.keys(s.daily).length,
     level: levelFor(s.totals.points ?? 0).level,
+    arcade: s.arcade,
+    questsTotal: s.questsTotal,
+    effectWins: s.effectWins,
     game
   }
 }
@@ -91,17 +124,51 @@ export const useStats = create<StatsStore>()(
         return fresh
       }
 
+      /** Moves today's quests forward; finished ones pay their XP. */
+      const questEvent = (e: QuestEvent): void => {
+        const day = todayKey()
+        let s = get()
+        if (s.questDay !== day) {
+          set({ questDay: day, questProgress: {}, questsDone: [] })
+          s = get()
+        }
+        const progress = { ...s.questProgress }
+        const done = [...s.questsDone]
+        let reward = 0
+        for (const q of questsFor(day)) {
+          if (done.includes(q.id)) continue
+          const value = advanceQuest(q, progress[q.id] ?? 0, e)
+          progress[q.id] = value
+          if (value >= q.target) {
+            done.push(q.id)
+            reward += q.reward
+            useUi.getState().toast({ title: 'Задание выполнено!', body: `${q.title} · +${q.reward} опыта`, icon: '🎯', tone: 'success' })
+          }
+        }
+        set({
+          questProgress: progress,
+          questsDone: done,
+          questsTotal: s.questsTotal + (done.length - s.questsDone.length),
+          totals: { ...get().totals, points: (get().totals.points ?? 0) + reward }
+        })
+      }
+
       return {
         ...EMPTY,
-        recordRound: (round, scored) => {
+        recordRound: (round, scored, ctx) => {
+          if (ctx) questEvent({ type: 'round', round, mode: ctx.mode, effect: ctx.effect, streak: ctx.streak })
           const s = get()
+          const day = todayKey()
+          const activity = { ...s.activity, [day]: (s.activity[day] ?? 0) + 1 }
           const win = round.status === 'won'
           const prev = s.songs[round.song.id] ?? { played: 0, won: 0, best: null }
           const best = win ? (prev.best === null ? round.stage : Math.min(prev.best, round.stage)) : prev.best
           const recent = [round.song.id, ...s.recent.filter((id) => id !== round.song.id)].slice(0, 120)
           const songs = { ...s.songs, [round.song.id]: { played: prev.played + 1, won: prev.won + (win ? 1 : 0), best, lastWon: win } }
+          const effectWins =
+            win && ctx && ctx.effect !== 'none' ? { ...s.effectWins, [ctx.effect]: (s.effectWins[ctx.effect] ?? 0) + 1 } : s.effectWins
           if (!scored) {
-            set({ songs, recent })
+            set({ songs, recent, activity })
             return []
           }
           const stageHist = [...s.stageHist] as StatsData['stageHist']
@@ -110,6 +177,8 @@ export const useStats = create<StatsStore>()(
           set({
             songs,
             recent,
+            activity,
+            effectWins,
             stageHist,
             totals: {
               ...s.totals,
@@ -128,6 +197,7 @@ export const useStats = create<StatsStore>()(
           if (streak > get().bestStreak) set({ bestStreak: streak })
         },
         recordGame: (record, rounds) => {
+          questEvent({ type: 'game', mode: record.mode })
           const s = get()
           const daily =
             record.mode === 'daily' && record.dailyKey && !s.daily[record.dailyKey]
@@ -142,6 +212,15 @@ export const useStats = create<StatsStore>()(
             daily
           })
           return unlock({ mode: record.mode, score: record.score, rounds })
+        },
+        recordArcade: (game, score, xp) => {
+          questEvent({ type: 'arcade', game, score })
+          const s = get()
+          set({
+            arcade: { ...s.arcade, [game]: Math.max(s.arcade[game] ?? 0, score) },
+            totals: { ...s.totals, points: (s.totals.points ?? 0) + xp }
+          })
+          return unlock()
         },
         reset: () => set({ ...EMPTY })
       }

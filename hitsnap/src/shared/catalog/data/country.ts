@@ -63,4 +63,111 @@ The Chicks | Not Ready to Make Nice | 2006 | 3
 Alan Jackson | Chattahoochee | 1993 | 3
 `
   },
+  {
+    genre: 'country',
+    lang: 'en',
+    lines: `
+Johnny Cash | A Boy Named Sue | 1969 | 3
+Johnny Cash | Get Rhythm | 1956 | 3
+Johnny Cash | God's Gonna Cut You Down | 2006 | 3
+Johnny Cash | Man in Black | 1971 | 3
+Dolly Parton | I Will Always Love You | 1974 | 3
+Dolly Parton | Coat of Many Colors | 1971 | 3
+Dolly Parton | Here You Come Again | 1977 | 3
+Willie Nelson | Always on My Mind | 1982 | 3
+Willie Nelson | Blue Eyes Crying in the Rain | 1975 | 3
+John Denver | Annie's Song | 1974 | 3
+John Denver | Leaving on a Jet Plane | 1969 | 3
+Kenny Rogers | Lucille | 1977 | 3
+Kenny Rogers | Coward of the County | 1979 | 3
+Don Williams | I Believe in You | 1980 | 3
+Charlie Daniels Band | The Devil Went Down to Georgia | 1979
+Eagles | Take It to the Limit | 1975 | 3
+Glen Campbell | Wichita Lineman | 1968 | 3
+Tammy Wynette | Stand by Your Man | 1968 | 3
+Loretta Lynn | Coal Miner's Daughter | 1970 | 3
+Merle Haggard | Okie from Muskogee | 1969 | 3
+George Strait | Amarillo by Morning | 1982 | 3
+Randy Travis | Forever and Ever, Amen | 1987 | 3
+Alan Jackson | Remember When | 2003 | 3
+Alan Jackson | It's Five O'Clock Somewhere | 2003 | 3
+Garth Brooks | The Dance | 1990 | 3
+Garth Brooks | Callin' Baton Rouge | 1994 | 3
+Tim McGraw | Live Like You Were Dying | 2004 | 3
+Tim McGraw | Don't Take the Girl | 1994 | 3
+Faith Hill | This Kiss | 1998 | 3
+Faith Hill | There You'll Be | 2001 | 3
+Shania Twain | From This Moment On | 1998 | 3
+Shania Twain | Up! | 2002 | 3
+Shania Twain | Forever and for Always | 2003 | 3
+LeAnn Rimes | Blue | 1996 | 3
+Martina McBride | Independence Day | 1994 | 3
+Toby Keith | Should've Been a Cowboy | 1993 | 3
+Toby Keith | Red Solo Cup | 2011 | 3
+Brad Paisley | Whiskey Lullaby | 2004 | 3
+Keith Urban | Somebody Like You | 2002 | 3
+Kenny Chesney | When the Sun Goes Down | 2004 | 3
+Rascal Flatts | Life Is a Highway | 2006
+Rascal Flatts | Bless the Broken Road | 2004 | 3
+Big & Rich | Save a Horse (Ride a Cowboy) | 2004 | 3
+Gretchen Wilson | Redneck Woman | 2004 | 3
+Sugarland | Stay | 2007 | 3
+Lady A | Just a Kiss | 2011 | 3
+Carrie Underwood | Jesus, Take the Wheel | 2005 | 3
+Carrie Underwood | Blown Away | 2012 | 3
+Carrie Underwood | Two Black Cadillacs | 2012 | 3
+Miranda Lambert | The House That Built Me | 2010 | 3
+Blake Shelton | Honey Bee | 2011 | 3
+Blake Shelton | God Gave Me You | 2011 | 3
+Luke Bryan | Play It Again | 2014 | 3
+Jason Aldean | Dirt Road Anthem | 2010 | 3
+Florida Georgia Line | Meant to Be | 2017 | 3
+Thomas Rhett | Die a Happy Man | 2015 | 3
+Kacey Musgraves | Follow Your Arrow | 2013 | 3
+Kacey Musgraves | Rainbow | 2018 | 3
+Chris Stapleton | White Horse | 2023 | 3
+Chris Stapleton | Starting Over | 2020 | 3
+Luke Combs | Beautiful Crazy | 2018 | 3
+Luke Combs | Hurricane | 2016 | 3
+Luke Combs | Forever After All | 2020 | 3
+Morgan Wallen | You Proof | 2022 | 3
+Morgan Wallen | Thinkin' Bout Me | 2023 | 3
+Morgan Wallen | Love Somebody | 2024 | 3
+Morgan Wallen | 7 Summers | 2020 | 3
+Zach Bryan | I Remember Everything | 2023 | 3
+Zach Bryan | Pink Skies | 2024 | 3
+Jelly Roll | Need a Favor | 2023 | 3
+Bailey Zimmerman | Rock and a Hard Place | 2022 | 3
+Lainey Wilson | Watermelon Moonshine | 2023 | 3
+Tyler Childers | All Your'n | 2019 | 3
+Sturgill Simpson | Turtles All the Way Down | 2014 | 3
+Jason Isbell | Cover Me Up | 2013 | 3
+Old Dominion | One Man Band | 2019 | 3
+Dan + Shay | Tequila | 2018 | 3
+Dan + Shay | 10,000 Hours | 2019 | 3
+Gabby Barrett | I Hope | 2019 | 3
+Maren Morris | The Bones | 2019 | 3
+Kelsea Ballerini | Peter Pan | 2016 | 3
+Cody Johnson | 'Til You Can't | 2021 | 3
+Jordan Davis | Buy Dirt | 2021 | 3
+Kane Brown | Thank God | 2022 | 3
+The Highwaymen | Highwayman | 1985 | 3
+Taylor Swift | Tim McGraw | 2006 | 3
+Taylor Swift | Picture to Burn | 2008 | 3
+Beyoncé | Jolene | 2024 | 3
+Brooks & Dunn | Neon Moon | 1992 | 3
+Alabama | Mountain Music | 1982 | 3
+Trace Adkins | Honky Tonk Badonkadonk | 2005 | 3
+Rednex | Old Pop in an Oak | 1995 | 3
+Rednex | Spirit of the Hawk | 2000 | 3
+The Dixie Chicks | Wide Open Spaces | 1998 | 3
+Alison Krauss | When You Say Nothing at All | 1995 | 3
+Lee Ann Womack | I Hope You Dance | 2000 | 3
+Hank Williams | Hey, Good Lookin' | 1951 | 3
+Patsy Cline | Walkin' After Midnight | 1957 | 3
+Johnny Horton | The Battle of New Orleans | 1959 | 3
+Marty Robbins | El Paso | 1959 | 3
+Bobbie Gentry | Ode to Billie Joe | 1967 | 3
+`
+  },
 ] satisfies Block[]

@@ -33,8 +33,8 @@ export function ChoiceGrid({ options, wrongIds, onPick }: { options: Song[]; wro
             disabled={wrong}
             onClick={() => onPick(song)}
             className={cx(
-              'glass flex items-center gap-3 rounded-2xl p-4 text-left transition cursor-pointer',
-              wrong ? 'pointer-events-none border-bad/30 opacity-45' : 'hover:border-accent/60 hover:bg-accent/5'
+              'flex items-center gap-3 rounded-2xl border p-4 text-left backdrop-blur-xl transition cursor-pointer',
+              wrong ? 'pointer-events-none border-bad/40 bg-bad/10 opacity-50' : 'border-line bg-surface hover:border-accent/60 hover:bg-accent/5'
             )}
           >
             <Kbd>{i + 1}</Kbd>

@@ -56,6 +56,27 @@ export interface CatalogHit {
   album: string
   coverUrl?: string
   year?: number
+  albumId?: number
+  /** Deezer popularity, 0..~1 000 000. */
+  rank?: number
+}
+
+/** What the app worked out about a song: genre, year, how famous, language. */
+export interface SongMeta {
+  genre: Genre
+  year: number
+  tier: Tier
+  lang: Lang
+}
+
+export interface ClassifiedHit extends CatalogHit {
+  meta: SongMeta
+}
+
+/** One line of a bulk add («Исполнитель - Название») and what was found for it. */
+export interface LookupResult {
+  query: string
+  hit: ClassifiedHit | null
 }
 
 /** A Deezer playlist or chart brought into the app. */
@@ -89,6 +110,10 @@ export interface HitSnapApi {
   fetchPlaylist(link: string): Promise<RemotePlaylist>
   /** Deezer's current top-100 chart. */
   fetchChart(): Promise<RemotePlaylist>
+  /** Works out genre, year, popularity and language for Deezer tracks. */
+  classify(hits: CatalogHit[]): Promise<ClassifiedHit[]>
+  /** Finds songs by free text («Исполнитель - Название», one per entry) and classifies them. */
+  lookup(queries: string[]): Promise<LookupResult[]>
   /** Lets the player choose a music folder; null when cancelled. */
   pickMusicFolder(): Promise<string | null>
   /** Audio files of a folder chosen earlier with pickMusicFolder. */
@@ -100,4 +125,5 @@ export interface HitSnapApi {
   storageRemove(key: string): Promise<void>
   openExternal(url: string): Promise<void>
   setTitleBarTheme(dark: boolean): void
+  toggleFullScreen(): void
 }

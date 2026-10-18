@@ -1,12 +1,13 @@
-import type { Genre, Lang, Song, Tier } from '@shared/types'
+import type { Genre, Lang, Song } from '@shared/types'
+import type { SoundEffect } from './audio'
 import { createRng, hashString, shuffle, type Rng } from './random'
 
 // Pure game rules: modes, stages, scoring and how songs are picked.
 
-export type GameMode = 'classic' | 'survival' | 'daily' | 'practice' | 'quiz' | 'year' | 'party'
+export type GameMode = 'classic' | 'survival' | 'daily' | 'practice' | 'quiz' | 'year' | 'party' | 'artist' | 'blitz'
 export type Difficulty = 'easy' | 'normal' | 'hard'
-/** How the player answers: find the song in search, pick one of four, or name the year. */
-export type AnswerKind = 'search' | 'choice' | 'year'
+/** How the player answers: find the song in search, pick one of four, name the year or the artist. */
+export type AnswerKind = 'search' | 'choice' | 'year' | 'artist'
 export type Popularity = 'hits' | 'popular' | 'all' | 'rare'
 /** Where in the audio the clip starts. */
 export type ClipStart = 'random' | 'intro'
@@ -26,6 +27,10 @@ export const DAILY_ROUNDS = 5
 export const QUIZ_OPTIONS = 4
 /** Picking from four answers is easier than searching, so it pays less. */
 export const QUIZ_FACTOR = 0.5
+/** Naming just the artist is easier than naming the song. */
+export const ARTIST_FACTOR = 0.7
+/** Blitz: how long the whole game lasts, in seconds of listening and answering. */
+export const BLITZ_SECONDS = 90
 export const YEAR_RANGE = { min: 1950, max: new Date().getFullYear() }
 
 export const PLAYER_COLORS = ['#8b5cf6', '#f97316', '#0ea5e9', '#16a34a']
@@ -60,6 +65,8 @@ export interface GameConfig {
   dailyKey?: string
   source?: GameSource
   players?: Player[]
+  /** Sound effect on the stage clips (the reveal plays clean). */
+  effect?: SoundEffect
 }
 
 export interface Guess {
@@ -96,7 +103,12 @@ export interface Round {
 }
 
 export function answerKind(mode: GameMode): AnswerKind {
-  return mode === 'quiz' ? 'choice' : mode === 'year' ? 'year' : 'search'
+  return mode === 'quiz' ? 'choice' : mode === 'year' ? 'year' : mode === 'artist' ? 'artist' : 'search'
+}
+
+/** Points factor for how the player answers. */
+export function answerFactor(kind: AnswerKind): number {
+  return kind === 'choice' ? QUIZ_FACTOR : kind === 'artist' ? ARTIST_FACTOR : 1
 }
 
 /** Decade bucket; everything before the 60s counts as the 60s. */
@@ -217,6 +229,12 @@ export interface Hint {
 }
 
 export function hintsFor(song: Song, kind: AnswerKind = 'search'): Hint[] {
+  if (kind === 'artist') {
+    return [
+      { label: 'Год выпуска', value: String(song.year || '?') },
+      { label: 'Песня называется на', value: `«${song.title.trim()[0]?.toUpperCase() ?? '?'}…»` }
+    ]
+  }
   if (kind === 'year') {
     return [
       { label: 'Десятилетие', value: `${decadeOf(song.year)}-е` },
@@ -236,6 +254,8 @@ export const MODE_INFO: Record<GameMode, { title: string; subtitle: string }> = 
   quiz: { title: 'Викторина', subtitle: 'Четыре варианта ответа — выберите верный' },
   year: { title: 'Угадай год', subtitle: 'Слушайте и называйте год выхода песни' },
   party: { title: 'Вечеринка', subtitle: '2–4 игрока, кто первым нажмёт — тот отвечает' },
+  artist: { title: 'Кто поёт?', subtitle: 'Достаточно назвать исполнителя' },
+  blitz: { title: 'Блиц', subtitle: '90 секунд — угадайте как можно больше' },
   practice: { title: 'Тренировка', subtitle: 'Без очков и без спешки' }
 }
 

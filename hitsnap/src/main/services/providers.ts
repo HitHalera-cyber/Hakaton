@@ -1,4 +1,5 @@
-import type { CatalogHit, RemotePlaylist, Song } from '@shared/types'
+import type { CatalogHit, ClassifiedHit, LookupResult, RemotePlaylist, Song } from '@shared/types'
+import { classifyTrack, type AlbumInfo } from './classify'
 import { getJson, resolveRedirect } from './http'
 import { matchScore } from './match'
 
@@ -18,8 +19,9 @@ interface DeezerTrack {
   preview: string
   link: string
   artist: { name: string }
-  album: { title: string; cover_medium?: string; cover_big?: string }
+  album: { id?: number; title: string; cover_medium?: string; cover_big?: string }
   release_date?: string
+  rank?: number
 }
 
 function fromDeezer(t: DeezerTrack): PreviewInfo {
@@ -119,7 +121,9 @@ function toHit(t: DeezerTrack): CatalogHit {
     title: t.title,
     album: t.album?.title ?? '',
     coverUrl: t.album?.cover_medium,
-    year: t.release_date ? Number(t.release_date.slice(0, 4)) || undefined : undefined
+    year: t.release_date ? Number(t.release_date.slice(0, 4)) || undefined : undefined,
+    albumId: t.album?.id,
+    rank: t.rank
   }
 }
 
@@ -172,4 +176,70 @@ export async function fetchChart(): Promise<RemotePlaylist> {
     title: 'Чарт Deezer сейчас',
     tracks: (res.data ?? []).filter((t) => t.preview).map(toHit)
   }
+}
+
+// ——— Classification: genre and year come from the album, fame from the track's rank ———
+
+const albums = new Map<number, Promise<AlbumInfo | null>>()
+
+function albumInfo(id: number): Promise<AlbumInfo | null> {
+  let p = albums.get(id)
+  if (!p) {
+    p = getJson<{ genres?: { data?: Array<{ id: number; name: string }> }; release_date?: string; error?: unknown }>(
+      `https://api.deezer.com/album/${id}`
+    )
+      .then((a) => (a.error ? null : { genres: (a.genres?.data ?? []).map((g) => g.name), year: Number(a.release_date?.slice(0, 4)) || undefined }))
+      .catch(() => null)
+    albums.set(id, p)
+  }
+  return p
+}
+
+/** Deezer allows ~50 requests per 5 s: a few at a time with a short pause. */
+async function mapThrottled<T, R>(items: T[], fn: (item: T) => Promise<R>, concurrency = 4): Promise<R[]> {
+  const out: R[] = new Array(items.length)
+  let next = 0
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++
+      out[i] = await fn(items[i])
+      await new Promise((r) => setTimeout(r, 120))
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker))
+  return out
+}
+
+/** Albums looked up per call; the rest of a huge playlist is classified from names and rank alone. */
+const MAX_ALBUM_LOOKUPS = 150
+
+export async function classify(hits: CatalogHit[]): Promise<ClassifiedHit[]> {
+  const albumIds = [...new Set(hits.map((h) => h.albumId).filter((id): id is number => !!id))].slice(0, MAX_ALBUM_LOOKUPS)
+  const infos = new Map<number, AlbumInfo | null>()
+  await mapThrottled(albumIds, async (id) => infos.set(id, await albumInfo(id)))
+  return hits.map((h) => ({ ...h, meta: classifyTrack(h, h.albumId ? (infos.get(h.albumId) ?? null) : null) }))
+}
+
+export async function lookup(queries: string[]): Promise<LookupResult[]> {
+  const found = await mapThrottled(
+    queries.slice(0, 200),
+    async (query): Promise<{ query: string; hit: CatalogHit | null }> => {
+      const [artist, ...rest] = query.split(/\s+[-–—]\s+/)
+      const title = rest.join(' - ')
+      try {
+        const results = (await deezerSearch(title ? `artist:"${artist}" track:"${title}"` : query)).filter((t) => t.preview)
+        const fallback = title && !results.length ? (await deezerSearch(`${artist} ${title}`)).filter((t) => t.preview) : results
+        const hit = title
+          ? best(fallback, (t) => matchScore(artist, title, { artist: t.artist.name, title: t.title, album: t.album?.title }))
+          : (fallback[0] ?? null)
+        return { query, hit: hit ? toHit(hit) : null }
+      } catch {
+        return { query, hit: null }
+      }
+    },
+    3
+  )
+  const classified = await classify(found.flatMap((f) => (f.hit ? [f.hit] : [])))
+  const byId = new Map(classified.map((c) => [c.deezerId, c]))
+  return found.map((f) => ({ query: f.query, hit: f.hit ? (byId.get(f.hit.deezerId) ?? null) : null }))
 }

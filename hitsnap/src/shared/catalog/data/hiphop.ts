@@ -294,4 +294,264 @@ Central Cee | Sprinter | 2023 | 3
 Skepta | Shutdown | 2015 | 3
 `
   },
+  {
+    genre: 'hiphop',
+    lang: 'en',
+    lines: `
+Eminem | Mosh | 2004 | 3
+Eminem | Toy Soldiers | 2004 | 3
+Eminem | 3 a.m. | 2009 | 3
+Eminem | We Made You | 2009 | 3
+Eminem | Survival | 2013 | 3
+Eminem | Walk on Water | 2017 | 3
+Eminem | River | 2017 | 3
+Eminem | Killshot | 2018 | 3
+Eminem | Fall | 2018 | 3
+Eminem | Darkness | 2020 | 3
+Eminem | Tobey | 2024 | 3
+Eminem | Somebody Save Me | 2024 | 3
+Eminem | Kim | 2000 | 3
+Eminem | The Way I Am | 2000 | 3
+Eminem | Rock Bottom | 1999 | 3
+Eminem | Role Model | 1999 | 3
+Eminem | White America | 2002 | 3
+Eminem | Business | 2002 | 3
+Eminem | Square Dance | 2002 | 3
+Eminem | Hailie's Song | 2002 | 3
+Eminem | Space Bound | 2010 | 3
+Eminem | Cinderella Man | 2010 | 3
+Eminem | No Love | 2010 | 3
+Eminem | Legacy | 2013 | 3
+Eminem | Headlights | 2013 | 3
+Eminem | Phenomenal | 2014 | 3
+Eminem | Kings Never Die | 2015 | 3
+Eminem | Those Kinda Nights | 2020 | 3
+Dr. Dre | What's the Difference | 1999 | 3
+Dr. Dre | Let Me Ride | 1992 | 3
+Dr. Dre | Kush | 2010 | 3
+Snoop Dogg | Beautiful | 2003 | 3
+Snoop Dogg | Signs | 2005 | 3
+Snoop Dogg | That's That Shit | 2006 | 3
+Ice Cube | You Can Do It | 1999 | 3
+Ice Cube | Check Yo Self | 1993 | 3
+Xzibit | Paparazzi | 1996 | 3
+50 Cent | Window Shopper | 2005 | 3
+50 Cent | Outta Control | 2005 | 3
+50 Cent | Hustler's Ambition | 2005 | 3
+50 Cent | I Get Money | 2007 | 3
+50 Cent | Baby by Me | 2009 | 3
+50 Cent | Wanksta | 2002 | 3
+G-Unit | Stunt 101 | 2003 | 3
+Lloyd Banks | On Fire | 2004 | 3
+Young Buck | Shorty Wanna Ride | 2004 | 3
+The Game | How We Do | 2004 | 3
+The Game | Dreams | 2005 | 3
+Ludacris | Runaway Love | 2006 | 3
+Ludacris | Money Maker | 2006 | 3
+Ludacris | My Chick Bad | 2010 | 3
+T.I. | What You Know | 2006 | 3
+T.I. | Bring Em Out | 2004 | 3
+T-Pain | Buy U a Drank (Shawty Snappin') | 2007 | 3
+T-Pain | Bartender | 2007 | 3
+T-Pain | Can't Believe It | 2008 | 3
+Soulja Boy | Crank That (Soulja Boy) | 2007
+Soulja Boy | Kiss Me thru the Phone | 2008 | 3
+Chamillionaire | Ridin' | 2005 | 3
+Mims | This Is Why I'm Hot | 2007 | 3
+Rich Boy | Throw Some D's | 2006 | 3
+Yung Joc | It's Goin' Down | 2006 | 3
+Lil Wayne | 6 Foot 7 Foot | 2010 | 3
+Lil Wayne | Mirror | 2011 | 3
+Lil Wayne | Love Me | 2013 | 3
+Lil Wayne | Got Money | 2008 | 3
+Nicki Minaj | Bang Bang | 2014 | 3
+Nicki Minaj | Pound the Alarm | 2012 | 3
+Nicki Minaj | Your Love | 2010 | 3
+Nicki Minaj | Moment 4 Life | 2010 | 3
+Nicki Minaj | Chun-Li | 2018 | 3
+Nicki Minaj | Pink Friday Girls | 2023 | 3
+Nicki Minaj | Bed | 2018 | 3
+Drake | Best I Ever Had | 2009 | 3
+Drake | Find Your Love | 2010 | 3
+Drake | Marvins Room | 2011 | 3
+Drake | The Motto | 2011 | 3
+Drake | Worst Behavior | 2013 | 3
+Drake | Energy | 2015 | 3
+Drake | Back to Back | 2015 | 3
+Drake | Fake Love | 2016 | 3
+Drake | Controlla | 2016 | 3
+Drake | Too Good | 2016 | 3
+Drake | Nonstop | 2018 | 3
+Drake | Money in the Grave | 2019 | 3
+Drake | Way 2 Sexy | 2021 | 3
+Drake | Knife Talk | 2021 | 3
+Drake | Massive | 2022 | 3
+Drake | First Person Shooter | 2023 | 3
+Drake | IDGAF | 2023 | 3
+Drake | Family Matters | 2024 | 3
+Drake | Nokia | 2025 | 3
+Kendrick Lamar | Bitch, Don't Kill My Vibe | 2012 | 3
+Kendrick Lamar | Poetic Justice | 2012 | 3
+Kendrick Lamar | LOVE. | 2017 | 3
+Kendrick Lamar | LOYALTY. | 2017 | 3
+Kendrick Lamar | ELEMENT. | 2017 | 3
+Kendrick Lamar | N95 | 2022 | 3
+Kendrick Lamar | Die Hard | 2022 | 3
+Kendrick Lamar | Rich Spirit | 2022 | 3
+Kendrick Lamar | Euphoria | 2024 | 3
+Kendrick Lamar | Meet the Grahams | 2024 | 3
+Kendrick Lamar | wacced out murals | 2024 | 3
+Kendrick Lamar | gnx | 2024 | 3
+Kendrick Lamar | peekaboo | 2024 | 3
+J. Cole | Power Trip | 2013 | 3
+J. Cole | Crooked Smile | 2013 | 3
+J. Cole | Wet Dreamz | 2014 | 3
+J. Cole | Love Yourz | 2014 | 3
+J. Cole | ATM | 2018 | 3
+J. Cole | KEVIN'S HEART | 2018 | 3
+J. Cole | p r i d e . i s . t h e . d e v i l | 2021 | 3
+Travis Scott | Stargazing | 2018 | 3
+Travis Scott | Sweet Sweet | 2015 | 3
+Travis Scott | 90210 | 2015 | 3
+Travis Scott | Franchise | 2020 | 3
+Travis Scott | THE SCOTTS | 2020 | 3
+Travis Scott | MY EYES | 2023 | 3
+Travis Scott | TELEKINESIS | 2023 | 3
+Travis Scott | 4X4 | 2025 | 3
+Future | Life Is Good | 2020 | 3
+Future | WAIT FOR U | 2022 | 3
+Future | Like That | 2024 | 3
+Future | Low Life | 2016 | 3
+21 Savage | Bank Account | 2017 | 3
+21 Savage | redrum | 2024 | 3
+Metro Boomin | Superhero (Heroes & Villains) | 2022 | 3
+Metro Boomin | Too Many Nights | 2022 | 3
+Lil Baby | Drip Too Hard | 2018 | 3
+Lil Baby | The Bigger Picture | 2020 | 3
+Lil Baby | Freestyle | 2017 | 3
+Young Thug | Hot | 2019 | 3
+Young Thug | Best Friend | 2015 | 3
+Lil Uzi Vert | Money Longer | 2016 | 3
+Lil Uzi Vert | 20 Min | 2017 | 3
+Lil Uzi Vert | The Way Life Goes | 2017 | 3
+Playboi Carti | Magnolia | 2017 | 3
+Playboi Carti | Sky | 2020 | 3
+Playboi Carti | EVIL J0RDAN | 2025 | 3
+Lil Yachty | Poland | 2022 | 3
+Lil Yachty | One Night | 2016 | 3
+Kodak Black | Tunnel Vision | 2017 | 3
+Kodak Black | ZEZE | 2018 | 3
+A Boogie wit da Hoodie | Drowning | 2017 | 3
+Tory Lanez | Say It | 2016 | 3
+Russ | Losin Control | 2016 | 3
+Joyner Lucas | I'm Not Racist | 2017 | 3
+Joyner Lucas | Devil's Work | 2019 | 3
+Jack Harlow | WHATS POPPIN | 2020 | 3
+Jack Harlow | Tyler Herro | 2020 | 3
+Lil Nas X | J Christ | 2024 | 3
+Lil Nas X | Star Walkin' | 2022 | 3
+DaBaby | Suge | 2019 | 3
+DaBaby | Bop | 2019 | 3
+Roddy Ricch | Ballin' | 2019 | 3
+Pop Smoke | Dior | 2019 | 3
+Pop Smoke | Mood Swings | 2020 | 3
+Pop Smoke | What You Know Bout Love | 2020 | 3
+Juice WRLD | Wishing Well | 2020 | 3
+Juice WRLD | Come & Go | 2020 | 3
+Juice WRLD | Bandit | 2019 | 3
+Juice WRLD | Righteous | 2020 | 3
+Juice WRLD | Armed and Dangerous | 2018 | 3
+XXXTENTACION | Hope | 2018 | 3
+XXXTENTACION | Revenge | 2017 | 3
+XXXTENTACION | Fuck Love | 2017 | 3
+XXXTENTACION | BAD! | 2019 | 3
+XXXTENTACION | the remedy for a broken heart (why am I so in love) | 2018 | 3
+Lil Peep | Save That Shit | 2017 | 3
+Lil Peep | Falling Down | 2018 | 3
+Lil Peep | Benz Truck | 2017 | 3
+Trippie Redd | Love Scars | 2017 | 3
+Ski Mask the Slump God | Catch Me Outside | 2017 | 3
+Denzel Curry | Ultimate | 2015 | 3
+Denzel Curry | Walkin | 2022 | 3
+JID | Surround Sound | 2022 | 3
+Doechii | Anxiety | 2025 | 3
+Doechii | DENIAL IS A RIVER | 2024 | 3
+GloRilla | Tomorrow 2 | 2022 | 3
+Latto | Big Energy | 2022 | 3
+Sexyy Red | Pound Town | 2023 | 3
+Ice Spice | Munch (Feelin' U) | 2022 | 3
+Ice Spice | Deli | 2023 | 3
+Cardi B | Money | 2018 | 3
+Cardi B | Up | 2021 | 3
+Megan Thee Stallion | Body | 2020 | 3
+Megan Thee Stallion | Thot Shit | 2021 | 3
+Megan Thee Stallion | Her | 2022 | 3
+Tyler, The Creator | Who Dat Boy | 2017 | 3
+Tyler, The Creator | NEW MAGIC WAND | 2019 | 3
+Tyler, The Creator | St. Chroma | 2024 | 3
+Tyler, The Creator | Like Him | 2024 | 3
+Frank Ocean | Nights | 2016 | 3
+Childish Gambino | 3005 | 2013 | 3
+Childish Gambino | Feels Like Summer | 2018 | 3
+Kid Cudi | Soundtrack 2 My Life | 2008 | 3
+Kid Cudi | Memories | 2010 | 3
+Kid Cudi | Erase Me | 2010 | 3
+Kanye West | Love Lockdown | 2008 | 3
+Kanye West | Monster | 2010 | 3
+Kanye West | Touch the Sky | 2005 | 3
+Kanye West | Homecoming | 2007 | 3
+Kanye West | Good Life | 2007 | 3
+Kanye West | Jesus Walks | 2004 | 3
+Kanye West | Famous | 2016 | 3
+Kanye West | Ultralight Beam | 2016 | 3
+Kanye West | I Wonder | 2007 | 3
+Kanye West | Hurricane | 2021 | 3
+Jay-Z | Run This Town | 2009 | 3
+Jay-Z | Izzo (H.O.V.A.) | 2001 | 3
+Jay-Z | Dirt off Your Shoulder | 2003 | 3
+Jay-Z | Big Pimpin' | 2000 | 3
+Jay-Z & Kanye West | Otis | 2011 | 3
+Macklemore & Ryan Lewis | White Walls | 2013 | 3
+Macklemore | Glorious | 2017 | 3
+Logic | Everybody | 2017 | 3
+NF | Time | 2019 | 3
+NF | HOPE | 2023 | 3
+NF | Paralyzed | 2017 | 3
+Hopsin | Sag My Pants | 2012 | 3
+Tech N9ne | Hood Go Crazy | 2015 | 3
+Machine Gun Kelly | Bad Things | 2016 | 3
+G-Eazy | No Limit | 2017 | 3
+Mac Miller | Donald Trump | 2011 | 3
+Mac Miller | Weekend | 2015 | 3
+Wiz Khalifa | We Dem Boyz | 2014 | 3
+Wiz Khalifa | Roll Up | 2010 | 3
+Wiz Khalifa | Work Hard, Play Hard | 2012 | 3
+B.o.B | Strange Clouds | 2011 | 3
+Kid Ink | Body Language | 2014 | 3
+Fetty Wap | Trap Queen | 2014
+Fetty Wap | 679 | 2015 | 3
+Silentó | Watch Me (Whip/Nae Nae) | 2015
+Rae Sremmurd | Black Beatles | 2016
+Rae Sremmurd | No Type | 2014 | 3
+Desiigner | Panda | 2015
+Lil Dicky | Earth | 2019 | 3
+Iggy Azalea | Black Widow | 2014 | 3
+Iggy Azalea | Work | 2013 | 3
+Tinie Tempah | Written in the Stars | 2010 | 3
+Dizzee Rascal | Bonkers | 2009 | 3
+Example | Changed the Way You Kiss Me | 2011 | 3
+Professor Green | Read All About It | 2011 | 3
+Plan B | She Said | 2010 | 3
+Wretch 32 | Don't Go | 2011 | 3
+Stormzy | Shut Up | 2015 | 3
+Stormzy | Big for Your Boots | 2017 | 3
+AJ Tracey | Ladbroke Grove | 2019 | 3
+Headie One | Ain't It Different | 2020 | 3
+Central Cee | Commitment Issues | 2021 | 3
+Central Cee | Band4Band | 2024 | 3
+Skepta | That's Not Me | 2014 | 3
+Kano | 3 Wheel-ups | 2016 | 3
+Little Simz | Venom | 2019 | 3
+`
+  },
 ] satisfies Block[]

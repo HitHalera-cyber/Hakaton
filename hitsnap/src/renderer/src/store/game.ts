@@ -2,15 +2,16 @@ import { create } from 'zustand'
 import type { Song } from '@shared/types'
 import { ACHIEVEMENTS } from '@/lib/achievements'
 import { api } from '@/lib/api'
-import { audio, leadingSilence } from '@/lib/audio'
+import { audio, EFFECTS, leadingSilence } from '@/lib/audio'
 import {
+  answerFactor,
   answerKind,
+  BLITZ_SECONDS,
   buildQueue,
   isCorrect,
   MAX_HINTS,
   pickOffset,
   pointsFor,
-  QUIZ_FACTOR,
   quizOptions,
   sameArtist,
   STAGES,
@@ -57,11 +58,16 @@ interface GameStore {
   partyScores: number[]
   buzzed: number | null
   lockedOut: number[]
+  /** Blitz: milliseconds left on the clock. */
+  blitzLeft: number
   start: (config: GameConfig, pool: Song[]) => Promise<void>
   playStage: () => void
   playReveal: () => void
   guess: (song: Song) => void
   guessYear: (year: number) => void
+  guessArtist: (artist: string) => void
+  /** Blitz: spend `ms` of the clock (only while a clip is being guessed). */
+  tickBlitz: (ms: number) => void
   buzz: (player: number) => void
   skip: () => void
   hint: () => void
@@ -96,6 +102,11 @@ export function stagesOf(config: GameConfig): number[] {
   return STAGES[config.mode === 'daily' ? 'normal' : config.difficulty]
 }
 
+/** Points multiplier: answer type × sound effect. */
+function factorOf(config: GameConfig): number {
+  return answerFactor(answerKind(config.mode)) * EFFECTS[config.effect ?? 'none'].bonus
+}
+
 function notifyAchievements(ids: string[]): void {
   const { toast } = useUi.getState()
   for (const id of ids) {
@@ -117,9 +128,10 @@ export const useGame = create<GameStore>()((set, get) => {
   }
 
   const isOver = (): boolean => {
-    const { config, rounds, lives } = get()
+    const { config, rounds, lives, blitzLeft } = get()
     if (!config) return true
     if (config.mode === 'survival') return lives <= 0
+    if (config.mode === 'blitz') return blitzLeft <= 0
     return rounds.length >= config.rounds
   }
 
@@ -207,9 +219,15 @@ export const useGame = create<GameStore>()((set, get) => {
       if (get().phase === 'reveal' && current() === finished) get().playReveal()
     }, settings.sfx ? 350 : 0)
     const stats = useStats.getState()
-    const unlocked = stats.recordRound(finished, scored)
+    const unlocked = stats.recordRound(finished, scored, { mode: config.mode, effect: config.effect ?? 'none', streak: newStreak })
     if (scored) stats.noteStreak(newStreak)
     notifyAchievements(unlocked)
+    // Blitz keeps the pace: the next song comes by itself.
+    if (config.mode === 'blitz') {
+      setTimeout(() => {
+        if (get().phase === 'reveal' && current() === finished) void get().next()
+      }, won ? 1100 : 1600)
+    }
   }
 
   const advanceStage = (): void => {
@@ -241,6 +259,7 @@ export const useGame = create<GameStore>()((set, get) => {
     partyScores: [],
     buzzed: null,
     lockedOut: [],
+    blitzLeft: 0,
 
     start: async (config, pool) => {
       session++
@@ -271,7 +290,8 @@ export const useGame = create<GameStore>()((set, get) => {
         error: null,
         partyScores: (config.players ?? []).map(() => 0),
         buzzed: null,
-        lockedOut: []
+        lockedOut: [],
+        blitzLeft: BLITZ_SECONDS * 1000
       })
       useUi.getState().go('game')
       await loadNextRound()
@@ -281,7 +301,7 @@ export const useGame = create<GameStore>()((set, get) => {
       const { buffer, config } = get()
       const round = current()
       if (!buffer || !config || !round) return
-      audio.play(buffer, round.offset, stagesOf(config)[round.stage])
+      audio.play(buffer, round.offset, stagesOf(config)[round.stage], config.effect ?? 'none')
     },
 
     playReveal: () => {
@@ -316,8 +336,7 @@ export const useGame = create<GameStore>()((set, get) => {
           endRound(true, points)
           return
         }
-        const factor = answerKind(config.mode) === 'choice' ? QUIZ_FACTOR : 1
-        endRound(true, pointsFor(round.stage, streak, round.hints, factor))
+        endRound(true, pointsFor(round.stage, streak, round.hints, factorOf(config)))
         return
       }
       if (useSettings.getState().sfx) audio.sfx('wrong')
@@ -339,7 +358,33 @@ export const useGame = create<GameStore>()((set, get) => {
       const closeness = yearCloseness(year, round.song.year)
       const won = Math.abs(year - round.song.year) <= YEAR_WIN_DISTANCE
       updateCurrent({ yearGuess: year })
-      endRound(won, Math.round((pointsFor(round.stage, won ? streak : 0, round.hints) * closeness) / 10) * 10)
+      endRound(won, Math.round((pointsFor(round.stage, won ? streak : 0, round.hints, factorOf(config)) * closeness) / 10) * 10)
+    },
+
+    guessArtist: (artist) => {
+      const { config, streak } = get()
+      const round = current()
+      if (get().phase !== 'playing' || !round || !config) return
+      const pseudo = { ...round.song, id: `artist:${artist}`, artist }
+      const correct = sameArtist(round.song, pseudo)
+      updateCurrent({ guesses: [...round.guesses, { songId: pseudo.id, label: artist, stage: round.stage, sameArtist: false }] })
+      if (correct) {
+        endRound(true, pointsFor(round.stage, streak, round.hints, factorOf(config)))
+        return
+      }
+      if (useSettings.getState().sfx) audio.sfx('wrong')
+      advanceStage()
+    },
+
+    tickBlitz: (ms) => {
+      const { config, phase, blitzLeft } = get()
+      if (config?.mode !== 'blitz' || phase !== 'playing') return
+      const left = Math.max(0, blitzLeft - ms)
+      set({ blitzLeft: left })
+      if (left === 0) {
+        if (useSettings.getState().sfx) audio.sfx('wrong')
+        get().finish()
+      }
     },
 
     buzz: (player) => {

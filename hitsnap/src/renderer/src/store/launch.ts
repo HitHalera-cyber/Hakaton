@@ -25,7 +25,7 @@ export function launch(mode: GameMode, opts: LaunchOptions = {}): void {
       ? DAILY_ROUNDS
       : mode === 'party'
         ? s.partyRounds
-        : mode === 'survival' || mode === 'practice'
+        : mode === 'survival' || mode === 'practice' || mode === 'blitz'
           ? Infinity
           : s.roundsPerGame
   const pool = opts.pool ?? (mode === 'daily' ? CATALOG : allSongs(lib.custom, lib.packs, lib.localSongs))
@@ -43,7 +43,8 @@ export function launch(mode: GameMode, opts: LaunchOptions = {}): void {
       clipStart: mode === 'daily' ? 'random' : s.clipStart,
       dailyKey: mode === 'daily' ? today : undefined,
       source: opts.source,
-      players: mode === 'party' ? s.players : undefined
+      players: mode === 'party' ? s.players : undefined,
+      effect: mode === 'daily' ? 'none' : s.effect
     },
     pool
   )

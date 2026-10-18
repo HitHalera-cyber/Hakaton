@@ -640,4 +640,588 @@ Die Toten Hosen | Tage wie diese | 2012 | 3
 Unheilig | Geboren um zu leben | 2010 | 3
 `
   },
+  {
+    genre: 'rock',
+    lang: 'en',
+    lines: `
+AC/DC | You Shook Me All Night Long | 1980
+AC/DC | Hells Bells | 1980 | 3
+AC/DC | Shoot to Thrill | 1980 | 3
+AC/DC | Dirty Deeds Done Dirt Cheap | 1976 | 3
+AC/DC | It's a Long Way to the Top (If You Wanna Rock 'n' Roll) | 1975 | 3
+AC/DC | Rock or Bust | 2014 | 3
+AC/DC | Shot in the Dark | 2020 | 3
+AC/DC | Moneytalks | 1990 | 3
+AC/DC | Let There Be Rock | 1977 | 3
+AC/DC | For Those About to Rock (We Salute You) | 1981 | 3
+Guns N' Roses | Paradise City | 1987
+Guns N' Roses | Don't Cry | 1991 | 3
+Guns N' Roses | Patience | 1988 | 3
+Guns N' Roses | Civil War | 1991 | 3
+Guns N' Roses | Live and Let Die | 1991 | 3
+Guns N' Roses | You Could Be Mine | 1991 | 3
+Guns N' Roses | Estranged | 1991 | 3
+Bon Jovi | Runaway | 1984 | 3
+Bon Jovi | Keep the Faith | 1992 | 3
+Bon Jovi | Everyday | 2002 | 3
+Bon Jovi | Have a Nice Day | 2005 | 3
+Bon Jovi | This Ain't a Love Song | 1995 | 3
+Bon Jovi | Thank You for Loving Me | 2000 | 3
+Bon Jovi | Blaze of Glory | 1990 | 3
+Bon Jovi | I'll Be There for You | 1988 | 3
+Bon Jovi | Who Says You Can't Go Home | 2005 | 3
+Aerosmith | Jaded | 2001 | 3
+Aerosmith | Pink | 1997 | 3
+Aerosmith | Love in an Elevator | 1989 | 3
+Aerosmith | Sweet Emotion | 1975 | 3
+Aerosmith | Janie's Got a Gun | 1989 | 3
+Aerosmith | Livin' on the Edge | 1993 | 3
+Queen | Fat Bottomed Girls | 1978 | 3
+Queen | Hammer to Fall | 1984 | 3
+Queen | It's a Hard Life | 1984 | 3
+Queen | Friends Will Be Friends | 1986 | 3
+Queen | One Vision | 1985 | 3
+Queen | Princes of the Universe | 1986 | 3
+Queen | Flash | 1980 | 3
+Queen | The Miracle | 1989 | 3
+Queen | Breakthru | 1989 | 3
+Queen | Headlong | 1991 | 3
+Queen | These Are the Days of Our Lives | 1991 | 3
+Queen | Mother Love | 1995 | 3
+Queen | Seven Seas of Rhye | 1974 | 3
+Queen | You're My Best Friend | 1975 | 3
+Queen | Tie Your Mother Down | 1976 | 3
+Queen | Spread Your Wings | 1977 | 3
+Queen | Save Me | 1980 | 3
+Queen | Las Palabras de Amor | 1982 | 3
+Freddie Mercury | Living on My Own | 1985
+Freddie Mercury | The Great Pretender | 1987 | 3
+Freddie Mercury & Montserrat Caballé | Barcelona | 1987
+Freddie Mercury | Love Me Like There's No Tomorrow | 1985 | 3
+David Bowie | Modern Love | 1983 | 3
+David Bowie | China Girl | 1983 | 3
+David Bowie | Fame | 1975 | 3
+David Bowie | Lazarus | 2016 | 3
+David Bowie | The Man Who Sold the World | 1970 | 3
+David Bowie | Ziggy Stardust | 1972 | 3
+David Bowie | Golden Years | 1975 | 3
+David Bowie | Where Are We Now? | 2013 | 3
+David Bowie & Mick Jagger | Dancing in the Street | 1985 | 3
+Mick Jagger | Just Another Night | 1985 | 3
+Mick Jagger | Don't Tear Me Up | 1993 | 3
+The Rolling Stones | Miss You | 1978 | 3
+The Rolling Stones | Ruby Tuesday | 1967 | 3
+The Rolling Stones | Beast of Burden | 1978 | 3
+The Rolling Stones | Mixed Emotions | 1989 | 3
+The Rolling Stones | Living in a Ghost Town | 2020 | 3
+The Rolling Stones | Tumbling Dice | 1972 | 3
+The Rolling Stones | As Tears Go By | 1965 | 3
+The Rolling Stones | Lady Jane | 1966 | 3
+Pink Floyd | Learning to Fly | 1987 | 3
+Pink Floyd | Us and Them | 1973 | 3
+Pink Floyd | Run Like Hell | 1979 | 3
+Pink Floyd | Brain Damage | 1973 | 3
+Pink Floyd | Mother | 1979 | 3
+Pink Floyd | Have a Cigar | 1975 | 3
+Pink Floyd | Echoes | 1971 | 3
+Pink Floyd | Louder than Words | 2014 | 3
+Roger Waters | The Tide Is Turning | 1987 | 3
+David Gilmour | Rattle That Lock | 2015 | 3
+Led Zeppelin | Good Times Bad Times | 1969 | 3
+Led Zeppelin | Ramble On | 1969 | 3
+Led Zeppelin | Dazed and Confused | 1969 | 3
+Led Zeppelin | Black Mountain Side | 1969 | 3
+Led Zeppelin | Heartbreaker | 1969 | 3
+Led Zeppelin | When the Levee Breaks | 1971 | 3
+Led Zeppelin | Going to California | 1971 | 3
+Led Zeppelin | All My Love | 1979 | 3
+Robert Plant | Big Log | 1983 | 3
+Deep Purple | Hush | 1968 | 3
+Deep Purple | Burn | 1974 | 3
+Deep Purple | Black Night | 1970 | 3
+Deep Purple | Strange Kind of Woman | 1971 | 3
+Deep Purple | When a Blind Man Cries | 1972 | 3
+Deep Purple | Knocking at Your Back Door | 1984 | 3
+Rainbow | Stargazer | 1976 | 3
+Rainbow | Rainbow Eyes | 1978 | 3
+Rainbow | I Surrender | 1981 | 3
+Rainbow | Street of Dreams | 1983 | 3
+Whitesnake | Still of the Night | 1987 | 3
+Whitesnake | Love Ain't No Stranger | 1984 | 3
+Whitesnake | Soldier of Fortune | 1987 | 3
+Uriah Heep | Easy Livin' | 1972 | 3
+Uriah Heep | Gypsy | 1970 | 3
+Smokie | I'll Meet You at Midnight | 1976 | 3
+Smokie | Lay Back in the Arms of Someone | 1977 | 3
+Smokie | Needles and Pins | 1977 | 3
+Smokie | Mexican Girl | 1978 | 3
+Smokie | Oh Carol | 1978 | 3
+Smokie | If You Think You Know How to Love Me | 1975 | 3
+Chris Norman | Some Hearts Are Diamonds | 1986 | 3
+Suzi Quatro | Can the Can | 1973 | 3
+Suzi Quatro | If You Can't Give Me Love | 1978 | 3
+Status Quo | Whatever You Want | 1979 | 3
+Status Quo | Pictures of Matchstick Men | 1968 | 3
+Status Quo | Down Down | 1974 | 3
+Bachman-Turner Overdrive | Takin' Care of Business | 1973 | 3
+Steppenwolf | Magic Carpet Ride | 1968 | 3
+The Animals | Don't Let Me Be Misunderstood | 1965 | 3
+The Animals | We Gotta Get Out of This Place | 1965 | 3
+Them | Gloria | 1964 | 3
+Van Morrison | Brown Eyed Girl | 1967
+Van Morrison | Moondance | 1970 | 3
+Creedence Clearwater Revival | Down on the Corner | 1969 | 3
+Creedence Clearwater Revival | Lookin' Out My Back Door | 1970 | 3
+Creedence Clearwater Revival | Green River | 1969 | 3
+Creedence Clearwater Revival | Who'll Stop the Rain | 1970 | 3
+Creedence Clearwater Revival | Susie Q | 1968 | 3
+Creedence Clearwater Revival | I Put a Spell on You | 1968 | 3
+Creedence Clearwater Revival | Run Through the Jungle | 1970 | 3
+Creedence Clearwater Revival | Travelin' Band | 1970 | 3
+Lynyrd Skynyrd | Simple Man | 1973 | 3
+Lynyrd Skynyrd | Tuesday's Gone | 1973 | 3
+Lynyrd Skynyrd | Gimme Three Steps | 1973 | 3
+The Allman Brothers Band | Jessica | 1973 | 3
+The Allman Brothers Band | Ramblin' Man | 1973 | 3
+ZZ Top | Gimme All Your Lovin' | 1983 | 3
+ZZ Top | Legs | 1983 | 3
+ZZ Top | Tush | 1975 | 3
+Fleetwood Mac | Rhiannon | 1975 | 3
+Fleetwood Mac | Albatross | 1968 | 3
+Fleetwood Mac | Big Love | 1987 | 3
+Fleetwood Mac | Seven Wonders | 1987 | 3
+Fleetwood Mac | Don't Stop | 1977 | 3
+Fleetwood Mac | Sara | 1979 | 3
+Stevie Nicks | Edge of Seventeen | 1981 | 3
+Stevie Nicks | Stand Back | 1983 | 3
+Eagles | Lyin' Eyes | 1975 | 3
+Eagles | One of These Nights | 1975 | 3
+Eagles | New Kid in Town | 1976 | 3
+Eagles | Life in the Fast Lane | 1976 | 3
+Eagles | Heartache Tonight | 1979 | 3
+Eagles | Tequila Sunrise | 1973 | 3
+Don Henley | The Boys of Summer | 1984 | 3
+Glenn Frey | The Heat Is On | 1984 | 3
+Tom Petty | I Won't Back Down | 1989 | 3
+Tom Petty | Mary Jane's Last Dance | 1993 | 3
+Bruce Springsteen | Hungry Heart | 1980 | 3
+Bruce Springsteen | Glory Days | 1984 | 3
+Bruce Springsteen | I'm on Fire | 1984 | 3
+Bruce Springsteen | Thunder Road | 1975 | 3
+Bruce Springsteen | The River | 1980 | 3
+Bruce Springsteen | Secret Garden | 1995 | 3
+Bryan Adams | Somebody | 1984 | 3
+Bryan Adams | Have You Ever Really Loved a Woman? | 1995 | 3
+Bryan Adams | Here I Am | 2002 | 3
+Bryan Adams | 18 til I Die | 1996 | 3
+Bryan Adams | Cloud Number Nine | 1999 | 3
+Bryan Adams & Mel C | When You're Gone | 1998 | 3
+Bryan Adams & Tina Turner | It's Only Love | 1984 | 3
+Joe Cocker | Summer in the City | 1994 | 3
+Joe Cocker | With a Little Help from My Friends | 1968 | 3
+Joe Cocker & Jennifer Warnes | Up Where We Belong | 1982
+Rod Stewart | Maggie May | 1971 | 3
+Rod Stewart | Have I Told You Lately | 1993 | 3
+Rod Stewart | Young Turks | 1981 | 3
+Rod Stewart | Baby Jane | 1983 | 3
+Rod Stewart | I Don't Want to Talk About It | 1977 | 3
+Rod Stewart | Rhythm of My Heart | 1991 | 3
+Tina Turner | Private Dancer | 1984 | 3
+Tina Turner | Steamy Windows | 1989 | 3
+Tina Turner | I Don't Wanna Lose You | 1989 | 3
+Tina Turner | Typical Male | 1986 | 3
+Tina Turner | Proud Mary | 1971 | 3
+Tina Turner | Nutbush City Limits | 1973 | 3
+Tina Turner | Simply the Best | 1991 | 3
+Phil Collins | Easy Lover | 1984
+Phil Collins | One More Night | 1985 | 3
+Phil Collins | Sussudio | 1985 | 3
+Phil Collins | I Wish It Would Rain Down | 1989 | 3
+Phil Collins | Two Hearts | 1988 | 3
+Phil Collins | Against All Odds (Take a Look at Me Now) | 1984 | 3
+Genesis | I Can't Dance | 1991 | 3
+Genesis | Mama | 1983 | 3
+Genesis | That's All | 1983 | 3
+Genesis | Follow You Follow Me | 1978 | 3
+Peter Gabriel | Sledgehammer | 1986
+Peter Gabriel | In Your Eyes | 1986 | 3
+Peter Gabriel & Kate Bush | Don't Give Up | 1986 | 3
+Sting | Fragile | 1987 | 3
+Sting | If You Love Somebody Set Them Free | 1985 | 3
+Sting | Russians | 1985 | 3
+Sting | It's Probably Me | 1992 | 3
+Sting | Brand New Day | 1999 | 3
+The Police | Every Little Thing She Does Is Magic | 1981 | 3
+The Police | Walking on the Moon | 1979 | 3
+The Police | Don't Stand So Close to Me | 1980 | 3
+The Police | King of Pain | 1983 | 3
+Dire Straits | Romeo and Juliet | 1980 | 3
+Dire Straits | So Far Away | 1985 | 3
+Dire Straits | Private Investigations | 1982 | 3
+Dire Straits | Telegraph Road | 1982 | 3
+Dire Straits | Calling Elvis | 1991 | 3
+Mark Knopfler | Going Home (Theme of the Local Hero) | 1983 | 3
+Chris Rea | Josephine | 1985 | 3
+Chris Rea | On the Beach | 1986 | 3
+Chris Rea | Julia | 1993 | 3
+Chris Isaak | Somebody's Crying | 1995 | 3
+Roxette | Spending My Time | 1991 | 3
+Roxette | Dangerous | 1989 | 3
+Roxette | Dressed for Success | 1988 | 3
+Roxette | How Do You Do! | 1992 | 3
+Roxette | Sleeping in My Car | 1994 | 3
+Roxette | Crash! Boom! Bang! | 1994 | 3
+Roxette | Wish I Could Fly | 1999 | 3
+Roxette | Milk and Toast and Honey | 2001 | 3
+Europe | Rock the Night | 1985 | 3
+Europe | Cherokee | 1987 | 3
+Scorpions | Big City Nights | 1984 | 3
+Scorpions | No One Like You | 1982 | 3
+Scorpions | Under the Same Sun | 1993 | 3
+Scorpions | Lorelei | 2010 | 3
+Scorpions | Rhythm of Love | 1988 | 3
+Scorpions | Believe in Love | 1988 | 3
+Scorpions | Tease Me Please Me | 1990 | 3
+Scorpions | When the Smoke Is Going Down | 1984 | 3
+Bonnie Tyler | Lost in France | 1976 | 3
+Bonnie Tyler | Straight from the Heart | 1983 | 3
+Def Leppard | Love Bites | 1987 | 3
+Def Leppard | Photograph | 1983 | 3
+Def Leppard | Animal | 1987 | 3
+Van Halen | Why Can't This Be Love | 1986 | 3
+Van Halen | Ain't Talkin' 'bout Love | 1978 | 3
+Van Halen | Eruption | 1978 | 3
+Kiss | Detroit Rock City | 1976 | 3
+Kiss | Heaven's on Fire | 1984 | 3
+Kiss | Beth | 1976 | 3
+Alice Cooper | Bed of Nails | 1989 | 3
+Twisted Sister | I Wanna Rock | 1984 | 3
+Quiet Riot | Cum On Feel the Noize | 1983 | 3
+Ratt | Round and Round | 1984 | 3
+Cinderella | Nobody's Fool | 1986 | 3
+Warrant | Cherry Pie | 1990 | 3
+Extreme | More Than Words | 1990
+Mr. Big | To Be with You | 1991
+Firehouse | When I Look into Your Eyes | 1992 | 3
+Tesla | Love Song | 1989 | 3
+Slaughter | Fly to the Angels | 1990 | 3
+Bad English | When I See You Smile | 1989 | 3
+Damn Yankees | High Enough | 1990 | 3
+Vixen | Edge of a Broken Heart | 1988 | 3
+Heart | What About Love | 1985 | 3
+Heart | These Dreams | 1986 | 3
+Heart | Barracuda | 1977 | 3
+Pat Benatar | Love Is a Battlefield | 1983 | 3
+Pat Benatar | Heartbreaker | 1979 | 3
+Joan Jett & the Blackhearts | Crimson and Clover | 1981 | 3
+The Pretenders | Brass in Pocket | 1979 | 3
+The Pretenders | I'll Stand by You | 1994 | 3
+The Cars | Drive | 1984 | 3
+The Cars | Just What I Needed | 1978 | 3
+Billy Idol | Mony Mony | 1987 | 3
+Billy Idol | Eyes Without a Face | 1984 | 3
+Billy Idol | Dancing with Myself | 1981 | 3
+Billy Idol | Cradle of Love | 1990 | 3
+Duran Duran | Come Undone | 1993 | 3
+Duran Duran | A View to a Kill | 1985 | 3
+Duran Duran | The Reflex | 1984 | 3
+Duran Duran | Save a Prayer | 1982 | 3
+Simple Minds | Belfast Child | 1989 | 3
+Simple Minds | Mandela Day | 1989 | 3
+INXS | Never Tear Us Apart | 1988 | 3
+INXS | New Sensation | 1987 | 3
+INXS | Mystify | 1987 | 3
+Midnight Oil | Beds Are Burning | 1987 | 3
+Men at Work | Who Can It Be Now? | 1981 | 3
+Crowded House | Don't Dream It's Over | 1986
+Crowded House | Weather with You | 1991 | 3
+The Proclaimers | I'm Gonna Be (500 Miles) | 1988
+The Waterboys | The Whole of the Moon | 1985 | 3
+Big Country | In a Big Country | 1983 | 3
+Tears for Fears | Head over Heels | 1985 | 3
+Tears for Fears | Sowing the Seeds of Love | 1989 | 3
+Tears for Fears | Woman in Chains | 1989 | 3
+The Cure | Pictures of You | 1989 | 3
+The Cure | In Between Days | 1985 | 3
+The Cure | Fascination Street | 1989 | 3
+The Cure | High | 1992 | 3
+The Cure | Alone | 2024 | 3
+The Smiths | How Soon Is Now? | 1985 | 3
+The Smiths | Bigmouth Strikes Again | 1986 | 3
+The Smiths | Heaven Knows I'm Miserable Now | 1984 | 3
+Morrissey | Everyday Is Like Sunday | 1988 | 3
+Morrissey | Suedehead | 1988 | 3
+The Stone Roses | I Wanna Be Adored | 1989 | 3
+The Stone Roses | She Bangs the Drums | 1989 | 3
+Happy Mondays | Step On | 1990 | 3
+Inspiral Carpets | This Is How It Feels | 1990 | 3
+The Charlatans | The Only One I Know | 1990 | 3
+James | Sit Down | 1989 | 3
+James | Laid | 1993 | 3
+The La's | There She Goes | 1988 | 3
+Echo & the Bunnymen | The Killing Moon | 1984 | 3
+Siouxsie and the Banshees | Hong Kong Garden | 1978 | 3
+The Jesus and Mary Chain | Just Like Honey | 1985 | 3
+The Psychedelic Furs | Pretty in Pink | 1981 | 3
+Modern English | I Melt with You | 1982 | 3
+A Flock of Seagulls | I Ran (So Far Away) | 1982 | 3
+Talk Talk | It's My Life | 1984
+Talk Talk | Such a Shame | 1984 | 3
+Ultravox | Vienna | 1980 | 3
+Spandau Ballet | Gold | 1983 | 3
+Wang Chung | Everybody Have Fun Tonight | 1986 | 3
+The Outfield | Your Love | 1986 | 3
+Survivor | The Search Is Over | 1984 | 3
+Survivor | High on You | 1985 | 3
+Journey | Faithfully | 1983 | 3
+Journey | Any Way You Want It | 1980 | 3
+Journey | Wheel in the Sky | 1978 | 3
+Boston | Peace of Mind | 1976 | 3
+Kansas | Point of Know Return | 1977 | 3
+Styx | Come Sail Away | 1977 | 3
+Styx | Mr. Roboto | 1983 | 3
+Foreigner | Juke Box Hero | 1981 | 3
+Foreigner | Waiting for a Girl Like You | 1981 | 3
+Foreigner | Urgent | 1981 | 3
+Asia | Heat of the Moment | 1982 | 3
+Toto | Georgy Porgy | 1978 | 3
+Steely Dan | Reelin' in the Years | 1972 | 3
+The Doobie Brothers | Long Train Runnin' | 1973 | 3
+The Doobie Brothers | What a Fool Believes | 1978 | 3
+America | A Horse with No Name | 1971 | 3
+Crosby, Stills & Nash | Suite: Judy Blue Eyes | 1969 | 3
+Cat Stevens | Father and Son | 1970 | 3
+Cat Stevens | Morning Has Broken | 1971 | 3
+Harry Chapin | Cat's in the Cradle | 1974 | 3
+Jim Croce | Time in a Bottle | 1973 | 3
+Bob Dylan | Hurricane | 1976 | 3
+Bob Dylan | Mr. Tambourine Man | 1965 | 3
+The Byrds | Turn! Turn! Turn! | 1965 | 3
+The Byrds | Mr. Tambourine Man | 1965 | 3
+The Mamas & the Papas | Monday, Monday | 1966 | 3
+Jefferson Airplane | White Rabbit | 1967 | 3
+The Grateful Dead | Touch of Grey | 1987 | 3
+Janis Joplin | Me and Bobby McGee | 1971 | 3
+Janis Joplin | Mercedes Benz | 1971 | 3
+Jimi Hendrix | Little Wing | 1967 | 3
+Jimi Hendrix | Voodoo Child (Slight Return) | 1968 | 3
+Jimi Hendrix | Foxy Lady | 1967 | 3
+Santana | Oye como va | 1970 | 3
+Santana | Europa (Earth's Cry Heaven's Smile) | 1976 | 3
+Santana | Samba Pa Ti | 1970 | 3
+Santana | The Game of Love | 2002 | 3
+Santana | Put Your Lights On | 1999 | 3
+Eric Clapton | Change the World | 1996 | 3
+Eric Clapton | I Shot the Sheriff | 1974 | 3
+Eric Clapton | Lay Down Sally | 1977 | 3
+Derek and the Dominos | Bell Bottom Blues | 1970 | 3
+George Harrison | My Sweet Lord | 1970
+George Harrison | Got My Mind Set on You | 1987 | 3
+Paul McCartney & Wings | Band on the Run | 1973 | 3
+Paul McCartney & Wings | Jet | 1973 | 3
+Paul McCartney & Wings | Mull of Kintyre | 1977 | 3
+Ringo Starr | Photograph | 1973 | 3
+Traveling Wilburys | Handle with Care | 1988 | 3
+Roy Orbison | You Got It | 1989 | 3
+Roy Orbison | Crying | 1961 | 3
+Roy Orbison | In Dreams | 1963 | 3
+Nirvana | About a Girl | 1989 | 3
+Nirvana | Dumb | 1993 | 3
+Nirvana | Lake of Fire | 1994 | 3
+Nirvana | Polly | 1991 | 3
+Nirvana | Breed | 1991 | 3
+Nirvana | Drain You | 1991 | 3
+Nirvana | Pennyroyal Tea | 1993 | 3
+Nirvana | You Know You're Right | 2002 | 3
+Hole | Celebrity Skin | 1998 | 3
+Pearl Jam | Jeremy | 1991 | 3
+Pearl Jam | Last Kiss | 1999 | 3
+Pearl Jam | Better Man | 1994 | 3
+Soundgarden | Fell on Black Days | 1994 | 3
+Soundgarden | Spoonman | 1994 | 3
+Alice in Chains | Rooster | 1992 | 3
+Alice in Chains | Down in a Hole | 1992 | 3
+Temple of the Dog | Hunger Strike | 1991 | 3
+Silverchair | Tomorrow | 1994 | 3
+Live | I Alone | 1994 | 3
+Candlebox | Far Behind | 1993 | 3
+Everclear | Santa Monica | 1995 | 3
+Marcy Playground | Sex and Candy | 1997 | 3
+Semisonic | Closing Time | 1998 | 3
+Fastball | The Way | 1998 | 3
+Harvey Danger | Flagpole Sitta | 1997 | 3
+Eve 6 | Inside Out | 1998 | 3
+Lit | My Own Worst Enemy | 1999 | 3
+Vertical Horizon | Everything You Want | 1999 | 3
+Matchbox Twenty | 3AM | 1996 | 3
+Matchbox Twenty | Push | 1996 | 3
+Matchbox Twenty | Bent | 2000 | 3
+Goo Goo Dolls | Name | 1995 | 3
+Goo Goo Dolls | Black Balloon | 1998 | 3
+Third Eye Blind | Jumper | 1997 | 3
+Train | Meet Virginia | 1998 | 3
+Train | Marry Me | 2010 | 3
+Train | Drive By | 2012 | 3
+Train | 50 Ways to Say Goodbye | 2012 | 3
+Creed | Higher | 1999 | 3
+Creed | With Arms Wide Open | 2000 | 3
+Nickelback | Hero | 2002 | 3
+Nickelback | Animals | 2005 | 3
+Nickelback | Gotta Be Somebody | 2008 | 3
+Nickelback | Lullaby | 2011 | 3
+Nickelback | When We Stand Together | 2011 | 3
+Daughtry | Home | 2007 | 3
+Hinder | Lips of an Angel | 2005 | 3
+Puddle of Mudd | Blurry | 2001 | 3
+Puddle of Mudd | She Hates Me | 2002 | 3
+Staind | It's Been Awhile | 2001 | 3
+Staind | Outside | 2001 | 3
+Default | Wasting My Time | 2001 | 3
+Theory of a Deadman | Bad Girlfriend | 2008 | 3
+Shinedown | Sound of Madness | 2008 | 3
+Shinedown | Cut the Cord | 2015 | 3
+Breaking Benjamin | So Cold | 2004 | 3
+Breaking Benjamin | I Will Not Bow | 2009 | 3
+Chevelle | The Red | 2002 | 3
+Three Days Grace | Home | 2003 | 3
+Three Days Grace | Break | 2009 | 3
+Three Days Grace | The Good Life | 2010 | 3
+Three Days Grace | Over and Over | 2006 | 3
+Skillet | Feel Invincible | 2016 | 3
+Skillet | Whispers in the Dark | 2006 | 3
+Skillet | Rise | 2013 | 3
+Skillet | Legendary | 2019 | 3
+Red | Breathe Into Me | 2006 | 3
+Flyleaf | All Around Me | 2005 | 3
+Halestorm | I Miss the Misery | 2012 | 3
+Evanescence | Hello | 2003 | 3
+Evanescence | Sweet Sacrifice | 2006 | 3
+Evanescence | Good Enough | 2006 | 3
+Evanescence | Imaginary | 2003 | 3
+Evanescence | Tourniquet | 2003 | 3
+Linkin Park | Waiting for the End | 2010 | 3
+Linkin Park | Powerless | 2012 | 3
+Linkin Park | Final Masquerade | 2014 | 3
+Linkin Park | Until It's Gone | 2014 | 3
+Linkin Park | One More Light | 2017 | 3
+Linkin Park | Talking to Myself | 2017 | 3
+Linkin Park | Friendly Fire | 2024 | 3
+Linkin Park | Heavy Is the Crown | 2024 | 3
+Linkin Park | Up from the Bottom | 2025 | 3
+Linkin Park | With You | 2000 | 3
+Linkin Park | Runaway | 2000 | 3
+Linkin Park | A Place for My Head | 2000 | 3
+Linkin Park | Easier to Run | 2003 | 3
+Linkin Park | Lying from You | 2003 | 3
+Linkin Park | Hit the Floor | 2003 | 3
+Linkin Park | From the Inside | 2003 | 3
+Linkin Park | No More Sorrow | 2007 | 3
+Linkin Park | In Between | 2007 | 3
+Linkin Park | Valentine's Day | 2007 | 3
+Linkin Park | The Catalyst | 2010 | 3
+Linkin Park | Iridescent | 2010 | 3
+Linkin Park | Lost in the Echo | 2012 | 3
+Linkin Park | Roads Untraveled | 2012 | 3
+Linkin Park | Guilty All the Same | 2014 | 3
+Linkin Park | Rebellion | 2014 | 3
+Muse | Supremacy | 2012 | 3
+Muse | Undisclosed Desires | 2009 | 3
+Muse | Map of the Problematique | 2006 | 3
+Muse | Stockholm Syndrome | 2003 | 3
+Muse | Sing for Absolution | 2004 | 3
+Muse | New Born | 2001 | 3
+Muse | Bliss | 2001 | 3
+Muse | Unintended | 1999 | 3
+Muse | Dead Inside | 2015 | 3
+Muse | Pressure | 2018 | 3
+Muse | Won't Stand Down | 2022 | 3
+Muse | Compliance | 2022 | 3
+Royal Blood | Trouble's Coming | 2021 | 3
+The Black Keys | Howlin' for You | 2010 | 3
+The Black Keys | Fever | 2014 | 3
+The White Stripes | Icky Thump | 2007 | 3
+The White Stripes | The Hardest Button to Button | 2003 | 3
+The White Stripes | Blue Orchid | 2005 | 3
+Jack White | Lazaretto | 2014 | 3
+The Raconteurs | Steady, As She Goes | 2006 | 3
+Kings of Leon | Waste a Moment | 2016 | 3
+Kings of Leon | Pyro | 2010 | 3
+The Killers | Smile Like You Mean It | 2004 | 3
+The Killers | All These Things That I've Done | 2004 | 3
+The Killers | Runaways | 2012 | 3
+The Killers | Spaceman | 2008 | 3
+The Killers | Caution | 2020 | 3
+Kasabian | Shoot the Runner | 2006 | 3
+Kasabian | Underdog | 2009 | 3
+Oasis | Supersonic | 1994 | 3
+Oasis | Some Might Say | 1995 | 3
+Oasis | Morning Glory | 1995 | 3
+Oasis | Roll with It | 1995 | 3
+Oasis | Little by Little | 2002 | 3
+Oasis | The Importance of Being Idle | 2005 | 3
+Oasis | Lyla | 2005 | 3
+Oasis | Half the World Away | 1994 | 3
+Oasis | Acquiesce | 1995 | 3
+Oasis | Slide Away | 1994 | 3
+Oasis | Cigarettes & Alcohol | 1994 | 3
+Oasis | Rock 'n' Roll Star | 1994 | 3
+Liam Gallagher | Wall of Glass | 2017 | 3
+Noel Gallagher's High Flying Birds | AKA... What a Life! | 2011 | 3
+Blur | The Universal | 1995 | 3
+Blur | Tender | 1999 | 3
+Blur | Beetlebum | 1997 | 3
+Blur | Country House | 1995 | 3
+Supergrass | Alright | 1995 | 3
+Ocean Colour Scene | The Day We Caught the Train | 1996 | 3
+The Verve | The Drugs Don't Work | 1997 | 3
+Travis | Why Does It Always Rain on Me? | 1999 | 3
+Travis | Sing | 2001 | 3
+Travis | Driftwood | 1999 | 3
+Embrace | Gravity | 2004 | 3
+Stereophonics | Dakota | 2005 | 3
+Stereophonics | Maybe Tomorrow | 2003 | 3
+Manic Street Preachers | If You Tolerate This Your Children Will Be Next | 1998 | 3
+Manic Street Preachers | Motorcycle Emptiness | 1992 | 3
+Feeder | Buck Rogers | 2001 | 3
+Feeder | Just a Day | 2001 | 3
+Placebo | Pure Morning | 1998 | 3
+Placebo | The Bitter End | 2003 | 3
+Placebo | Nancy Boy | 1997 | 3
+Placebo | Too Many Friends | 2013 | 3
+Placebo | For What It's Worth | 2009 | 3
+Radiohead | Lucky | 1997 | 3
+Radiohead | Let Down | 1997 | 3
+Radiohead | Nude | 2007 | 3
+Radiohead | Reckoner | 2007 | 3
+Radiohead | Weird Fishes/Arpeggi | 2007 | 3
+Radiohead | Daydreaming | 2016 | 3
+Radiohead | Burn the Witch | 2016 | 3
+Radiohead | Just | 1995 | 3
+Radiohead | My Iron Lung | 1994 | 3
+Radiohead | Idioteque | 2000 | 3
+Radiohead | How to Disappear Completely | 2000 | 3
+Radiohead | There There | 2003 | 3
+Thom Yorke | Suspirium | 2018 | 3
+Keane | Is It Any Wonder? | 2006 | 3
+Keane | Bend and Break | 2004 | 3
+Keane | Crystal Ball | 2006 | 3
+Snow Patrol | Chocolate | 2004 | 3
+Snow Patrol | Set the Fire to the Third Bar | 2006 | 3
+Snow Patrol | Shut Your Eyes | 2006 | 3
+Elbow | One Day Like This | 2008 | 3
+Starsailor | Four to the Floor | 2004 | 3
+The Fratellis | Chelsea Dagger | 2006
+Razorlight | America | 2006 | 3
+The Kooks | Ooh La | 2006 | 3
+Arctic Monkeys | Do Me a Favour | 2007 | 3
+Arctic Monkeys | Fake Tales of San Francisco | 2006 | 3
+Arctic Monkeys | Old Yellow Bricks | 2007 | 3
+Arctic Monkeys | My Propeller | 2009 | 3
+Arctic Monkeys | Don't Sit Down 'Cause I've Moved Your Chair | 2011 | 3
+Arctic Monkeys | Suck It and See | 2011 | 3
+Arctic Monkeys | Tranquility Base Hotel & Casino | 2018 | 3
+Arctic Monkeys | Body Paint | 2022 | 3
+Arctic Monkeys | Sculptures of Anything Goes | 2022 | 3
+`
+  },
 ] satisfies Block[]

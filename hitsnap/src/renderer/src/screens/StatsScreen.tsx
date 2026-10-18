@@ -1,12 +1,15 @@
 import { motion } from 'framer-motion'
-import { Flame } from 'lucide-react'
+import { Dumbbell, Flame } from 'lucide-react'
+import { ActivityCalendar } from '@/components/ActivityCalendar'
 import { useMemo } from 'react'
 import type { Genre } from '@shared/types'
 import { LevelBadge } from '@/components/LevelBadge'
-import { Card, cx, SectionTitle, Stat } from '@/components/ui'
+import { Button, Card, cx, SectionTitle, Stat } from '@/components/ui'
 import { ACHIEVEMENTS } from '@/lib/achievements'
 import { formatDate, formatNumber, plural } from '@/lib/format'
-import { GENRE_LABELS, GENRE_STYLE, MODE_INFO, STAGES } from '@/lib/game'
+import { EMPTY_FILTERS, GENRE_LABELS, GENRE_STYLE, MODE_INFO, STAGES } from '@/lib/game'
+import { ARCADE_INFO, type ArcadeGame } from '@/lib/quests'
+import { launch } from '@/store/launch'
 import { dailyStreak, levelFor, pointsForLevel } from '@/lib/progress'
 import { useAllSongs } from '@/store/library'
 import { useStats } from '@/store/stats'
@@ -41,6 +44,8 @@ export function StatsScreen() {
   const genres = useGenreStats()
   const lvl = levelFor(s.totals.points ?? 0)
   const streak = dailyStreak(Object.keys(s.daily))
+  // Weakest genre with enough rounds to judge: worth a focused practice.
+  const weakest = [...genres].filter(([, a]) => a.played >= 3).sort((a, b) => a[1].won / a[1].played - b[1].won / b[1].played)[0]
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -100,22 +105,58 @@ export function StatsScreen() {
         </Card>
         <Card className="p-6">
           <SectionTitle>Рекорды</SectionTitle>
-          <div className="space-y-3">
-            {(['classic', 'survival', 'quiz', 'year', 'daily'] as const).map((m) => (
-              <div key={m} className="flex items-center justify-between rounded-xl bg-fg/[0.03] px-4 py-3">
-                <span className="font-medium">{MODE_INFO[m].title}</span>
-                <span className="text-lg font-bold tabular-nums">{s.bestScore[m] ? formatNumber(s.bestScore[m]!) : '—'}</span>
+          <div className="grid grid-cols-2 gap-2">
+            {(['classic', 'survival', 'blitz', 'quiz', 'artist', 'year', 'daily'] as const).map((m) => (
+              <div key={m} className="flex items-center justify-between gap-2 rounded-xl bg-fg/[0.03] px-3 py-2.5 text-sm">
+                <span className="truncate font-medium">{MODE_INFO[m].title}</span>
+                <span className="shrink-0 text-base font-bold tabular-nums">{s.bestScore[m] ? formatNumber(s.bestScore[m]!) : '—'}</span>
               </div>
             ))}
-            <div className="flex items-center justify-between rounded-xl bg-fg/[0.03] px-4 py-3">
-              <span className="font-medium">Дней с «Песней дня»</span>
-              <span className="text-lg font-bold tabular-nums">{Object.keys(s.daily).length}</span>
+            {(Object.keys(ARCADE_INFO) as ArcadeGame[]).map((g) => (
+              <div key={g} className="flex items-center justify-between gap-2 rounded-xl bg-fg/[0.03] px-3 py-2.5 text-sm">
+                <span className="truncate font-medium">
+                  {ARCADE_INFO[g].emoji} {ARCADE_INFO[g].title}
+                </span>
+                <span className="shrink-0 text-base font-bold tabular-nums">{s.arcade?.[g] ?? '—'}</span>
+              </div>
+            ))}
+            <div className="flex items-center justify-between gap-2 rounded-xl bg-fg/[0.03] px-3 py-2.5 text-sm">
+              <span className="truncate font-medium">Выполнено заданий</span>
+              <span className="shrink-0 text-base font-bold tabular-nums">{s.questsTotal ?? 0}</span>
+            </div>
+            <div className="flex items-center justify-between gap-2 rounded-xl bg-fg/[0.03] px-3 py-2.5 text-sm">
+              <span className="truncate font-medium">Дней с «Песней дня»</span>
+              <span className="shrink-0 text-base font-bold tabular-nums">{Object.keys(s.daily).length}</span>
             </div>
           </div>
         </Card>
       </div>
 
-      <SectionTitle>Жанры</SectionTitle>
+      <SectionTitle>Активность</SectionTitle>
+      <Card className="mb-8 p-6">
+        <ActivityCalendar activity={s.activity ?? {}} />
+      </Card>
+
+      <SectionTitle
+        hint={
+          weakest ? (
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() =>
+                launch('classic', {
+                  filters: { ...EMPTY_FILTERS, genres: [weakest[0]] },
+                  source: { label: `Тренировка: ${GENRE_LABELS[weakest[0]]}`, icon: GENRE_STYLE[weakest[0]].emoji }
+                })
+              }
+            >
+              <Dumbbell size={14} /> Подтянуть «{GENRE_LABELS[weakest[0]]}»
+            </Button>
+          ) : undefined
+        }
+      >
+        Жанры
+      </SectionTitle>
       <Card className="mb-8 p-6">
         {genres.length === 0 ? (
           <div className="text-center text-sm text-muted">Сыграйте несколько раундов — здесь появится, в каких жанрах вы сильнее.</div>

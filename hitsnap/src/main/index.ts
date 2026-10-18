@@ -1,9 +1,9 @@
 import { app, BrowserWindow, ipcMain, nativeTheme, screen, shell } from 'electron'
 import { join } from 'node:path'
-import type { Song } from '@shared/types'
+import type { CatalogHit, Song } from '@shared/types'
 import { cacheInfo, clearCache, resolveTrack } from './services/audioCache'
 import { pickMusicFolder, scanMusicFolder } from './services/localMusic'
-import { fetchChart, fetchPlaylist, searchCatalog } from './services/providers'
+import { classify, fetchChart, fetchPlaylist, lookup, searchCatalog } from './services/providers'
 import { storage } from './services/storage'
 
 const isMac = process.platform === 'darwin'
@@ -51,6 +51,8 @@ function registerIpc(): void {
   ipcMain.handle('catalog:search', (_e, query: string) => searchCatalog(query))
   ipcMain.handle('catalog:playlist', (_e, link: string) => fetchPlaylist(link))
   ipcMain.handle('catalog:chart', () => fetchChart())
+  ipcMain.handle('catalog:classify', (_e, hits: CatalogHit[]) => classify(hits))
+  ipcMain.handle('catalog:lookup', (_e, queries: string[]) => lookup(queries))
   ipcMain.handle('local:pick', (e) => pickMusicFolder(BrowserWindow.fromWebContents(e.sender)))
   ipcMain.handle('local:scan', (_e, folder: string) => scanMusicFolder(folder))
   ipcMain.handle('cache:info', () => cacheInfo())
@@ -60,6 +62,10 @@ function registerIpc(): void {
   ipcMain.handle('storage:remove', (_e, key: string) => storage.remove(key))
   ipcMain.handle('shell:open', (_e, url: string) => {
     if (/^https:\/\//.test(url)) return shell.openExternal(url)
+  })
+  ipcMain.on('window:fullscreen', (e) => {
+    const win = BrowserWindow.fromWebContents(e.sender)
+    if (win) win.setFullScreen(!win.isFullScreen())
   })
   ipcMain.on('titlebar:theme', (e, dark: boolean) => {
     const win = BrowserWindow.fromWebContents(e.sender)

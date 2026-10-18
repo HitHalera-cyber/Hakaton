@@ -14,6 +14,7 @@ import {
   Play,
   RotateCcw,
   SkipForward,
+  Timer,
   Users,
   X
 } from 'lucide-react'
@@ -28,13 +29,13 @@ import { Visualizer } from '@/components/Visualizer'
 import { YearPicker } from '@/components/YearPicker'
 import { usePlayback } from '@/hooks/usePlayback'
 import { api } from '@/lib/api'
-import { audio } from '@/lib/audio'
+import { audio, EFFECTS } from '@/lib/audio'
 import { formatNumber, formatSeconds, plural } from '@/lib/format'
-import { answerKind, hintsFor, MAX_HINTS, MODE_INFO, streakMultiplier, SURVIVAL_LIVES, YEAR_WIN_DISTANCE, type Round } from '@/lib/game'
+import { answerKind, BLITZ_SECONDS, hintsFor, MAX_HINTS, MODE_INFO, streakMultiplier, SURVIVAL_LIVES, YEAR_WIN_DISTANCE, type Round } from '@/lib/game'
 import { shareText } from '@/lib/progress'
 import { stagesOf, useGame } from '@/store/game'
 import { replay } from '@/store/launch'
-import { useLibrary } from '@/store/library'
+import { useArtistIndex, useLibrary } from '@/store/library'
 import { useSettings } from '@/store/settings'
 import { useUi } from '@/store/ui'
 
@@ -57,9 +58,34 @@ function useStages(): number[] {
   return config ? stagesOf(config) : [1, 3, 5]
 }
 
+function BlitzClock() {
+  const left = useGame((s) => s.blitzLeft)
+  const sec = Math.ceil(left / 1000)
+  const frac = left / (BLITZ_SECONDS * 1000)
+  return (
+    <div className="mb-5">
+      <div className="mb-1.5 flex items-center justify-between text-sm">
+        <span className="flex items-center gap-1.5 font-semibold">
+          <Timer size={16} className={cx(sec <= 10 ? 'text-bad' : 'text-accent')} /> Блиц
+        </span>
+        <motion.span key={sec} initial={{ scale: 1.2 }} animate={{ scale: 1 }} className={cx('text-lg font-black tabular-nums', sec <= 10 && 'text-bad')}>
+          {Math.floor(sec / 60)}:{String(sec % 60).padStart(2, '0')}
+        </motion.span>
+      </div>
+      <div className="h-2.5 overflow-hidden rounded-full bg-fg/10">
+        <div
+          className={cx('h-full rounded-full transition-[width] duration-200 ease-linear', sec <= 10 ? 'bg-bad' : 'bg-gradient-accent')}
+          style={{ width: `${frac * 100}%` }}
+        />
+      </div>
+    </div>
+  )
+}
+
 function Header() {
   const { config, rounds, score, streak, lives, finish } = useGame()
   if (!config) return null
+  const effect = config.effect && config.effect !== 'none' ? EFFECTS[config.effect] : null
   const roundNo = rounds.length || 1
   const endless = config.mode === 'survival' || config.mode === 'practice' || !Number.isFinite(config.rounds)
   const scored = config.mode !== 'practice' && config.mode !== 'party'
@@ -72,6 +98,11 @@ function Header() {
         </div>
         <div className="text-xl font-bold">{endless ? `Песня ${roundNo}` : `Раунд ${roundNo} из ${config.rounds}`}</div>
       </div>
+      {effect && (
+        <span className="rounded-full bg-accent/12 px-3 py-1 text-xs font-semibold text-accent" title={`${effect.hint}. Очки ×${effect.bonus}`}>
+          {effect.emoji} {effect.label} · ×{effect.bonus}
+        </span>
+      )}
       {config.mode === 'survival' && (
         <div className="ml-2 flex gap-1" title="Жизни">
           {Array.from({ length: SURVIVAL_LIVES }, (_, i) => (
@@ -112,7 +143,9 @@ function Header() {
 }
 
 function Board() {
-  const { phase, rounds, config, buzzed, lockedOut, partyScores, playStage, playReveal, guess, guessYear, buzz, skip, hint, next } = useGame()
+  const { phase, rounds, config, buzzed, lockedOut, partyScores, playStage, playReveal, guess, guessYear, guessArtist, tickBlitz, buzz, skip, hint, next } =
+    useGame()
+  const artists = useArtistIndex()
   const visualizer = useSettings((s) => s.visualizer)
   const stages = useStages()
   const playback = usePlayback()
@@ -125,8 +158,20 @@ function Board() {
   const players = config?.players ?? []
 
   useEffect(() => {
-    if (playing && kind === 'search' && (!party || buzzed !== null)) searchRef.current?.focus()
+    if (playing && (kind === 'search' || kind === 'artist') && (!party || buzzed !== null)) searchRef.current?.focus()
   }, [playing, round?.song.id, kind, party, buzzed])
+
+  // Blitz clock: runs only while a clip is being guessed.
+  useEffect(() => {
+    if (config?.mode !== 'blitz' || !playing) return
+    let last = performance.now()
+    const id = setInterval(() => {
+      const now = performance.now()
+      tickBlitz(now - last)
+      last = now
+    }, 100)
+    return () => clearInterval(id)
+  }, [config?.mode, playing, tickBlitz])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -162,6 +207,7 @@ function Board() {
   return (
     <div className="mx-auto max-w-3xl">
       <Header />
+      {config?.mode === 'blitz' && <BlitzClock />}
       {party && (
         <div className="mb-5">
           <PartyBar players={players} scores={partyScores} buzzed={buzzed} lockedOut={lockedOut} onBuzz={buzz} live={playing} />
@@ -219,6 +265,19 @@ function Board() {
                   <ChoiceGrid options={round.options} wrongIds={round.guesses.map((g) => g.songId)} onPick={pickChoice} />
                 )}
                 {kind === 'year' && <YearPicker key={round.song.id} onSubmit={guessYear} />}
+                {kind === 'artist' && (
+                  <SearchBox
+                    ref={searchRef}
+                    index={artists.index}
+                    onPick={(a) => guessArtist(a.title)}
+                    excludeIds={round.guesses.map((g) => g.songId)}
+                    describe={(a) => {
+                      const n = artists.counts.get(a.title) ?? 0
+                      return `${n} ${plural(n, 'песня', 'песни', 'песен')} в базе`
+                    }}
+                    placeholder="Кто поёт? Начните вводить имя исполнителя или группы…"
+                  />
+                )}
                 {kind === 'search' && (
                   <>
                     {party && buzzed === null ? (

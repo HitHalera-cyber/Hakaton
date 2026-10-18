@@ -123,4 +123,123 @@ Shakedown | At Night | 2002 | 3
 Bee Gees | Jive Talkin' | 1975 | 3
 `
   },
+  {
+    genre: 'disco',
+    lang: 'en',
+    lines: `
+ABBA | Does Your Mother Know | 1979 | 3
+ABBA | Summer Night City | 1978 | 3
+ABBA | I Have a Dream | 1979 | 3
+ABBA | Knowing Me, Knowing You | 1977 | 3
+ABBA | One of Us | 1981 | 3
+ABBA | The Name of the Game | 1977 | 3
+ABBA | Honey, Honey | 1974 | 3
+ABBA | Ring Ring | 1973 | 3
+ABBA | I Do, I Do, I Do, I Do, I Do | 1975 | 3
+ABBA | Don't Shut Me Down | 2021 | 3
+ABBA | I Still Have Faith in You | 2021 | 3
+Bee Gees | Too Much Heaven | 1978 | 3
+Bee Gees | Massachusetts | 1967 | 3
+Bee Gees | To Love Somebody | 1967 | 3
+Bee Gees | Words | 1968 | 3
+Bee Gees | You Win Again | 1987 | 3
+Bee Gees | Alone | 1997 | 3
+Boney M. | El Lute | 1979 | 3
+Boney M. | Painter Man | 1979 | 3
+Boney M. | Happy Song | 1984 | 3
+Boney M. | I See a Boat on the River | 1980 | 3
+Boney M. | My Friend Jack | 1980 | 3
+Boney M. | Children of Paradise | 1980 | 3
+Boney M. | Felicidad (Margherita) | 1980 | 3
+Boney M. | Nightflight to Venus | 1978 | 3
+Donna Summer | MacArthur Park | 1978 | 3
+Donna Summer | On the Radio | 1979 | 3
+Donna Summer | Bad Girls | 1979 | 3
+Gloria Gaynor | Reach Out, I'll Be There | 1975 | 3
+Chic | I Want Your Love | 1978 | 3
+Sister Sledge | He's the Greatest Dancer | 1979 | 3
+Sister Sledge | Thinking of You | 1984 | 3
+Earth, Wind & Fire | Boogie Wonderland | 1979
+Earth, Wind & Fire | Let's Groove | 1981
+Earth, Wind & Fire | Fantasy | 1977 | 3
+Earth, Wind & Fire | After the Love Has Gone | 1979 | 3
+The Emotions | Best of My Love | 1977 | 3
+Heatwave | Boogie Nights | 1977 | 3
+Heatwave | Always and Forever | 1977 | 3
+A Taste of Honey | Boogie Oogie Oogie | 1978 | 3
+Rose Royce | Car Wash | 1976 | 3
+The Jacksons | Blame It on the Boogie | 1978 | 3
+The Jacksons | Shake Your Body (Down to the Ground) | 1978 | 3
+Michael Jackson | Off the Wall | 1979 | 3
+Cheryl Lynn | Got to Be Real | 1978 | 3
+Evelyn "Champagne" King | Shame | 1977 | 3
+Thelma Houston | Don't Leave Me This Way | 1976 | 3
+Yvonne Elliman | If I Can't Have You | 1977 | 3
+Andrea True Connection | More, More, More | 1976 | 3
+Van McCoy | The Hustle | 1975 | 3
+Hues Corporation | Rock the Boat | 1974 | 3
+George McCrae | Rock Your Baby | 1974 | 3
+Tavares | Heaven Must Be Missing an Angel | 1976 | 3
+The Trammps | That's Where the Happy People Go | 1976 | 3
+Kool & the Gang | Ladies' Night | 1979 | 3
+Kool & the Gang | Joanna | 1983 | 3
+Kool & the Gang | Jungle Boogie | 1973 | 3
+Kool & the Gang | Too Hot | 1979 | 3
+Odyssey | Native New Yorker | 1977 | 3
+Odyssey | Going Back to My Roots | 1981 | 3
+Shalamar | A Night to Remember | 1982 | 3
+The Gap Band | Oops Upside Your Head | 1979 | 3
+Diana Ross | Ain't No Mountain High Enough | 1970 | 3
+Diana Ross | Chain Reaction | 1985 | 3
+Diana Ross | Love Hangover | 1976 | 3
+Amii Stewart | Knock on Wood | 1979 | 3
+Grace Jones | Pull Up to the Bumper | 1981 | 3
+Grace Jones | La vie en rose | 1977 | 3
+Village People | Macho Man | 1978 | 3
+Village People | Can't Stop the Music | 1980 | 3
+Arabesque | In the Heat of a Disco Night | 1979 | 3
+Arabesque | Take Me Don't Break Me | 1982 | 3
+Arabesque | Billy's Barbeque | 1981 | 3
+Dschinghis Khan | Hadschi Halef Omar | 1980 | 3
+Dschinghis Khan | Pistolero | 1980 | 3
+Dschinghis Khan | Rocking Son of Dschinghis Khan | 1980 | 3
+Dschinghis Khan | Machu Picchu | 1981 | 3
+Dschinghis Khan | Loreley | 1981 | 3
+La Bionda | One for You, One for Me | 1978 | 3
+Gibson Brothers | Cuba | 1979 | 3
+Gibson Brothers | Ooh! What a Life | 1979 | 3
+Gilla | Johnny | 1977 | 3
+Baccara | Sorry, I'm a Lady | 1977 | 3
+Silver Pozzoli | Around My Dream | 1985 | 3
+Fun Fun | Happy Station | 1984 | 3
+Max Him | Lady Fantasy | 1984 | 3
+Joy | Hello | 1986 | 3
+Joy | Valerie | 1986 | 3
+Bad Boys Blue | Lady in Black | 1986 | 3
+Bad Boys Blue | I Wanna Hear Your Heartbeat | 1986 | 3
+Bad Boys Blue | Kisses and Tears | 1986 | 3
+Bad Boys Blue | A World Without You | 1987 | 3
+C.C. Catch | Soul Survivor | 1987 | 3
+C.C. Catch | Backseat of Your Cadillac | 1988 | 3
+C.C. Catch | Are You Man Enough | 1987 | 3
+Patty Ryan | You're My Love, You're My Life | 1986 | 3
+London Boys | Requiem | 1988 | 3
+London Boys | London Nights | 1989 | 3
+Den Harrow | Don't Break My Heart | 1987 | 3
+Savage | Goodbye | 1984 | 3
+Koto | Visitors | 1985 | 3
+Laser Dance | Humanoid Invasion | 1987 | 3
+Jamiroquai | Space Cowboy | 1994 | 3
+Jamiroquai | Deeper Underground | 1998 | 3
+Jamiroquai | Seven Days in Sunny June | 2005 | 3
+Jamiroquai | Automaton | 2017 | 3
+Kylie Minogue | Magic | 2020 | 3
+Kylie Minogue | Say Something | 2020 | 3
+Mark Ronson | Valerie | 2007 | 3
+Purple Disco Machine | Dopamine | 2021 | 3
+Roisin Murphy | Murphy's Law | 2020 | 3
+Jessie Ware | Free Yourself | 2022 | 3
+Sophie Ellis-Bextor | Crying at the Discotheque | 2020 | 3
+`
+  },
 ] satisfies Block[]

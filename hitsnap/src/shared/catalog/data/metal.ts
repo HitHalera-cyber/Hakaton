@@ -25,14 +25,6 @@ System of a Down | Aerials | 2001
     genre: 'metal',
     lang: 'other',
     lines: `
-Rammstein | Du hast | 1997 | 1
-Rammstein | Engel | 1997
-Rammstein | Sonne | 2001 | 1
-Rammstein | Ich will | 2001
-Rammstein | Mein Herz brennt | 2001
-Rammstein | Links 2-3-4 | 2001
-Rammstein | Mutter | 2001
-Rammstein | Deutschland | 2019
 `
   },
   {
@@ -189,29 +181,283 @@ Motionless in White | Another Life | 2019 | 3
     genre: 'metal',
     lang: 'other',
     lines: `
-Rammstein | Amerika | 2004
-Rammstein | Ohne dich | 2004
-Rammstein | Keine Lust | 2004 | 3
-Rammstein | Feuer frei! | 2001 | 3
-Rammstein | Rosenrot | 2005 | 3
-Rammstein | Radio | 2019 | 3
-Rammstein | Ausländer | 2019 | 3
-Rammstein | Zeit | 2022 | 3
-Rammstein | Seemann | 1995 | 3
-Rammstein | Asche zu Asche | 1995 | 3
-Rammstein | Rammstein | 1995 | 3
-Rammstein | Du riechst so gut | 1995 | 3
-Rammstein | Mein Teil | 2004 | 3
-Rammstein | Benzin | 2005 | 3
-Rammstein | Pussy | 2009 | 3
-Rammstein | Ich tu dir weh | 2009 | 3
-Rammstein | Haifisch | 2009 | 3
-Rammstein | Moskau | 2004 | 3
-Rammstein | Spieluhr | 2001 | 3
-Rammstein | Reise, Reise | 2004 | 3
 Lindemann | Steh auf | 2019 | 3
 Oomph! | Augen auf! | 2004 | 3
 Eisbrecher | Was ist hier los? | 2012 | 3
+`
+  },
+  {
+    genre: 'metal',
+    lang: 'en',
+    lines: `
+Metallica | Harvester of Sorrow | 1988 | 3
+Metallica | Ride the Lightning | 1984 | 3
+Metallica | Creeping Death | 1984 | 3
+Metallica | Orion | 1986 | 3
+Metallica | Disposable Heroes | 1986 | 3
+Metallica | The Day That Never Comes | 2008 | 3
+Metallica | Moth into Flame | 2016 | 3
+Metallica | Atlas, Rise! | 2016 | 3
+Metallica | Hardwired | 2016 | 3
+Metallica | St. Anger | 2003 | 3
+Metallica | No Leaf Clover | 1999 | 3
+Metallica | The Unforgiven II | 1997 | 3
+Metallica | Hero of the Day | 1996 | 3
+Metallica | King Nothing | 1996 | 3
+Metallica | Don't Tread on Me | 1991 | 3
+Metallica | Holier Than Thou | 1991 | 3
+Metallica | 72 Seasons | 2023 | 3
+Metallica | Screaming Suicide | 2023 | 3
+Iron Maiden | Can I Play with Madness | 1988 | 3
+Iron Maiden | The Evil That Men Do | 1988 | 3
+Iron Maiden | Powerslave | 1984 | 3
+Iron Maiden | Wasting Love | 1992 | 3
+Iron Maiden | Afraid to Shoot Strangers | 1992 | 3
+Iron Maiden | Blood Brothers | 2000 | 3
+Iron Maiden | Brave New World | 2000 | 3
+Iron Maiden | Dance of Death | 2003 | 3
+Iron Maiden | Iron Maiden | 1980 | 3
+Iron Maiden | Rime of the Ancient Mariner | 1984 | 3
+Iron Maiden | Flight of Icarus | 1983 | 3
+Iron Maiden | Bring Your Daughter... to the Slaughter | 1990 | 3
+Black Sabbath | Heaven and Hell | 1980 | 3
+Black Sabbath | Children of the Grave | 1971 | 3
+Black Sabbath | Sweet Leaf | 1971 | 3
+Black Sabbath | Black Sabbath | 1970 | 3
+Ozzy Osbourne | Bark at the Moon | 1983 | 3
+Ozzy Osbourne | Shot in the Dark | 1986 | 3
+Ozzy Osbourne | Perry Mason | 1995 | 3
+Ozzy Osbourne | Ordinary Man | 2020 | 3
+Ozzy Osbourne | Patient Number 9 | 2022 | 3
+Judas Priest | Turbo Lover | 1986 | 3
+Judas Priest | You've Got Another Thing Comin' | 1982 | 3
+Judas Priest | Electric Eye | 1982 | 3
+Motörhead | Overkill | 1979 | 3
+Motörhead | Killed by Death | 1984 | 3
+Dio | Rainbow in the Dark | 1983 | 3
+Megadeth | Hangar 18 | 1990 | 3
+Megadeth | Trust | 1997 | 3
+Megadeth | Peace Sells | 1986 | 3
+Megadeth | Sweating Bullets | 1992 | 3
+Megadeth | Tornado of Souls | 1990 | 3
+Slayer | South of Heaven | 1988 | 3
+Slayer | Seasons in the Abyss | 1990 | 3
+Slayer | Repentless | 2015 | 3
+Anthrax | Antisocial | 1988 | 3
+Testament | Practice What You Preach | 1989 | 3
+Pantera | Domination | 1990 | 3
+Pantera | Mouth for War | 1992 | 3
+Pantera | This Love | 1992 | 3
+Pantera | 5 Minutes Alone | 1994 | 3
+Pantera | I'm Broken | 1994 | 3
+Sepultura | Refuse/Resist | 1993 | 3
+Sepultura | Territory | 1993 | 3
+Soulfly | Back to the Primitive | 2000 | 3
+Machine Head | Davidian | 1994 | 3
+Machine Head | Halo | 2007 | 3
+Korn | Got the Life | 1998 | 3
+Korn | Y'all Want a Single | 2004 | 3
+Korn | Did My Time | 2003 | 3
+Korn | Word Up! | 2004 | 3
+Korn | Evolution | 2007 | 3
+Korn | Narcissistic Cannibal | 2011 | 3
+Korn | Rotting in Vain | 2016 | 3
+Korn | Cold | 2019 | 3
+Limp Bizkit | Rollin' (Urban Assault Vehicle) | 2000 | 3
+Limp Bizkit | Re-Arranged | 1999 | 3
+Limp Bizkit | Boiler | 2001 | 3
+Limp Bizkit | Eat You Alive | 2003 | 3
+Limp Bizkit | Gold Cobra | 2011 | 3
+Limp Bizkit | Dad Vibes | 2021 | 3
+Rage Against the Machine | Testify | 1999 | 3
+Rage Against the Machine | Guerrilla Radio | 1999 | 3
+Rage Against the Machine | Sleep Now in the Fire | 1999 | 3
+Rage Against the Machine | Know Your Enemy | 1992 | 3
+Rage Against the Machine | People of the Sun | 1996 | 3
+System of a Down | Radio/Video | 2005 | 3
+System of a Down | Forest | 2001 | 3
+System of a Down | Prison Song | 2001 | 3
+System of a Down | Needles | 2001 | 3
+System of a Down | Psycho | 2001 | 3
+System of a Down | Cigaro | 2005 | 3
+System of a Down | Holy Mountains | 2005 | 3
+System of a Down | Kill Rock 'n Roll | 2005 | 3
+System of a Down | Vicinity of Obscenity | 2005 | 3
+System of a Down | Deer Dance | 2001 | 3
+System of a Down | Innervision | 2002 | 3
+System of a Down | I-E-A-I-A-I-O | 2002 | 3
+System of a Down | Protect the Land | 2020 | 3
+Serj Tankian | Empty Walls | 2007 | 3
+Serj Tankian | Sky Is Over | 2007 | 3
+Slipknot | People = Shit | 2001 | 3
+Slipknot | Left Behind | 2001 | 3
+Slipknot | My Plague | 2001 | 3
+Slipknot | Vermilion | 2004 | 3
+Slipknot | Vermilion, Pt. 2 | 2004 | 3
+Slipknot | Sulfur | 2008 | 3
+Slipknot | Dead Memories | 2008 | 3
+Slipknot | Unsainted | 2019 | 3
+Slipknot | The Chapeltown Rag | 2021 | 3
+Slipknot | Spit It Out | 1999 | 3
+Slipknot | Surfacing | 1999 | 3
+Slipknot | (sic) | 1999 | 3
+Stone Sour | Bother | 2002 | 3
+Stone Sour | Say You'll Haunt Me | 2010 | 3
+Disturbed | Inside the Fire | 2008 | 3
+Disturbed | Prayer | 2002 | 3
+Disturbed | Ten Thousand Fists | 2005 | 3
+Disturbed | Voices | 2000 | 3
+Disturbed | The Light | 2015 | 3
+Disturbed | Are You Ready | 2018 | 3
+Godsmack | Voodoo | 1998 | 3
+Godsmack | Awake | 2000 | 3
+Godsmack | Bulletproof | 2018 | 3
+Five Finger Death Punch | Jekyll and Hyde | 2015 | 3
+Five Finger Death Punch | Gone Away | 2017 | 3
+Five Finger Death Punch | Remember Everything | 2011 | 3
+Avenged Sevenfold | Afterlife | 2007 | 3
+Avenged Sevenfold | Buried Alive | 2010 | 3
+Avenged Sevenfold | Shepherd of Fire | 2013 | 3
+Avenged Sevenfold | Unholy Confessions | 2003 | 3
+Avenged Sevenfold | Almost Easy | 2007 | 3
+Avenged Sevenfold | Dear God | 2007 | 3
+Avenged Sevenfold | Seize the Day | 2005 | 3
+Avenged Sevenfold | The Stage | 2016 | 3
+Avenged Sevenfold | Nobody | 2023 | 3
+Bullet for My Valentine | Hand of Blood | 2005 | 3
+Bullet for My Valentine | Scream Aim Fire | 2008 | 3
+Bullet for My Valentine | Your Betrayal | 2010 | 3
+Trivium | Pull Harder on the Strings of Your Martyr | 2005 | 3
+Killswitch Engage | My Curse | 2006 | 3
+Killswitch Engage | The End of Heartache | 2004 | 3
+As I Lay Dying | Nothing Left | 2007 | 3
+Parkway Drive | Prey | 2018 | 3
+Parkway Drive | Wishing Wells | 2018 | 3
+Bring Me the Horizon | Shadow Moses | 2013 | 3
+Bring Me the Horizon | Sleepwalking | 2013 | 3
+Bring Me the Horizon | Follow You | 2015 | 3
+Bring Me the Horizon | Mantra | 2018 | 3
+Bring Me the Horizon | Kingslayer | 2020 | 3
+Bring Me the Horizon | Parasite Eve | 2020 | 3
+Bring Me the Horizon | Teardrops | 2020 | 3
+Bring Me the Horizon | Obey | 2020 | 3
+Bring Me the Horizon | LosT | 2023 | 3
+Bring Me the Horizon | Kool-Aid | 2024 | 3
+Architects | Doomsday | 2017 | 3
+Architects | Gone with the Wind | 2016 | 3
+Sleep Token | Alkaline | 2022 | 3
+Sleep Token | Granite | 2023 | 3
+Sleep Token | Emergence | 2025 | 3
+Bad Omens | Like a Villain | 2022 | 3
+Spiritbox | Circle with Me | 2021 | 3
+Lorna Shore | To the Hellfire | 2021 | 3
+Ghost | Rats | 2018 | 3
+Ghost | Cirice | 2015 | 3
+Ghost | Kaisarion | 2022 | 3
+Ghost | Satanized | 2025 | 3
+Ghost | Spillways | 2022 | 3
+Ghost | He Is | 2015 | 3
+Mastodon | Oblivion | 2009 | 3
+Gojira | The Way of All Flesh | 2008 | 3
+Gojira | Silvera | 2016 | 3
+Gojira | Born for One Thing | 2021 | 3
+Gojira | Mea culpa (Ah! Ça ira!) | 2024 | 3
+Tool | Schism | 2001 | 3
+Tool | Sober | 1993 | 3
+Tool | Forty Six & 2 | 1996 | 3
+Tool | Lateralus | 2001 | 3
+Tool | Fear Inoculum | 2019 | 3
+A Perfect Circle | Judith | 2000 | 3
+Deftones | Be Quiet and Drive (Far Away) | 1997 | 3
+Deftones | Digital Bath | 2000 | 3
+Deftones | Cherry Waves | 2006 | 3
+Deftones | Minerva | 2003 | 3
+Papa Roach | Getting Away with Murder | 2004 | 3
+Papa Roach | Forever | 2006 | 3
+Papa Roach | Lifeline | 2009 | 3
+Breaking Benjamin | Dance with the Devil | 2006 | 3
+Nightwish | Bye Bye Beautiful | 2007 | 3
+Nightwish | Ghost Love Score | 2004 | 3
+Nightwish | Storytime | 2011 | 3
+Nightwish | Élan | 2015 | 3
+Nightwish | Over the Hills and Far Away | 2001 | 3
+Nightwish | The Phantom of the Opera | 2002 | 3
+Nightwish | Dark Chest of Wonders | 2004 | 3
+Nightwish | Stargazers | 1998 | 3
+Within Temptation | Faster | 2011 | 3
+Within Temptation | Paradise (What About Us?) | 2013 | 3
+Within Temptation | Angels | 2005 | 3
+Within Temptation | Memories | 2004 | 3
+Epica | Unleashed | 2009 | 3
+Delain | April Rain | 2009 | 3
+Lacuna Coil | Our Truth | 2006 | 3
+Amaranthe | Drop Dead Cynical | 2014 | 3
+Beast in Black | Blind and Frozen | 2017 | 3
+Battle Beast | King for a Day | 2015 | 3
+Sonata Arctica | FullMoon | 1999 | 3
+Stratovarius | Hunting High and Low | 2000 | 3
+Blind Guardian | The Bard's Song – In the Forest | 1992 | 3
+Blind Guardian | Valhalla | 1989 | 3
+Helloween | Future World | 1987 | 3
+Helloween | Dr. Stein | 1988 | 3
+Gamma Ray | Send Me a Sign | 1999 | 3
+Manowar | Kings of Metal | 1988 | 3
+Manowar | Hail and Kill | 1988 | 3
+Hammerfall | Hearts on Fire | 2002 | 3
+Sabaton | 40:1 | 2008 | 3
+Sabaton | Attack of the Dead Men | 2019 | 3
+Sabaton | Swedish Pagans | 2008 | 3
+Sabaton | Resist and Bite | 2014 | 3
+Sabaton | Night Witches | 2014 | 3
+Sabaton | To Hell and Back | 2014 | 3
+Sabaton | Shiroyama | 2016 | 3
+Sabaton | Stormtroopers | 2022 | 3
+Powerwolf | Resurrection by Erection | 2009 | 3
+Powerwolf | We Drink Your Blood | 2011 | 3
+Powerwolf | Amen & Attack | 2013 | 3
+Powerwolf | Incense & Iron | 2018 | 3
+Amon Amarth | Guardians of Asgaard | 2008 | 3
+Amon Amarth | Raise Your Horns | 2016 | 3
+Wardruna | Helvegen | 2013 | 3
+Heilung | Krigsgaldr | 2015 | 3
+Children of Bodom | Are You Dead Yet? | 2005 | 3
+Children of Bodom | Hate Crew Deathroll | 2003 | 3
+In Flames | Cloud Connected | 2002 | 3
+In Flames | The Quiet Place | 2004 | 3
+Dark Tranquillity | ThereIn | 1999 | 3
+Arch Enemy | War Eternal | 2014 | 3
+Opeth | Ghost of Perdition | 2005 | 3
+Dream Theater | Pull Me Under | 1992 | 3
+Apocalyptica | Path | 2000 | 3
+Apocalyptica | Not Strong Enough | 2010 | 3
+Marilyn Manson | Mobscene | 2003 | 3
+Marilyn Manson | Disposable Teens | 2000 | 3
+Marilyn Manson | The Dope Show | 1998 | 3
+Marilyn Manson | Rock Is Dead | 1999 | 3
+Marilyn Manson | Heart-Shaped Glasses | 2007 | 3
+Nine Inch Nails | The Hand That Feeds | 2005 | 3
+Nine Inch Nails | March of the Pigs | 1994 | 3
+Nine Inch Nails | Only | 2005 | 3
+Rob Zombie | Living Dead Girl | 1998 | 3
+Static-X | Push It | 1999 | 3
+Mudvayne | Dig | 2000 | 3
+Drowning Pool | Tear Away | 2001 | 3
+Ill Niño | How Can I Live | 2003 | 3
+Coal Chamber | Loco | 1997 | 3
+Hollywood Undead | Everywhere I Go | 2008 | 3
+Hollywood Undead | Comin' in Hot | 2011 | 3
+Falling in Reverse | Watch the World Burn | 2023 | 3
+Falling in Reverse | Ronald | 2024 | 3
+Falling in Reverse | Zombified | 2022 | 3
+Motionless in White | Eternally Yours | 2017 | 3
+Asking Alexandria | The Final Episode (Let's Change the Channel) | 2009 | 3
+Of Mice & Men | Second & Sebring | 2011 | 3
+I Prevail | Hurricane | 2019 | 3
+Ice Nine Kills | The American Nightmare | 2018 | 3
+Babymetal | Ijime, Dame, Zettai | 2014 | 3
+Babymetal | Road of Resistance | 2015 | 3
+Electric Callboy | Pump It | 2022 | 3
+Electric Callboy | Tekkno Train | 2022 | 3
 `
   },
 ] satisfies Block[]

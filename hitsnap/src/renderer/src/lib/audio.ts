@@ -3,6 +3,32 @@
 
 const FADE = 0.012
 
+/** Ways to mangle a clip for extra challenge (and extra points). */
+export type SoundEffect = 'none' | 'reverse' | 'fast' | 'slow' | 'muffled' | 'phone' | 'bass'
+
+export const EFFECTS: Record<SoundEffect, { label: string; hint: string; bonus: number; emoji: string }> = {
+  none: { label: 'Без эффекта', hint: 'Песня звучит как есть', bonus: 1, emoji: '🎵' },
+  reverse: { label: 'Задом наперёд', hint: 'Отрывок играет в обратную сторону', bonus: 1.6, emoji: '🔄' },
+  fast: { label: 'Ускорено', hint: 'Быстрее и выше на треть', bonus: 1.2, emoji: '⏩' },
+  slow: { label: 'Замедлено', hint: 'Медленнее и ниже', bonus: 1.2, emoji: '🐢' },
+  muffled: { label: 'Из-за стены', hint: 'Как будто играет у соседей', bonus: 1.3, emoji: '🧱' },
+  phone: { label: 'По телефону', hint: 'Узкая полоса частот, как в трубке', bonus: 1.25, emoji: '📞' },
+  bass: { label: 'Только бас', hint: 'Слышны лишь низкие частоты', bonus: 1.5, emoji: '🔈' }
+}
+
+/** A reversed copy of buffer[offset, offset + length). */
+function reversedSlice(ctx: BaseAudioContext, buffer: AudioBuffer, offset: number, length: number): AudioBuffer {
+  const from = Math.floor(offset * buffer.sampleRate)
+  const frames = Math.max(1, Math.min(buffer.length - from, Math.floor(length * buffer.sampleRate)))
+  const out = ctx.createBuffer(buffer.numberOfChannels, frames, buffer.sampleRate)
+  for (let c = 0; c < buffer.numberOfChannels; c++) {
+    const src = buffer.getChannelData(c)
+    const dst = out.getChannelData(c)
+    for (let i = 0; i < frames; i++) dst[i] = src[from + frames - 1 - i]
+  }
+  return out
+}
+
 export interface PlaybackState {
   playing: boolean
   /** Seconds played of the current clip. */
@@ -41,22 +67,51 @@ class AudioEngine {
     return this.context.decodeAudioData(data.slice(0))
   }
 
-  /** Plays `length` seconds of `buffer` from `offset` (whole remainder when omitted). */
-  play(buffer: AudioBuffer, offset: number, length?: number): void {
+  /**
+   * Plays `length` seconds (of listening time) of `buffer` from `offset` —
+   * the whole remainder when omitted — optionally through a sound effect.
+   */
+  play(buffer: AudioBuffer, offset: number, length?: number, effect: SoundEffect = 'none'): void {
     const ctx = this.context
     void ctx.resume()
     this.stop(false)
-    const len = Math.max(0.05, Math.min(length ?? buffer.duration - offset, buffer.duration - offset))
+    const rate = effect === 'fast' ? 1.35 : effect === 'slow' ? 0.75 : 1
+    const available = (buffer.duration - offset) / rate
+    const len = Math.max(0.05, Math.min(length ?? available, available))
     const src = ctx.createBufferSource()
     const gain = ctx.createGain()
-    src.buffer = buffer
-    src.connect(gain).connect(this.master)
+    let startAt = offset
+    if (effect === 'reverse') {
+      src.buffer = reversedSlice(ctx, buffer, offset, len)
+      startAt = 0
+    } else {
+      src.buffer = buffer
+    }
+    src.playbackRate.value = rate
+    let chain: AudioNode = src
+    const filter = (type: BiquadFilterType, frequency: number, q = 0.7): void => {
+      const f = ctx.createBiquadFilter()
+      f.type = type
+      f.frequency.value = frequency
+      f.Q.value = q
+      chain.connect(f)
+      chain = f
+    }
+    if (effect === 'muffled') filter('lowpass', 600)
+    if (effect === 'bass') filter('lowpass', 180, 1)
+    if (effect === 'phone') {
+      filter('highpass', 500)
+      filter('lowpass', 2800)
+    }
+    // Filters take loudness away; give some back so effects stay audible.
+    const boost = effect === 'bass' ? 2.2 : effect === 'muffled' || effect === 'phone' ? 1.5 : 1
+    chain.connect(gain).connect(this.master)
     const t = ctx.currentTime + 0.02
     gain.gain.setValueAtTime(0, t)
-    gain.gain.linearRampToValueAtTime(1, t + FADE)
-    gain.gain.setValueAtTime(1, t + len - FADE)
+    gain.gain.linearRampToValueAtTime(boost, t + FADE)
+    gain.gain.setValueAtTime(boost, t + len - FADE)
     gain.gain.linearRampToValueAtTime(0, t + len)
-    src.start(t, offset, len)
+    src.start(t, startAt, len * rate)
     src.onended = () => {
       if (this.source === src) {
         this.source = null

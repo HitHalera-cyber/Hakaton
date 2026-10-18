@@ -4,8 +4,9 @@ import { Sidebar } from './components/Sidebar'
 import { Toasts } from './components/Toasts'
 import { useTheme } from './hooks/useTheme'
 import { audio } from './lib/audio'
-import { isDemo } from './lib/api'
+import { api, isDemo } from './lib/api'
 import { GameScreen } from './screens/GameScreen'
+import { ArcadeScreen } from './screens/ArcadeScreen'
 import { CollectionsScreen } from './screens/CollectionsScreen'
 import { HomeScreen } from './screens/HomeScreen'
 import { LibraryScreen } from './screens/LibraryScreen'
@@ -18,6 +19,7 @@ const SCREENS: Record<Screen, () => React.JSX.Element> = {
   home: HomeScreen,
   game: GameScreen,
   collections: CollectionsScreen,
+  arcade: ArcadeScreen,
   library: LibraryScreen,
   stats: StatsScreen,
   settings: SettingsScreen
@@ -28,6 +30,16 @@ export function App() {
   const screen = useUi((s) => s.screen)
   const volume = useSettings((s) => s.volume)
   useEffect(() => audio.setVolume(volume), [volume])
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'F11') {
+        e.preventDefault()
+        api.toggleFullScreen()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   const Current = SCREENS[screen]
   return (

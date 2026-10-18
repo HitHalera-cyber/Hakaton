@@ -1,12 +1,14 @@
 import { motion } from 'framer-motion'
-import { CalendarDays, CalendarClock, Dumbbell, Flame, Heart, ListChecks, PartyPopper, Play, Trophy } from 'lucide-react'
+import { CalendarDays, CalendarClock, Dumbbell, Flame, Heart, ListChecks, Mic2, PartyPopper, Play, Timer, Trophy } from 'lucide-react'
 import type { ComponentType } from 'react'
 import { useMemo, useState } from 'react'
 import type { Genre, Lang } from '@shared/types'
 import { LevelBadge } from '@/components/LevelBadge'
 import { LogoMark } from '@/components/Logo'
 import { PartySetup } from '@/components/PartySetup'
+import { QuestsCard } from '@/components/QuestsCard'
 import { Button, Card, Chip, cx, SectionTitle, Segmented, Stat } from '@/components/ui'
+import { EFFECTS, type SoundEffect } from '@/lib/audio'
 import { formatNumber, formatSeconds, plural } from '@/lib/format'
 import {
   GENRE_LABELS,
@@ -32,7 +34,9 @@ const DECADES = [1960, 1970, 1980, 1990, 2000, 2010, 2020]
 const MODES: Array<{ mode: GameMode; icon: ComponentType<{ size?: number }> }> = [
   { mode: 'classic', icon: Trophy },
   { mode: 'survival', icon: Heart },
+  { mode: 'blitz', icon: Timer },
   { mode: 'quiz', icon: ListChecks },
+  { mode: 'artist', icon: Mic2 },
   { mode: 'year', icon: CalendarClock },
   { mode: 'daily', icon: CalendarDays },
   { mode: 'party', icon: PartyPopper },
@@ -100,7 +104,7 @@ export function HomeScreen() {
       </motion.section>
 
       <SectionTitle>Режимы</SectionTitle>
-      <div className="mb-8 grid grid-cols-2 gap-4 md:grid-cols-4">
+      <div className="mb-8 grid grid-cols-2 gap-4 md:grid-cols-3">
         {MODES.map(({ mode, icon: Icon }, i) => {
           const best = stats.bestScore[mode]
           return (
@@ -111,10 +115,7 @@ export function HomeScreen() {
               transition={{ delay: 0.04 * i }}
               whileHover={{ y: -3 }}
               onClick={() => play(mode)}
-              className={cx(
-                'glass group flex flex-col rounded-2xl p-5 text-left transition hover:border-accent/50 cursor-pointer',
-                mode === 'classic' && 'md:col-span-2 md:row-span-1'
-              )}
+              className="glass group flex flex-col rounded-2xl p-5 text-left transition hover:border-accent/50 cursor-pointer"
             >
               <span className="bg-gradient-accent mb-4 flex h-11 w-11 items-center justify-center rounded-xl text-white shadow-lg shadow-accent/30">
                 <Icon size={20} />
@@ -137,6 +138,10 @@ export function HomeScreen() {
             </motion.button>
           )
         })}
+      </div>
+
+      <div className="mb-8">
+        <QuestsCard />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
@@ -223,6 +228,30 @@ export function HomeScreen() {
               {settings.clipStart === 'intro'
                 ? 'Отрывок играет с первой ноты записи. Для своей музыки это настоящее начало песни, для базы — начало 30-секундного фрагмента от Deezer.'
                 : 'Отрывок берётся из случайного места — часто это припев или самый узнаваемый момент.'}
+            </div>
+          </Card>
+          <Card className="p-5">
+            <div className="mb-3 flex items-baseline justify-between">
+              <span className="text-sm font-medium">Звуковой эффект</span>
+              {settings.effect !== 'none' && <span className="text-xs font-semibold text-accent">очки ×{EFFECTS[settings.effect].bonus}</span>}
+            </div>
+            <div className="grid grid-cols-4 gap-1.5">
+              {(Object.keys(EFFECTS) as SoundEffect[]).map((e) => (
+                <button
+                  key={e}
+                  onClick={() => settings.update({ effect: e })}
+                  title={`${EFFECTS[e].label}: ${EFFECTS[e].hint}`}
+                  className={cx(
+                    'flex h-11 items-center justify-center rounded-xl border text-xl transition cursor-pointer',
+                    settings.effect === e ? 'border-accent bg-accent/12 shadow' : 'border-line hover:bg-fg/5'
+                  )}
+                >
+                  {EFFECTS[e].emoji}
+                </button>
+              ))}
+            </div>
+            <div className="mt-2 text-xs text-muted">
+              {EFFECTS[settings.effect].label} — {EFFECTS[settings.effect].hint.toLowerCase()}
             </div>
           </Card>
           <div className="grid grid-cols-2 gap-4">

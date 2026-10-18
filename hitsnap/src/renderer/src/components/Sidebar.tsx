@@ -1,4 +1,4 @@
-import { BarChart3, Gamepad2, LayoutGrid, Library, Moon, Settings, Sun, SunMoon } from 'lucide-react'
+import { BarChart3, Dices, Gamepad2, LayoutGrid, Library, Moon, Settings, Sun, SunMoon } from 'lucide-react'
 import type { ComponentType } from 'react'
 import { useGame } from '@/store/game'
 import { useSettings, type ThemePref } from '@/store/settings'
@@ -10,6 +10,7 @@ import { cx } from './ui'
 const NAV: Array<{ screen: Screen; label: string; icon: ComponentType<{ size?: number }> }> = [
   { screen: 'home', label: 'Играть', icon: Gamepad2 },
   { screen: 'collections', label: 'Подборки', icon: LayoutGrid },
+  { screen: 'arcade', label: 'Игротека', icon: Dices },
   { screen: 'library', label: 'Библиотека', icon: Library },
   { screen: 'stats', label: 'Статистика', icon: BarChart3 },
   { screen: 'settings', label: 'Настройки', icon: Settings }

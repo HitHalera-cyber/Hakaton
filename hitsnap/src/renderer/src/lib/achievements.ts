@@ -1,4 +1,6 @@
+import type { SoundEffect } from './audio'
 import type { GameMode, Round } from './game'
+import type { ArcadeGame } from './quests'
 import { decadeOf } from './game'
 
 // Achievements are derived from stats after each round / game.
@@ -10,6 +12,9 @@ export interface AchievementContext {
   decadeWins: Record<string, number>
   dailyDone: number
   level: number
+  arcade: Partial<Record<ArcadeGame, number>>
+  questsTotal: number
+  effectWins: Partial<Record<SoundEffect, number>>
   game?: { mode: GameMode; rounds: Round[]; score: number }
 }
 
@@ -79,7 +84,39 @@ export const ACHIEVEMENTS: Achievement[] = [
     description: 'Угадать малоизвестную песню с первой попытки',
     test: (c) => !!c.game && c.game.rounds.some((r) => won(r) && r.stage === 0 && r.song.tier === 3)
   },
-  { id: 'level-10', icon: '🚀', title: 'Десятый уровень', description: 'Дойти до 10-го уровня', test: (c) => c.level >= 10 }
+  { id: 'level-10', icon: '🚀', title: 'Десятый уровень', description: 'Дойти до 10-го уровня', test: (c) => c.level >= 10 },
+  {
+    id: 'blitz-10',
+    icon: '⏱️',
+    title: 'Скорострел',
+    description: 'Угадать 10 песен за один «Блиц»',
+    test: (c) => !!c.game && c.game.mode === 'blitz' && c.game.rounds.filter(won).length >= 10
+  },
+  {
+    id: 'artist-8',
+    icon: '🎙️',
+    title: 'Узнаю по голосу',
+    description: 'Назвать 8 исполнителей за игру в «Кто поёт?»',
+    test: (c) => !!c.game && c.game.mode === 'artist' && c.game.rounds.filter(won).length >= 8
+  },
+  { id: 'reverse', icon: '🔄', title: 'Ухо наизнанку', description: 'Угадать песню, звучащую задом наперёд', test: (c) => (c.effectWins.reverse ?? 0) >= 1 },
+  {
+    id: 'effects-all',
+    icon: '🎛️',
+    title: 'Звукорежиссёр',
+    description: 'Угадать песню с каждым звуковым эффектом',
+    test: (c) => (['reverse', 'fast', 'slow', 'muffled', 'phone', 'bass'] as const).every((e) => (c.effectWins[e] ?? 0) > 0)
+  },
+  {
+    id: 'arcade-all',
+    icon: '🕹️',
+    title: 'Завсегдатай Игротеки',
+    description: 'Сыграть во все мини-игры',
+    test: (c) => (['older', 'timeline', 'whose', 'odd'] as const).every((g) => c.arcade[g] !== undefined)
+  },
+  { id: 'older-15', icon: '⏳', title: 'Историк', description: '«Что старше?»: серия из 15', test: (c) => (c.arcade.older ?? 0) >= 15 },
+  { id: 'timeline-5', icon: '📅', title: 'Летописец', description: '«Хронология»: расставить все 5 песен верно', test: (c) => (c.arcade.timeline ?? 0) >= 5 },
+  { id: 'quests-10', icon: '🎯', title: 'Исполнительный', description: 'Выполнить 10 ежедневных заданий', test: (c) => c.questsTotal >= 10 }
 ]
 
 export function wonDecade(r: Round): string {

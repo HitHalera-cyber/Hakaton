@@ -1,4 +1,4 @@
-import { Trash2, Volume1, Volume2, VolumeX } from 'lucide-react'
+import { Maximize2, Trash2, Volume1, Volume2, VolumeX } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Button, Card, cx, SectionTitle, Segmented, Toggle } from '@/components/ui'
 import { api } from '@/lib/api'
@@ -71,6 +71,11 @@ export function SettingsScreen() {
               />
             ))}
           </div>
+        </Row>
+        <Row title="Полный экран" hint="Удобно для «Вечеринки» на большом экране. Клавиша F11">
+          <Button variant="secondary" onClick={() => api.toggleFullScreen()}>
+            <Maximize2 size={16} /> Переключить
+          </Button>
         </Row>
         <Row title="Визуализатор" hint="Анимированный спектр во время звучания">
           <Toggle label="Визуализатор" checked={s.visualizer} onChange={(visualizer) => s.update({ visualizer })} />
@@ -168,7 +173,7 @@ export function SettingsScreen() {
       </Card>
 
       <p className="text-center text-xs text-muted">
-        HitSnap 1.1 · Превью песен — Deezer и iTunes (30-секундные отрывки, предоставляемые сервисами)
+        HitSnap 1.2 · Превью песен — Deezer и iTunes (30-секундные отрывки, предоставляемые сервисами)
       </p>
     </div>
   )

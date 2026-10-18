@@ -249,21 +249,26 @@ function DeezerPacks({ onPlay }: { onPlay: (pack: Pack) => void }) {
   const toast = useUi((u) => u.toast)
   const [link, setLink] = useState('')
   const [busy, setBusy] = useState<'link' | 'chart' | null>(null)
+  const [stage, setStage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const run = async (kind: 'link' | 'chart') => {
     setBusy(kind)
     setError(null)
     try {
+      setStage('Загружаем плейлист…')
       const playlist = kind === 'chart' ? await api.fetchChart() : await api.fetchPlaylist(link)
       if (!playlist.tracks.length) throw new Error('В плейлисте нет песен с превью')
-      const pack = savePack(playlist)
+      setStage(`Определяем жанры и годы для ${playlist.tracks.length} ${plural(playlist.tracks.length, 'песни', 'песен', 'песен')}…`)
+      const classified = await api.classify(playlist.tracks).catch(() => [])
+      const pack = savePack(playlist, classified)
       setLink('')
       toast({ title: 'Плейлист добавлен', body: `${pack.title} · ${pack.songs.length} ${plural(pack.songs.length, 'песня', 'песни', 'песен')}`, icon: '📀' })
     } catch (err) {
       setError(errorText(err) || 'Не удалось загрузить плейлист. Проверьте ссылку и подключение к интернету.')
     } finally {
       setBusy(null)
+      setStage(null)
     }
   }
 
@@ -295,6 +300,11 @@ function DeezerPacks({ onPlay }: { onPlay: (pack: Pack) => void }) {
       <Button variant="secondary" className="mt-2 w-full" onClick={() => void run('chart')} disabled={busy !== null}>
         {busy === 'chart' ? <Loader2 size={16} className="animate-spin" /> : <TrendingUp size={16} />} Загрузить чарт Deezer (топ-100)
       </Button>
+      {stage && (
+        <div className="mt-3 flex items-center gap-2 rounded-xl bg-accent/10 px-4 py-3 text-sm text-accent">
+          <Loader2 size={15} className="animate-spin" /> {stage}
+        </div>
+      )}
       {error && <div className="mt-3 rounded-xl bg-bad/10 px-4 py-3 text-sm text-bad">{error}</div>}
       <div className="mt-4 space-y-2">
         {packs.map((p) => (

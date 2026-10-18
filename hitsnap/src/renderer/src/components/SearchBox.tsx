@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { Search, X } from 'lucide-react'
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import type { Song } from '@shared/types'
-import { highlightRanges, search } from '@/lib/search'
+import { highlightRanges, search, type SearchIndex } from '@/lib/search'
 import { useSearchIndex } from '@/store/library'
 import { cx } from './ui'
 
@@ -40,9 +40,14 @@ export const SearchBox = forwardRef<
     disabled?: boolean
     placeholder?: string
     onEmptyKey?: (e: KeyboardEvent<HTMLInputElement>) => boolean
+    /** Search over something other than the song base (e.g. artists). */
+    index?: SearchIndex
+    /** Second line of a suggestion; the artist by default. */
+    describe?: (song: Song) => string
   }
->(function SearchBox({ onPick, excludeIds = [], disabled, placeholder, onEmptyKey }, ref) {
-  const index = useSearchIndex()
+>(function SearchBox({ onPick, excludeIds = [], disabled, placeholder, onEmptyKey, index: customIndex, describe }, ref) {
+  const songIndex = useSearchIndex()
+  const index = customIndex ?? songIndex
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
   const [open, setOpen] = useState(false)
@@ -152,7 +157,7 @@ export const SearchBox = forwardRef<
                       <Highlighted text={song.title} query={query} />
                     </span>
                     <span className="block truncate text-sm text-muted">
-                      <Highlighted text={song.artist} query={query} />
+                      {describe ? describe(song) : <Highlighted text={song.artist} query={query} />}
                     </span>
                   </span>
                   {i === active && <span className="text-xs text-muted">Enter ↵</span>}

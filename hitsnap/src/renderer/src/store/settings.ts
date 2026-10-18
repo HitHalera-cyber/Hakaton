@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import type { SoundEffect } from '@/lib/audio'
 import { EMPTY_FILTERS, PLAYER_COLORS, type ClipStart, type Difficulty, type Filters, type GameMode, type Player } from '@/lib/game'
 import { diskStorage } from './persist'
 
@@ -21,6 +22,8 @@ export interface Settings {
   stationMode: Extract<GameMode, 'classic' | 'quiz' | 'year' | 'survival'>
   players: Player[]
   partyRounds: number
+  /** Sound effect applied to clips in regular games. */
+  effect: SoundEffect
 }
 
 interface SettingsStore extends Settings {
@@ -43,7 +46,8 @@ export const DEFAULT_SETTINGS: Settings = {
     { name: 'Игрок 1', color: PLAYER_COLORS[0] },
     { name: 'Игрок 2', color: PLAYER_COLORS[1] }
   ],
-  partyRounds: 10
+  partyRounds: 10,
+  effect: 'none'
 }
 
 export const useSettings = create<SettingsStore>()(
