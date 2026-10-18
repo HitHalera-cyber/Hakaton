@@ -20,15 +20,15 @@ Eminem | Lose Yourself | 2002 | 1
 Eminem | Without Me | 2002 | 1
 Eminem | Till I Collapse | 2002
 50 Cent | In da Club | 2003 | 1
-Black Eyed Peas | Where Is the Love? | 2003
+Black Eyed Peas | Where Is the Love? | 2003 | 1
 OutKast | Hey Ya! | 2003
 Eminem | Mockingbird | 2004
 Snoop Dogg | Drop It Like It's Hot | 2004
 50 Cent | Candy Shop | 2005
-Black Eyed Peas | Pump It | 2005
+Black Eyed Peas | Pump It | 2005 | 1
 Kanye West | Stronger | 2007
 Kanye West | Heartless | 2008
-Black Eyed Peas | Boom Boom Pow | 2009
+Black Eyed Peas | Boom Boom Pow | 2009 | 1
 Jay-Z | Empire State of Mind | 2009
 Kid Cudi | Pursuit of Happiness | 2009
 Eminem | Love the Way You Lie | 2010
@@ -263,11 +263,11 @@ Gorillaz | Stylo | 2010 | 3
 Gorillaz | Dirty Harry | 2005 | 3
 Gorillaz | 19-2000 | 2001 | 3
 Gorillaz | Humility | 2018 | 3
-Black Eyed Peas | Let's Get It Started | 2004
+Black Eyed Peas | Let's Get It Started | 2004 | 1
 Black Eyed Peas | Shut Up | 2003 | 3
 Black Eyed Peas | My Humps | 2005 | 3
 Black Eyed Peas | Imma Be | 2009 | 3
-Black Eyed Peas | The Time (Dirty Bit) | 2010
+Black Eyed Peas | The Time (Dirty Bit) | 2010 | 1
 Black Eyed Peas | Meet Me Halfway | 2009 | 3
 Black Eyed Peas | Don't Stop the Party | 2010 | 3
 Black Eyed Peas | RITMO (Bad Boys for Life) | 2019 | 3

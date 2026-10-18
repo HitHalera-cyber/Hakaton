@@ -5,7 +5,7 @@ export default [
     genre: 'rock',
     lang: 'en',
     lines: `
-Elvis Presley | Jailhouse Rock | 1957
+Elvis Presley | Jailhouse Rock | 1957 | 1
 The Animals | The House of the Rising Sun | 1964 | 1
 The Kinks | You Really Got Me | 1964
 The Beatles | Yesterday | 1965 | 1
@@ -45,7 +45,7 @@ AC/DC | Back in Black | 1980 | 1
 Queen | Another One Bites the Dust | 1980 | 1
 Joan Jett & the Blackhearts | I Love Rock 'n' Roll | 1981
 Journey | Don't Stop Believin' | 1981
-Phil Collins | In the Air Tonight | 1981
+Phil Collins | In the Air Tonight | 1981 | 1
 Queen & David Bowie | Under Pressure | 1981 | 1
 Survivor | Eye of the Tiger | 1982 | 1
 Toto | Africa | 1982 | 1
@@ -103,8 +103,8 @@ Papa Roach | Last Resort | 2000
 Muse | Plug In Baby | 2001
 Nickelback | How You Remind Me | 2001
 Avril Lavigne | Sk8er Boi | 2002
-Coldplay | The Scientist | 2002
-Coldplay | Clocks | 2002
+Coldplay | The Scientist | 2002 | 1
+Coldplay | Clocks | 2002 | 1
 Red Hot Chili Peppers | Can't Stop | 2002
 Evanescence | Bring Me to Life | 2003 | 1
 Evanescence | My Immortal | 2003
@@ -118,7 +118,7 @@ Green Day | Boulevard of Broken Dreams | 2004 | 1
 Green Day | American Idiot | 2004
 Green Day | Wake Me Up When September Ends | 2004
 My Chemical Romance | Helena | 2004
-Coldplay | Fix You | 2005
+Coldplay | Fix You | 2005 | 1
 Nickelback | Rockstar | 2005
 Muse | Supermassive Black Hole | 2006
 My Chemical Romance | Welcome to the Black Parade | 2006
@@ -133,16 +133,16 @@ Paramore | Decode | 2008
 Muse | Uprising | 2009
 Skillet | Monster | 2009
 Imagine Dragons | Radioactive | 2012 | 1
-Imagine Dragons | Demons | 2012
+Imagine Dragons | Demons | 2012 | 1
 Thousand Foot Krutch | Courtesy Call | 2012
 Fall Out Boy | My Songs Know What You Did in the Dark (Light Em Up) | 2013
 Fall Out Boy | Centuries | 2014
 Imagine Dragons | Believer | 2017 | 1
 Imagine Dragons | Thunder | 2017 | 1
 Måneskin | Beggin' | 2017 | 1
-Imagine Dragons | Natural | 2018
+Imagine Dragons | Natural | 2018 | 1
 Panic! At The Disco | High Hopes | 2018
-Imagine Dragons | Enemy | 2021
+Imagine Dragons | Enemy | 2021 | 1
 Måneskin | I WANNA BE YOUR SLAVE | 2021
 `
   },
@@ -1222,6 +1222,398 @@ Arctic Monkeys | Suck It and See | 2011 | 3
 Arctic Monkeys | Tranquility Base Hotel & Casino | 2018 | 3
 Arctic Monkeys | Body Paint | 2022 | 3
 Arctic Monkeys | Sculptures of Anything Goes | 2022 | 3
+`
+  },
+  {
+    genre: 'rock',
+    lang: 'en',
+    lines: `
+The Beatles | Here, There and Everywhere | 1966 | 3
+The Beatles | Taxman | 1966 | 3
+The Beatles | Got to Get You into My Life | 1966 | 3
+The Beatles | Good Day Sunshine | 1966 | 3
+The Beatles | With a Little Help from My Friends | 1967 | 3
+The Beatles | A Day in the Life | 1967 | 3
+The Beatles | Sgt. Pepper's Lonely Hearts Club Band | 1967 | 3
+The Beatles | When I'm Sixty-Four | 1967 | 3
+The Beatles | Lovely Rita | 1967 | 3
+The Beatles | I Am the Walrus | 1967 | 3
+The Beatles | The Fool on the Hill | 1967 | 3
+The Beatles | Magical Mystery Tour | 1967 | 3
+The Beatles | Lady Madonna | 1968 | 3
+The Beatles | Revolution | 1968 | 3
+The Beatles | Helter Skelter | 1968 | 3
+The Beatles | Dear Prudence | 1968 | 3
+The Beatles | Julia | 1968 | 3
+The Beatles | Happiness Is a Warm Gun | 1968 | 3
+The Beatles | Octopus's Garden | 1969 | 3
+The Beatles | Oh! Darling | 1969 | 3
+The Beatles | Golden Slumbers | 1969 | 3
+The Beatles | I Want You (She's So Heavy) | 1969 | 3
+The Beatles | Because | 1969 | 3
+The Beatles | Maxwell's Silver Hammer | 1969 | 3
+The Beatles | The Long and Winding Road | 1970 | 3
+The Beatles | Across the Universe | 1970 | 3
+The Beatles | Don't Let Me Down | 1969 | 3
+The Beatles | The Ballad of John and Yoko | 1969 | 3
+The Beatles | All My Loving | 1963 | 3
+The Beatles | Please Please Me | 1963 | 3
+The Beatles | From Me to You | 1963 | 3
+The Beatles | I Saw Her Standing There | 1963 | 3
+The Beatles | Eight Days a Week | 1964 | 3
+The Beatles | I Feel Fine | 1964 | 3
+The Beatles | Ticket to Ride | 1965 | 3
+The Beatles | Nowhere Man | 1965 | 3
+The Beatles | We Can Work It Out | 1965 | 3
+The Beatles | You've Got to Hide Your Love Away | 1965 | 3
+The Beatles | Rain | 1966 | 3
+The Beatles | Now and Then | 2023 | 3
+Queen | Play the Game | 1980 | 3
+Queen | Need Your Loving Tonight | 1980 | 3
+Queen | Body Language | 1982 | 3
+Queen | Is This the World We Created...? | 1984 | 3
+Queen | Gimme the Prize | 1986 | 3
+Queen | Scandal | 1989 | 3
+Queen | I'm Going Slightly Mad | 1991 | 3
+Queen | Heaven for Everyone | 1995 | 3
+Queen | No-One but You (Only the Good Die Young) | 1997 | 3
+Queen | Now I'm Here | 1974 | 3
+Queen | Stone Cold Crazy | 1974 | 3
+Queen | '39 | 1975 | 3
+Queen | Good Old-Fashioned Lover Boy | 1976 | 3
+Queen | Sheer Heart Attack | 1977 | 3
+Queen | Don't Try Suicide | 1980 | 3
+Queen | Dragon Attack | 1980 | 3
+Queen | Keep Yourself Alive | 1973 | 3
+Queen | You Take My Breath Away | 1976 | 3
+Queen | The Prophet's Song | 1975 | 3
+Queen | It's Late | 1977 | 3
+Queen | Mustapha | 1978 | 3
+Queen | Let Me Live | 1995 | 3
+Queen | You Don't Fool Me | 1995 | 3
+Queen | Was It All Worth It | 1989 | 3
+Queen | Ride the Wild Wind | 1991 | 3
+Queen | Machines (or 'Back to Humans') | 1984 | 3
+Queen | Hang On in There | 1989 | 3
+Queen | Bijou | 1991 | 3
+Red Hot Chili Peppers | Soul to Squeeze | 1993 | 3
+Red Hot Chili Peppers | Higher Ground | 1989 | 3
+Red Hot Chili Peppers | Parallel Universe | 1999 | 3
+Red Hot Chili Peppers | Road Trippin' | 2000 | 3
+Red Hot Chili Peppers | Tell Me Baby | 2006 | 3
+Red Hot Chili Peppers | Hump de Bump | 2006 | 3
+Red Hot Chili Peppers | Desecration Smile | 2007 | 3
+Red Hot Chili Peppers | The Adventures of Rain Dance Maggie | 2011 | 3
+Red Hot Chili Peppers | Look Around | 2011 | 3
+Red Hot Chili Peppers | Goodbye Angels | 2016 | 3
+Red Hot Chili Peppers | Tippa My Tongue | 2022 | 3
+Red Hot Chili Peppers | Universally Speaking | 2002 | 3
+Red Hot Chili Peppers | Breaking the Girl | 1991 | 3
+Red Hot Chili Peppers | Suck My Kiss | 1991 | 3
+Red Hot Chili Peppers | My Friends | 1995 | 3
+Red Hot Chili Peppers | Aeroplane | 1995 | 3
+Red Hot Chili Peppers | Fortune Faded | 2003 | 3
+Red Hot Chili Peppers | Don't Forget Me | 2002 | 3
+Red Hot Chili Peppers | I Could Have Lied | 1991 | 3
+Coldplay | Shiver | 2000 | 3
+Coldplay | Don't Panic | 2000 | 3
+Coldplay | God Put a Smile upon Your Face | 2002 | 3
+Coldplay | Talk | 2005 | 3
+Coldplay | The Hardest Part | 2005 | 3
+Coldplay | Violet Hill | 2008 | 3
+Coldplay | Lovers in Japan | 2008 | 3
+Coldplay | Lost! | 2008 | 3
+Coldplay | Life in Technicolor II | 2008 | 3
+Coldplay | Charlie Brown | 2011 | 3
+Coldplay | Princess of China | 2011 | 3
+Coldplay | Up&Up | 2015 | 3
+Coldplay | Midnight | 2014 | 3
+Coldplay | True Love | 2014 | 3
+Coldplay | Coloratura | 2021 | 3
+Coldplay | Let Somebody Go | 2021 | 3
+Coldplay | We Pray | 2024 | 3
+Coldplay | All My Love | 2024 | 3
+Coldplay | Atlas | 2013 | 3
+Coldplay | Everglow | 2016 | 3
+Coldplay | Birds | 2015 | 3
+Coldplay | Christmas Lights | 2010 | 3
+Coldplay | Strawberry Swing | 2008 | 3
+Coldplay | 42 | 2008 | 3
+Coldplay | Warning Sign | 2002 | 3
+Coldplay | Sparks | 2000 | 3
+Coldplay | Swallowed in the Sea | 2005 | 3
+Coldplay | Hurts Like Heaven | 2011 | 3
+Coldplay | Us Against the World | 2011 | 3
+U2 | Stuck in a Moment You Can't Get Out Of | 2000 | 3
+U2 | Walk On | 2000 | 3
+U2 | City of Blinding Lights | 2004 | 3
+U2 | Sometimes You Can't Make It on Your Own | 2004 | 3
+U2 | Magnificent | 2009 | 3
+U2 | Get On Your Boots | 2009 | 3
+U2 | Mysterious Ways | 1991 | 3
+U2 | Even Better Than the Real Thing | 1991 | 3
+U2 | Hold Me, Thrill Me, Kiss Me, Kill Me | 1995 | 3
+U2 | Discothèque | 1997 | 3
+U2 | Staring at the Sun | 1997 | 3
+U2 | Desire | 1988 | 3
+U2 | Angel of Harlem | 1988 | 3
+U2 | All I Want Is You | 1988 | 3
+U2 | New Year's Day | 1983 | 3
+U2 | Bad | 1984 | 3
+U2 | The Sweetest Thing | 1998 | 3
+U2 | Ordinary Love | 2013 | 3
+U2 | Song for Someone | 2014 | 3
+Bon Jovi | Lay Your Hands on Me | 1988 | 3
+Bon Jovi | Born to Be My Baby | 1988 | 3
+Bon Jovi | In These Arms | 1992 | 3
+Bon Jovi | Something for the Pain | 1995 | 3
+Bon Jovi | Misunderstood | 2002 | 3
+Bon Jovi | Welcome to Wherever You Are | 2005 | 3
+Bon Jovi | We Weren't Born to Follow | 2009 | 3
+Bon Jovi | Because We Can | 2013 | 3
+Bon Jovi | Never Say Goodbye | 1986 | 3
+Bon Jovi | Dry County | 1992 | 3
+Bon Jovi | Hey God | 1995 | 3
+Bon Jovi | Santa Fe | 1990 | 3
+Bon Jovi | Legendary | 2024 | 3
+Aerosmith | Fly Away from Here | 2001 | 3
+Aerosmith | Rag Doll | 1987 | 3
+Aerosmith | Dude (Looks Like a Lady) | 1987 | 3
+Aerosmith | What It Takes | 1989 | 3
+Aerosmith | The Other Side | 1990 | 3
+Aerosmith | Eat the Rich | 1993 | 3
+Aerosmith | Falling in Love (Is Hard on the Knees) | 1997 | 3
+Aerosmith | Hole in My Soul | 1997 | 3
+Aerosmith | Back in the Saddle | 1976 | 3
+Aerosmith | Last Child | 1976 | 3
+Aerosmith | Mama Kin | 1973 | 3
+Aerosmith | Toys in the Attic | 1975 | 3
+Guns N' Roses | Nightrain | 1987 | 3
+Guns N' Roses | Mr. Brownstone | 1987 | 3
+Guns N' Roses | It's So Easy | 1987 | 3
+Guns N' Roses | Rocket Queen | 1987 | 3
+Guns N' Roses | Yesterdays | 1991 | 3
+Guns N' Roses | Dead Horse | 1991 | 3
+Guns N' Roses | Used to Love Her | 1988 | 3
+Guns N' Roses | Since I Don't Have You | 1993 | 3
+Guns N' Roses | Sympathy for the Devil | 1994 | 3
+Guns N' Roses | Chinese Democracy | 2008 | 3
+Guns N' Roses | Better | 2008 | 3
+Guns N' Roses | Street of Dreams | 2008 | 3
+Guns N' Roses | Absurd | 2021 | 3
+Guns N' Roses | Perhaps | 2023 | 3
+Nirvana | Sliver | 1990 | 3
+Nirvana | Aneurysm | 1991 | 3
+Nirvana | Territorial Pissings | 1991 | 3
+Nirvana | Stay Away | 1991 | 3
+Nirvana | On a Plain | 1991 | 3
+Nirvana | Lounge Act | 1991 | 3
+Nirvana | Serve the Servants | 1993 | 3
+Nirvana | Scentless Apprentice | 1993 | 3
+Nirvana | Milk It | 1993 | 3
+Nirvana | Very Ape | 1993 | 3
+Nirvana | Negative Creep | 1989 | 3
+Nirvana | School | 1989 | 3
+Nirvana | Love Buzz | 1988 | 3
+Nirvana | Been a Son | 1989 | 3
+Nirvana | Molly's Lips | 1992 | 3
+Nirvana | Plateau | 1994 | 3
+Nirvana | Oh Me | 1994 | 3
+Nirvana | Jesus Doesn't Want Me for a Sunbeam | 1994 | 3
+Foo Fighters | Monkey Wrench | 1997 | 3
+Foo Fighters | This Is a Call | 1995 | 3
+Foo Fighters | Big Me | 1995 | 3
+Foo Fighters | Walking After You | 1997 | 3
+Foo Fighters | Breakout | 1999 | 3
+Foo Fighters | Next Year | 1999 | 3
+Foo Fighters | All My Life | 2002 | 3
+Foo Fighters | DOA | 2005 | 3
+Foo Fighters | Long Road to Ruin | 2007 | 3
+Foo Fighters | Wheels | 2009 | 3
+Foo Fighters | Walk | 2011 | 3
+Foo Fighters | Rope | 2011 | 3
+Foo Fighters | These Days | 2011 | 3
+Foo Fighters | Something from Nothing | 2014 | 3
+Foo Fighters | Run | 2017 | 3
+Foo Fighters | The Sky Is a Neighborhood | 2017 | 3
+Foo Fighters | Shame Shame | 2020 | 3
+Foo Fighters | Rescued | 2023 | 3
+Foo Fighters | Under You | 2023 | 3
+Green Day | She | 1994 | 3
+Green Day | Welcome to Paradise | 1994 | 3
+Green Day | Hitchin' a Ride | 1997 | 3
+Green Day | Minority | 2000 | 3
+Green Day | Warning | 2000 | 3
+Green Day | Jesus of Suburbia | 2004 | 3
+Green Day | Know Your Enemy | 2009 | 3
+Green Day | 21st Century Breakdown | 2009 | 3
+Green Day | Oh Love | 2012 | 3
+Green Day | Bang Bang | 2016 | 3
+Green Day | Still Breathing | 2016 | 3
+Green Day | Father of All... | 2020 | 3
+Green Day | The American Dream Is Killing Me | 2023 | 3
+Green Day | Brain Stew | 1995 | 3
+Green Day | Geek Stink Breath | 1995 | 3
+Green Day | Nice Guys Finish Last | 1997 | 3
+Green Day | Redundant | 1998 | 3
+Green Day | Waiting | 2001 | 3
+Green Day | Poprocks & Coke | 2001 | 3
+Green Day | Last Night on Earth | 2009 | 3
+Green Day | Letterbomb | 2004 | 3
+Green Day | Whatsername | 2004 | 3
+Green Day | Give Me Novacaine | 2004 | 3
+Blink-182 | Adam's Song | 1999 | 3
+Blink-182 | Feeling This | 2003 | 3
+Blink-182 | Always | 2004 | 3
+Blink-182 | Down | 2004 | 3
+Blink-182 | Dammit | 1997 | 3
+Blink-182 | The Rock Show | 2001 | 3
+Blink-182 | Stay Together for the Kids | 2001 | 3
+Blink-182 | Bored to Death | 2016 | 3
+Blink-182 | Edging | 2022 | 3
+Blink-182 | Josie | 1997 | 3
+Blink-182 | Up All Night | 2011 | 3
+The Offspring | Gone Away | 1997 | 3
+The Offspring | All I Want | 1997 | 3
+The Offspring | Hit That | 2003 | 3
+The Offspring | Hammerhead | 2008 | 3
+The Offspring | Kristy, Are You Doing Okay? | 2008 | 3
+The Offspring | Days Go By | 2012 | 3
+The Offspring | Let the Bad Times Roll | 2021 | 3
+The Offspring | Million Miles Away | 2000 | 3
+The Offspring | Defy You | 2001 | 3
+The Offspring | Gotta Get Away | 1994 | 3
+The Offspring | Bad Habit | 1994 | 3
+The Offspring | Americana | 1998 | 3
+The Offspring | She's Got Issues | 1998 | 3
+Muse | Showbiz | 1999 | 3
+Muse | Sunburn | 1999 | 3
+Muse | Muscle Museum | 1999 | 3
+Muse | Hyper Music | 2001 | 3
+Muse | Citizen Erased | 2001 | 3
+Muse | Butterflies and Hurricanes | 2003 | 3
+Muse | Apocalypse Please | 2003 | 3
+Muse | Assassin | 2006 | 3
+Muse | Invincible | 2006 | 3
+Muse | Exogenesis: Symphony Part 1 (Overture) | 2009 | 3
+Muse | United States of Eurasia | 2009 | 3
+Muse | Panic Station | 2012 | 3
+Muse | Survival | 2012 | 3
+Muse | Follow Me | 2012 | 3
+Muse | Mercy | 2015 | 3
+Muse | Reapers | 2015 | 3
+Muse | Thought Contagion | 2018 | 3
+Muse | Something Human | 2018 | 3
+Muse | Algorithm | 2018 | 3
+Muse | Kill or Be Killed | 2022 | 3
+Muse | Will of the People | 2022 | 3
+Arctic Monkeys | The View from the Afternoon | 2006 | 3
+Arctic Monkeys | Dancing Shoes | 2006 | 3
+Arctic Monkeys | Riot Van | 2006 | 3
+Arctic Monkeys | Brick by Brick | 2011 | 3
+Arctic Monkeys | The Hellcat Spangled Shalalala | 2011 | 3
+Arctic Monkeys | Black Treacle | 2011 | 3
+Arctic Monkeys | Mad Sounds | 2013 | 3
+Arctic Monkeys | Fireside | 2013 | 3
+Arctic Monkeys | One for the Road | 2013 | 3
+Arctic Monkeys | Star Treatment | 2018 | 3
+Arctic Monkeys | The Ultracheese | 2018 | 3
+Arctic Monkeys | I Ain't Quite Where I Think I Am | 2022 | 3
+Arctic Monkeys | The Car | 2022 | 3
+Arctic Monkeys | Pretty Visitors | 2009 | 3
+Arctic Monkeys | Potion Approaching | 2009 | 3
+Arctic Monkeys | Secret Door | 2009 | 3
+Arctic Monkeys | Leave Before the Lights Come On | 2006 | 3
+Arctic Monkeys | Baby I'm Yours | 2013 | 3
+The Killers | Bones | 2006 | 3
+The Killers | A Dustland Fairytale | 2008 | 3
+The Killers | The World We Live In | 2009 | 3
+The Killers | Shot at the Night | 2013 | 3
+The Killers | The Man | 2017 | 3
+The Killers | My Own Soul's Warning | 2020 | 3
+The Killers | Jenny Was a Friend of Mine | 2004 | 3
+The Killers | For Reasons Unknown | 2006 | 3
+The Killers | Sam's Town | 2006 | 3
+The Killers | Miss Atomic Bomb | 2012 | 3
+The Killers | Boy | 2022 | 3
+Kings of Leon | Radioactive | 2010 | 3
+Kings of Leon | Revelry | 2008 | 3
+Kings of Leon | On Call | 2007 | 3
+Kings of Leon | Molly's Chambers | 2003 | 3
+Kings of Leon | Supersoaker | 2013 | 3
+Kings of Leon | The Bandit | 2021 | 3
+The Strokes | Hard to Explain | 2001 | 3
+The Strokes | 12:51 | 2003 | 3
+The Strokes | Juicebox | 2005 | 3
+The Strokes | Under Cover of Darkness | 2011 | 3
+The Strokes | At the Door | 2020 | 3
+The Strokes | The Adults Are Talking | 2020 | 3
+The Strokes | Is This It | 2001 | 3
+The Black Keys | Little Black Submarines | 2011 | 3
+The Black Keys | Next Girl | 2010 | 3
+The Black Keys | Everlasting Light | 2010 | 3
+The Black Keys | Go | 2019 | 3
+The Black Keys | Wild Child | 2024 | 3
+Imagine Dragons | I Bet My Life | 2014 | 3
+Imagine Dragons | Shots | 2015 | 3
+Imagine Dragons | Gold | 2014 | 3
+Imagine Dragons | Mouth of the River | 2017 | 3
+Imagine Dragons | Zero | 2018 | 3
+Imagine Dragons | Follow You | 2021 | 3
+Imagine Dragons | Wrecked | 2021 | 3
+Imagine Dragons | Nice to Meet You | 2024 | 3
+Imagine Dragons | Amsterdam | 2012 | 3
+Imagine Dragons | Tiptoe | 2012 | 3
+Imagine Dragons | Hear Me | 2012 | 3
+Imagine Dragons | Smoke and Mirrors | 2015 | 3
+Imagine Dragons | Walking the Wire | 2017 | 3
+Imagine Dragons | Next to Me | 2018 | 3
+Imagine Dragons | Machine | 2018 | 3
+Imagine Dragons | Cutthroat | 2021 | 3
+Linkin Park | Krwlng | 2002 | 3
+Linkin Park | Pts.Of.Athrty | 2002 | 3
+Linkin Park | My December | 2001 | 3
+Linkin Park | High Voltage | 2001 | 3
+Linkin Park | Figure.09 | 2003 | 3
+Linkin Park | Don't Stay | 2003 | 3
+Linkin Park | Wretches and Kings | 2010 | 3
+Linkin Park | Blackout | 2010 | 3
+Linkin Park | When They Come for Me | 2010 | 3
+Linkin Park | Victimized | 2012 | 3
+Linkin Park | Skin to Bone | 2012 | 3
+Linkin Park | Until It Breaks | 2012 | 3
+Linkin Park | A Light That Never Comes | 2013 | 3
+Linkin Park | Good Goodbye | 2017 | 3
+Linkin Park | Invisible | 2017 | 3
+Linkin Park | Sharp Edges | 2017 | 3
+Linkin Park | Battle Symphony | 2017 | 3
+Linkin Park | Nobody Can Save Me | 2017 | 3
+Linkin Park | Two Faced | 2024 | 3
+Linkin Park | Over Each Other | 2024 | 3
+Linkin Park | Cut the Bridge | 2024 | 3
+Linkin Park | Casualty | 2024 | 3
+Linkin Park | The Little Things Give You Away | 2007 | 3
+Linkin Park | Hands Held High | 2007 | 3
+Linkin Park | Wake | 2007 | 3
+Linkin Park | Session | 2003 | 3
+Linkin Park | Forgotten | 2000 | 3
+Linkin Park | Cure for the Itch | 2000 | 3
+Linkin Park | Pushing Me Away | 2000 | 3
+Linkin Park | By Myself | 2000 | 3
+Evanescence | Whisper | 2003 | 3
+Evanescence | Haunted | 2003 | 3
+Evanescence | Taking Over Me | 2003 | 3
+Evanescence | My Last Breath | 2003 | 3
+Evanescence | Weight of the World | 2006 | 3
+Evanescence | Cloud Nine | 2006 | 3
+Evanescence | Lacrymosa | 2006 | 3
+Evanescence | All That I'm Living For | 2006 | 3
+Evanescence | What You Want | 2011 | 3
+Evanescence | Lost in Paradise | 2011 | 3
+Evanescence | My Heart Is Broken | 2011 | 3
+Evanescence | Use My Voice | 2020 | 3
+Evanescence | Wasted on You | 2020 | 3
+Evanescence | The Game Is Over | 2021 | 3
 `
   },
 ] satisfies Block[]

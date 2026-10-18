@@ -5,62 +5,62 @@ export default [
     genre: 'electronic',
     lang: 'en',
     lines: `
-Depeche Mode | Just Can't Get Enough | 1981
+Depeche Mode | Just Can't Get Enough | 1981 | 1
 Eurythmics | Sweet Dreams (Are Made of This) | 1983 | 1
-Pet Shop Boys | It's a Sin | 1987
-Depeche Mode | Personal Jesus | 1989
+Pet Shop Boys | It's a Sin | 1987 | 1
+Depeche Mode | Personal Jesus | 1989 | 1
 Depeche Mode | Enjoy the Silence | 1990 | 1
-Dr. Alban | It's My Life | 1992
-Snap! | Rhythm Is a Dancer | 1992
-2 Unlimited | No Limit | 1993
-Corona | The Rhythm of the Night | 1993
+Dr. Alban | It's My Life | 1992 | 1
+Snap! | Rhythm Is a Dancer | 1992 | 1
+2 Unlimited | No Limit | 1993 | 1
+Corona | The Rhythm of the Night | 1993 | 1
 Haddaway | What Is Love | 1993 | 1
 Scatman John | Scatman (Ski-Ba-Bop-Ba-Dop-Bop) | 1994 | 1
 La Bouche | Be My Lover | 1995
-The Prodigy | Breathe | 1996
-The Prodigy | Firestarter | 1996
-Daft Punk | Around the World | 1997
-ATB | 9 PM (Till I Come) | 1998
+The Prodigy | Breathe | 1996 | 1
+The Prodigy | Firestarter | 1996 | 1
+Daft Punk | Around the World | 1997 | 1
+ATB | 9 PM (Till I Come) | 1998 | 1
 Eiffel 65 | Blue (Da Ba Dee) | 1998 | 1
 Massive Attack | Teardrop | 1998
-Vengaboys | Boom, Boom, Boom, Boom!! | 1998
-Alice Deejay | Better Off Alone | 1999
+Vengaboys | Boom, Boom, Boom, Boom!! | 1998 | 1
+Alice Deejay | Better Off Alone | 1999 | 1
 Darude | Sandstorm | 1999 | 1
-Fatboy Slim | Right Here, Right Now | 1999
-Moby | Porcelain | 1999
-Daft Punk | One More Time | 2000
-Modjo | Lady (Hear Me Tonight) | 2000
-Daft Punk | Harder, Better, Faster, Stronger | 2001
-Benny Benassi | Satisfaction | 2002
-Eric Prydz | Call on Me | 2004
-Bob Sinclar | Love Generation | 2005
+Fatboy Slim | Right Here, Right Now | 1999 | 1
+Moby | Porcelain | 1999 | 1
+Daft Punk | One More Time | 2000 | 1
+Modjo | Lady (Hear Me Tonight) | 2000 | 1
+Daft Punk | Harder, Better, Faster, Stronger | 2001 | 1
+Benny Benassi | Satisfaction | 2002 | 1
+Eric Prydz | Call on Me | 2004 | 1
+Bob Sinclar | Love Generation | 2005 | 1
 The Chemical Brothers | Galvanize | 2005
 David Guetta | When Love Takes Over | 2009
-David Guetta | Memories | 2009
+David Guetta | Memories | 2009 | 1
 Avicii | Levels | 2011 | 1
-David Guetta | Titanium | 2011
-LMFAO | Party Rock Anthem | 2011
+David Guetta | Titanium | 2011 | 1
+LMFAO | Party Rock Anthem | 2011 | 1
 Skrillex | Bangarang | 2011
-Swedish House Mafia | Don't You Worry Child | 2012
+Swedish House Mafia | Don't You Worry Child | 2012 | 1
 Avicii | Wake Me Up | 2013 | 1
-Avicii | Hey Brother | 2013
+Avicii | Hey Brother | 2013 | 1
 Daft Punk | Get Lucky | 2013 | 1
 Daft Punk | Instant Crush | 2013
-Martin Garrix | Animals | 2013
-Avicii | The Nights | 2014
-Calvin Harris | Summer | 2014
-Clean Bandit | Rather Be | 2014
-Kygo | Firestone | 2014
-Robin Schulz | Prayer in C | 2014
+Martin Garrix | Animals | 2013 | 1
+Avicii | The Nights | 2014 | 1
+Calvin Harris | Summer | 2014 | 1
+Clean Bandit | Rather Be | 2014 | 1
+Kygo | Firestone | 2014 | 1
+Robin Schulz | Prayer in C | 2014 | 1
 Alan Walker | Faded | 2015 | 1
-Avicii | Waiting for Love | 2015
-Major Lazer | Lean On | 2015
-Alan Walker | Alone | 2016
-Calvin Harris | This Is What You Came For | 2016
-The Chainsmokers | Closer | 2016
+Avicii | Waiting for Love | 2015 | 1
+Major Lazer | Lean On | 2015 | 1
+Alan Walker | Alone | 2016 | 1
+Calvin Harris | This Is What You Came For | 2016 | 1
+The Chainsmokers | Closer | 2016 | 1
 The Chainsmokers | Something Just Like This | 2017
 Little Big | Skibidi | 2018 | 1
-Marshmello | Happier | 2018
+Marshmello | Happier | 2018 | 1
 Little Big | Uno | 2020
 Little Big | I'm OK | 2021
 `
@@ -95,13 +95,13 @@ Erasure | A Little Respect | 1988 | 3
 The Human League | Don't You Want Me | 1981
 Orchestral Manoeuvres in the Dark | Enola Gay | 1980 | 3
 Alphaville | Forever Young | 1984 | 1
-Alphaville | Big in Japan | 1984
+Alphaville | Big in Japan | 1984 | 1
 Real Life | Send Me an Angel | 1983 | 3
 Gary Numan | Cars | 1979 | 3
 Visage | Fade to Grey | 1980 | 3
 Paul Hardcastle | 19 | 1985 | 3
 Harold Faltermeyer | Axel F | 1984
-Crazy Frog | Axel F | 2005
+Crazy Frog | Axel F | 2005 | 1
 Jan Hammer | Crockett's Theme | 1987 | 3
 Snap! | The Power | 1990
 2 Unlimited | Get Ready for This | 1991
@@ -117,7 +117,7 @@ Fun Factory | Close to You | 1994 | 3
 DJ BoBo | Chihuahua | 2002
 DJ BoBo | Everybody | 1994 | 3
 DJ BoBo | Freedom | 1995 | 3
-Scooter | How Much Is the Fish? | 1998
+Scooter | How Much Is the Fish? | 1998 | 1
 Scooter | Maria (I Like It Loud) | 2003
 Scooter | One (Always Hardcore) | 2004 | 3
 Scooter | Fire | 1997 | 3
@@ -126,11 +126,11 @@ Scooter | Hyper Hyper | 1994 | 3
 Scooter | Posse (I Need You on the Floor) | 2001 | 3
 Scooter | J'adore Hardcore | 2008 | 3
 Mr. Oizo | Flat Beat | 1999 | 3
-Faithless | Insomnia | 1995
+Faithless | Insomnia | 1995 | 1
 Faithless | God Is a DJ | 1998 | 3
-Robert Miles | Children | 1995
+Robert Miles | Children | 1995 | 1
 Gigi D'Agostino | L'Amour Toujours | 1999 | 1
-Gigi D'Agostino | Bla Bla Bla | 1999
+Gigi D'Agostino | Bla Bla Bla | 1999 | 1
 Gigi D'Agostino | The Riddle | 1999
 Gigi D'Agostino | Another Way | 1999 | 3
 Eiffel 65 | Move Your Body | 1999 | 3
@@ -152,9 +152,9 @@ Ian Van Dahl | Castles in the Sky | 2000 | 3
 Kate Ryan | Désenchantée | 2002 | 3
 Kate Ryan | Ella elle l'a | 2008 | 3
 DJ Sammy | Heaven | 2002 | 3
-Cascada | Everytime We Touch | 2005
+Cascada | Everytime We Touch | 2005 | 1
 Cascada | Evacuate the Dancefloor | 2009 | 3
-Basshunter | Now You're Gone | 2007
+Basshunter | Now You're Gone | 2007 | 1
 Basshunter | Boten Anna | 2006 | 3
 Basshunter | All I Ever Wanted | 2008 | 3
 September | Cry for You | 2007 | 3
@@ -197,14 +197,14 @@ Daft Punk | Something About Us | 2001 | 3
 Justice | D.A.N.C.E. | 2007 | 3
 Stardust | Music Sounds Better with You | 1998 | 3
 Cassius | Feeling for You | 1999 | 3
-Kavinsky | Nightcall | 2010
+Kavinsky | Nightcall | 2010 | 1
 Daft Punk | Veridis Quo | 2001 | 3
-M83 | Midnight City | 2011
+M83 | Midnight City | 2011 | 1
 Empire of the Sun | Walking on a Dream | 2008 | 3
-Calvin Harris | Feel So Close | 2011
+Calvin Harris | Feel So Close | 2011 | 1
 Calvin Harris | We Found Love | 2011 | 3
 Calvin Harris | Outside | 2014 | 3
-Calvin Harris | How Deep Is Your Love | 2015
+Calvin Harris | How Deep Is Your Love | 2015 | 1
 Calvin Harris | Blame | 2014 | 3
 Calvin Harris | Slide | 2017 | 3
 Calvin Harris | Feels | 2017
@@ -213,17 +213,17 @@ Calvin Harris | Acceptable in the 80s | 2007 | 3
 Calvin Harris | Miracle | 2023 | 3
 Calvin Harris | Promises | 2018 | 3
 David Guetta | Play Hard | 2012 | 3
-David Guetta | Without You | 2011 | 3
+David Guetta | Without You | 2011 | 1
 David Guetta | Sexy Bitch | 2009 | 3
 David Guetta | Love Is Gone | 2007 | 3
-David Guetta | Hey Mama | 2015
+David Guetta | Hey Mama | 2015 | 1
 David Guetta | Lovers on the Sun | 2014 | 3
 David Guetta | She Wolf (Falling to Pieces) | 2012 | 3
 David Guetta | Turn Me On | 2011 | 3
 David Guetta | Where Them Girls At | 2011 | 3
 David Guetta | Bang My Head | 2015 | 3
 David Guetta | 2U | 2017 | 3
-David Guetta | I'm Good (Blue) | 2022 | 3
+David Guetta | I'm Good (Blue) | 2022 | 1
 David Guetta | Baby Don't Hurt Me | 2023 | 3
 Avicii | Addicted to You | 2013 | 3
 Avicii | Without You | 2017 | 3
@@ -243,7 +243,7 @@ Zedd | Stay the Night | 2013 | 3
 Zedd | The Middle | 2018
 Zedd | Beautiful Now | 2015 | 3
 Hardwell | Spaceman | 2012 | 3
-Martin Garrix | In the Name of Love | 2016
+Martin Garrix | In the Name of Love | 2016 | 1
 Martin Garrix | Scared to Be Lonely | 2017 | 3
 Martin Garrix | High on Life | 2018 | 3
 Martin Garrix | Tremor | 2014 | 3
@@ -256,32 +256,32 @@ Diplo | Revolution | 2013 | 3
 Major Lazer | Light It Up | 2015 | 3
 Major Lazer | Cold Water | 2016 | 3
 DJ Snake | Turn Down for What | 2013
-DJ Snake | Taki Taki | 2018
-DJ Snake | Let Me Love You | 2016
+DJ Snake | Taki Taki | 2018 | 1
+DJ Snake | Let Me Love You | 2016 | 1
 DJ Snake | Middle | 2015 | 3
-Marshmello | Alone | 2016 | 3
+Marshmello | Alone | 2016 | 1
 Marshmello | Friends | 2018 | 3
 Marshmello | Wolves | 2017 | 3
 Marshmello | Silence | 2017 | 3
-The Chainsmokers | Don't Let Me Down | 2016
+The Chainsmokers | Don't Let Me Down | 2016 | 1
 The Chainsmokers | Roses | 2015 | 3
 The Chainsmokers | Paris | 2017 | 3
 The Chainsmokers | Takeaway | 2019 | 3
-Kygo | It Ain't Me | 2017
+Kygo | It Ain't Me | 2017 | 1
 Kygo | Stole the Show | 2015 | 3
 Kygo | Higher Love | 2019 | 3
 Kygo | Stargazing | 2018 | 3
-Robin Schulz | Sugar | 2015 | 3
+Robin Schulz | Sugar | 2015 | 1
 Robin Schulz | Headlights | 2015 | 3
 Felix Jaehn | Ain't Nobody (Loves Me Better) | 2015 | 3
 Klingande | Jubel | 2013 | 3
 Alle Farben | Supergirl | 2016 | 3
-Alan Walker | The Spectre | 2017 | 3
-Alan Walker | Darkside | 2018 | 3
+Alan Walker | The Spectre | 2017 | 1
+Alan Walker | Darkside | 2018 | 1
 Alan Walker | On My Way | 2019 | 3
 Alan Walker | Sing Me to Sleep | 2016 | 3
 Alan Walker | Tired | 2017 | 3
-Clean Bandit | Rockabye | 2016
+Clean Bandit | Rockabye | 2016 | 1
 Clean Bandit | Symphony | 2017 | 3
 Clean Bandit | Solo | 2018 | 3
 Disclosure | Latch | 2012 | 3
@@ -322,12 +322,12 @@ Crystal Castles | Not in Love | 2010 | 3
 Boys Noize | Jeffer | 2007 | 3
 Martin Solveig | Hello | 2010
 Martin Solveig | Intoxicated | 2015 | 3
-Yolanda Be Cool | We No Speak Americano | 2010
-Edward Maya | Stereo Love | 2009
-Inna | Hot | 2008
+Yolanda Be Cool | We No Speak Americano | 2010 | 1
+Edward Maya | Stereo Love | 2009 | 1
+Inna | Hot | 2008 | 1
 Inna | Amazing | 2009 | 3
 Inna | Sun Is Up | 2010 | 3
-Alexandra Stan | Mr. Saxobeat | 2010
+Alexandra Stan | Mr. Saxobeat | 2010 | 1
 Akcent | Kylie | 2005 | 3
 Akcent | That's My Name | 2009 | 3
 Dan Balan | Chica Bomb | 2009
@@ -337,9 +337,9 @@ Sylver | Turn the Tide | 2000 | 3
 Darude | Feel the Beat | 2000 | 3
 Alice Deejay | Back in My Life | 1999 | 3
 Vengaboys | We're Going to Ibiza! | 1999 | 3
-Vengaboys | We Like to Party! (The Vengabus) | 1998
+Vengaboys | We Like to Party! (The Vengabus) | 1998 | 1
 Vengaboys | Shalala Lala | 2000 | 3
-Aqua | Doctor Jones | 1997
+Aqua | Doctor Jones | 1997 | 1
 Aqua | Roses Are Red | 1996 | 3
 Aqua | Cartoon Heroes | 2000 | 3
 Aqua | Turn Back Time | 1998 | 3

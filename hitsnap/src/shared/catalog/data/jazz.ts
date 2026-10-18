@@ -13,11 +13,11 @@ Ella Fitzgerald | Summertime | 1968 | 3
 Ella Fitzgerald | Dream a Little Dream of Me | 1950 | 3
 Ella Fitzgerald & Louis Armstrong | Cheek to Cheek | 1956 | 3
 Billie Holiday | Strange Fruit | 1939 | 3
-Nina Simone | Feeling Good | 1965
-Nina Simone | My Baby Just Cares for Me | 1958
+Nina Simone | Feeling Good | 1965 | 1
+Nina Simone | My Baby Just Cares for Me | 1958 | 1
 Nina Simone | Sinnerman | 1965 | 3
 Nina Simone | I Put a Spell on You | 1965 | 3
-Nat King Cole | Unforgettable | 1951
+Nat King Cole | Unforgettable | 1951 | 1
 Nat King Cole | L-O-V-E | 1965 | 3
 Nat King Cole | Quizás, Quizás, Quizás | 1958 | 3
 Frank Sinatra | That's Life | 1966 | 3
@@ -25,15 +25,15 @@ Frank Sinatra | The Way You Look Tonight | 1964 | 3
 Frank Sinatra | I've Got You Under My Skin | 1956 | 3
 Dean Martin | Sway | 1954 | 3
 Dean Martin | Volare | 1958 | 3
-Peggy Lee | Fever | 1958
-Etta James | At Last | 1960
+Peggy Lee | Fever | 1958 | 1
+Etta James | At Last | 1960 | 1
 Etta James | I'd Rather Go Blind | 1967 | 3
-Dave Brubeck Quartet | Take Five | 1959
+Dave Brubeck Quartet | Take Five | 1959 | 1
 Miles Davis | So What | 1959 | 3
 John Coltrane | My Favorite Things | 1961 | 3
 Duke Ellington | Take the "A" Train | 1941 | 3
-Glenn Miller | In the Mood | 1939
-Glenn Miller | Chattanooga Choo Choo | 1941
+Glenn Miller | In the Mood | 1939 | 1
+Glenn Miller | Chattanooga Choo Choo | 1941 | 1
 Benny Goodman | Sing, Sing, Sing | 1937 | 3
 Stan Getz & João Gilberto | The Girl from Ipanema | 1964
 Antônio Carlos Jobim | Águas de Março | 1972 | 3

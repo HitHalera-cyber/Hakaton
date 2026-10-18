@@ -460,4 +460,49 @@ Electric Callboy | Pump It | 2022 | 3
 Electric Callboy | Tekkno Train | 2022 | 3
 `
   },
+  {
+    genre: 'metal',
+    lang: 'en',
+    lines: `
+Metallica | Through the Never | 1991 | 3
+Metallica | Of Wolf and Man | 1991 | 3
+Metallica | My Friend of Misery | 1991 | 3
+Metallica | The God That Failed | 1991 | 3
+Metallica | The Struggle Within | 1991 | 3
+Metallica | Blackened | 1988 | 3
+Metallica | ...And Justice for All | 1988 | 3
+Metallica | Eye of the Beholder | 1988 | 3
+Metallica | To Live Is to Die | 1988 | 3
+Metallica | Damage, Inc. | 1986 | 3
+Metallica | Leper Messiah | 1986 | 3
+Metallica | The Thing That Should Not Be | 1986 | 3
+Metallica | Fight Fire with Fire | 1984 | 3
+Metallica | Trapped Under Ice | 1984 | 3
+Metallica | Escape | 1984 | 3
+Metallica | The Call of Ktulu | 1984 | 3
+Metallica | Hit the Lights | 1983 | 3
+Metallica | The Four Horsemen | 1983 | 3
+Metallica | Jump in the Fire | 1983 | 3
+Metallica | Whiplash | 1983 | 3
+Metallica | Motorbreath | 1983 | 3
+Metallica | No Remorse | 1983 | 3
+Metallica | Ain't My Bitch | 1996 | 3
+Metallica | Bleeding Me | 1996 | 3
+Metallica | Devil's Dance | 1997 | 3
+Metallica | Low Man's Lyric | 1997 | 3
+Metallica | Frantic | 2003 | 3
+Metallica | All Nightmare Long | 2008 | 3
+Metallica | Cyanide | 2008 | 3
+Metallica | Broken, Beat & Scarred | 2008 | 3
+Metallica | Spit Out the Bone | 2016 | 3
+Metallica | Halo on Fire | 2016 | 3
+Metallica | Now That We're Dead | 2016 | 3
+Metallica | If Darkness Had a Son | 2023 | 3
+Metallica | Inamorata | 2023 | 3
+Metallica | Die, Die My Darling | 1998 | 3
+Metallica | Astronomy | 1998 | 3
+Metallica | Loverman | 1998 | 3
+Metallica | So What | 1987 | 3
+`
+  },
 ] satisfies Block[]

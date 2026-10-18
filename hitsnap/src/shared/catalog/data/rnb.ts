@@ -6,21 +6,21 @@ export default [
     lang: 'en',
     lines: `
 Ben E. King | Stand by Me | 1961 | 1
-Marvin Gaye | Ain't No Mountain High Enough | 1967
-Stevie Wonder | Superstition | 1972
-Lionel Richie | Hello | 1984
-Prince | Purple Rain | 1984
+Marvin Gaye | Ain't No Mountain High Enough | 1967 | 1
+Stevie Wonder | Superstition | 1972 | 1
+Lionel Richie | Hello | 1984 | 1
+Prince | Purple Rain | 1984 | 1
 TLC | No Scrubs | 1999
-Beyoncé | Crazy in Love | 2003
+Beyoncé | Crazy in Love | 2003 | 1
 Usher | Yeah! | 2004
 Akon | Lonely | 2005
 Akon | Smack That | 2006
 Amy Winehouse | Rehab | 2006
 Amy Winehouse | Back to Black | 2006
-Beyoncé | Single Ladies (Put a Ring on It) | 2008
-Beyoncé | Halo | 2008
-The Weeknd | The Hills | 2015
-The Weeknd | Starboy | 2016
+Beyoncé | Single Ladies (Put a Ring on It) | 2008 | 1
+Beyoncé | Halo | 2008 | 1
+The Weeknd | The Hills | 2015 | 1
+The Weeknd | Starboy | 2016 | 1
 SZA | Kill Bill | 2022
 `
   },
@@ -67,7 +67,7 @@ Prince | 1999 | 1982 | 3
 Sinéad O'Connor | Nothing Compares 2 U | 1990
 Janet Jackson | Together Again | 1997 | 3
 Janet Jackson | All for You | 2001 | 3
-Toni Braxton | Un-Break My Heart | 1996
+Toni Braxton | Un-Break My Heart | 1996 | 1
 Toni Braxton | He Wasn't Man Enough | 2000 | 3
 Boyz II Men | End of the Road | 1992 | 3
 Boyz II Men | I'll Make Love to You | 1994 | 3
