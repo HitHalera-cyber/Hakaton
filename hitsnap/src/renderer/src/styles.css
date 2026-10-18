@@ -1,0 +1,173 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/inter';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --font-sans: 'Inter Variable', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --color-on-accent: var(--on-accent);
+  --color-good: var(--good);
+  --color-bad: var(--bad);
+  --color-warn: var(--warn);
+}
+
+:root {
+  --bg: #f4f3fa;
+  --surface: rgb(255 255 255 / 0.72);
+  --surface-2: rgb(255 255 255 / 0.95);
+  --line: rgb(40 30 90 / 0.1);
+  --fg: #1d1a2e;
+  --muted: #6b6787;
+  --on-accent: #ffffff;
+  --good: #16a34a;
+  --bad: #e11d48;
+  --warn: #d97706;
+  --blob-1: color-mix(in oklab, var(--accent) 30%, transparent);
+  --blob-2: color-mix(in oklab, var(--accent-2) 26%, transparent);
+  color-scheme: light;
+}
+
+.dark {
+  --bg: #0b0915;
+  --surface: rgb(255 255 255 / 0.045);
+  --surface-2: rgb(30 26 50 / 0.92);
+  --line: rgb(255 255 255 / 0.08);
+  --fg: #ecebf7;
+  --muted: #9a96b8;
+  --good: #34d399;
+  --bad: #fb7185;
+  --warn: #fbbf24;
+  --blob-1: color-mix(in oklab, var(--accent) 22%, transparent);
+  --blob-2: color-mix(in oklab, var(--accent-2) 18%, transparent);
+  color-scheme: dark;
+}
+
+[data-accent='violet'] { --accent: #8b5cf6; --accent-2: #ec4899; }
+[data-accent='ocean'] { --accent: #0ea5e9; --accent-2: #6366f1; }
+[data-accent='sunset'] { --accent: #f97316; --accent-2: #e11d48; }
+[data-accent='lime'] { --accent: #16a34a; --accent-2: #0d9488; }
+[data-accent='rose'] { --accent: #e11d48; --accent-2: #a855f7; }
+.dark[data-accent='lime'] { --accent: #22c55e; --accent-2: #2dd4bf; }
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  overflow: hidden;
+}
+
+input,
+textarea {
+  user-select: text;
+}
+
+.drag {
+  -webkit-app-region: drag;
+}
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+.glass {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(24px) saturate(140%);
+}
+
+.text-gradient {
+  background: linear-gradient(100deg, var(--accent), var(--accent-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.bg-gradient-accent {
+  background: linear-gradient(120deg, var(--accent), var(--accent-2));
+}
+
+.ambient {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+}
+.ambient::before,
+.ambient::after {
+  content: '';
+  position: absolute;
+  width: 60vmax;
+  height: 60vmax;
+  border-radius: 50%;
+  filter: blur(80px);
+  animation: drift 26s ease-in-out infinite alternate;
+}
+.ambient::before {
+  background: var(--blob-1);
+  top: -25vmax;
+  left: -10vmax;
+}
+.ambient::after {
+  background: var(--blob-2);
+  bottom: -30vmax;
+  right: -15vmax;
+  animation-delay: -13s;
+}
+
+@keyframes drift {
+  from { transform: translate(0, 0) scale(1); }
+  to { transform: translate(8vmax, 6vmax) scale(1.15); }
+}
+
+@keyframes spin-slow {
+  to { transform: rotate(360deg); }
+}
+.spin-slow {
+  animation: spin-slow 6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ambient::before,
+  .ambient::after,
+  .spin-slow {
+    animation: none;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 10px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+
+input[type='range'] {
+  accent-color: var(--accent);
+}
+
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
