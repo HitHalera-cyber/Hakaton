@@ -20,7 +20,7 @@ Nina Simone | I Put a Spell on You | 1965 | 3
 Nat King Cole | Unforgettable | 1951 | 1
 Nat King Cole | L-O-V-E | 1965 | 3
 Nat King Cole | Quizás, Quizás, Quizás | 1958 | 3
-Frank Sinatra | That's Life | 1966 | 3
+Frank Sinatra | That's Life | 1966 | 2
 Frank Sinatra | The Way You Look Tonight | 1964 | 3
 Frank Sinatra | I've Got You Under My Skin | 1956 | 3
 Dean Martin | Sway | 1954 | 3
@@ -190,7 +190,7 @@ Tom Waits | Hold On | 1999 | 3
 Tom Waits | Downtown Train | 1985 | 3
 Rufus Wainwright | Hallelujah | 2001 | 3
 Jeff Buckley | Lover, You Should've Come Over | 1994 | 3
-Barry White | Can't Get Enough of Your Love, Babe | 1974 | 3
+Barry White | Can't Get Enough of Your Love, Babe | 1974 | 2
 Barry White | Let the Music Play | 1975 | 3
 Isaac Hayes | Theme from Shaft | 1971 | 3
 Curtis Mayfield | Move On Up | 1970 | 3

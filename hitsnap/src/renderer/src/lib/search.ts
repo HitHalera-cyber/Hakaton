@@ -1,5 +1,5 @@
 import type { Song } from '@shared/types'
-import { editDistance, normalize, swapLayout, translit } from './text'
+import { editDistance, normalize, soundForm, soundKey, swapLayout, translit } from './text'
 
 // Live search over the song base: "mick" → everything whose words start with
 // "mick"; typos, transliteration ("kino" → «Кино») and a wrong keyboard layout
@@ -11,6 +11,8 @@ interface Entry {
   artist: string
   words: string[]
   titleWords: string[]
+  /** Every word with its soundKey — finds «леди гага» → Lady Gaga. */
+  sounds: Array<[key: string, form: string]>
   haystack: string
 }
 
@@ -37,10 +39,27 @@ export function buildIndex(songs: Song[]): SearchIndex {
         artist: artists[0],
         words,
         titleWords,
+        sounds: [...new Set(words)].map((w): [string, string] => [soundKey(w), soundForm(w)]).filter(([k]) => k.length >= 2),
         haystack: [...titles, ...artists].join(' | ')
       }
     })
   }
+}
+
+/** Score for a Cyrillic token that sounds like a word of the entry; 0 if none does. */
+function soundScore(e: Entry, tok: string): number {
+  const key = soundKey(tok)
+  if (key.length < 2) return 0
+  const form = soundForm(tok)
+  let best = 0
+  for (const [k, w] of e.sounds) {
+    if (!k.startsWith(key)) continue
+    // The whole word sounding alike beats a prefix («квин» is Queen, not Kavinsky);
+    // closer spelling breaks ties («бейонсе» is Beyoncé rather than "Bones").
+    const close = editDistance(form, w.slice(0, form.length + 1), 2) <= 2 ? 4 : 0
+    best = Math.max(best, (k === key ? 11 : 6) + close)
+  }
+  return best
 }
 
 const typoBudget = (tok: string): number => (tok.length >= 7 ? 2 : 1)
@@ -56,7 +75,13 @@ function scoreEntry(e: Entry, query: string, tokens: string[]): number {
     else if (tok.length >= 4 && e.words.some((w) => editDistance(w.slice(0, tok.length), tok, typoBudget(tok)) <= typoBudget(tok))) {
       score += 8
       strong = false
-    } else return 0
+    } else {
+      // A foreign name typed in Cyrillic: compare how it sounds.
+      const sound = tok.length >= 3 && /[а-я]/.test(tok) ? soundScore(e, tok) : 0
+      if (!sound) return 0
+      score += sound
+      strong = false
+    }
   }
   if (e.title.startsWith(query)) score += 40
   if (e.title === query) score += 40
@@ -66,7 +91,8 @@ function scoreEntry(e: Entry, query: string, tokens: string[]): number {
   return score - e.title.length * 0.05
 }
 
-export function search(index: SearchIndex, rawQuery: string, limit = 8): Song[] {
+/** Songs matching the query, best first; `limit` defaults to all of them. */
+export function search(index: SearchIndex, rawQuery: string, limit = Infinity): Song[] {
   const queries = [...new Set([normalize(rawQuery), translit(normalize(rawQuery)), normalize(swapLayout(rawQuery))])].filter(Boolean)
   if (!queries.length) return []
   const best = new Map<string, { song: Song; score: number }>()

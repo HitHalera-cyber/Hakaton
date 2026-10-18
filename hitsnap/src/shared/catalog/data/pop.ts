@@ -7,7 +7,7 @@ export default [
     lines: `
 Elvis Presley | Can't Help Falling in Love | 1961 | 1
 Simon & Garfunkel | The Sound of Silence | 1965 | 1
-Nancy Sinatra | Bang Bang (My Baby Shot Me Down) | 1966
+Nancy Sinatra | Bang Bang (My Baby Shot Me Down) | 1966 | 1
 Louis Armstrong | What a Wonderful World | 1967 | 1
 Frank Sinatra | My Way | 1969 | 1
 Elton John | Your Song | 1970 | 1
@@ -17,14 +17,14 @@ Bob Marley & The Wailers | Is This Love | 1978 | 1
 ABBA | The Winner Takes It All | 1980 | 1
 Bob Marley & The Wailers | Could You Be Loved | 1980 | 1
 Kim Wilde | Kids in America | 1981 | 1
-Duran Duran | Hungry Like the Wolf | 1982
+Duran Duran | Hungry Like the Wolf | 1982 | 1
 Michael Jackson | Billie Jean | 1982 | 1
 Michael Jackson | Beat It | 1982 | 1
 Michael Jackson | Thriller | 1982 | 1
 Cyndi Lauper | Girls Just Want to Have Fun | 1983 | 1
 Elton John | I'm Still Standing | 1983 | 1
 George Michael | Careless Whisper | 1984 | 1
-Kenny Loggins | Footloose | 1984
+Kenny Loggins | Footloose | 1984 | 1
 Laura Branigan | Self Control | 1984 | 1
 Opus | Live Is Life | 1984 | 1
 Wham! | Last Christmas | 1984 | 1
@@ -57,7 +57,7 @@ Celine Dion | My Heart Will Go On | 1997 | 1
 Hanson | MMMBop | 1997
 Savage Garden | Truly Madly Deeply | 1997
 Britney Spears | ...Baby One More Time | 1998 | 1
-Cher | Believe | 1998
+Cher | Believe | 1998 | 1
 Madonna | Frozen | 1998 | 1
 Backstreet Boys | I Want It That Way | 1999 | 1
 Christina Aguilera | Genie in a Bottle | 1999 | 1
@@ -67,25 +67,25 @@ Ricky Martin | Livin' la Vida Loca | 1999 | 1
 Britney Spears | Oops!...I Did It Again | 2000 | 1
 Kylie Minogue | Can't Get You out of My Head | 2001 | 1
 Shakira | Whenever, Wherever | 2001 | 1
-Avril Lavigne | Complicated | 2002
+Avril Lavigne | Complicated | 2002 | 1
 Justin Timberlake | Cry Me a River | 2002
 Maroon 5 | This Love | 2002 | 1
 Britney Spears | Toxic | 2003 | 1
-Sean Paul | Get Busy | 2003
-James Blunt | You're Beautiful | 2004
-Kelly Clarkson | Since U Been Gone | 2004
+Sean Paul | Get Busy | 2003 | 1
+James Blunt | You're Beautiful | 2004 | 1
+Kelly Clarkson | Since U Been Gone | 2004 | 1
 Madonna | Hung Up | 2005 | 1
-Sean Paul | Temperature | 2005
+Sean Paul | Temperature | 2005 | 1
 Justin Timberlake | SexyBack | 2006
 Nelly Furtado | Maneater | 2006 | 1
 Nelly Furtado | Say It Right | 2006 | 1
 Shakira | Hips Don't Lie | 2006 | 1
-Avril Lavigne | Girlfriend | 2007
+Avril Lavigne | Girlfriend | 2007 | 1
 Rihanna | Umbrella | 2007 | 1
 Rihanna | Don't Stop the Music | 2007 | 1
 Timbaland | Apologize | 2007 | 1
 Coldplay | Viva la Vida | 2008 | 1
-Duffy | Mercy | 2008
+Duffy | Mercy | 2008 | 1
 Katy Perry | I Kissed a Girl | 2008 | 1
 Lady Gaga | Poker Face | 2008 | 1
 Lady Gaga | Just Dance | 2008 | 1
@@ -122,12 +122,12 @@ Coldplay | A Sky Full of Stars | 2014 | 1
 Ed Sheeran | Thinking Out Loud | 2014 | 1
 Ed Sheeran | Photograph | 2014 | 1
 Mark Ronson | Uptown Funk | 2014 | 1
-Meghan Trainor | All About That Bass | 2014
+Meghan Trainor | All About That Bass | 2014 | 1
 Sia | Chandelier | 2014 | 1
 Taylor Swift | Shake It Off | 2014 | 1
 Taylor Swift | Blank Space | 2014 | 1
 Adele | Hello | 2015 | 1
-Ellie Goulding | Love Me Like You Do | 2015
+Ellie Goulding | Love Me Like You Do | 2015 | 1
 Justin Bieber | Sorry | 2015 | 1
 Justin Bieber | Love Yourself | 2015 | 1
 Maroon 5 | Sugar | 2015 | 1
@@ -135,23 +135,23 @@ The Weeknd | Can't Feel My Face | 2015 | 1
 Billie Eilish | Ocean Eyes | 2016 | 1
 Bruno Mars | 24K Magic | 2016 | 1
 Justin Timberlake | Can't Stop the Feeling! | 2016
-Shawn Mendes | Treat You Better | 2016
+Shawn Mendes | Treat You Better | 2016 | 1
 Sia | Cheap Thrills | 2016 | 1
 Dua Lipa | New Rules | 2017 | 1
 Ed Sheeran | Shape of You | 2017 | 1
 Ed Sheeran | Perfect | 2017 | 1
 Billie Eilish | lovely | 2018 | 1
-Halsey | Without Me | 2018
+Halsey | Without Me | 2018 | 1
 Lady Gaga | Shallow | 2018 | 1
-Lewis Capaldi | Someone You Loved | 2018
+Lewis Capaldi | Someone You Loved | 2018 | 1
 Maroon 5 | Girls Like You | 2018 | 1
-Post Malone | Sunflower (Spider-Man: Into the Spider-Verse) | 2018
+Post Malone | Sunflower (Spider-Man: Into the Spider-Verse) | 2018 | 1
 Billie Eilish | bad guy | 2019 | 1
-Doja Cat | Say So | 2019
+Doja Cat | Say So | 2019 | 1
 Dua Lipa | Don't Start Now | 2019 | 1
 Harry Styles | Watermelon Sugar | 2019 | 1
 Maroon 5 | Memories | 2019 | 1
-Post Malone | Circles | 2019
+Post Malone | Circles | 2019 | 1
 Shawn Mendes | Señorita | 2019 | 1
 Taylor Swift | Cruel Summer | 2019 | 1
 The Weeknd | Blinding Lights | 2019 | 1
@@ -165,17 +165,17 @@ Olivia Rodrigo | drivers license | 2021 | 1
 Olivia Rodrigo | good 4 u | 2021 | 1
 Harry Styles | As It Was | 2022 | 1
 Taylor Swift | Anti-Hero | 2022 | 1
-Billie Eilish | What Was I Made For? | 2023
+Billie Eilish | What Was I Made For? | 2023 | 1
 Dua Lipa | Houdini | 2023 | 1
 Miley Cyrus | Flowers | 2023 | 1
-Olivia Rodrigo | vampire | 2023
-Teddy Swims | Lose Control | 2023
-Benson Boone | Beautiful Things | 2024
+Olivia Rodrigo | vampire | 2023 | 1
+Teddy Swims | Lose Control | 2023 | 1
+Benson Boone | Beautiful Things | 2024 | 1
 Billie Eilish | BIRDS OF A FEATHER | 2024 | 1
-Chappell Roan | Good Luck, Babe! | 2024
+Chappell Roan | Good Luck, Babe! | 2024 | 1
 Lady Gaga | Die With A Smile | 2024 | 1
-ROSÉ | APT. | 2024
-Sabrina Carpenter | Espresso | 2024
+ROSÉ | APT. | 2024 | 1
+Sabrina Carpenter | Espresso | 2024 | 1
 `
   },
   {
@@ -202,61 +202,61 @@ Luis Fonsi | Despacito | 2017 | 1
     lang: 'en',
     lines: `
 The Beach Boys | Good Vibrations | 1966 | 1
-The Beach Boys | Wouldn't It Be Nice | 1966
-The Beach Boys | Surfin' U.S.A. | 1963 | 3
-The Monkees | I'm a Believer | 1966
-The Supremes | You Can't Hurry Love | 1966 | 3
-The Supremes | Baby Love | 1964 | 3
+The Beach Boys | Wouldn't It Be Nice | 1966 | 1
+The Beach Boys | Surfin' U.S.A. | 1963 | 1
+The Monkees | I'm a Believer | 1966 | 1
+The Supremes | You Can't Hurry Love | 1966 | 1
+The Supremes | Baby Love | 1964 | 2
 The Mamas & the Papas | California Dreamin' | 1965 | 1
-The Turtles | Happy Together | 1967 | 3
+The Turtles | Happy Together | 1967 | 1
 The Righteous Brothers | Unchained Melody | 1965 | 1
-The Ronettes | Be My Baby | 1963 | 3
+The Ronettes | Be My Baby | 1963 | 1
 Roy Orbison | Oh, Pretty Woman | 1964 | 1
 Tom Jones | Sex Bomb | 1999 | 1
 Tom Jones | It's Not Unusual | 1965 | 1
-Tom Jones | Delilah | 1968 | 3
+Tom Jones | Delilah | 1968 | 1
 Engelbert Humperdinck | A Man Without Love | 1968 | 3
-Dusty Springfield | Son of a Preacher Man | 1968 | 3
+Dusty Springfield | Son of a Preacher Man | 1968 | 1
 The Carpenters | Close to You | 1970 | 3
 The Carpenters | Yesterday Once More | 1973 | 1
 Neil Diamond | Sweet Caroline | 1969 | 1
-Don McLean | American Pie | 1971 | 3
-Carly Simon | You're So Vain | 1972 | 3
-Elton John | Tiny Dancer | 1971
+Don McLean | American Pie | 1971 | 1
+Carly Simon | You're So Vain | 1972 | 2
+Elton John | Tiny Dancer | 1971 | 1
 Elton John | Sacrifice | 1989 | 1
 Elton John | Can You Feel the Love Tonight | 1994 | 1
-Elton John | Cold Heart (PNAU Remix) | 2021
-Elton John | Crocodile Rock | 1972 | 3
+Elton John | Cold Heart (PNAU Remix) | 2021 | 1
+Elton John | Crocodile Rock | 1972 | 2
 Billy Joel | Piano Man | 1973 | 1
 Billy Joel | Uptown Girl | 1983 | 1
 Billy Joel | We Didn't Start the Fire | 1989
-Paul McCartney | Live and Let Die | 1973 | 3
+Paul McCartney | Live and Let Die | 1973 | 1
 John Lennon | Imagine | 1971 | 1
-Cat Stevens | Wild World | 1970 | 3
-Rod Stewart | Da Ya Think I'm Sexy? | 1978
-Rod Stewart | Sailing | 1975 | 3
-Barry White | You're the First, the Last, My Everything | 1974 | 3
+Cat Stevens | Wild World | 1970 | 2
+Rod Stewart | Da Ya Think I'm Sexy? | 1978 | 1
+Rod Stewart | Sailing | 1975 | 2
+Barry White | You're the First, the Last, My Everything | 1974 | 1
 Smokie | Living Next Door to Alice | 1976 | 1
 Smokie | What Can I Do | 1976 | 3
 Suzi Quatro | Stumblin' In | 1978 | 3
-Baccara | Yes Sir, I Can Boogie | 1977
+Baccara | Yes Sir, I Can Boogie | 1977 | 1
 ABBA | Chiquitita | 1979 | 1
-ABBA | Fernando | 1976
+ABBA | Fernando | 1976 | 1
 ABBA | Super Trouper | 1980 | 1
 ABBA | Lay All Your Love on Me | 1980 | 1
 ABBA | SOS | 1975
-ABBA | Voulez-Vous | 1979 | 3
-ABBA | Take a Chance on Me | 1977
+ABBA | Voulez-Vous | 1979 | 2
+ABBA | Take a Chance on Me | 1977 | 1
 ABBA | Happy New Year | 1980 | 1
-ABBA | Thank You for the Music | 1977 | 3
+ABBA | Thank You for the Music | 1977 | 2
 Olivia Newton-John | Physical | 1981
 John Travolta & Olivia Newton-John | You're the One That I Want | 1978
 Kim Carnes | Bette Davis Eyes | 1981 | 3
 Lionel Richie | All Night Long (All Night) | 1983 | 1
-Lionel Richie | Say You, Say Me | 1985 | 3
+Lionel Richie | Say You, Say Me | 1985 | 1
 Stevie Wonder | I Just Called to Say I Love You | 1984 | 1
 Phil Collins | Another Day in Paradise | 1989 | 1
-Phil Collins | You Can't Hurry Love | 1982 | 3
+Phil Collins | You Can't Hurry Love | 1982 | 2
 Phil Collins | You'll Be in My Heart | 1999
 Chris de Burgh | The Lady in Red | 1986 | 1
 Tina Turner | What's Love Got to Do with It | 1984 | 1
@@ -282,57 +282,57 @@ Michael Jackson | You Rock My World | 2001
 Michael Jackson | Heal the World | 1991 | 1
 Michael Jackson | Jam | 1991 | 3
 Michael Jackson | Wanna Be Startin' Somethin' | 1982 | 3
-Whitney Houston | How Will I Know | 1985 | 3
-Whitney Houston | Greatest Love of All | 1985 | 3
-Whitney Houston | I Have Nothing | 1992
-Whitney Houston | It's Not Right but It's Okay | 1999 | 3
+Whitney Houston | How Will I Know | 1985 | 1
+Whitney Houston | Greatest Love of All | 1985 | 1
+Whitney Houston | I Have Nothing | 1992 | 1
+Whitney Houston | It's Not Right but It's Okay | 1999 | 2
 Mariah Carey | Hero | 1993 | 1
 Mariah Carey | We Belong Together | 2005 | 1
-Mariah Carey | Without You | 1994 | 3
-Mariah Carey | Fantasy | 1995 | 3
+Mariah Carey | Without You | 1994 | 1
+Mariah Carey | Fantasy | 1995 | 1
 Celine Dion | All by Myself | 1996 | 1
 Celine Dion | It's All Coming Back to Me Now | 1996 | 3
 Celine Dion | I'm Alive | 2002 | 3
 Celine Dion | Because You Loved Me | 1996 | 3
 Bonnie Tyler | Total Eclipse of the Heart | 1983 | 1
 Bonnie Tyler | Holding Out for a Hero | 1984 | 1
-Bonnie Tyler | It's a Heartache | 1977 | 3
-Cher | If I Could Turn Back Time | 1989
+Bonnie Tyler | It's a Heartache | 1977 | 1
+Cher | If I Could Turn Back Time | 1989 | 1
 Cher | Strong Enough | 1999 | 3
-Pet Shop Boys | West End Girls | 1985
+Pet Shop Boys | West End Girls | 1985 | 1
 Pet Shop Boys | Go West | 1993 | 1
-Pet Shop Boys | Always on My Mind | 1987 | 3
+Pet Shop Boys | Always on My Mind | 1987 | 2
 Soft Cell | Tainted Love | 1981 | 1
 Culture Club | Karma Chameleon | 1983 | 1
-Spandau Ballet | True | 1983 | 3
-Simple Minds | Don't You (Forget About Me) | 1985
-Tears for Fears | Shout | 1984
+Spandau Ballet | True | 1983 | 1
+Simple Minds | Don't You (Forget About Me) | 1985 | 1
+Tears for Fears | Shout | 1984 | 1
 Tears for Fears | Mad World | 1982 | 1
-Duran Duran | Ordinary World | 1993 | 3
-Duran Duran | Rio | 1982 | 3
-a-ha | The Sun Always Shines on T.V. | 1985 | 3
+Duran Duran | Ordinary World | 1993 | 1
+Duran Duran | Rio | 1982 | 2
+a-ha | The Sun Always Shines on T.V. | 1985 | 2
 a-ha | Hunting High and Low | 1986 | 3
-Rick Astley | Together Forever | 1988 | 3
+Rick Astley | Together Forever | 1988 | 2
 Kylie Minogue | The Loco-Motion | 1987
-Kylie Minogue | Spinning Around | 2000
-Kylie Minogue | Love at First Sight | 2002 | 3
-Kylie Minogue | Padam Padam | 2023 | 3
-Belinda Carlisle | Heaven Is a Place on Earth | 1987
-Bananarama | Venus | 1986
+Kylie Minogue | Spinning Around | 2000 | 1
+Kylie Minogue | Love at First Sight | 2002 | 2
+Kylie Minogue | Padam Padam | 2023 | 2
+Belinda Carlisle | Heaven Is a Place on Earth | 1987 | 1
+Bananarama | Venus | 1986 | 1
 Dead or Alive | You Spin Me Round (Like a Record) | 1984 | 1
-Samantha Fox | Touch Me (I Want Your Body) | 1986
-Sabrina | Boys (Summertime Love) | 1987 | 3
+Samantha Fox | Touch Me (I Want Your Body) | 1986 | 1
+Sabrina | Boys (Summertime Love) | 1987 | 1
 Kaoma | Lambada | 1989 | 1
-Gipsy Kings | Volare | 1989 | 3
-Vanilla Ice | Ice Ice Baby | 1990
-MC Hammer | U Can't Touch This | 1990
+Gipsy Kings | Volare | 1989 | 1
+Vanilla Ice | Ice Ice Baby | 1990 | 1
+MC Hammer | U Can't Touch This | 1990 | 1
 Technotronic | Pump Up the Jam | 1989
 Black Box | Ride on Time | 1989 | 3
 Londonbeat | I've Been Thinking About You | 1990 | 3
 Enigma | Sadeness (Part I) | 1990
 Enigma | Return to Innocence | 1993
 Roxette | The Look | 1989 | 1
-Roxette | Joyride | 1991
+Roxette | Joyride | 1991 | 1
 Roxette | Fading Like a Flower | 1991 | 3
 Ace of Base | Happy Nation | 1992 | 1
 Ace of Base | Beautiful Life | 1995 | 3
@@ -361,24 +361,24 @@ Boyzone | No Matter What | 1998 | 3
 Ronan Keating | When You Say Nothing at All | 1999
 *NSYNC | It's Gonna Be Me | 2000 | 3
 Britney Spears | Womanizer | 2008 | 1
-Britney Spears | Circus | 2008 | 3
-Britney Spears | Gimme More | 2007 | 3
-Britney Spears | Lucky | 2000 | 3
-Britney Spears | Everytime | 2004 | 3
-Christina Aguilera | Beautiful | 2002
-Christina Aguilera | Dirrty | 2002 | 3
-Christina Aguilera | Candyman | 2006 | 3
-Christina Aguilera | Hurt | 2006 | 3
+Britney Spears | Circus | 2008 | 2
+Britney Spears | Gimme More | 2007 | 2
+Britney Spears | Lucky | 2000 | 2
+Britney Spears | Everytime | 2004 | 2
+Christina Aguilera | Beautiful | 2002 | 1
+Christina Aguilera | Dirrty | 2002 | 2
+Christina Aguilera | Candyman | 2006 | 2
+Christina Aguilera | Hurt | 2006 | 2
 Jennifer Lopez | On the Floor | 2011 | 1
-Jennifer Lopez | Waiting for Tonight | 1999 | 3
-Jennifer Lopez | Let's Get Loud | 1999 | 3
-Jennifer Lopez | Jenny from the Block | 2002 | 3
+Jennifer Lopez | Waiting for Tonight | 1999 | 2
+Jennifer Lopez | Let's Get Loud | 1999 | 2
+Jennifer Lopez | Jenny from the Block | 2002 | 2
 Enrique Iglesias | Hero | 2001 | 1
-Enrique Iglesias | Bailamos | 1999 | 3
-Enrique Iglesias | Tonight (I'm Lovin' You) | 2010 | 3
-Enrique Iglesias | Escape | 2001 | 3
+Enrique Iglesias | Bailamos | 1999 | 1
+Enrique Iglesias | Tonight (I'm Lovin' You) | 2010 | 2
+Enrique Iglesias | Escape | 2001 | 1
 Enrique Iglesias | Bailando | 2014 | 1
-Ricky Martin | She Bangs | 2000 | 3
+Ricky Martin | She Bangs | 2000 | 2
 Robbie Williams | Feel | 2002
 Robbie Williams | Angels | 1997
 Robbie Williams | Supreme | 2000 | 3
@@ -396,7 +396,7 @@ The Cardigans | Lovefool | 1996
 Shania Twain | That Don't Impress Me Much | 1997
 Shania Twain | Man! I Feel Like a Woman! | 1997
 Shania Twain | You're Still the One | 1998 | 3
-Nelly Furtado | I'm Like a Bird | 2000 | 3
+Nelly Furtado | I'm Like a Bird | 2000 | 2
 Nelly Furtado | All Good Things (Come to an End) | 2006
 Nelly Furtado | Promiscuous | 2006 | 1
 Pink | Get the Party Started | 2001
@@ -405,27 +405,27 @@ Pink | Try | 2012 | 3
 Pink | Who Knew | 2006 | 3
 Pink | Raise Your Glass | 2010 | 3
 Gwen Stefani | The Sweet Escape | 2006
-Gwen Stefani | Hollaback Girl | 2005 | 3
-Fergie | Glamorous | 2006 | 3
-Fergie | Big Girls Don't Cry | 2007 | 3
-The Pussycat Dolls | Don't Cha | 2005
-The Pussycat Dolls | Buttons | 2006 | 3
-Sugababes | Push the Button | 2005 | 3
+Gwen Stefani | Hollaback Girl | 2005 | 1
+Fergie | Glamorous | 2006 | 2
+Fergie | Big Girls Don't Cry | 2007 | 2
+The Pussycat Dolls | Don't Cha | 2005 | 1
+The Pussycat Dolls | Buttons | 2006 | 2
+Sugababes | Push the Button | 2005 | 2
 Girls Aloud | Something Kinda Ooooh | 2006 | 3
 Mika | Relax, Take It Easy | 2007
 Mika | Grace Kelly | 2007
 Scissor Sisters | I Don't Feel Like Dancin' | 2006 | 3
-Daniel Powter | Bad Day | 2005
-James Blunt | 1973 | 2007 | 3
+Daniel Powter | Bad Day | 2005 | 1
+James Blunt | 1973 | 2007 | 2
 James Morrison | You Give Me Something | 2006 | 3
-Leona Lewis | Bleeding Love | 2007
-Natasha Bedingfield | Unwritten | 2004 | 3
-Kelly Clarkson | Because of You | 2004
-Kelly Clarkson | Stronger (What Doesn't Kill You) | 2011
+Leona Lewis | Bleeding Love | 2007 | 1
+Natasha Bedingfield | Unwritten | 2004 | 1
+Kelly Clarkson | Because of You | 2004 | 1
+Kelly Clarkson | Stronger (What Doesn't Kill You) | 2011 | 1
 Kelly Clarkson | Breakaway | 2004 | 3
-Hilary Duff | So Yesterday | 2003 | 3
-Avril Lavigne | I'm with You | 2002 | 3
-Avril Lavigne | When You're Gone | 2007 | 3
+Hilary Duff | So Yesterday | 2003 | 2
+Avril Lavigne | I'm with You | 2002 | 2
+Avril Lavigne | When You're Gone | 2007 | 2
 Avril Lavigne | What the Hell | 2011 | 3
 Lady Gaga | Paparazzi | 2009 | 1
 Lady Gaga | Telephone | 2009 | 1
@@ -435,255 +435,255 @@ Lady Gaga | Applause | 2013 | 3
 Lady Gaga | Hold My Hand | 2022 | 3
 Katy Perry | Hot n Cold | 2008 | 1
 Katy Perry | California Gurls | 2010 | 1
-Katy Perry | Last Friday Night (T.G.I.F.) | 2011
-Katy Perry | E.T. | 2010 | 3
-Katy Perry | Teenage Dream | 2010
-Katy Perry | Wide Awake | 2012 | 3
-Katy Perry | Chained to the Rhythm | 2017 | 3
-Rihanna | Rude Boy | 2010
-Rihanna | S&M | 2010 | 3
-Rihanna | Where Have You Been | 2012 | 3
-Rihanna | Stay | 2012
+Katy Perry | Last Friday Night (T.G.I.F.) | 2011 | 1
+Katy Perry | E.T. | 2010 | 2
+Katy Perry | Teenage Dream | 2010 | 1
+Katy Perry | Wide Awake | 2012 | 2
+Katy Perry | Chained to the Rhythm | 2017 | 2
+Rihanna | Rude Boy | 2010 | 1
+Rihanna | S&M | 2010 | 1
+Rihanna | Where Have You Been | 2012 | 2
+Rihanna | Stay | 2012 | 1
 Rihanna | Work | 2016 | 1
-Rihanna | Disturbia | 2008 | 3
-Rihanna | Pon de Replay | 2005 | 3
+Rihanna | Disturbia | 2008 | 1
+Rihanna | Pon de Replay | 2005 | 1
 Rihanna | Love on the Brain | 2016 | 3
-Rihanna | Lift Me Up | 2022 | 3
+Rihanna | Lift Me Up | 2022 | 2
 Rihanna | FourFiveSeconds | 2015 | 3
-Beyoncé | Irreplaceable | 2006
+Beyoncé | Irreplaceable | 2006 | 1
 Beyoncé | Run the World (Girls) | 2011 | 1
-Beyoncé | Drunk in Love | 2013 | 3
-Beyoncé | Love On Top | 2011 | 3
-Beyoncé | If I Were a Boy | 2008
-Beyoncé | Cuff It | 2022 | 3
-Beyoncé | Texas Hold 'Em | 2024 | 3
+Beyoncé | Drunk in Love | 2013 | 1
+Beyoncé | Love On Top | 2011 | 1
+Beyoncé | If I Were a Boy | 2008 | 1
+Beyoncé | Cuff It | 2022 | 2
+Beyoncé | Texas Hold 'Em | 2024 | 1
 Shakira | La Tortura | 2005 | 1
 Shakira | She Wolf | 2009 | 1
-Shakira | Can't Remember to Forget You | 2014 | 3
-Shakira | Chantaje | 2016 | 3
-Shakira | Bzrp Music Sessions, Vol. 53 | 2023 | 3
-Shakira | Underneath Your Clothes | 2001 | 3
-Shakira | Try Everything | 2016 | 3
-Ellie Goulding | Lights | 2010 | 3
-Ellie Goulding | Burn | 2013
-Jessie J | Price Tag | 2011
-Jessie J | Domino | 2011 | 3
-Jessie J | Bang Bang | 2014
-Cheryl | Fight for This Love | 2009 | 3
+Shakira | Can't Remember to Forget You | 2014 | 2
+Shakira | Chantaje | 2016 | 1
+Shakira | Bzrp Music Sessions, Vol. 53 | 2023 | 1
+Shakira | Underneath Your Clothes | 2001 | 2
+Shakira | Try Everything | 2016 | 2
+Ellie Goulding | Lights | 2010 | 2
+Ellie Goulding | Burn | 2013 | 1
+Jessie J | Price Tag | 2011 | 1
+Jessie J | Domino | 2011 | 1
+Jessie J | Bang Bang | 2014 | 1
+Cheryl | Fight for This Love | 2009 | 2
 Duffy | Warwick Avenue | 2008 | 3
-Adele | Make You Feel My Love | 2008 | 3
-Adele | Chasing Pavements | 2008 | 3
+Adele | Make You Feel My Love | 2008 | 2
+Adele | Chasing Pavements | 2008 | 2
 Adele | Easy on Me | 2021 | 1
-Adele | When We Were Young | 2015 | 3
-Adele | Rumour Has It | 2011 | 3
+Adele | When We Were Young | 2015 | 2
+Adele | Rumour Has It | 2011 | 2
 Emeli Sandé | Read All About It, Pt. III | 2012 | 3
-Birdy | Skinny Love | 2011 | 3
-Lana Del Rey | Video Games | 2011
-Lana Del Rey | West Coast | 2014 | 3
-Lana Del Rey | Doin' Time | 2019 | 3
-Lorde | Team | 2013 | 3
-Lorde | Green Light | 2017 | 3
+Birdy | Skinny Love | 2011 | 1
+Lana Del Rey | Video Games | 2011 | 1
+Lana Del Rey | West Coast | 2014 | 2
+Lana Del Rey | Doin' Time | 2019 | 2
+Lorde | Team | 2013 | 2
+Lorde | Green Light | 2017 | 2
 Lorde | Solar Power | 2021 | 3
-Sia | Titanium | 2011 | 3
-Sia | Unstoppable | 2016
-Sia | The Greatest | 2016 | 3
-Sia | Elastic Heart | 2015 | 3
-Sia | Snowman | 2017 | 3
+Sia | Titanium | 2011 | 2
+Sia | Unstoppable | 2016 | 1
+Sia | The Greatest | 2016 | 2
+Sia | Elastic Heart | 2015 | 1
+Sia | Snowman | 2017 | 2
 Bruno Mars | When I Was Your Man | 2012 | 1
 Bruno Mars | Treasure | 2013
 Bruno Mars | That's What I Like | 2016 | 1
 Bruno Mars | The Lazy Song | 2010 | 1
 Bruno Mars | Marry You | 2010
 Bruno Mars | Count on Me | 2010 | 3
-Bruno Mars | Finesse | 2017 | 3
+Bruno Mars | Finesse | 2017 | 2
 Bruno Mars | Leave the Door Open | 2021
-Bruno Mars | It Will Rain | 2011 | 3
-Ed Sheeran | The A Team | 2011 | 3
+Bruno Mars | It Will Rain | 2011 | 2
+Ed Sheeran | The A Team | 2011 | 2
 Ed Sheeran | I See Fire | 2013
 Ed Sheeran | Galway Girl | 2017
-Ed Sheeran | Castle on the Hill | 2017 | 3
+Ed Sheeran | Castle on the Hill | 2017 | 2
 Ed Sheeran | Shivers | 2021 | 1
-Ed Sheeran | Don't | 2014 | 3
-Ed Sheeran | Happier | 2017 | 3
-Ed Sheeran | Eyes Closed | 2023 | 3
-Justin Bieber | Never Say Never | 2010 | 3
-Justin Bieber | What Do You Mean? | 2015
-Justin Bieber | Ghost | 2021 | 3
-Justin Bieber | Intentions | 2020 | 3
-Justin Bieber | Boyfriend | 2012 | 3
-Justin Bieber | Beauty and a Beat | 2012
+Ed Sheeran | Don't | 2014 | 2
+Ed Sheeran | Happier | 2017 | 2
+Ed Sheeran | Eyes Closed | 2023 | 2
+Justin Bieber | Never Say Never | 2010 | 2
+Justin Bieber | What Do You Mean? | 2015 | 1
+Justin Bieber | Ghost | 2021 | 1
+Justin Bieber | Intentions | 2020 | 2
+Justin Bieber | Boyfriend | 2012 | 2
+Justin Bieber | Beauty and a Beat | 2012 | 1
 The Kid LAROI & Justin Bieber | Stay | 2021 | 1
 Taylor Swift | You Belong with Me | 2008 | 1
-Taylor Swift | Look What You Made Me Do | 2017
-Taylor Swift | Bad Blood | 2014 | 3
+Taylor Swift | Look What You Made Me Do | 2017 | 1
+Taylor Swift | Bad Blood | 2014 | 2
 Taylor Swift | Style | 2014
-Taylor Swift | Wildest Dreams | 2014
+Taylor Swift | Wildest Dreams | 2014 | 1
 Taylor Swift | I Knew You Were Trouble | 2012
-Taylor Swift | We Are Never Ever Getting Back Together | 2012
-Taylor Swift | Delicate | 2017 | 3
-Taylor Swift | Lover | 2019 | 3
-Taylor Swift | cardigan | 2020 | 3
+Taylor Swift | We Are Never Ever Getting Back Together | 2012 | 1
+Taylor Swift | Delicate | 2017 | 2
+Taylor Swift | Lover | 2019 | 1
+Taylor Swift | cardigan | 2020 | 1
 Taylor Swift | willow | 2020 | 3
-Taylor Swift | Karma | 2022 | 3
-Taylor Swift | Fortnight | 2024 | 3
+Taylor Swift | Karma | 2022 | 2
+Taylor Swift | Fortnight | 2024 | 1
 Taylor Swift | Enchanted | 2010 | 3
-Selena Gomez | Lose You to Love Me | 2019
-Selena Gomez | Come & Get It | 2013 | 3
-Selena Gomez & The Scene | Love You Like a Love Song | 2011
-Selena Gomez | Calm Down | 2022
+Selena Gomez | Lose You to Love Me | 2019 | 1
+Selena Gomez | Come & Get It | 2013 | 2
+Selena Gomez & The Scene | Love You Like a Love Song | 2011 | 1
+Selena Gomez | Calm Down | 2022 | 1
 Demi Lovato | Heart Attack | 2013
-Demi Lovato | Sorry Not Sorry | 2017 | 3
-Demi Lovato | Cool for the Summer | 2015 | 3
-Ariana Grande | Thank U, Next | 2018
-Ariana Grande | 7 Rings | 2019
-Ariana Grande | Problem | 2014
-Ariana Grande | Side to Side | 2016
-Ariana Grande | No Tears Left to Cry | 2018
-Ariana Grande | Into You | 2016 | 3
-Ariana Grande | Positions | 2020
-Ariana Grande | Break Free | 2014 | 3
-Ariana Grande | yes, and? | 2024 | 3
-Ariana Grande | we can't be friends (wait for your love) | 2024 | 3
-Ariana Grande | Dangerous Woman | 2016 | 3
-Ariana Grande | God Is a Woman | 2018 | 3
+Demi Lovato | Sorry Not Sorry | 2017 | 1
+Demi Lovato | Cool for the Summer | 2015 | 2
+Ariana Grande | Thank U, Next | 2018 | 1
+Ariana Grande | 7 Rings | 2019 | 1
+Ariana Grande | Problem | 2014 | 1
+Ariana Grande | Side to Side | 2016 | 1
+Ariana Grande | No Tears Left to Cry | 2018 | 1
+Ariana Grande | Into You | 2016 | 2
+Ariana Grande | Positions | 2020 | 1
+Ariana Grande | Break Free | 2014 | 1
+Ariana Grande | yes, and? | 2024 | 1
+Ariana Grande | we can't be friends (wait for your love) | 2024 | 2
+Ariana Grande | Dangerous Woman | 2016 | 2
+Ariana Grande | God Is a Woman | 2018 | 2
 Camila Cabello | Havana | 2017 | 1
-Camila Cabello | Never Be the Same | 2018 | 3
-Fifth Harmony | Work from Home | 2016
-Little Mix | Shout Out to My Ex | 2016 | 3
-Little Mix | Black Magic | 2015 | 3
-One Direction | What Makes You Beautiful | 2011
-One Direction | Story of My Life | 2013
-One Direction | Night Changes | 2014
-One Direction | Drag Me Down | 2015 | 3
-One Direction | Best Song Ever | 2013 | 3
+Camila Cabello | Never Be the Same | 2018 | 2
+Fifth Harmony | Work from Home | 2016 | 1
+Little Mix | Shout Out to My Ex | 2016 | 1
+Little Mix | Black Magic | 2015 | 1
+One Direction | What Makes You Beautiful | 2011 | 1
+One Direction | Story of My Life | 2013 | 1
+One Direction | Night Changes | 2014 | 1
+One Direction | Drag Me Down | 2015 | 1
+One Direction | Best Song Ever | 2013 | 2
 Harry Styles | Sign of the Times | 2017 | 1
-Harry Styles | Adore You | 2019
-Harry Styles | Late Night Talking | 2022 | 3
-Zayn | Pillowtalk | 2016
-Zayn & Taylor Swift | I Don't Wanna Live Forever | 2016 | 3
-Niall Horan | Slow Hands | 2017 | 3
-Louis Tomlinson | Back to You | 2017 | 3
-Shawn Mendes | Stitches | 2015
-Shawn Mendes | There's Nothing Holdin' Me Back | 2017
-Shawn Mendes | In My Blood | 2018 | 3
-Charlie Puth | Attention | 2017
-Charlie Puth | We Don't Talk Anymore | 2016
-Charlie Puth | One Call Away | 2015 | 3
-Meghan Trainor | Lips Are Movin | 2014 | 3
-Meghan Trainor | Made You Look | 2022 | 3
-Sam Smith | Stay with Me | 2014
-Sam Smith | Too Good at Goodbyes | 2017
-Sam Smith | Writing's on the Wall | 2015 | 3
-Sam Smith | Unholy | 2022
-Sam Smith | I'm Not the Only One | 2014 | 3
+Harry Styles | Adore You | 2019 | 1
+Harry Styles | Late Night Talking | 2022 | 2
+Zayn | Pillowtalk | 2016 | 1
+Zayn & Taylor Swift | I Don't Wanna Live Forever | 2016 | 1
+Niall Horan | Slow Hands | 2017 | 2
+Louis Tomlinson | Back to You | 2017 | 2
+Shawn Mendes | Stitches | 2015 | 1
+Shawn Mendes | There's Nothing Holdin' Me Back | 2017 | 1
+Shawn Mendes | In My Blood | 2018 | 2
+Charlie Puth | Attention | 2017 | 1
+Charlie Puth | We Don't Talk Anymore | 2016 | 1
+Charlie Puth | One Call Away | 2015 | 2
+Meghan Trainor | Lips Are Movin | 2014 | 2
+Meghan Trainor | Made You Look | 2022 | 2
+Sam Smith | Stay with Me | 2014 | 1
+Sam Smith | Too Good at Goodbyes | 2017 | 1
+Sam Smith | Writing's on the Wall | 2015 | 2
+Sam Smith | Unholy | 2022 | 1
+Sam Smith | I'm Not the Only One | 2014 | 1
 John Legend | All of Me | 2013 | 1
-Jason Derulo | Talk Dirty | 2013
-Jason Derulo | Want to Want Me | 2015 | 3
-Jason Derulo | Savage Love (Laxed - Siren Beat) | 2020
-Jason Derulo | Whatcha Say | 2009 | 3
+Jason Derulo | Talk Dirty | 2013 | 1
+Jason Derulo | Want to Want Me | 2015 | 1
+Jason Derulo | Savage Love (Laxed - Siren Beat) | 2020 | 1
+Jason Derulo | Whatcha Say | 2009 | 1
 Flo Rida | Low | 2007 | 1
 Flo Rida | Right Round | 2009 | 1
 Flo Rida | Whistle | 2012 | 1
-Flo Rida | Good Feeling | 2011 | 3
+Flo Rida | Good Feeling | 2011 | 1
 Pitbull | Give Me Everything | 2011 | 1
 Pitbull | Timber | 2013 | 1
-Pitbull | Hotel Room Service | 2009 | 3
-Pitbull | International Love | 2011 | 3
-Pitbull | Rain Over Me | 2011 | 3
-Pitbull | Fireball | 2014 | 3
+Pitbull | Hotel Room Service | 2009 | 2
+Pitbull | International Love | 2011 | 2
+Pitbull | Rain Over Me | 2011 | 2
+Pitbull | Fireball | 2014 | 2
 Pitbull | I Know You Want Me (Calle Ocho) | 2009 | 1
 Kesha | TiK ToK | 2009 | 1
-Kesha | Die Young | 2012 | 3
+Kesha | Die Young | 2012 | 1
 Kesha | Your Love Is My Drug | 2010 | 3
 LMFAO | Sexy and I Know It | 2011 | 1
 Far East Movement | Like a G6 | 2010
 3OH!3 | Don't Trust Me | 2008 | 3
 Owl City | Fireflies | 2009
-Train | Hey, Soul Sister | 2009
-Train | Drops of Jupiter (Tell Me) | 2001 | 3
-Jason Mraz | I'm Yours | 2008
+Train | Hey, Soul Sister | 2009 | 1
+Train | Drops of Jupiter (Tell Me) | 2001 | 2
+Jason Mraz | I'm Yours | 2008 | 1
 Plain White T's | Hey There Delilah | 2006
-Gym Class Heroes | Stereo Hearts | 2011
+Gym Class Heroes | Stereo Hearts | 2011 | 1
 Cobra Starship | Good Girls Go Bad | 2009 | 3
-Christina Perri | A Thousand Years | 2011
-Christina Perri | Jar of Hearts | 2010 | 3
-James Arthur | Say You Won't Let Go | 2016
-James Arthur | Impossible | 2012 | 3
-Lewis Capaldi | Before You Go | 2019
-Lewis Capaldi | Forget Me | 2022 | 3
-Calum Scott | You Are the Reason | 2017 | 3
-Dean Lewis | Be Alright | 2018 | 3
-Rag'n'Bone Man | Human | 2016
-Rag'n'Bone Man | Giant | 2019 | 3
-George Ezra | Shotgun | 2018
-George Ezra | Budapest | 2014
-George Ezra | Green Green Grass | 2022 | 3
+Christina Perri | A Thousand Years | 2011 | 1
+Christina Perri | Jar of Hearts | 2010 | 1
+James Arthur | Say You Won't Let Go | 2016 | 1
+James Arthur | Impossible | 2012 | 1
+Lewis Capaldi | Before You Go | 2019 | 1
+Lewis Capaldi | Forget Me | 2022 | 2
+Calum Scott | You Are the Reason | 2017 | 2
+Dean Lewis | Be Alright | 2018 | 2
+Rag'n'Bone Man | Human | 2016 | 1
+Rag'n'Bone Man | Giant | 2019 | 2
+George Ezra | Shotgun | 2018 | 1
+George Ezra | Budapest | 2014 | 1
+George Ezra | Green Green Grass | 2022 | 2
 Tom Walker | Leave a Light On | 2017 | 3
-Dua Lipa | Physical | 2020 | 3
-Dua Lipa | IDGAF | 2017 | 3
+Dua Lipa | Physical | 2020 | 2
+Dua Lipa | IDGAF | 2017 | 2
 Dua Lipa | Be the One | 2015 | 3
-Dua Lipa | Dance the Night | 2023
+Dua Lipa | Dance the Night | 2023 | 1
 Dua Lipa | Break My Heart | 2020 | 3
 Dua Lipa | One Kiss | 2018 | 1
-Dua Lipa | Training Season | 2024 | 3
-Doja Cat | Woman | 2021 | 3
-Doja Cat | Paint the Town Red | 2023
-Lizzo | Truth Hurts | 2019
-Lizzo | About Damn Time | 2022 | 3
-Olivia Rodrigo | deja vu | 2021 | 3
-Olivia Rodrigo | traitor | 2021 | 3
+Dua Lipa | Training Season | 2024 | 2
+Doja Cat | Woman | 2021 | 2
+Doja Cat | Paint the Town Red | 2023 | 1
+Lizzo | Truth Hurts | 2019 | 1
+Lizzo | About Damn Time | 2022 | 1
+Olivia Rodrigo | deja vu | 2021 | 1
+Olivia Rodrigo | traitor | 2021 | 2
 Olivia Rodrigo | happier | 2021 | 3
-Olivia Rodrigo | get him back! | 2023 | 3
-Billie Eilish | when the party's over | 2018
-Billie Eilish | everything i wanted | 2019
-Billie Eilish | No Time to Die | 2020
+Olivia Rodrigo | get him back! | 2023 | 2
+Billie Eilish | when the party's over | 2018 | 1
+Billie Eilish | everything i wanted | 2019 | 1
+Billie Eilish | No Time to Die | 2020 | 1
 Billie Eilish | Therefore I Am | 2020 | 3
 Billie Eilish | bury a friend | 2019 | 3
 Billie Eilish | you should see me in a crown | 2018 | 3
-Billie Eilish | CHIHIRO | 2024 | 3
+Billie Eilish | CHIHIRO | 2024 | 2
 Billie Eilish | LUNCH | 2024 | 3
 Billie Eilish | idontwannabeyouanymore | 2017 | 3
-Sabrina Carpenter | Please Please Please | 2024 | 3
-Sabrina Carpenter | Feather | 2023 | 3
-Sabrina Carpenter | Taste | 2024 | 3
-Chappell Roan | Pink Pony Club | 2020 | 3
-Chappell Roan | HOT TO GO! | 2023 | 3
-Tate McRae | greedy | 2023 | 3
-Tate McRae | you broke me first | 2020 | 3
-Gracie Abrams | That's So True | 2024 | 3
-Bebe Rexha | Meant to Be | 2017 | 3
+Sabrina Carpenter | Please Please Please | 2024 | 1
+Sabrina Carpenter | Feather | 2023 | 2
+Sabrina Carpenter | Taste | 2024 | 1
+Chappell Roan | Pink Pony Club | 2020 | 2
+Chappell Roan | HOT TO GO! | 2023 | 2
+Tate McRae | greedy | 2023 | 1
+Tate McRae | you broke me first | 2020 | 1
+Gracie Abrams | That's So True | 2024 | 2
+Bebe Rexha | Meant to Be | 2017 | 1
 Bebe Rexha | I'm Good (Blue) | 2022
-Ava Max | Sweet but Psycho | 2018
-Ava Max | Kings & Queens | 2020 | 3
-Anne-Marie | 2002 | 2018 | 3
-Anne-Marie | Friends | 2018 | 3
-Zara Larsson | Lush Life | 2015
-Zara Larsson | Never Forget You | 2015 | 3
+Ava Max | Sweet but Psycho | 2018 | 1
+Ava Max | Kings & Queens | 2020 | 1
+Anne-Marie | 2002 | 2018 | 1
+Anne-Marie | Friends | 2018 | 1
+Zara Larsson | Lush Life | 2015 | 1
+Zara Larsson | Never Forget You | 2015 | 2
 Tove Lo | Habits (Stay High) | 2014
-Halsey | Closer | 2016 | 3
-Halsey | Bad at Love | 2017 | 3
+Halsey | Closer | 2016 | 1
+Halsey | Bad at Love | 2017 | 2
 Lauv | I Like Me Better | 2017 | 3
-Conan Gray | Heather | 2020 | 3
-Cardi B | Bodak Yellow | 2017 | 3
-Jax Jones | You Don't Know Me | 2016 | 3
-Jonas Brothers | Sucker | 2019
-Jonas Brothers | Burnin' Up | 2008 | 3
+Conan Gray | Heather | 2020 | 1
+Cardi B | Bodak Yellow | 2017 | 1
+Jax Jones | You Don't Know Me | 2016 | 2
+Jonas Brothers | Sucker | 2019 | 1
+Jonas Brothers | Burnin' Up | 2008 | 2
 Hailee Steinfeld | Starving | 2016 | 3
-Becky G | Shower | 2014 | 3
-Nicki Minaj | Super Bass | 2011
-Nicki Minaj | Starships | 2012
-Nicki Minaj | Anaconda | 2014 | 3
-Nicki Minaj | Super Freaky Girl | 2022 | 3
+Becky G | Shower | 2014 | 2
+Nicki Minaj | Super Bass | 2011 | 1
+Nicki Minaj | Starships | 2012 | 1
+Nicki Minaj | Anaconda | 2014 | 1
+Nicki Minaj | Super Freaky Girl | 2022 | 2
 Iggy Azalea | Fancy | 2014
 Ice Spice | Princess Diana | 2023 | 3
 Miley Cyrus | Party in the U.S.A. | 2009 | 1
-Miley Cyrus | The Climb | 2009 | 3
+Miley Cyrus | The Climb | 2009 | 2
 Miley Cyrus | We Can't Stop | 2013 | 3
 Miley Cyrus | Malibu | 2017 | 3
-Miley Cyrus | Midnight Sky | 2020 | 3
+Miley Cyrus | Midnight Sky | 2020 | 2
 Hannah Montana | The Best of Both Worlds | 2006 | 3
 High School Musical Cast | We're All in This Together | 2006 | 3
-Vanessa Carlton | A Thousand Miles | 2002
+Vanessa Carlton | A Thousand Miles | 2002 | 1
 Michelle Branch | Everywhere | 2001 | 3
 Natasha Bedingfield | Pocketful of Sunshine | 2008 | 3
 Colbie Caillat | Bubbly | 2007 | 3
@@ -701,32 +701,32 @@ Band Aid | Do They Know It's Christmas? | 1984 | 3
 Ariana Grande | Santa Tell Me | 2014 | 3
 Justin Bieber & Mariah Carey | All I Want for Christmas Is You (SuperFestive!) | 2011 | 3
 Boney M. | Mary's Boy Child – Oh My Lord | 1978 | 3
-Dean Martin | Let It Snow! Let It Snow! Let It Snow! | 1959
+Dean Martin | Let It Snow! Let It Snow! Let It Snow! | 1959 | 1
 Bing Crosby | White Christmas | 1942
 Frank Sinatra | Strangers in the Night | 1966 | 1
 Frank Sinatra | Fly Me to the Moon | 1964 | 1
-Frank Sinatra | New York, New York | 1979 | 3
-Dean Martin | That's Amore | 1953 | 3
+Frank Sinatra | New York, New York | 1979 | 1
+Dean Martin | That's Amore | 1953 | 1
 Bobby McFerrin | Don't Worry Be Happy | 1988 | 1
-Bobby Darin | Beyond the Sea | 1959 | 3
-Chubby Checker | The Twist | 1960
+Bobby Darin | Beyond the Sea | 1959 | 2
+Chubby Checker | The Twist | 1960 | 1
 Ray Charles | Hit the Road Jack | 1961 | 1
 Bill Haley & His Comets | Rock Around the Clock | 1954 | 1
 Chuck Berry | Johnny B. Goode | 1958 | 1
-Little Richard | Tutti Frutti | 1955 | 3
-Jerry Lee Lewis | Great Balls of Fire | 1957 | 3
-Elvis Presley | Love Me Tender | 1956
-Elvis Presley | Blue Suede Shoes | 1956 | 3
-Elvis Presley | It's Now or Never | 1960 | 3
-Elvis Presley | Suspicious Minds | 1969 | 3
+Little Richard | Tutti Frutti | 1955 | 1
+Jerry Lee Lewis | Great Balls of Fire | 1957 | 1
+Elvis Presley | Love Me Tender | 1956 | 1
+Elvis Presley | Blue Suede Shoes | 1956 | 2
+Elvis Presley | It's Now or Never | 1960 | 1
+Elvis Presley | Suspicious Minds | 1969 | 1
 Elvis Presley | A Little Less Conversation (JXL Radio Edit Remix) | 2002 | 1
-Elvis Presley | Hound Dog | 1956
-Paul Anka | Diana | 1957 | 3
-Paul Anka | Put Your Head on My Shoulder | 1959 | 3
-The Platters | Only You (And You Alone) | 1955
-The Everly Brothers | All I Have to Do Is Dream | 1958 | 3
-Buddy Holly | Peggy Sue | 1957 | 3
-Ritchie Valens | La Bamba | 1958
+Elvis Presley | Hound Dog | 1956 | 1
+Paul Anka | Diana | 1957 | 1
+Paul Anka | Put Your Head on My Shoulder | 1959 | 2
+The Platters | Only You (And You Alone) | 1955 | 1
+The Everly Brothers | All I Have to Do Is Dream | 1958 | 2
+Buddy Holly | Peggy Sue | 1957 | 2
+Ritchie Valens | La Bamba | 1958 | 1
 Harry Belafonte | Banana Boat Song (Day-O) | 1956
 Jimmy Cliff | I Can See Clearly Now | 1993 | 3
 UB40 | Red Red Wine | 1983 | 1
@@ -739,73 +739,73 @@ Bob Marley & The Wailers | Get Up, Stand Up | 1973 | 3
 Inner Circle | Bad Boys | 1987 | 1
 Shaggy | It Wasn't Me | 2000 | 1
 Shaggy | Boombastic | 1995 | 1
-Shaggy | Angel | 2001 | 3
-OMI | Cheerleader (Felix Jaehn Remix) | 2014
-Magic! | Rude | 2013
-Kungs | This Girl | 2016 | 3
-Mr. Probz | Waves (Robin Schulz Remix) | 2014 | 3
-Lost Frequencies | Are You with Me | 2014 | 3
-Imany | Don't Be So Shy (Filatov & Karas Remix) | 2015
+Shaggy | Angel | 2001 | 1
+OMI | Cheerleader (Felix Jaehn Remix) | 2014 | 1
+Magic! | Rude | 2013 | 1
+Kungs | This Girl | 2016 | 1
+Mr. Probz | Waves (Robin Schulz Remix) | 2014 | 2
+Lost Frequencies | Are You with Me | 2014 | 1
+Imany | Don't Be So Shy (Filatov & Karas Remix) | 2015 | 1
 Ofenbach | Be Mine | 2017 | 3
 Sigala | Easy Love | 2015 | 3
-Jess Glynne | Hold My Hand | 2015 | 3
+Jess Glynne | Hold My Hand | 2015 | 2
 Years & Years | King | 2015 | 3
-Rita Ora | Anywhere | 2017 | 3
-Rita Ora | Your Song | 2017 | 3
-Bastille | Pompeii | 2013
-Bastille | Happier | 2018 | 3
+Rita Ora | Anywhere | 2017 | 2
+Rita Ora | Your Song | 2017 | 2
+Bastille | Pompeii | 2013 | 1
+Bastille | Happier | 2018 | 1
 Coldplay | Hymn for the Weekend | 2016 | 1
-Coldplay | Adventure of a Lifetime | 2015 | 3
-Coldplay | My Universe | 2021
-Coldplay | Higher Power | 2021 | 3
-Coldplay | Every Teardrop Is a Waterfall | 2011 | 3
-Coldplay | Speed of Sound | 2005 | 3
-Coldplay | In My Place | 2002 | 3
-Coldplay | Trouble | 2000 | 3
+Coldplay | Adventure of a Lifetime | 2015 | 2
+Coldplay | My Universe | 2021 | 1
+Coldplay | Higher Power | 2021 | 2
+Coldplay | Every Teardrop Is a Waterfall | 2011 | 2
+Coldplay | Speed of Sound | 2005 | 2
+Coldplay | In My Place | 2002 | 2
+Coldplay | Trouble | 2000 | 2
 Coldplay | Magic | 2014 | 3
-Coldplay | Feelslikeimfallinginlove | 2024 | 3
-Keane | Somewhere Only We Know | 2004
+Coldplay | Feelslikeimfallinginlove | 2024 | 2
+Keane | Somewhere Only We Know | 2004 | 1
 Keane | Everybody's Changing | 2004 | 3
 The Script | Hall of Fame | 2012
 The Script | Breakeven | 2008 | 3
 The Script | The Man Who Can't Be Moved | 2008 | 3
 Maroon 5 | She Will Be Loved | 2002 | 1
-Maroon 5 | Animals | 2014 | 3
-Maroon 5 | One More Night | 2012 | 3
-Maroon 5 | Misery | 2010 | 3
-Maroon 5 | Don't Wanna Know | 2016 | 3
-Maroon 5 | Maps | 2014 | 3
-Maroon 5 | Daylight | 2012 | 3
+Maroon 5 | Animals | 2014 | 1
+Maroon 5 | One More Night | 2012 | 1
+Maroon 5 | Misery | 2010 | 2
+Maroon 5 | Don't Wanna Know | 2016 | 2
+Maroon 5 | Maps | 2014 | 2
+Maroon 5 | Daylight | 2012 | 2
 OneRepublic | Secrets | 2009
-OneRepublic | Good Life | 2010 | 3
-OneRepublic | I Ain't Worried | 2022
-OneRepublic | Love Runs Out | 2014 | 3
-OneRepublic | Run | 2021 | 3
+OneRepublic | Good Life | 2010 | 2
+OneRepublic | I Ain't Worried | 2022 | 1
+OneRepublic | Love Runs Out | 2014 | 2
+OneRepublic | Run | 2021 | 2
 Imagine Dragons | Bones | 2022 | 1
-Imagine Dragons | Whatever It Takes | 2017
-Imagine Dragons | It's Time | 2012 | 3
-Imagine Dragons | On Top of the World | 2012 | 3
-Imagine Dragons | Bad Liar | 2018 | 3
-Imagine Dragons | Birds | 2018 | 3
-Imagine Dragons | Sharks | 2022 | 3
-American Authors | Best Day of My Life | 2013
-X Ambassadors | Renegades | 2015 | 3
-Walk the Moon | Shut Up and Dance | 2014
-Fun. | We Are Young | 2011
-Fun. | Some Nights | 2012 | 3
-Capital Cities | Safe and Sound | 2011 | 3
+Imagine Dragons | Whatever It Takes | 2017 | 1
+Imagine Dragons | It's Time | 2012 | 2
+Imagine Dragons | On Top of the World | 2012 | 2
+Imagine Dragons | Bad Liar | 2018 | 2
+Imagine Dragons | Birds | 2018 | 2
+Imagine Dragons | Sharks | 2022 | 2
+American Authors | Best Day of My Life | 2013 | 1
+X Ambassadors | Renegades | 2015 | 2
+Walk the Moon | Shut Up and Dance | 2014 | 1
+Fun. | We Are Young | 2011 | 1
+Fun. | Some Nights | 2012 | 1
+Capital Cities | Safe and Sound | 2011 | 1
 Echosmith | Cool Kids | 2013 | 3
 Grouplove | Tongue Tied | 2011 | 3
 Sam Fischer | This City | 2020 | 3
-Benson Boone | In the Stars | 2022 | 3
-Noah Kahan | Stick Season | 2022 | 3
-Myles Smith | Stargazing | 2024 | 3
+Benson Boone | In the Stars | 2022 | 2
+Noah Kahan | Stick Season | 2022 | 1
+Myles Smith | Stargazing | 2024 | 1
 Hozier | Work Song | 2014 | 3
 Rosa Linn | SNAP | 2022
 Elley Duhé | Middle of the Night | 2020 | 3
 Jamie Miller | Here's Your Perfect | 2021 | 3
 Gayle | abcdefu | 2021
-Måneskin | Zitti e buoni | 2021 | 3
+Måneskin | Zitti e buoni | 2021 | 2
 Loreen | Euphoria | 2012
 Loreen | Tattoo | 2023
 Alexander Rybak | Fairytale | 2009
@@ -923,7 +923,7 @@ Måneskin | Torna a casa | 2017 | 3
 Gabry Ponte | Geordie | 2002 | 3
 Raffaella Carrà | A far l'amore comincia tu | 1976 | 3
 Raffaella Carrà | Pedro | 1980 | 3
-Nena | 99 Luftballons | 1983
+Nena | 99 Luftballons | 1983 | 1
 Nena | Irgendwie, irgendwo, irgendwann | 1984 | 3
 Falco | Jeanny | 1985 | 3
 Falco | Der Kommissar | 1981 | 3
@@ -937,19 +937,19 @@ Peter Fox | Haus am See | 2008 | 3
 Wolfgang Petry | Wahnsinn | 1983 | 3
 DJ Ötzi | Hey Baby (Uhh, Ahh) | 2000 | 3
 Kalush Orchestra | Стефанія | 2022 | 3
-Океан Ельзи | Обійми | 2013 | 3
-Океан Ельзи | Без бою | 2007 | 3
+Океан Ельзи | Обійми | 2013 | 2
+Океан Ельзи | Без бою | 2007 | 2
 Океан Ельзи | Друг | 2000 | 3
 Океан Ельзи | Відпусти | 2007 | 3
 Океан Ельзи | Там, де нас нема | 2001 | 3
-Бумбокс | Вахтёрам | 2006
-Бумбокс | Наодинці | 2009 | 3
+Бумбокс | Вахтёрам | 2006 | 1
+Бумбокс | Наодинці | 2009 | 2
 Скрябін | Старі фотографії | 2001 | 3
 Go_A | Шум | 2021 | 3
 Jamala | 1944 | 2016 | 3
 Tvorchi | Heart of Steel | 2023 | 3
 Antytila | Лєна | 2014 | 3
-KAZKA | Плакала | 2018
+KAZKA | Плакала | 2018 | 1
 Alyona Alyona | Рибки | 2019 | 3
 Jerry Heil | Ой, у лузі червона калина | 2022 | 3
 Tarkan | Şımarık (Kiss Kiss) | 1997 | 1
@@ -990,19 +990,19 @@ Ivan Dorn | Невеста | 2011 | 3
     genre: 'pop',
     lang: 'en',
     lines: `
-The Beatles | Love Me Do | 1962 | 3
-The Beatles | She Loves You | 1963 | 3
+The Beatles | Love Me Do | 1962 | 1
+The Beatles | She Loves You | 1963 | 1
 The Beatles | Get Back | 1969 | 3
 The Beatles | Hello, Goodbye | 1967 | 3
 The Beatles | Drive My Car | 1965 | 3
-The Beatles | In My Life | 1965 | 3
+The Beatles | In My Life | 1965 | 2
 The Beatles | Blackbird | 1968 | 3
 The Beatles | Day Tripper | 1965 | 3
 The Beatles | Paperback Writer | 1966 | 3
 The Beatles | Norwegian Wood (This Bird Has Flown) | 1965 | 3
-Elvis Presley | Heartbreak Hotel | 1956 | 3
+Elvis Presley | Heartbreak Hotel | 1956 | 1
 Elvis Presley | Return to Sender | 1962 | 3
-Elvis Presley | In the Ghetto | 1969 | 3
+Elvis Presley | In the Ghetto | 1969 | 2
 The Everly Brothers | Bye Bye Love | 1957 | 3
 Neil Sedaka | Oh! Carol | 1959 | 3
 Del Shannon | Runaway | 1961 | 3
@@ -1014,9 +1014,9 @@ The Foundations | Build Me Up Buttercup | 1968
 The Archies | Sugar, Sugar | 1969 | 3
 Tommy James and the Shondells | Crimson and Clover | 1968 | 3
 The Box Tops | The Letter | 1967 | 3
-Scott McKenzie | San Francisco (Be Sure to Wear Flowers in Your Hair) | 1967 | 3
-The Hollies | He Ain't Heavy, He's My Brother | 1969 | 3
-Gilbert O'Sullivan | Alone Again (Naturally) | 1972 | 3
+Scott McKenzie | San Francisco (Be Sure to Wear Flowers in Your Hair) | 1967 | 1
+The Hollies | He Ain't Heavy, He's My Brother | 1969 | 2
+Gilbert O'Sullivan | Alone Again (Naturally) | 1972 | 2
 Albert Hammond | It Never Rains in Southern California | 1972 | 3
 Terry Jacks | Seasons in the Sun | 1974 | 3
 Mungo Jerry | In the Summertime | 1970
@@ -1048,13 +1048,13 @@ George Michael | Father Figure | 1987 | 3
 George Michael | Jesus to a Child | 1996 | 3
 George Michael | Freedom! '90 | 1990 | 3
 George Michael & Elton John | Don't Let the Sun Go Down on Me | 1991 | 3
-Elton John & Kiki Dee | Don't Go Breaking My Heart | 1976 | 3
-Elton John | Nikita | 1985 | 3
-Elton John | Candle in the Wind | 1973 | 3
-Elton John | Bennie and the Jets | 1973 | 3
+Elton John & Kiki Dee | Don't Go Breaking My Heart | 1976 | 1
+Elton John | Nikita | 1985 | 2
+Elton John | Candle in the Wind | 1973 | 1
+Elton John | Bennie and the Jets | 1973 | 1
 Elton John | Are You Ready for Love | 1979 | 3
 Paul McCartney | Wonderful Christmastime | 1979 | 3
-John Lennon | Happy Xmas (War Is Over) | 1971
+John Lennon | Happy Xmas (War Is Over) | 1971 | 1
 John Lennon | Woman | 1980 | 3
 John Lennon | Jealous Guy | 1971 | 3
 Madonna | Holiday | 1983 | 3
@@ -1066,32 +1066,32 @@ Madonna | Express Yourself | 1989 | 3
 Madonna | Die Another Day | 2002 | 3
 Madonna | Celebration | 2009 | 3
 Cyndi Lauper | True Colors | 1986 | 3
-Whitney Houston | One Moment in Time | 1988 | 3
-Whitney Houston | My Love Is Your Love | 1998 | 3
+Whitney Houston | One Moment in Time | 1988 | 2
+Whitney Houston | My Love Is Your Love | 1998 | 2
 Whitney Houston | Run to You | 1992 | 3
 Whitney Houston & Mariah Carey | When You Believe | 1998 | 3
-Mariah Carey | Always Be My Baby | 1995 | 3
-Mariah Carey | Emotions | 1991 | 3
-Mariah Carey | Vision of Love | 1990 | 3
-Mariah Carey | Obsessed | 2009 | 3
-Mariah Carey | Shake It Off | 2005 | 3
+Mariah Carey | Always Be My Baby | 1995 | 1
+Mariah Carey | Emotions | 1991 | 2
+Mariah Carey | Vision of Love | 1990 | 2
+Mariah Carey | Obsessed | 2009 | 2
+Mariah Carey | Shake It Off | 2005 | 2
 Celine Dion | The Power of Love | 1993 | 1
 Celine Dion | That's the Way It Is | 1999 | 3
 Celine Dion | A New Day Has Come | 2002 | 3
 Celine Dion | Think Twice | 1993 | 3
 Toni Braxton | Spanish Guitar | 2000 | 3
-Janet Jackson | That's the Way Love Goes | 1993 | 3
-Janet Jackson | Rhythm Nation | 1989 | 3
-Paula Abdul | Opposites Attract | 1989 | 3
+Janet Jackson | That's the Way Love Goes | 1993 | 1
+Janet Jackson | Rhythm Nation | 1989 | 1
+Paula Abdul | Opposites Attract | 1989 | 2
 Debbie Gibson | Lost in Your Eyes | 1989 | 3
 Tiffany | I Think We're Alone Now | 1987 | 3
 Rick Astley | Whenever You Need Somebody | 1987 | 3
 Rick Astley | Cry for Help | 1991 | 3
-Jason Donovan | Too Many Broken Hearts | 1989 | 3
+Jason Donovan | Too Many Broken Hearts | 1989 | 2
 Kylie Minogue & Jason Donovan | Especially for You | 1988 | 3
-Kylie Minogue | I Should Be So Lucky | 1987 | 3
+Kylie Minogue | I Should Be So Lucky | 1987 | 1
 Kylie Minogue | Better the Devil You Know | 1990 | 3
-Kylie Minogue | All the Lovers | 2010 | 3
+Kylie Minogue | All the Lovers | 2010 | 2
 Kylie Minogue | Slow | 2003 | 3
 Kylie Minogue | In Your Eyes | 2002 | 3
 Kylie Minogue | Dancing | 2018 | 3
@@ -1109,12 +1109,12 @@ Richard Marx | Right Here Waiting | 1989
 Michael Bolton | How Am I Supposed to Live Without You | 1989 | 3
 Michael Bolton | When a Man Loves a Woman | 1991 | 3
 Bryan Ferry | Slave to Love | 1985 | 3
-Sade | The Sweetest Taboo | 1985 | 3
+Sade | The Sweetest Taboo | 1985 | 2
 Swing Out Sister | Breakout | 1986 | 3
 Fine Young Cannibals | She Drives Me Crazy | 1988 | 3
-Simply Red | Holding Back the Years | 1985 | 3
+Simply Red | Holding Back the Years | 1985 | 1
 Simply Red | Stars | 1991 | 3
-Simply Red | Fairground | 1995 | 3
+Simply Red | Fairground | 1995 | 2
 Wet Wet Wet | Love Is All Around | 1994
 Lighthouse Family | High | 1997 | 3
 Lighthouse Family | Ain't No Sunshine | 2001 | 3
@@ -1146,10 +1146,10 @@ B*Witched | C'est la vie | 1998 | 3
 Atomic Kitten | Whole Again | 2001 | 3
 Atomic Kitten | The Tide Is High (Get the Feeling) | 2002 | 3
 Blondie | The Tide Is High | 1980 | 3
-Blondie | Heart of Glass | 1978
-Blondie | Call Me | 1980 | 3
-Blondie | One Way or Another | 1978 | 3
-Blondie | Maria | 1999 | 3
+Blondie | Heart of Glass | 1978 | 1
+Blondie | Call Me | 1980 | 1
+Blondie | One Way or Another | 1978 | 1
+Blondie | Maria | 1999 | 2
 Hanson | I Will Come to You | 1997 | 3
 Ricky Martin | Private Emotion | 2000 | 3
 Ricky Martin | Shake Your Bon-Bon | 1999 | 3
@@ -1159,30 +1159,29 @@ Jennifer Lopez | Ain't It Funny | 2001 | 3
 Christina Aguilera | Lady Marmalade | 2001 | 3
 Christina Aguilera | What a Girl Wants | 1999 | 3
 Christina Aguilera | Fighter | 2003 | 3
-Christina Aguilera | Ain't No Other Man | 2006 | 3
-Britney Spears | Sometimes | 1999 | 3
+Christina Aguilera | Ain't No Other Man | 2006 | 2
+Britney Spears | Sometimes | 1999 | 2
 Britney Spears | (You Drive Me) Crazy | 1999 | 3
-Britney Spears | I'm a Slave 4 U | 2001 | 3
+Britney Spears | I'm a Slave 4 U | 2001 | 2
 Britney Spears | Stronger | 2000 | 3
 Britney Spears | Piece of Me | 2007 | 3
 Britney Spears | Till the World Ends | 2011 | 3
 Britney Spears & Elton John | Hold Me Closer | 2022 | 3
 Jessica Simpson | Irresistible | 2001 | 3
 Mandy Moore | Candy | 1999 | 3
-Hilary Duff | Come Clean | 2003 | 3
+Hilary Duff | Come Clean | 2003 | 2
 Ashlee Simpson | Pieces of Me | 2004 | 3
 Lindsay Lohan | Rumors | 2004 | 3
 Vanessa Hudgens | Say OK | 2007 | 3
-Jesse McCartney | Beautiful Soul | 2004 | 3
+Jesse McCartney | Beautiful Soul | 2004 | 2
 Aaron Carter | I Want Candy | 2000 | 3
 Bowling for Soup | High School Never Ends | 2006 | 3
 Kelly Clarkson | Miss Independent | 2003 | 3
-Kelly Clarkson | My Life Would Suck Without You | 2009 | 3
-Kelly Clarkson | Behind These Hazel Eyes | 2005 | 3
-Leona Lewis | Run | 2008 | 3
+Kelly Clarkson | My Life Would Suck Without You | 2009 | 2
+Kelly Clarkson | Behind These Hazel Eyes | 2005 | 2
+Leona Lewis | Run | 2008 | 2
 Leona Lewis | Happy | 2009 | 3
 Natalie Imbruglia | Shiver | 2005 | 3
-Dido | Thank You | 2000
 Dido | White Flag | 2003
 Dido | Here with Me | 1999 | 3
 Dido | Life for Rent | 2003 | 3
@@ -1215,24 +1214,24 @@ Nelly Furtado | Turn Off the Light | 2001 | 3
 Nelly Furtado | Força | 2004 | 3
 Shakira | Did It Again | 2009 | 3
 Shakira | Rabiosa | 2011 | 3
-Beyoncé | Sweet Dreams | 2009 | 3
-Beyoncé | Best Thing I Never Had | 2011 | 3
-Beyoncé | Formation | 2016 | 3
+Beyoncé | Sweet Dreams | 2009 | 2
+Beyoncé | Best Thing I Never Had | 2011 | 2
+Beyoncé | Formation | 2016 | 1
 Beyoncé | Hold Up | 2016 | 3
-Beyoncé | Partition | 2013 | 3
-Beyoncé | Deja Vu | 2006 | 3
-Beyoncé | Listen | 2006 | 3
-Beyoncé | Break My Soul | 2022 | 3
-Rihanna | SOS | 2006 | 3
-Rihanna | Unfaithful | 2006 | 3
-Rihanna | Take a Bow | 2008 | 3
+Beyoncé | Partition | 2013 | 2
+Beyoncé | Deja Vu | 2006 | 2
+Beyoncé | Listen | 2006 | 2
+Beyoncé | Break My Soul | 2022 | 1
+Rihanna | SOS | 2006 | 2
+Rihanna | Unfaithful | 2006 | 2
+Rihanna | Take a Bow | 2008 | 2
 Rihanna | Russian Roulette | 2009 | 3
-Rihanna | What's My Name? | 2010 | 3
+Rihanna | What's My Name? | 2010 | 2
 Rihanna | Man Down | 2011 | 3
 Rihanna | California King Bed | 2011 | 3
-Rihanna | Needed Me | 2016 | 3
+Rihanna | Needed Me | 2016 | 2
 Rihanna | Wild Thoughts | 2017 | 3
-Rihanna | Hate That I Love You | 2007 | 3
+Rihanna | Hate That I Love You | 2007 | 2
 Rihanna | Shut Up and Drive | 2007 | 3
 Lady Gaga | LoveGame | 2009 | 3
 Lady Gaga | Eh, Eh (Nothing Else I Can Say) | 2009 | 3
@@ -1240,13 +1239,13 @@ Lady Gaga | The Edge of Glory | 2011 | 3
 Lady Gaga | Marry the Night | 2011 | 3
 Lady Gaga | You and I | 2011 | 3
 Lady Gaga | Million Reasons | 2016 | 3
-Lady Gaga | Rain on Me | 2020
+Lady Gaga | Rain on Me | 2020 | 1
 Lady Gaga | Abracadabra | 2025 | 3
 Lady Gaga | Always Remember Us This Way | 2018 | 3
-Katy Perry | Part of Me | 2012 | 3
+Katy Perry | Part of Me | 2012 | 2
 Katy Perry | The One That Got Away | 2010 | 3
-Katy Perry | Unconditionally | 2013 | 3
-Katy Perry | This Is How We Do | 2014 | 3
+Katy Perry | Unconditionally | 2013 | 2
+Katy Perry | This Is How We Do | 2014 | 2
 Katy Perry | Rise | 2016 | 3
 Katy Perry | Swish Swish | 2017 | 3
 Katy Perry | Never Really Over | 2019 | 3
@@ -1257,7 +1256,7 @@ Taylor Swift | Mine | 2010 | 3
 Taylor Swift | Red | 2012 | 3
 Taylor Swift | Out of the Woods | 2014 | 3
 Taylor Swift | Ready for It? | 2017 | 3
-Taylor Swift | ME! | 2019 | 3
+Taylor Swift | ME! | 2019 | 2
 Taylor Swift | You Need to Calm Down | 2019 | 3
 Taylor Swift | The Man | 2019 | 3
 Taylor Swift | exile | 2020 | 3
@@ -1267,9 +1266,9 @@ Taylor Swift | Is It Over Now? | 2023 | 3
 Taylor Swift | Fearless | 2008 | 3
 Taylor Swift | White Horse | 2008 | 3
 Taylor Swift | Mean | 2010 | 3
-Taylor Swift | The Fate of Ophelia | 2025 | 3
-Selena Gomez | Wolves | 2017 | 3
-Selena Gomez | Same Old Love | 2015 | 3
+Taylor Swift | The Fate of Ophelia | 2025 | 1
+Selena Gomez | Wolves | 2017 | 2
+Selena Gomez | Same Old Love | 2015 | 2
 Selena Gomez | Good for You | 2015 | 3
 Selena Gomez | Hands to Myself | 2015 | 3
 Selena Gomez | Single Soon | 2023 | 3
@@ -1289,7 +1288,7 @@ Ariana Grande | Love Me Harder | 2014 | 3
 Ariana Grande | One Last Time | 2014 | 3
 Ariana Grande | Focus | 2015 | 3
 Ariana Grande | Breathin | 2018 | 3
-Ariana Grande | Stuck with U | 2020 | 3
+Ariana Grande | Stuck with U | 2020 | 2
 Ariana Grande | 34+35 | 2020 | 3
 Ariana Grande | the boy is mine | 2024 | 3
 Justin Bieber | One Time | 2009 | 3
@@ -1297,38 +1296,38 @@ Justin Bieber | Somebody to Love | 2010 | 3
 Justin Bieber | As Long as You Love Me | 2012 | 3
 Justin Bieber | Mistletoe | 2011 | 3
 Justin Bieber | Company | 2015 | 3
-Justin Bieber | Yummy | 2020 | 3
+Justin Bieber | Yummy | 2020 | 2
 Justin Bieber | Holy | 2020 | 3
 Justin Bieber | Anyone | 2021 | 3
-Justin Bieber | Daisies | 2025 | 3
-Shawn Mendes | Mercy | 2016 | 3
+Justin Bieber | Daisies | 2025 | 2
+Shawn Mendes | Mercy | 2016 | 2
 Shawn Mendes | If I Can't Have You | 2019 | 3
-Shawn Mendes | Wonder | 2020 | 3
+Shawn Mendes | Wonder | 2020 | 2
 Shawn Mendes | Lost in Japan | 2018 | 3
 Shawn Mendes & Camila Cabello | I Know What You Did Last Summer | 2015 | 3
 Camila Cabello | Bam Bam | 2022 | 3
-Camila Cabello | Don't Go Yet | 2021 | 3
+Camila Cabello | Don't Go Yet | 2021 | 2
 Camila Cabello | Consequences | 2018 | 3
 Charlie Puth | Marvin Gaye | 2015 | 3
-Charlie Puth | How Long | 2017 | 3
-Charlie Puth | Light Switch | 2022 | 3
+Charlie Puth | How Long | 2017 | 2
+Charlie Puth | Light Switch | 2022 | 2
 Charlie Puth | Left and Right | 2022 | 3
 Sam Smith | Lay Me Down | 2014 | 3
-Sam Smith | Dancing with a Stranger | 2019 | 3
+Sam Smith | Dancing with a Stranger | 2019 | 2
 Sam Smith | Promises | 2018 | 3
 John Legend | Love Me Now | 2016 | 3
-Ed Sheeran | Lego House | 2011 | 3
+Ed Sheeran | Lego House | 2011 | 2
 Ed Sheeran | Give Me Love | 2012 | 3
-Ed Sheeran | Sing | 2014 | 3
+Ed Sheeran | Sing | 2014 | 2
 Ed Sheeran | Bloodstream | 2014 | 3
-Ed Sheeran | Afterglow | 2020 | 3
-Ed Sheeran | Overpass Graffiti | 2021 | 3
+Ed Sheeran | Afterglow | 2020 | 2
+Ed Sheeran | Overpass Graffiti | 2021 | 2
 Ed Sheeran | 2step | 2022 | 3
 Ed Sheeran | Celestial | 2022 | 3
 Ed Sheeran | Azizam | 2025 | 3
-Ed Sheeran | Sapphire | 2025 | 3
-Ed Sheeran & Justin Bieber | I Don't Care | 2019
-Ed Sheeran | Beautiful People | 2019 | 3
+Ed Sheeran | Sapphire | 2025 | 2
+Ed Sheeran & Justin Bieber | I Don't Care | 2019 | 1
+Ed Sheeran | Beautiful People | 2019 | 2
 Ed Sheeran | South of the Border | 2019 | 3
 Ed Sheeran | Take Me Back to London | 2019 | 3
 Ed Sheeran | Kiss Me | 2011 | 3
@@ -1342,7 +1341,7 @@ Tom Odell | Can't Pretend | 2013 | 3
 Passenger | Whispers | 2014 | 3
 Ben Howard | Keep Your Head Up | 2011 | 3
 Jamie Lawson | Wasn't Expecting That | 2011 | 3
-Lukas Graham | 7 Years | 2015
+Lukas Graham | 7 Years | 2015 | 1
 Lukas Graham | Mama Said | 2015 | 3
 Sigrid | Strangers | 2017 | 3
 Astrid S | Hurts So Good | 2016 | 3
@@ -1350,18 +1349,18 @@ Dagny | Backbeat | 2016 | 3
 Alessia Cara | Scars to Your Beautiful | 2015 | 3
 Alessia Cara | Here | 2015 | 3
 Julia Michaels | Issues | 2017 | 3
-Bebe Rexha | Last Hurrah | 2019 | 3
+Bebe Rexha | Last Hurrah | 2019 | 2
 Bebe Rexha | I Got You | 2016 | 3
-Ava Max | Salt | 2019 | 3
-Ava Max | My Head & My Heart | 2020 | 3
+Ava Max | Salt | 2019 | 2
+Ava Max | My Head & My Heart | 2020 | 2
 Ava Max | Torn | 2019 | 3
 Ava Max | Who's Laughing Now | 2020 | 3
 Ava Max | So Am I | 2019 | 3
-Anne-Marie | Ciao Adios | 2017 | 3
+Anne-Marie | Ciao Adios | 2017 | 2
 Anne-Marie | Psycho | 2023 | 3
 Clean Bandit | Tears | 2016 | 3
 Rita Ora | Let You Love Me | 2018 | 3
-Rita Ora | I Will Never Let You Down | 2014 | 3
+Rita Ora | I Will Never Let You Down | 2014 | 2
 Rita Ora | Hot Right Now | 2012 | 3
 Dua Lipa | Hallucinate | 2020 | 3
 Dua Lipa | Love Again | 2020 | 3
@@ -1370,7 +1369,7 @@ Dua Lipa | Electricity | 2018 | 3
 Dua Lipa | We're Good | 2021 | 3
 Dua Lipa | Hotter than Hell | 2016 | 3
 Dua Lipa | Blow Your Mind (Mwah) | 2016 | 3
-Doja Cat | Streets | 2019 | 3
+Doja Cat | Streets | 2019 | 2
 Doja Cat | Agora Hills | 2023 | 3
 Doja Cat | Juicy | 2019 | 3
 Doja Cat | Like That | 2020 | 3
@@ -1383,7 +1382,7 @@ Billie Eilish | Six Feet Under | 2016 | 3
 Billie Eilish | my future | 2020 | 3
 Billie Eilish | Your Power | 2021 | 3
 Billie Eilish | TV | 2022 | 3
-Billie Eilish | WILDFLOWER | 2024 | 3
+Billie Eilish | WILDFLOWER | 2024 | 1
 Billie Eilish | THE GREATEST | 2024 | 3
 Billie Eilish | L'AMOUR DE MA VIE | 2024 | 3
 Billie Eilish | xanny | 2019 | 3
@@ -1400,19 +1399,19 @@ Olivia Rodrigo | obsessed | 2024 | 3
 Sabrina Carpenter | Nonsense | 2022 | 3
 Sabrina Carpenter | Bed Chem | 2024 | 3
 Sabrina Carpenter | Juno | 2024 | 3
-Sabrina Carpenter | Manchild | 2025 | 3
+Sabrina Carpenter | Manchild | 2025 | 2
 Chappell Roan | Femininomenon | 2022 | 3
 Chappell Roan | Casual | 2022 | 3
 Chappell Roan | The Subway | 2025 | 3
 Gracie Abrams | I Love You, I'm Sorry | 2024 | 3
 Tate McRae | exes | 2023 | 3
 Tate McRae | 2 hands | 2024 | 3
-Tate McRae | Sports car | 2025 | 3
-Tate McRae | It's ok I'm ok | 2024 | 3
-Alex Warren | Ordinary | 2025
+Tate McRae | Sports car | 2025 | 2
+Tate McRae | It's ok I'm ok | 2024 | 2
+Alex Warren | Ordinary | 2025 | 1
 Gigi Perez | Sailor Song | 2024 | 3
-Sombr | back to friends | 2024 | 3
-Sombr | undressed | 2025 | 3
+Sombr | back to friends | 2024 | 2
+Sombr | undressed | 2025 | 2
 Lola Young | Messy | 2024 | 3
 Addison Rae | Diet Pepsi | 2024 | 3
 Charli XCX | 360 | 2024 | 3
@@ -1422,7 +1421,7 @@ Charli XCX | Speed Drive | 2023 | 3
 Icona Pop | I Love It | 2012
 Troye Sivan | Rush | 2023 | 3
 Troye Sivan | Youth | 2015 | 3
-Benson Boone | Slow It Down | 2024 | 3
+Benson Boone | Slow It Down | 2024 | 2
 Benson Boone | Mystical Magical | 2025 | 3
 Teddy Swims | The Door | 2023 | 3
 Miley Cyrus | End of the World | 2025 | 3
@@ -1721,7 +1720,7 @@ The Supremes | Where Did Our Love Go | 1964 | 3
 The Supremes | Stop! In the Name of Love | 1965 | 3
 The Supremes | You Keep Me Hangin' On | 1966 | 3
 Martha and the Vandellas | Dancing in the Street | 1964 | 3
-The Shirelles | Will You Love Me Tomorrow | 1960 | 3
+The Shirelles | Will You Love Me Tomorrow | 1960 | 2
 The Crystals | Then He Kissed Me | 1963 | 3
 The Shangri-Las | Leader of the Pack | 1964 | 3
 The Drifters | Under the Boardwalk | 1964 | 3
@@ -1750,7 +1749,7 @@ Gerry and the Pacemakers | You'll Never Walk Alone | 1963 | 3
 Manfred Mann | Do Wah Diddy Diddy | 1964 | 3
 The Hollies | Bus Stop | 1966 | 3
 The Mamas & the Papas | Dream a Little Dream of Me | 1968 | 3
-Sonny & Cher | I Got You Babe | 1965
+Sonny & Cher | I Got You Babe | 1965 | 1
 The Cascades | Rhythm of the Rain | 1962 | 3
 The Association | Windy | 1967 | 3
 Neil Diamond | Cracklin' Rosie | 1970 | 3
@@ -1777,11 +1776,11 @@ Dr. Hook | Sexy Eyes | 1980 | 3
 Dr. Hook | A Little Bit More | 1976 | 3
 Dr. Hook | When You're in Love with a Beautiful Woman | 1979 | 3
 Bonnie Tyler | Have You Ever Seen the Rain | 1983 | 3
-Kim Wilde | You Keep Me Hangin' On | 1986 | 3
-Kim Wilde | Cambodia | 1981 | 3
+Kim Wilde | You Keep Me Hangin' On | 1986 | 2
+Kim Wilde | Cambodia | 1981 | 2
 Nena | Just a Dream | 1983 | 3
 Limahl | Too Much Trouble | 1984 | 3
-Kajagoogoo | Too Shy | 1983 | 3
+Kajagoogoo | Too Shy | 1983 | 2
 Paul Young | Every Time You Go Away | 1985 | 3
 Paul Young | Love of the Common People | 1983 | 3
 Nik Kershaw | I Won't Let the Sun Go Down on Me | 1984 | 3
@@ -1796,9 +1795,9 @@ Kylie Minogue | Step Back in Time | 1990 | 3
 Kylie Minogue | Confide in Me | 1994 | 3
 Kylie Minogue | Kids | 2000 | 3
 Kylie Minogue | Get Outta My Way | 2010 | 3
-Belinda Carlisle | Leave a Light On | 1989 | 3
+Belinda Carlisle | Leave a Light On | 1989 | 2
 Belinda Carlisle | Circle in the Sand | 1988 | 3
-Bananarama | Cruel Summer | 1983 | 3
+Bananarama | Cruel Summer | 1983 | 2
 Bananarama | Love in the First Degree | 1987 | 3
 Wham! | Everything She Wants | 1984 | 3
 Wham! | The Edge of Heaven | 1986 | 3
@@ -1847,7 +1846,7 @@ Janet Jackson | Escapade | 1990 | 3
 Janet Jackson | Again | 1993 | 3
 Janet Jackson | Black Cat | 1990 | 3
 Janet Jackson | Scream | 1995 | 3
-Whitney Houston | Saving All My Love for You | 1985 | 3
+Whitney Houston | Saving All My Love for You | 1985 | 2
 Whitney Houston | Where Do Broken Hearts Go | 1988 | 3
 Whitney Houston | I'm Your Baby Tonight | 1990 | 3
 Whitney Houston | Exhale (Shoop Shoop) | 1995 | 3
@@ -1856,9 +1855,9 @@ Whitney Houston | I'm Every Woman | 1993 | 3
 Whitney Houston | Queen of the Night | 1992 | 3
 Mariah Carey | Dreamlover | 1993 | 3
 Mariah Carey | Heartbreaker | 1999 | 3
-Mariah Carey | Honey | 1997 | 3
-Mariah Carey | One Sweet Day | 1995 | 3
-Mariah Carey | My All | 1997 | 3
+Mariah Carey | Honey | 1997 | 2
+Mariah Carey | One Sweet Day | 1995 | 1
+Mariah Carey | My All | 1997 | 2
 Mariah Carey | It's Like That | 2005 | 3
 Mariah Carey | I Don't Wanna Cry | 1991 | 3
 Celine Dion | Tell Him | 1997 | 3
@@ -1888,7 +1887,7 @@ Sade | Cherish the Day | 1993 | 3
 Sade | Soldier of Love | 2010 | 3
 Simply Red | Something Got Me Started | 1991 | 3
 Simply Red | Money's Too Tight (to Mention) | 1985 | 3
-Simply Red | If You Don't Know Me by Now | 1989 | 3
+Simply Red | If You Don't Know Me by Now | 1989 | 2
 Simply Red | Say You Love Me | 1998 | 3
 Lisa Stansfield | All Around the World | 1989
 Lisa Stansfield | Change | 1991 | 3
@@ -1904,7 +1903,7 @@ SWV | Right Here | 1993 | 3
 Wilson Phillips | Hold On | 1990 | 3
 Gloria Estefan | Anything for You | 1988 | 3
 Gloria Estefan | Coming Out of the Dark | 1991 | 3
-Paula Abdul | Straight Up | 1988 | 3
+Paula Abdul | Straight Up | 1988 | 2
 Paula Abdul | Rush Rush | 1991 | 3
 Taylor Dayne | Tell It to My Heart | 1987 | 3
 Taylor Dayne | Love Will Lead You Back | 1989 | 3
@@ -1975,12 +1974,12 @@ Gary Barlow | Forever Love | 1996 | 3
 Enrique Iglesias | Be with You | 2000 | 3
 Enrique Iglesias | Rhythm Divine | 1999 | 3
 Enrique Iglesias | Could I Have This Kiss Forever | 2000 | 3
-Enrique Iglesias | Somebody's Me | 2007 | 3
-Enrique Iglesias | Do You Know? (The Ping Pong Song) | 2007 | 3
+Enrique Iglesias | Somebody's Me | 2007 | 2
+Enrique Iglesias | Do You Know? (The Ping Pong Song) | 2007 | 2
 Enrique Iglesias | Takin' Back My Love | 2009 | 3
 Enrique Iglesias | I Like It | 2010
 Enrique Iglesias | Not in Love | 2004 | 3
-Enrique Iglesias | Addicted | 2003 | 3
+Enrique Iglesias | Addicted | 2003 | 2
 Enrique Iglesias | Love to See You Cry | 2002 | 3
 Ricky Martin | Nobody Wants to Be Lonely | 2001 | 3
 Ricky Martin | The Cup of Life | 1998 | 3
@@ -1992,7 +1991,7 @@ Jennifer Lopez | I'm Real | 2001 | 3
 Jennifer Lopez | Hold You Down | 2005 | 3
 Jennifer Lopez | Qué Hiciste | 2007 | 3
 Jennifer Lopez | Booty | 2014 | 3
-Jennifer Lopez | Ain't Your Mama | 2016 | 3
+Jennifer Lopez | Ain't Your Mama | 2016 | 2
 Christina Aguilera | Come On Over Baby (All I Want Is You) | 2000 | 3
 Christina Aguilera | I Turn to You | 2000 | 3
 Christina Aguilera | The Voice Within | 2003 | 3
@@ -2020,7 +2019,7 @@ Nick Lachey | What's Left of Me | 2006 | 3
 Hilary Duff | Wake Up | 2005 | 3
 Hilary Duff | With Love | 2007 | 3
 Hilary Duff | Reach Out | 2008 | 3
-Avril Lavigne | My Happy Ending | 2004 | 3
+Avril Lavigne | My Happy Ending | 2004 | 2
 Avril Lavigne | Don't Tell Me | 2004 | 3
 Avril Lavigne | Nobody's Home | 2004 | 3
 Avril Lavigne | Hot | 2007 | 3
@@ -2054,66 +2053,66 @@ Pink | Beautiful Trauma | 2017 | 3
 Pink | Walk Me Home | 2019 | 3
 Pink | Never Gonna Not Dance Again | 2022 | 3
 Pink | Trustfall | 2023 | 3
-Gwen Stefani | Rich Girl | 2004 | 3
+Gwen Stefani | Rich Girl | 2004 | 2
 Gwen Stefani | Cool | 2005 | 3
 Gwen Stefani | What You Waiting For? | 2004 | 3
 Gwen Stefani | Luxurious | 2005 | 3
 Gwen Stefani | Wind It Up | 2006 | 3
-Fergie | London Bridge | 2006 | 3
+Fergie | London Bridge | 2006 | 2
 Fergie | Fergalicious | 2006 | 3
 Fergie | Clumsy | 2007 | 3
-The Pussycat Dolls | Stickwitu | 2005 | 3
+The Pussycat Dolls | Stickwitu | 2005 | 2
 The Pussycat Dolls | When I Grow Up | 2008 | 3
 The Pussycat Dolls | I Hate This Part | 2008 | 3
-The Pussycat Dolls | Beep | 2005 | 3
+The Pussycat Dolls | Beep | 2005 | 2
 The Pussycat Dolls | Jai Ho! (You Are My Destiny) | 2009 | 3
 Nicole Scherzinger | Don't Hold Your Breath | 2011 | 3
 Nicole Scherzinger | Poison | 2010 | 3
-Natasha Bedingfield | These Words | 2004 | 3
+Natasha Bedingfield | These Words | 2004 | 2
 Natasha Bedingfield | Love Like This | 2007 | 3
 Leona Lewis | Better in Time | 2008 | 3
 Leona Lewis | I See You | 2009 | 3
 Duffy | Rain on Your Parade | 2008 | 3
 Adele | Hometown Glory | 2007 | 3
 Adele | Turning Tables | 2011 | 3
-Adele | Send My Love (To Your New Lover) | 2016 | 3
+Adele | Send My Love (To Your New Lover) | 2016 | 2
 Adele | Water Under the Bridge | 2015 | 3
-Adele | Oh My God | 2021 | 3
+Adele | Oh My God | 2021 | 2
 Adele | I Drink Wine | 2021 | 3
 Adele | Love in the Dark | 2015 | 3
 Adele | All I Ask | 2015 | 3
 Amy Macdonald | This Is the Life | 2007 | 3
 KT Tunstall | Suddenly I See | 2004 | 3
 KT Tunstall | Black Horse and the Cherry Tree | 2005 | 3
-Lily Allen | Smile | 2006 | 3
-Lily Allen | Not Fair | 2009 | 3
+Lily Allen | Smile | 2006 | 2
+Lily Allen | Not Fair | 2009 | 2
 Lily Allen | The Fear | 2009 | 3
 Kate Nash | Foundations | 2007 | 3
 Paloma Faith | Only Love Can Hurt Like This | 2014 | 3
 Jessie Ware | Say You Love Me | 2014 | 3
 Ellie Goulding | Starry Eyed | 2010 | 3
-Ellie Goulding | Anything Could Happen | 2012 | 3
+Ellie Goulding | Anything Could Happen | 2012 | 2
 Ellie Goulding | On My Mind | 2015 | 3
-Ellie Goulding | Still Falling for You | 2016 | 3
+Ellie Goulding | Still Falling for You | 2016 | 2
 Ellie Goulding | Hate Me | 2019 | 3
 Ellie Goulding | Your Song | 2010 | 3
 Jessie J | Who You Are | 2011 | 3
 Jessie J | Nobody's Perfect | 2011 | 3
-Jessie J | Flashlight | 2015 | 3
+Jessie J | Flashlight | 2015 | 2
 Rita Ora | R.I.P. | 2012 | 3
 Rita Ora | For You | 2018 | 3
 Cheryl | Call My Name | 2012 | 3
-Little Mix | Wings | 2012 | 3
+Little Mix | Wings | 2012 | 2
 Little Mix | Move | 2013 | 3
-Little Mix | Touch | 2016 | 3
-Little Mix | Woman Like Me | 2018 | 3
+Little Mix | Touch | 2016 | 2
+Little Mix | Woman Like Me | 2018 | 2
 Little Mix | Sweet Melody | 2020 | 3
 Little Mix | Secret Love Song | 2016 | 3
 Little Mix | Power | 2017 | 3
 Fifth Harmony | Worth It | 2015 | 3
 Fifth Harmony | Sledgehammer | 2014 | 3
 Fifth Harmony | Down | 2017 | 3
-Girls Aloud | The Promise | 2008 | 3
+Girls Aloud | The Promise | 2008 | 2
 Girls Aloud | Biology | 2005 | 3
 Sugababes | Round Round | 2002 | 3
 Sugababes | About You Now | 2007 | 3
@@ -2126,10 +2125,9 @@ Olly Murs | Dance with Me Tonight | 2011 | 3
 Olly Murs | Wrapped Up | 2014 | 3
 Olly Murs | Heart Skips a Beat | 2011 | 3
 James Arthur | Train Wreck | 2016 | 3
-James Arthur | Car's Outside | 2019 | 3
+James Arthur | Car's Outside | 2019 | 2
 Ed Sheeran | Small Bump | 2011 | 3
 Ed Sheeran | You Need Me, I Don't Need You | 2011 | 3
-Ed Sheeran | Lady Gaga | 2011 | 3
 Ed Sheeran | Nancy Mulligan | 2017 | 3
 Ed Sheeran | Visiting Hours | 2021 | 3
 Ed Sheeran | The Joker and the Queen | 2022 | 3
@@ -2138,7 +2136,7 @@ Ed Sheeran | Life Goes On | 2023 | 3
 Ed Sheeran | Old Phone | 2025 | 3
 Lewis Capaldi | Bruises | 2017 | 3
 Lewis Capaldi | Hold Me While You Wait | 2019 | 3
-Lewis Capaldi | Wish You the Best | 2023 | 3
+Lewis Capaldi | Wish You the Best | 2023 | 2
 Lewis Capaldi | Survive | 2025 | 3
 Sam Smith | Money on My Mind | 2014 | 3
 Sam Smith | Like I Can | 2014 | 3
@@ -2161,16 +2159,16 @@ Harry Styles | Music for a Sushi Restaurant | 2022 | 3
 Harry Styles | Satellite | 2022 | 3
 Harry Styles | Kiwi | 2017 | 3
 Harry Styles | Matilda | 2022 | 3
-Niall Horan | This Town | 2016 | 3
+Niall Horan | This Town | 2016 | 2
 Niall Horan | Heaven | 2023 | 3
 Louis Tomlinson | Walls | 2020 | 3
 Liam Payne | Strip That Down | 2017 | 3
 Zayn | Dusk Till Dawn | 2017 | 3
 Zayn | Let Me | 2018 | 3
-One Direction | Little Things | 2012 | 3
-One Direction | Steal My Girl | 2014 | 3
-One Direction | Perfect | 2015 | 3
-One Direction | Live While We're Young | 2012 | 3
+One Direction | Little Things | 2012 | 2
+One Direction | Steal My Girl | 2014 | 2
+One Direction | Perfect | 2015 | 2
+One Direction | Live While We're Young | 2012 | 2
 One Direction | One Thing | 2012 | 3
 One Direction | History | 2016 | 3
 One Direction | Kiss You | 2013 | 3
@@ -2181,7 +2179,7 @@ One Direction | You & I | 2014 | 3
 5 Seconds of Summer | Amnesia | 2014 | 3
 The Wanted | Glad You Came | 2011 | 3
 The Wanted | Chasing the Sun | 2012 | 3
-Jonas Brothers | Only Human | 2019 | 3
+Jonas Brothers | Only Human | 2019 | 2
 Jonas Brothers | Year 3000 | 2006 | 3
 Nick Jonas | Jealous | 2014 | 3
 DNCE | Cake by the Ocean | 2015 | 3
@@ -2194,7 +2192,7 @@ Charlie Puth | Girlfriend | 2020 | 3
 Charlie Puth | Dangerously | 2016 | 3
 Meghan Trainor | Dear Future Husband | 2015 | 3
 Meghan Trainor | Me Too | 2016 | 3
-Meghan Trainor | No | 2016 | 3
+Meghan Trainor | No | 2016 | 2
 Meghan Trainor | Like I'm Gonna Lose You | 2015 | 3
 Meghan Trainor | Better When I'm Dancin' | 2015 | 3
 Selena Gomez | Kill Em with Kindness | 2015 | 3
@@ -2256,17 +2254,17 @@ Rihanna | Bitch Better Have My Money | 2015 | 3
 Rihanna | American Oxygen | 2015 | 3
 Rihanna | If It's Lovin' That You Want | 2005 | 3
 Rihanna | Desperado | 2016 | 3
-Beyoncé | Baby Boy | 2003 | 3
-Beyoncé | Naughty Girl | 2004 | 3
+Beyoncé | Baby Boy | 2003 | 2
+Beyoncé | Naughty Girl | 2004 | 2
 Beyoncé | Me, Myself and I | 2003 | 3
 Beyoncé | Check on It | 2005 | 3
 Beyoncé | Ring the Alarm | 2006 | 3
 Beyoncé | Diva | 2008 | 3
 Beyoncé | Ego | 2009 | 3
 Beyoncé | Video Phone | 2009 | 3
-Beyoncé | Countdown | 2011 | 3
+Beyoncé | Countdown | 2011 | 2
 Beyoncé | 1+1 | 2011 | 3
-Beyoncé | XO | 2013 | 3
+Beyoncé | XO | 2013 | 2
 Beyoncé | Pretty Hurts | 2013 | 3
 Beyoncé | 7/11 | 2014 | 3
 Beyoncé | Sorry | 2016 | 3
@@ -2281,9 +2279,134 @@ Beyoncé | 16 Carriages | 2024 | 3
     genre: 'pop',
     lang: 'en',
     lines: `
-Ed Sheeran | I Don't Care | 2019 | 1
 OneRepublic | Apologize | 2006 | 1
 Coldplay | Something Just Like This | 2017 | 1
+`
+  },
+  {
+    genre: 'pop',
+    lang: 'en',
+    lines: `
+Nancy Sinatra | These Boots Are Made for Walkin' | 1966 | 1
+Wilson Pickett | In the Midnight Hour | 1965 | 2
+Simon & Garfunkel | The Boxer | 1969 | 2
+The Beach Boys | Kokomo | 1988 | 2
+Engelbert Humperdinck | Release Me | 1967 | 2
+Elton John | Goodbye Yellow Brick Road | 1973 | 2
+Don McLean | Vincent | 1971 | 2
+Harry Nilsson | Without You | 1971 | 2
+Carole King | It's Too Late | 1971 | 2
+Roberta Flack | Killing Me Softly with His Song | 1973 | 1
+The Hollies | The Air That I Breathe | 1974 | 2
+Level 42 | Lessons in Love | 1986 | 2
+Men Without Hats | The Safety Dance | 1982 | 2
+a-ha | Crying in the Rain | 1990 | 2
+Roxette | Fading Like a Flower (Every Time You Leave) | 1991 | 2
+Secret Service | Flash in the Night | 1981 | 1
+Secret Service | Ten O'Clock Postman | 1979 | 2
+`
+  },
+  {
+    genre: 'pop',
+    lang: 'en',
+    lines: `
+Tommy Richman | MILLION DOLLAR BABY | 2024 | 1
+Taylor Swift | All Too Well (Taylor's Version) | 2021 | 2
+Doja Cat | Kiss Me More | 2021 | 1
+The Weeknd & Ariana Grande | Save Your Tears (Remix) | 2021 | 2
+The Weeknd, JENNIE & Lily-Rose Depp | One Of The Girls | 2023 | 1
+Justin Bieber | Let Me Love You | 2016 | 2
+Calum Scott | Dancing On My Own | 2016 | 2
+Camila Cabello | My Oh My | 2019 | 2
+Selena Gomez | Bad Liar | 2017 | 2
+Zara Larsson | Ain't My Fault | 2016 | 2
+Zara Larsson | Symphony | 2017 | 2
+Sia | Move Your Body | 2017 | 2
+Rihanna & Calvin Harris | This Is What You Came For | 2016 | 1
+Bruno Mars | Versace on the Floor | 2016 | 2
+James Blunt | Goodbye My Lover | 2005 | 2
+P!nk | So What | 2008 | 1
+P!nk | Just Give Me a Reason | 2012 | 1
+P!nk | Try | 2012 | 1
+P!nk | Get the Party Started | 2001 | 1
+P!nk | Who Knew | 2006 | 2
+P!nk | What About Us | 2017 | 2
+P!nk | Raise Your Glass | 2010 | 2
+P!nk | U + Ur Hand | 2006 | 2
+Shakira | Beautiful Liar | 2007 | 2
+Shakira | Objection (Tango) | 2001 | 2
+Black Eyed Peas | Don't Phunk with My Heart | 2005 | 2
+Black Eyed Peas | Just Can't Get Enough | 2011 | 2
+Timbaland | The Way I Are | 2007 | 1
+Nelly Furtado & Timbaland | Give It to Me | 2007 | 2
+Maroon 5 | Makes Me Wonder | 2007 | 2
+Maroon 5 | Cold | 2017 | 2
+Maroon 5 | Wait | 2018 | 2
+Maroon 5 | Beautiful Mistakes | 2021 | 2
+Jason Mraz | I Won't Give Up | 2012 | 2
+Imagine Dragons & JID | Enemy | 2021 | 1
+Måneskin | SUPERMODEL | 2022 | 2
+Michelle Branch | All You Wanted | 2001 | 2
+Bebe Rexha | I'm a Mess | 2018 | 2
+Lizzo | Juice | 2019 | 2
+Bastille | Good Grief | 2016 | 2
+Bastille | Things We Lost in the Fire | 2013 | 2
+Rixton | Me and My Broken Heart | 2014 | 2
+X Ambassadors | Unsteady | 2014 | 2
+Naughty Boy | La La La | 2013 | 1
+Lost Frequencies | Reality | 2015 | 2
+Alec Benjamin | Let Me Down Slowly | 2018 | 1
+Kate Bush | Wuthering Heights | 1978 | 2
+Ruth B. | Lost Boy | 2015 | 1
+Birdy | Wings | 2013 | 2
+Kesha | We R Who We R | 2010 | 2
+Kesha | Blow | 2011 | 2
+Kesha | Praying | 2017 | 2
+Flo Rida | Wild Ones | 2011 | 1
+Flo Rida | My House | 2015 | 2
+Flo Rida | GDFR | 2014 | 2
+Jason Derulo | Wiggle | 2014 | 2
+Jason Derulo | Swalla | 2017 | 2
+Jason Derulo | Trumpets | 2013 | 2
+Jason Derulo | It Girl | 2011 | 2
+Sean Paul | She Doesn't Mind | 2011 | 2
+Sean Paul | Got 2 Luv U | 2011 | 2
+Sean Paul & Dua Lipa | No Lie | 2016 | 1
+`
+  },
+  {
+    genre: 'pop',
+    lang: 'ru',
+    lines: `
+Kazka | Cry | 2018 | 2
+`
+  },
+  {
+    genre: 'pop',
+    lang: 'en',
+    lines: `
+Dido | Thank You | 1998 | 1
+`
+  },
+  {
+    genre: 'pop',
+    lang: 'en',
+    lines: `
+The Kid LAROI | WITHOUT YOU | 2020 | 1
+Gym Class Heroes | Cupid's Chokehold | 2005 | 2
+`
+  },
+  {
+    genre: 'pop',
+    lang: 'other',
+    lines: `
+Jennifer Lopez | Dinero | 2018 | 2
+`
+  },
+  {
+    genre: 'pop',
+    lang: 'ru',
+    lines: `
 `
   },
 ] satisfies Block[]

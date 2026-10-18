@@ -48,7 +48,7 @@ Morgan Wallen | Whiskey Glasses | 2018 | 3
 Morgan Wallen | Wasted on You | 2021 | 3
 Jason Aldean | Try That in a Small Town | 2023 | 3
 Oliver Anthony | Rich Men North of Richmond | 2023 | 3
-Shaboozey | A Bar Song (Tipsy) | 2024
+Shaboozey | A Bar Song (Tipsy) | 2024 | 1
 Beyoncé | II Most Wanted | 2024 | 3
 Post Malone | Pour Me a Drink | 2024 | 3
 Kane Brown | Heaven | 2017 | 3
@@ -134,7 +134,7 @@ Morgan Wallen | You Proof | 2022 | 3
 Morgan Wallen | Thinkin' Bout Me | 2023 | 3
 Morgan Wallen | Love Somebody | 2024 | 3
 Morgan Wallen | 7 Summers | 2020 | 3
-Zach Bryan | I Remember Everything | 2023 | 3
+Zach Bryan | I Remember Everything | 2023 | 2
 Zach Bryan | Pink Skies | 2024 | 3
 Jelly Roll | Need a Favor | 2023 | 3
 Bailey Zimmerman | Rock and a Hard Place | 2022 | 3

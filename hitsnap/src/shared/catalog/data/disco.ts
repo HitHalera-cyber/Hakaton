@@ -46,9 +46,9 @@ Bee Gees | You Should Be Dancing | 1976 | 3
 Boney M. | Ma Baker | 1977 | 1
 Boney M. | Hooray! Hooray! It's a Holi-Holiday | 1979 | 1
 Boney M. | Bahama Mama | 1979 | 3
-Boney M. | Gotta Go Home | 1979 | 3
+Boney M. | Gotta Go Home | 1979 | 2
 Boney M. | Belfast | 1977 | 3
-Boney M. | Brown Girl in the Ring | 1978 | 3
+Boney M. | Brown Girl in the Ring | 1978 | 2
 Boney M. | Kalimba de Luna | 1984 | 3
 Donna Summer | Hot Stuff | 1979 | 1
 Donna Summer | Last Dance | 1978 | 3
@@ -70,7 +70,7 @@ Carl Douglas | Kung Fu Fighting | 1974 | 1
 Hot Chocolate | You Sexy Thing | 1975
 Arabesque | Midnight Dancer | 1980 | 1
 Arabesque | Marigot Bay | 1981 | 3
-Arabesque | Hello Mr. Monkey | 1978 | 3
+Arabesque | Hello Mr. Monkey | 1978 | 2
 Arabesque | Friday Night | 1978 | 3
 Dschinghis Khan | Dschinghis Khan | 1979 | 1
 Eruption | One Way Ticket | 1979 | 1
@@ -81,31 +81,31 @@ Silver Convention | Fly, Robin, Fly | 1975 | 3
 Patrick Hernandez | Born to Be Alive | 1979 | 1
 Cerrone | Supernature | 1977 | 3
 Lipps Inc. | Funkytown | 1980 | 1
-Irene Cara | Flashdance... What a Feeling | 1983
-Irene Cara | Fame | 1980 | 3
-Diana Ross | Upside Down | 1980
-Diana Ross | I'm Coming Out | 1980 | 3
+Irene Cara | Flashdance... What a Feeling | 1983 | 1
+Irene Cara | Fame | 1980 | 2
+Diana Ross | Upside Down | 1980 | 1
+Diana Ross | I'm Coming Out | 1980 | 2
 The Jacksons | Can You Feel It | 1980 | 3
-Jamiroquai | Virtual Insanity | 1996
-Jamiroquai | Cosmic Girl | 1996
-Jamiroquai | Canned Heat | 1999 | 3
+Jamiroquai | Virtual Insanity | 1996 | 1
+Jamiroquai | Cosmic Girl | 1996 | 1
+Jamiroquai | Canned Heat | 1999 | 2
 Jamiroquai | Love Foolosophy | 2002 | 3
-Jamiroquai | Little L | 2001 | 3
-Modern Talking | Geronimo's Cadillac | 1986 | 3
+Jamiroquai | Little L | 2001 | 2
+Modern Talking | Geronimo's Cadillac | 1986 | 2
 Modern Talking | Atlantis Is Calling (S.O.S. for Love) | 1986 | 1
-Modern Talking | You Can Win If You Want | 1985 | 3
+Modern Talking | You Can Win If You Want | 1985 | 2
 Modern Talking | Sexy Sexy Lover | 1998 | 3
-Modern Talking | Jet Airliner | 1987 | 3
-C.C. Catch | Heaven and Hell | 1986 | 3
-C.C. Catch | Strangers by Night | 1986 | 3
+Modern Talking | Jet Airliner | 1987 | 2
+C.C. Catch | Heaven and Hell | 1986 | 2
+C.C. Catch | Strangers by Night | 1986 | 2
 C.C. Catch | Cause You Are Young | 1986 | 3
-Bad Boys Blue | Pretty Young Girl | 1985 | 3
-Bad Boys Blue | Come Back and Stay | 1987 | 3
+Bad Boys Blue | Pretty Young Girl | 1985 | 2
+Bad Boys Blue | Come Back and Stay | 1987 | 2
 Joy | Touch by Touch | 1985 | 1
-Savage | Only You | 1984 | 3
-Savage | Don't Cry Tonight | 1983 | 3
+Savage | Only You | 1984 | 2
+Savage | Don't Cry Tonight | 1983 | 2
 Silent Circle | Touch in the Night | 1985 | 3
-Fancy | Slice Me Nice | 1984 | 3
+Fancy | Slice Me Nice | 1984 | 2
 Ken Laszlo | Hey Hey Guy | 1984 | 3
 Den Harrow | Future Brain | 1985 | 3
 Radiorama | Chance to Desire | 1986 | 3
@@ -127,10 +127,10 @@ Bee Gees | Jive Talkin' | 1975 | 3
     genre: 'disco',
     lang: 'en',
     lines: `
-ABBA | Does Your Mother Know | 1979 | 3
+ABBA | Does Your Mother Know | 1979 | 2
 ABBA | Summer Night City | 1978 | 3
-ABBA | I Have a Dream | 1979 | 3
-ABBA | Knowing Me, Knowing You | 1977 | 3
+ABBA | I Have a Dream | 1979 | 2
+ABBA | Knowing Me, Knowing You | 1977 | 2
 ABBA | One of Us | 1981 | 3
 ABBA | The Name of the Game | 1977 | 3
 ABBA | Honey, Honey | 1974 | 3
@@ -229,7 +229,7 @@ Den Harrow | Don't Break My Heart | 1987 | 3
 Savage | Goodbye | 1984 | 3
 Koto | Visitors | 1985 | 3
 Laser Dance | Humanoid Invasion | 1987 | 3
-Jamiroquai | Space Cowboy | 1994 | 3
+Jamiroquai | Space Cowboy | 1994 | 2
 Jamiroquai | Deeper Underground | 1998 | 3
 Jamiroquai | Seven Days in Sunny June | 2005 | 3
 Jamiroquai | Automaton | 2017 | 3

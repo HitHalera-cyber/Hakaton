@@ -13,35 +13,35 @@ Franz Ferdinand | Take Me Out | 2004
 The Killers | Somebody Told Me | 2004
 Arctic Monkeys | I Bet You Look Good on the Dancefloor | 2005
 Gorillaz | Feel Good Inc. | 2005 | 1
-Arctic Monkeys | 505 | 2007
+Arctic Monkeys | 505 | 2007 | 1
 MGMT | Kids | 2007
 MGMT | Electric Feel | 2007
 Cage the Elephant | Ain't No Rest for the Wicked | 2008
 Mumford & Sons | Little Lion Man | 2009
-Foster the People | Pumped Up Kicks | 2010
+Foster the People | Pumped Up Kicks | 2010 | 1
 Gotye | Somebody That I Used to Know | 2011 | 1
-Lana Del Rey | Born to Die | 2011
-Of Monsters and Men | Little Talks | 2011
+Lana Del Rey | Born to Die | 2011 | 1
+Of Monsters and Men | Little Talks | 2011 | 1
 Arctic Monkeys | R U Mine? | 2012
-Lana Del Rey | Summertime Sadness | 2012
-Passenger | Let Her Go | 2012
-The Lumineers | Ho Hey | 2012
-The Neighbourhood | Sweater Weather | 2012
-Tom Odell | Another Love | 2012
+Lana Del Rey | Summertime Sadness | 2012 | 1
+Passenger | Let Her Go | 2012 | 1
+The Lumineers | Ho Hey | 2012 | 1
+The Neighbourhood | Sweater Weather | 2012 | 1
+Tom Odell | Another Love | 2012 | 1
 Arctic Monkeys | Do I Wanna Know? | 2013 | 1
-Arctic Monkeys | Why'd You Only Call Me When You're High? | 2013
-Arctic Monkeys | I Wanna Be Yours | 2013
-Hozier | Take Me to Church | 2013
-Lana Del Rey | Young and Beautiful | 2013
-Lorde | Royals | 2013
-Vance Joy | Riptide | 2013
-Twenty One Pilots | Stressed Out | 2015
-Twenty One Pilots | Heathens | 2016
-Cigarettes After Sex | Apocalypse | 2017
-Portugal. The Man | Feel It Still | 2017
-Glass Animals | Heat Waves | 2020
-Joji | Glimpse of Us | 2022
-Hozier | Too Sweet | 2024
+Arctic Monkeys | Why'd You Only Call Me When You're High? | 2013 | 1
+Arctic Monkeys | I Wanna Be Yours | 2013 | 1
+Hozier | Take Me to Church | 2013 | 1
+Lana Del Rey | Young and Beautiful | 2013 | 1
+Lorde | Royals | 2013 | 1
+Vance Joy | Riptide | 2013 | 1
+Twenty One Pilots | Stressed Out | 2015 | 1
+Twenty One Pilots | Heathens | 2016 | 1
+Cigarettes After Sex | Apocalypse | 2017 | 1
+Portugal. The Man | Feel It Still | 2017 | 1
+Glass Animals | Heat Waves | 2020 | 1
+Joji | Glimpse of Us | 2022 | 1
+Hozier | Too Sweet | 2024 | 1
 `
   },
   {
@@ -52,13 +52,13 @@ Mother Mother | Hayloft | 2008 | 3
 Two Door Cinema Club | What You Know | 2010 | 3
 Sufjan Stevens | Mystery of Love | 2017 | 3
 Phoebe Bridgers | Motion Sickness | 2017 | 3
-Mitski | My Love Mine All Mine | 2023 | 3
+Mitski | My Love Mine All Mine | 2023 | 1
 Laufey | From the Start | 2023 | 3
-Djo | End of Beginning | 2022 | 3
+Djo | End of Beginning | 2022 | 1
 Hotel Ugly | Shut Up My Moms Calling | 2020 | 3
-Steve Lacy | Bad Habit | 2022 | 3
+Steve Lacy | Bad Habit | 2022 | 1
 d4vd | Romantic Homicide | 2022 | 3
-Stephen Sanchez | Until I Found You | 2021 | 3
+Stephen Sanchez | Until I Found You | 2021 | 1
 Lizzy McAlpine | ceilings | 2022 | 3
 Wallows | Are You Bored Yet? | 2019 | 3
 Lord Huron | The Night We Met | 2015
@@ -68,7 +68,7 @@ Mac DeMarco | Chamber of Reflection | 2014 | 3
 The 1975 | Somebody Else | 2016 | 3
 The 1975 | Chocolate | 2013 | 3
 The 1975 | About You | 2022 | 3
-Arctic Monkeys | Fluorescent Adolescent | 2007 | 3
+Arctic Monkeys | Fluorescent Adolescent | 2007 | 2
 Arctic Monkeys | Mardy Bum | 2006 | 3
 Arctic Monkeys | Arabella | 2013 | 3
 Arctic Monkeys | When the Sun Goes Down | 2006 | 3
@@ -113,7 +113,7 @@ Foster the People | Sit Next to Me | 2017 | 3
 The Neighbourhood | Daddy Issues | 2015 | 3
 The Neighbourhood | Softcore | 2018 | 3
 The Neighbourhood | Afraid | 2013 | 3
-Cigarettes After Sex | K. | 2017 | 3
+Cigarettes After Sex | K. | 2017 | 2
 Cigarettes After Sex | Sunsetz | 2017 | 3
 Cigarettes After Sex | Each Time You Fall in Love | 2017 | 3
 Lana Del Rey | Ride | 2012 | 3
@@ -142,19 +142,19 @@ Kasabian | Fire | 2009 | 3
 Kasabian | Club Foot | 2004 | 3
 The Libertines | Can't Stand Me Now | 2004 | 3
 Bloc Party | Banquet | 2005 | 3
-Gotye | Eyes Wide Open | 2011 | 3
+Gotye | Eyes Wide Open | 2011 | 2
 Kings of Convenience | I'd Rather Dance with You | 2004 | 3
 José González | Heartbeats | 2003 | 3
-Bon Iver | Skinny Love | 2008 | 3
+Bon Iver | Skinny Love | 2008 | 2
 Bon Iver | Holocene | 2011 | 3
 Fleet Foxes | White Winter Hymnal | 2008 | 3
-The Lumineers | Ophelia | 2016 | 3
+The Lumineers | Ophelia | 2016 | 2
 The Lumineers | Stubborn Love | 2012 | 3
 Of Monsters and Men | Dirty Paws | 2011 | 3
 Milky Chance | Stolen Dance | 2013
 Milky Chance | Cocoon | 2019 | 3
 George Ezra | Paradise | 2018 | 3
-Hozier | Someone New | 2014 | 3
+Hozier | Someone New | 2014 | 2
 Hozier | Cherry Wine | 2015 | 3
 Vance Joy | Mess Is Mine | 2013 | 3
 Rex Orange County | Loving Is Easy | 2017 | 3
@@ -163,7 +163,7 @@ beabadoobee | Glue Song | 2021 | 3
 Arlo Parks | Caroline | 2020 | 3
 Wet Leg | Chaise Longue | 2021 | 3
 Boy Pablo | Everytime | 2017 | 3
-Joji | SLOW DANCING IN THE DARK | 2018 | 3
+Joji | SLOW DANCING IN THE DARK | 2018 | 2
 Joji | Sanctuary | 2019 | 3
 Joji | Die For You | 2022 | 3
 Surf Curse | Freaks | 2013 | 3
@@ -181,14 +181,20 @@ Modest Mouse | Float On | 2004 | 3
 Death Cab for Cutie | I Will Follow You into the Dark | 2005 | 3
 The Postal Service | Such Great Heights | 2003 | 3
 Two Door Cinema Club | Undercover Martyn | 2010 | 3
-Twenty One Pilots | Ride | 2015 | 3
-Twenty One Pilots | Car Radio | 2013 | 3
-Twenty One Pilots | Chlorine | 2018 | 3
+Twenty One Pilots | Ride | 2015 | 1
+Twenty One Pilots | Car Radio | 2013 | 2
+Twenty One Pilots | Chlorine | 2018 | 2
 Twenty One Pilots | Jumpsuit | 2018 | 3
 Twenty One Pilots | Tear in My Heart | 2015 | 3
 AJR | Bang! | 2020 | 3
 AJR | Weak | 2016 | 3
 Lovejoy | One Day | 2021 | 3
+`
+  },
+  {
+    genre: 'indie',
+    lang: 'en',
+    lines: `
 `
   },
 ] satisfies Block[]

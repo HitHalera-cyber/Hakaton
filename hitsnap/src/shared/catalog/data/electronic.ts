@@ -56,12 +56,11 @@ Alan Walker | Faded | 2015 | 1
 Avicii | Waiting for Love | 2015 | 1
 Major Lazer | Lean On | 2015 | 1
 Alan Walker | Alone | 2016 | 1
-Calvin Harris | This Is What You Came For | 2016 | 1
 The Chainsmokers | Closer | 2016 | 1
 The Chainsmokers | Something Just Like This | 2017
 Little Big | Skibidi | 2018 | 1
 Marshmello | Happier | 2018 | 1
-Little Big | Uno | 2020
+Little Big | Uno | 2020 | 1
 Little Big | I'm OK | 2021
 `
   },
@@ -83,16 +82,16 @@ Jean-Michel Jarre | Oxygène, Pt. 4 | 1976
 Vangelis | Chariots of Fire | 1981
 Giorgio Moroder | Chase | 1978 | 3
 Space | Magic Fly | 1977
-Yazoo | Don't Go | 1982 | 3
-Depeche Mode | Policy of Truth | 1990 | 3
-Depeche Mode | Never Let Me Down Again | 1987 | 3
-Depeche Mode | Precious | 2005 | 3
+Yazoo | Don't Go | 1982 | 2
+Depeche Mode | Policy of Truth | 1990 | 2
+Depeche Mode | Never Let Me Down Again | 1987 | 2
+Depeche Mode | Precious | 2005 | 2
 Depeche Mode | Wrong | 2009 | 3
 Depeche Mode | People Are People | 1984 | 3
 Depeche Mode | Master and Servant | 1984 | 3
 Depeche Mode | I Feel You | 1993 | 3
-Erasure | A Little Respect | 1988 | 3
-The Human League | Don't You Want Me | 1981
+Erasure | A Little Respect | 1988 | 1
+The Human League | Don't You Want Me | 1981 | 1
 Orchestral Manoeuvres in the Dark | Enola Gay | 1980 | 3
 Alphaville | Forever Young | 1984 | 1
 Alphaville | Big in Japan | 1984 | 1
@@ -264,8 +263,8 @@ Marshmello | Friends | 2018 | 3
 Marshmello | Wolves | 2017 | 3
 Marshmello | Silence | 2017 | 3
 The Chainsmokers | Don't Let Me Down | 2016 | 1
-The Chainsmokers | Roses | 2015 | 3
-The Chainsmokers | Paris | 2017 | 3
+The Chainsmokers | Roses | 2015 | 2
+The Chainsmokers | Paris | 2017 | 2
 The Chainsmokers | Takeaway | 2019 | 3
 Kygo | It Ain't Me | 2017 | 1
 Kygo | Stole the Show | 2015 | 3
@@ -273,7 +272,7 @@ Kygo | Higher Love | 2019 | 3
 Kygo | Stargazing | 2018 | 3
 Robin Schulz | Sugar | 2015 | 1
 Robin Schulz | Headlights | 2015 | 3
-Felix Jaehn | Ain't Nobody (Loves Me Better) | 2015 | 3
+Felix Jaehn | Ain't Nobody (Loves Me Better) | 2015 | 2
 Klingande | Jubel | 2013 | 3
 Alle Farben | Supergirl | 2016 | 3
 Alan Walker | The Spectre | 2017 | 1
@@ -282,16 +281,16 @@ Alan Walker | On My Way | 2019 | 3
 Alan Walker | Sing Me to Sleep | 2016 | 3
 Alan Walker | Tired | 2017 | 3
 Clean Bandit | Rockabye | 2016 | 1
-Clean Bandit | Symphony | 2017 | 3
-Clean Bandit | Solo | 2018 | 3
-Disclosure | Latch | 2012 | 3
-Duke Dumont | Ocean Drive | 2015 | 3
+Clean Bandit | Symphony | 2017 | 2
+Clean Bandit | Solo | 2018 | 2
+Disclosure | Latch | 2012 | 1
+Duke Dumont | Ocean Drive | 2015 | 2
 Route 94 | My Love | 2014 | 3
 Galantis | Runaway (U & I) | 2014 | 3
 Galantis | Peanut Butter Jelly | 2015 | 3
 Jonas Blue | Fast Car | 2015 | 3
 Jonas Blue | Mama | 2017 | 3
-Lost Frequencies | Where Are You Now | 2021 | 3
+Lost Frequencies | Where Are You Now | 2021 | 1
 Purple Disco Machine | Hypnotized | 2020 | 3
 Joel Corry | Head & Heart | 2020 | 3
 Riton | Friday | 2021 | 3
@@ -315,7 +314,7 @@ Knife Party | Bonfire | 2012 | 3
 Pendulum | Watercolour | 2010 | 3
 Pendulum | The Island, Pt. I (Dawn) | 2010 | 3
 Netsky | Come Alive | 2012 | 3
-Rudimental | Feel the Love | 2012 | 3
+Rudimental | Feel the Love | 2012 | 2
 Sub Focus | Turn Back Time | 2012 | 3
 Chase & Status | Blind Faith | 2011 | 3
 Crystal Castles | Not in Love | 2010 | 3
@@ -345,10 +344,10 @@ Aqua | Cartoon Heroes | 2000 | 3
 Aqua | Turn Back Time | 1998 | 3
 Daddy DJ | Daddy DJ | 2000 | 3
 Crazy Frog | We Are the Champions (Ding a Dang Dong) | 2006 | 3
-Little Big | Hypnodancer | 2019 | 3
-Little Big | Go Bananas | 2019 | 3
+Little Big | Hypnodancer | 2019 | 2
+Little Big | Go Bananas | 2019 | 2
 Little Big | Faradenza | 2018 | 3
-Little Big | Everyday I'm Drinking | 2013 | 3
+Little Big | Everyday I'm Drinking | 2013 | 2
 Little Big | Generation Cancellation | 2021 | 3
 Hardkiss | Make-Up | 2011 | 3
 Tesla Boy | Spirit of the Night | 2010 | 3
@@ -475,7 +474,7 @@ Duke Dumont | Need U (100%) | 2013 | 3
 MK | 17 | 2017 | 3
 Sigala | Sweet Lovin' | 2015 | 3
 Jonas Blue | Rise | 2018 | 3
-Jax Jones | Instruction | 2017 | 3
+Jax Jones | Instruction | 2017 | 2
 Jax Jones | Breathe | 2017 | 3
 Joel Corry | Sorry | 2019 | 3
 Joel Corry | Bed | 2021 | 3
@@ -681,10 +680,10 @@ Depeche Mode | Stripped | 1986 | 3
 Depeche Mode | A Question of Time | 1986 | 3
 Depeche Mode | Everything Counts | 1983 | 3
 Depeche Mode | Behind the Wheel | 1987 | 3
-Erasure | Always | 1994 | 3
+Erasure | Always | 1994 | 2
 Erasure | Sometimes | 1986 | 3
 Erasure | Oh l'amour | 1986 | 3
-Pet Shop Boys | Heart | 1988 | 3
+Pet Shop Boys | Heart | 1988 | 2
 Pet Shop Boys | Domino Dancing | 1988 | 3
 Pet Shop Boys | Suburbia | 1986 | 3
 Pet Shop Boys | Se a vida é (That's the Way Life Is) | 1996 | 3
@@ -694,7 +693,7 @@ Pet Shop Boys | Rent | 1987 | 3
 Pet Shop Boys | What Have I Done to Deserve This? | 1987 | 3
 Pet Shop Boys | Opportunities (Let's Make Lots of Money) | 1985 | 3
 Pet Shop Boys | It's Alright | 1989 | 3
-New Order | Bizarre Love Triangle | 1986 | 3
+New Order | Bizarre Love Triangle | 1986 | 2
 New Order | True Faith | 1987 | 3
 New Order | Regret | 1993 | 3
 OMD | Maid of Orleans | 1981 | 3
@@ -707,13 +706,13 @@ Howard Jones | What Is Love? | 1983 | 3
 Thompson Twins | Doctor! Doctor! | 1984 | 3
 Thomas Dolby | She Blinded Me with Science | 1982 | 3
 Nik Kershaw | Wouldn't It Be Good | 1984 | 3
-Alphaville | Sounds Like a Melody | 1984 | 3
+Alphaville | Sounds Like a Melody | 1984 | 2
 Alphaville | Dance with Me | 1986 | 3
 Alphaville | Jet Set | 1985 | 3
 Camouflage | The Great Commandment | 1987 | 3
 Propaganda | Duel | 1985 | 3
-Sandra | In the Heat of the Night | 1985 | 3
-Sandra | Everlasting Love | 1987 | 3
+Sandra | In the Heat of the Night | 1985 | 2
+Sandra | Everlasting Love | 1987 | 2
 Sandra | Hiroshima | 1990 | 3
 Sandra | Secret Land | 1988 | 3
 Sandra | Heaven Can Wait | 1988 | 3
@@ -721,6 +720,13 @@ Sandra | Johnny Wanna Live | 1990 | 3
 Sandra | Around My Heart | 1989 | 3
 Sandra | Stop for a Minute | 1988 | 3
 Sandra | Innocent Love | 1986 | 3
+`
+  },
+  {
+    genre: 'electronic',
+    lang: 'en',
+    lines: `
+OMD | Enola Gay | 1980 | 1
 `
   },
 ] satisfies Block[]

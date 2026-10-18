@@ -66,7 +66,7 @@ Martin O'Donnell | Halo Theme | 2001 | 3
 Gustavo Santaolalla | The Last of Us | 2013 | 3
 Lena Raine | Pigstep | 2020 | 3
 Ray Parker Jr. | Ghostbusters | 1984 | 1
-Survivor | Burning Heart | 1985 | 3
+Survivor | Burning Heart | 1985 | 2
 Bill Conti | Gonna Fly Now | 1976
 Carmen Twillie & Lebo M. | Circle of Life | 1994
 Nathan Lane & Ernie Sabella | Hakuna Matata | 1994
@@ -85,7 +85,7 @@ Loren Allred | Never Enough | 2017 | 3
 Ryan Gosling & Emma Stone | City of Stars | 2016 | 3
 Justin Hurwitz | Mia & Sebastian's Theme | 2016 | 3
 Ryan Gosling | I'm Just Ken | 2023 | 3
-Tina Turner | We Don't Need Another Hero (Thunderdome) | 1985 | 3
+Tina Turner | We Don't Need Another Hero (Thunderdome) | 1985 | 2
 Tom Holkenborg | Brothers in Arms (Mad Max) | 2015 | 3
 Michael Kamen | Band of Brothers Suite | 2001 | 3
 Danny Elfman | Spider-Man Main Title | 2002 | 3
@@ -241,8 +241,8 @@ Bill Conti | Going the Distance | 1976 | 3
 Kenny Loggins | Playing with the Boys | 1986 | 3
 Huey Lewis & The News | Back in Time | 1985 | 3
 Bill Medley & Jennifer Warnes | (I've Had) The Time of My Life | 1987 | 1
-Patrick Swayze | She's Like the Wind | 1987 | 3
-Eric Carmen | Hungry Eyes | 1987 | 3
+Patrick Swayze | She's Like the Wind | 1987 | 2
+Eric Carmen | Hungry Eyes | 1987 | 2
 Shirley Bassey | Goldfinger | 1964
 Shirley Bassey | Diamonds Are Forever | 1971 | 3
 a-ha | The Living Daylights | 1987 | 3
@@ -358,6 +358,13 @@ Blue Swede | Hooked on a Feeling | 1974
 Redbone | Come and Get Your Love | 1974 | 3
 Rupert Holmes | Escape (The Piña Colada Song) | 1979 | 3
 The Runaways | Cherry Bomb | 1976 | 3
+`
+  },
+  {
+    genre: 'soundtrack',
+    lang: 'en',
+    lines: `
+Eve | Let Me Blow Ya Mind | 2001 | 1
 `
   },
 ] satisfies Block[]

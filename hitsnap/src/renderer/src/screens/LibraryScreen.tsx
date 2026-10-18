@@ -107,7 +107,7 @@ function AllSongs({ source }: { source: 'all' | 'fav' | 'recent' }) {
   const list = useMemo(() => {
     const inSet = new Set(songs.map((s) => s.id))
     const base = query.trim()
-      ? search(index, query, 300).filter((s) => inSet.has(s.id))
+      ? search(index, query).filter((s) => inSet.has(s.id))
       : source === 'recent'
         ? songs
         : [...songs].sort((a, b) => a.artist.localeCompare(b.artist) || a.title.localeCompare(b.title))

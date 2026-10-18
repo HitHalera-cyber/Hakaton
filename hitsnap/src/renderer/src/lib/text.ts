@@ -56,3 +56,30 @@ export function editDistance(a: string, b: string, max = 2): number {
   }
   return prev[b.length]
 }
+
+/** A word spelled the way it sounds, in Latin letters: «джексон» → "jekson", "jackson" → "jakson". */
+export function soundForm(word: string): string {
+  return translit(normalize(word))
+    .replace(/dzh|zh|dj/g, 'j')
+    .replace(/kh/g, 'h')
+    .replace(/qu/g, 'kv')
+    .replace(/c(?=[eiy])/g, 's')
+    .replace(/ck|ch|q|c/g, 'k')
+    .replace(/ph/g, 'f')
+    .replace(/sh|sch/g, 's')
+    .replace(/ts|tz/g, 's')
+    .replace(/x/g, 'ks')
+    .replace(/w/g, 'v')
+    .replace(/z/g, 's')
+    .replace(/(.)\1+/g, '$1')
+}
+
+/**
+ * Rough "how it sounds" key of a word, for names typed in the other alphabet:
+ * «леди гага» → "ld gg", the same as "lady gaga". Consonants only (a leading
+ * vowel is kept).
+ */
+export function soundKey(word: string): string {
+  const w = soundForm(word)
+  return (w[0] ?? '') + w.slice(1).replace(/[aeiouy]/g, '')
+}
