@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect } from 'react'
+import { Confetti } from './components/Confetti'
 import { Sidebar } from './components/Sidebar'
 import { Toasts } from './components/Toasts'
 import { useTheme } from './hooks/useTheme'
@@ -10,6 +11,7 @@ import { ArcadeScreen } from './screens/ArcadeScreen'
 import { CollectionsScreen } from './screens/CollectionsScreen'
 import { HomeScreen } from './screens/HomeScreen'
 import { LibraryScreen } from './screens/LibraryScreen'
+import { RadioScreen } from './screens/RadioScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
 import { StatsScreen } from './screens/StatsScreen'
 import { useSettings } from './store/settings'
@@ -20,6 +22,7 @@ const SCREENS: Record<Screen, () => React.JSX.Element> = {
   game: GameScreen,
   collections: CollectionsScreen,
   arcade: ArcadeScreen,
+  radio: RadioScreen,
   library: LibraryScreen,
   stats: StatsScreen,
   settings: SettingsScreen
@@ -67,6 +70,7 @@ export function App() {
         </AnimatePresence>
       </main>
       <Toasts />
+      <Confetti />
     </div>
   )
 }

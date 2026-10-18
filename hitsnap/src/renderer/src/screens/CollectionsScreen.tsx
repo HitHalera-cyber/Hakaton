@@ -2,17 +2,16 @@ import { motion } from 'framer-motion'
 import { FolderOpen, Heart, Link2, Loader2, Play, RefreshCw, RotateCcw, Trash2, TrendingUp, Music2 } from 'lucide-react'
 import { useMemo, useState, type ReactNode } from 'react'
 import type { Genre, Song } from '@shared/types'
-import { Button, Card, SectionTitle, Segmented, cx } from '@/components/ui'
+import { PlayModeModal, type PlayTarget } from '@/components/PlayModeModal'
+import { Button, Card, SectionTitle, cx } from '@/components/ui'
 import { api } from '@/lib/api'
 import { formatNumber, plural } from '@/lib/format'
-import { decadeOf, EMPTY_FILTERS, GENRE_LABELS, GENRE_STYLE, matchesPopularity, MODE_INFO } from '@/lib/game'
-import { launch, type LaunchOptions } from '@/store/launch'
+import { decadeOf, EMPTY_FILTERS, GENRE_LABELS, GENRE_STYLE, matchesPopularity } from '@/lib/game'
+import type { LaunchOptions } from '@/store/launch'
 import { useAllSongs, useLibrary, type Pack } from '@/store/library'
 import { useSettings } from '@/store/settings'
 import { useStats } from '@/store/stats'
 import { useUi } from '@/store/ui'
-
-type StationMode = ReturnType<typeof useSettings.getState>['stationMode']
 
 const ERAS: Array<{ decade: number; label: string; emoji: string; from: string; to: string }> = [
   { decade: 1960, label: '60-е и раньше', emoji: '🎙️', from: '#78716c', to: '#b45309' },
@@ -97,9 +96,8 @@ function PersonalCard({
 
 export function CollectionsScreen() {
   const songs = useAllSongs()
-  const stationMode = useSettings((s) => s.stationMode)
   const filters = useSettings((s) => s.filters)
-  const update = useSettings((s) => s.update)
+  const [target, setTarget] = useState<PlayTarget | null>(null)
   const lib = useLibrary()
   const songStats = useStats((s) => s.songs)
   const popularity = filters.popularity ?? 'all'
@@ -124,23 +122,15 @@ export function CollectionsScreen() {
   const mistakes = useMemo(() => songs.filter((s) => songStats[s.id]?.lastWon === false), [songs, songStats])
 
   /** Personal collections ignore the home-screen filters: the player chose these songs. */
-  const playPool = (pool: Song[], source: LaunchOptions['source']) =>
-    launch(stationMode, { pool, filters: EMPTY_FILTERS, source })
+  const playPool = (pool: Song[], source: NonNullable<LaunchOptions['source']>, from = '#7c3aed', to = '#db2777') =>
+    setTarget({ title: source.label, emoji: source.icon ?? '🎵', from, to, count: pool.length, opts: { pool, filters: EMPTY_FILTERS, source } })
 
   return (
     <div className="mx-auto max-w-5xl">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-black tracking-tight">Подборки</h1>
-          <p className="mt-1 text-muted">Один жанр, одна эпоха, свой плейлист или своя музыка — выберите, во что играть.</p>
-        </div>
-        <div className="ml-auto">
-          <div className="mb-1.5 text-right text-xs text-muted">Режим для подборок</div>
-          <Segmented<StationMode>
-            value={stationMode}
-            onChange={(m) => update({ stationMode: m })}
-            options={(['classic', 'quiz', 'year', 'survival'] as const).map((m) => ({ value: m, label: MODE_INFO[m].title }))}
-          />
+          <p className="mt-1 text-muted">Один жанр, одна эпоха, свой плейлист или своя музыка. Нажмите на подборку и выберите, как играть.</p>
         </div>
       </div>
 
@@ -161,9 +151,13 @@ export function CollectionsScreen() {
               to={st.to}
               delay={i * 0.02}
               onClick={() =>
-                launch(stationMode, {
-                  filters: { ...EMPTY_FILTERS, genres: [g], popularity },
-                  source: { label: GENRE_LABELS[g], icon: st.emoji }
+                setTarget({
+                  title: GENRE_LABELS[g],
+                  emoji: st.emoji,
+                  from: st.from,
+                  to: st.to,
+                  count: n,
+                  opts: { filters: { ...EMPTY_FILTERS, genres: [g], popularity }, source: { label: GENRE_LABELS[g], icon: st.emoji } }
                 })
               }
             />
@@ -179,9 +173,14 @@ export function CollectionsScreen() {
           onClick={() => {
             const genres = (Object.keys(GENRE_LABELS) as Genre[]).filter((g) => (byGenre[g] ?? 0) > 0)
             const g = genres[Math.floor(Math.random() * genres.length)]
-            launch(stationMode, {
-              filters: { ...EMPTY_FILTERS, genres: [g], popularity },
-              source: { label: GENRE_LABELS[g], icon: GENRE_STYLE[g].emoji }
+            const st = GENRE_STYLE[g]
+            setTarget({
+              title: `🎲 ${GENRE_LABELS[g]}`,
+              emoji: st.emoji,
+              from: st.from,
+              to: st.to,
+              count: byGenre[g] ?? 0,
+              opts: { filters: { ...EMPTY_FILTERS, genres: [g], popularity }, source: { label: GENRE_LABELS[g], icon: st.emoji } }
             })
           }}
         />
@@ -201,9 +200,13 @@ export function CollectionsScreen() {
               to={e.to}
               delay={i * 0.03}
               onClick={() =>
-                launch(stationMode, {
-                  filters: { ...EMPTY_FILTERS, decades: [e.decade], popularity },
-                  source: { label: `Хиты: ${e.label}`, icon: e.emoji }
+                setTarget({
+                  title: `Хиты: ${e.label}`,
+                  emoji: e.emoji,
+                  from: e.from,
+                  to: e.to,
+                  count: n,
+                  opts: { filters: { ...EMPTY_FILTERS, decades: [e.decade], popularity }, source: { label: `Хиты: ${e.label}`, icon: e.emoji } }
                 })
               }
             />
@@ -240,6 +243,7 @@ export function CollectionsScreen() {
         <DeezerPacks onPlay={(p) => playPool(p.songs, { label: p.title, icon: '📀' })} />
         <LocalMusic onPlay={(pool) => playPool(pool, { label: 'Своя музыка', icon: '💽' })} />
       </div>
+      <PlayModeModal target={target} onClose={() => setTarget(null)} />
     </div>
   )
 }

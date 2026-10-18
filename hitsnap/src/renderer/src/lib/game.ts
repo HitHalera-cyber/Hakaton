@@ -4,7 +4,9 @@ import { createRng, hashString, shuffle, type Rng } from './random'
 
 // Pure game rules: modes, stages, scoring and how songs are picked.
 
-export type GameMode = 'classic' | 'survival' | 'daily' | 'practice' | 'quiz' | 'year' | 'party' | 'artist' | 'blitz'
+export type GameMode = 'classic' | 'survival' | 'daily' | 'practice' | 'quiz' | 'year' | 'party' | 'artist' | 'blitz' | 'duel'
+/** How strong the opponent in «Дуэль с ботом» is. */
+export type BotLevel = 'easy' | 'mid' | 'pro'
 export type Difficulty = 'easy' | 'normal' | 'hard'
 /** How the player answers: find the song in search, pick one of four, name the year or the artist. */
 export type AnswerKind = 'search' | 'choice' | 'year' | 'artist'
@@ -32,6 +34,26 @@ export const ARTIST_FACTOR = 0.7
 /** Blitz: how long the whole game lasts, in seconds of listening and answering. */
 export const BLITZ_SECONDS = 90
 export const YEAR_RANGE = { min: 1950, max: new Date().getFullYear() }
+
+/** Duel bot: chance to guess at the 1st / 2nd / 3rd clip (the rest is a miss). */
+export const BOT_LEVELS: Record<BotLevel, { label: string; emoji: string; hint: string; odds: [number, number, number] }> = {
+  easy: { label: 'Новичок', emoji: '🐣', hint: 'Узнаёт только самые известные хиты', odds: [0.12, 0.25, 0.25] },
+  mid: { label: 'Меломан', emoji: '🎧', hint: 'Знает многое, но не всё сразу', odds: [0.3, 0.3, 0.18] },
+  pro: { label: 'Профи', emoji: '🤖', hint: 'Узнаёт почти всё с первой секунды', odds: [0.55, 0.25, 0.12] }
+}
+
+/** Duel: at which stage the bot guesses this song, or null if it misses. Hits are easier for it. */
+export function botStage(level: BotLevel, tier: number, rng: Rng): number | null {
+  const ease = tier === 1 ? 1.25 : tier === 3 ? 0.75 : 1
+  let r = rng()
+  const odds = BOT_LEVELS[level].odds
+  for (let i = 0; i < odds.length; i++) {
+    const p = Math.min(0.95, odds[i] * ease)
+    if (r < p) return i
+    r -= p
+  }
+  return null
+}
 
 export const PLAYER_COLORS = ['#8b5cf6', '#f97316', '#0ea5e9', '#16a34a']
 
@@ -67,6 +89,10 @@ export interface GameConfig {
   players?: Player[]
   /** Sound effect on the stage clips (the reveal plays clean). */
   effect?: SoundEffect
+  /** Duel: the bot's level. */
+  bot?: BotLevel
+  /** «Испытание недели»: the week it belongs to (fixed songs, like the daily). */
+  weekKey?: string
 }
 
 export interface Guess {
@@ -100,6 +126,8 @@ export interface Round {
   yearGuess?: number
   /** Party: who guessed it. */
   winner?: number
+  /** Duel: the stage the bot guessed at (null — the bot missed). */
+  botStage?: number | null
 }
 
 export function answerKind(mode: GameMode): AnswerKind {
@@ -182,6 +210,10 @@ export function buildQueue(pool: Song[], config: GameConfig, recentIds: string[]
     const stable = [...pool].filter((s) => s.tier <= 2).sort((a, b) => a.id.localeCompare(b.id))
     return shuffle(stable, rng)
   }
+  if (config.weekKey) {
+    const stable = pool.filter((s) => !s.custom && matchesFilters(s, config.filters)).sort((a, b) => a.id.localeCompare(b.id))
+    return shuffle(stable, rng)
+  }
   let filtered = pool.filter((s) => matchesFilters(s, config.filters))
   if (config.mode === 'year') filtered = filtered.filter((s) => s.year >= 1900 && !s.filePath)
   const recent = new Set(recentIds)
@@ -256,8 +288,12 @@ export const MODE_INFO: Record<GameMode, { title: string; subtitle: string }> = 
   party: { title: 'Вечеринка', subtitle: '2–4 игрока, кто первым нажмёт — тот отвечает' },
   artist: { title: 'Кто поёт?', subtitle: 'Достаточно назвать исполнителя' },
   blitz: { title: 'Блиц', subtitle: '90 секунд — угадайте как можно больше' },
-  practice: { title: 'Тренировка', subtitle: 'Без очков и без спешки' }
+  practice: { title: 'Тренировка', subtitle: 'Без очков и без спешки' },
+  duel: { title: 'Дуэль с ботом', subtitle: 'Кто узнает песню раньше — вы или бот?' }
 }
+
+/** Modes a collection (genre, era, playlist…) can be played in. */
+export const STATION_MODES: GameMode[] = ['classic', 'blitz', 'quiz', 'artist', 'year', 'duel', 'survival', 'practice']
 
 export const GENRE_LABELS: Record<Genre, string> = {
   pop: 'Поп',

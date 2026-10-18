@@ -17,6 +17,8 @@ const ACCENTS: Array<{ id: Accent; label: string; from: string; to: string }> = 
   { id: 'rose', label: 'Роза', from: '#e11d48', to: '#a855f7' }
 ]
 
+const AVATARS = ['🎧', '🎸', '🥁', '🎹', '🎤', '🎷', '🎺', '🎻', '🪩', '🦄', '🐱', '🦊', '🐼', '🐸', '🦁', '🐙', '👽', '🤖', '👑', '🔥', '⭐', '🌈', '🍕', '🚀']
+
 function Row({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-6 py-4">
@@ -45,6 +47,47 @@ export function SettingsScreen() {
   return (
     <div className="mx-auto max-w-3xl">
       <h1 className="mb-6 text-3xl font-black tracking-tight">Настройки</h1>
+
+      <SectionTitle>Профиль</SectionTitle>
+      <Card className="mb-8 p-6">
+        <div className="flex items-center gap-5">
+          <div className="bg-gradient-accent flex h-20 w-20 shrink-0 items-center justify-center rounded-3xl text-4xl shadow-lg shadow-accent/30">{s.profileEmoji}</div>
+          <div className="min-w-0 flex-1">
+            <label className="mb-1.5 block text-sm font-medium" htmlFor="profile-name">
+              Как вас зовут?
+            </label>
+            <input
+              id="profile-name"
+              value={s.profileName}
+              maxLength={24}
+              placeholder="Имя или ник"
+              onChange={(e) => {
+                const name = e.target.value
+                // The first party player follows the profile name until renamed by hand.
+                const first = s.players[0]
+                const follows = first && (first.name === 'Игрок 1' || first.name === s.profileName)
+                s.update({ profileName: name, players: follows ? [{ ...first, name: name.trim() || 'Игрок 1' }, ...s.players.slice(1)] : s.players })
+              }}
+              className="h-11 w-full rounded-xl border border-line bg-fg/5 px-4 outline-none focus:border-accent"
+            />
+            <div className="mt-1.5 text-xs text-muted">Имя видно в меню, в «Дуэли» и первым игроком на «Вечеринке».</div>
+          </div>
+        </div>
+        <div className="mt-5 flex flex-wrap gap-1.5">
+          {AVATARS.map((e) => (
+            <button
+              key={e}
+              onClick={() => s.update({ profileEmoji: e })}
+              className={cx(
+                'flex h-10 w-10 items-center justify-center rounded-xl text-xl transition cursor-pointer',
+                s.profileEmoji === e ? 'bg-accent/15 ring-2 ring-accent' : 'hover:bg-fg/5'
+              )}
+            >
+              {e}
+            </button>
+          ))}
+        </div>
+      </Card>
 
       <SectionTitle>Оформление</SectionTitle>
       <Card className="mb-8 divide-y divide-line px-6">
@@ -173,7 +216,7 @@ export function SettingsScreen() {
       </Card>
 
       <p className="text-center text-xs text-muted">
-        HitSnap 1.2 · Превью песен — Deezer и iTunes (30-секундные отрывки, предоставляемые сервисами)
+        HitSnap 1.3 · Превью песен — Deezer и iTunes (30-секундные отрывки, предоставляемые сервисами)
       </p>
     </div>
   )

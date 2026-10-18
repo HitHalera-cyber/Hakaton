@@ -4,6 +4,7 @@ import { ActivityCalendar } from '@/components/ActivityCalendar'
 import { useMemo } from 'react'
 import type { Genre } from '@shared/types'
 import { LevelBadge } from '@/components/LevelBadge'
+import { MusicPassport } from '@/components/MusicPassport'
 import { Button, Card, cx, SectionTitle, Stat } from '@/components/ui'
 import { ACHIEVEMENTS } from '@/lib/achievements'
 import { formatDate, formatNumber, plural } from '@/lib/format'
@@ -51,6 +52,8 @@ export function StatsScreen() {
     <div className="mx-auto max-w-5xl">
       <h1 className="text-3xl font-black tracking-tight">Статистика</h1>
       <p className="mb-6 mt-1 text-muted">Как хорошо вы знаете музыку — в цифрах.</p>
+
+      <MusicPassport />
 
       <Card className="mb-6 flex flex-wrap items-center gap-6 p-6">
         <LevelBadge />

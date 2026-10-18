@@ -5,13 +5,15 @@ import { createRng, hashString, shuffle, todayKey } from './random'
 
 // Three small goals a day, the same for everybody on that date, with XP as a reward.
 
-export type ArcadeGame = 'older' | 'timeline' | 'whose' | 'odd'
+export type ArcadeGame = 'older' | 'timeline' | 'whose' | 'odd' | 'cover' | 'missing'
 
 export const ARCADE_INFO: Record<ArcadeGame, { title: string; subtitle: string; emoji: string }> = {
   older: { title: 'Что старше?', subtitle: 'Из двух песен выберите ту, что вышла раньше', emoji: '⏳' },
   timeline: { title: 'Хронология', subtitle: 'Расставьте пять песен по году выхода', emoji: '📅' },
   whose: { title: 'Чья песня?', subtitle: 'По трём названиям угадайте исполнителя', emoji: '🎤' },
-  odd: { title: 'Найди лишнее', subtitle: 'Три песни из одного десятилетия, одна — нет', emoji: '🔍' }
+  odd: { title: 'Найди лишнее', subtitle: 'Три песни из одного десятилетия, одна — нет', emoji: '🔍' },
+  cover: { title: 'По обложке', subtitle: 'Обложка проясняется на глазах — узнайте песню раньше', emoji: '🖼️' },
+  missing: { title: 'Допиши название', subtitle: 'В названии пропало слово — какое?', emoji: '✍️' }
 }
 
 export type QuestKind = 'wins' | 'win-genre' | 'win-decade' | 'first-try' | 'play-mode' | 'streak' | 'effect' | 'arcade'

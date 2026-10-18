@@ -7,6 +7,7 @@ import {
   answerFactor,
   answerKind,
   BLITZ_SECONDS,
+  botStage,
   buildQueue,
   isCorrect,
   MAX_HINTS,
@@ -60,6 +61,8 @@ interface GameStore {
   lockedOut: number[]
   /** Blitz: milliseconds left on the clock. */
   blitzLeft: number
+  /** Duel: the bot's points. */
+  botScore: number
   start: (config: GameConfig, pool: Song[]) => Promise<void>
   playStage: () => void
   playReveal: () => void
@@ -181,7 +184,8 @@ export const useGame = create<GameStore>()((set, get) => {
         coverUrl: loaded.coverUrl,
         link: loaded.link,
         album: loaded.album,
-        options: answerKind(config.mode) === 'choice' ? quizOptions(song, get().pool, rng) : undefined
+        options: answerKind(config.mode) === 'choice' ? quizOptions(song, get().pool, rng) : undefined,
+        botStage: config.mode === 'duel' ? botStage(config.bot ?? 'mid', song.tier, rng) : undefined
       }
       set({ phase: 'playing', cursor, buffer: loaded.buffer, rounds: [...get().rounds, round] })
       if (queue[cursor]) void loadCached(queue[cursor])
@@ -202,7 +206,9 @@ export const useGame = create<GameStore>()((set, get) => {
     const lives = config.mode === 'survival' && !won ? get().lives - 1 : get().lives
     audio.stop()
     updateCurrent({ status: won ? 'won' : 'lost', points: scored ? points : 0, endedAt: Date.now() })
+    const bot = config.mode === 'duel' && round.botStage != null ? pointsFor(round.botStage, 0, 0) : 0
     set({
+      botScore: get().botScore + bot,
       phase: 'reveal',
       score: get().score + (scored ? points : 0),
       lastPoints: points,
@@ -214,6 +220,8 @@ export const useGame = create<GameStore>()((set, get) => {
     const finished = current()!
     const settings = useSettings.getState()
     if (settings.sfx) audio.sfx(won ? 'correct' : 'wrong')
+    // Recognised from the very first clip — worth a celebration.
+    if (won && finished.stage === 0 && answerKind(config.mode) !== 'year') useUi.getState().celebrate()
     // Let the answer cue sound, then keep the song playing from the clip start.
     setTimeout(() => {
       if (get().phase === 'reveal' && current() === finished) get().playReveal()
@@ -260,13 +268,14 @@ export const useGame = create<GameStore>()((set, get) => {
     buzzed: null,
     lockedOut: [],
     blitzLeft: 0,
+    botScore: 0,
 
     start: async (config, pool) => {
       session++
       audio.stop()
       prefetched.clear()
       rng = createRng(config.seed ^ 0x9e3779b9)
-      const recent = config.mode === 'daily' ? [] : useStats.getState().recent
+      const recent = config.mode === 'daily' || config.weekKey ? [] : useStats.getState().recent
       let queue = buildQueue(pool, config, recent)
       // Offline: put songs that are already on disk (and own files) first.
       if (!navigator.onLine) {
@@ -291,7 +300,8 @@ export const useGame = create<GameStore>()((set, get) => {
         partyScores: (config.players ?? []).map(() => 0),
         buzzed: null,
         lockedOut: [],
-        blitzLeft: BLITZ_SECONDS * 1000
+        blitzLeft: BLITZ_SECONDS * 1000,
+        botScore: 0
       })
       useUi.getState().go('game')
       await loadNextRound()
@@ -424,6 +434,8 @@ export const useGame = create<GameStore>()((set, get) => {
       if (!config || config.mode === 'practice') return
       const done = rounds.filter((r) => r.status !== 'playing')
       if (!done.length) return
+      const perfect = done.length >= 5 && done.every((r) => r.status === 'won')
+      if (perfect || (config.mode === 'duel' && done.length >= 3 && score > get().botScore)) setTimeout(() => useUi.getState().celebrate(), 300)
       const unlocked = useStats.getState().recordGame(
         {
           id: `${Date.now()}`,
@@ -435,6 +447,7 @@ export const useGame = create<GameStore>()((set, get) => {
           total: done.length,
           bestStreak,
           dailyKey: config.dailyKey,
+          weekKey: config.weekKey,
           label: config.source?.label,
           rounds: done.map((r) => ({
             songId: r.song.id,

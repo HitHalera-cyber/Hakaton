@@ -1,4 +1,4 @@
-import { BarChart3, Dices, Gamepad2, LayoutGrid, Library, Moon, Settings, Sun, SunMoon } from 'lucide-react'
+import { BarChart3, Dices, Gamepad2, LayoutGrid, Library, Moon, Radio, Settings, Sun, SunMoon } from 'lucide-react'
 import type { ComponentType } from 'react'
 import { useGame } from '@/store/game'
 import { useSettings, type ThemePref } from '@/store/settings'
@@ -11,6 +11,7 @@ const NAV: Array<{ screen: Screen; label: string; icon: ComponentType<{ size?: n
   { screen: 'home', label: 'Играть', icon: Gamepad2 },
   { screen: 'collections', label: 'Подборки', icon: LayoutGrid },
   { screen: 'arcade', label: 'Игротека', icon: Dices },
+  { screen: 'radio', label: 'Радио', icon: Radio },
   { screen: 'library', label: 'Библиотека', icon: Library },
   { screen: 'stats', label: 'Статистика', icon: BarChart3 },
   { screen: 'settings', label: 'Настройки', icon: Settings }
@@ -25,6 +26,8 @@ export function Sidebar() {
   const phase = useGame((s) => s.phase)
   const theme = useSettings((s) => s.theme)
   const update = useSettings((s) => s.update)
+  const profileName = useSettings((s) => s.profileName)
+  const profileEmoji = useSettings((s) => s.profileEmoji)
   const inGame = phase !== 'idle'
   const live = phase === 'loading' || phase === 'playing' || phase === 'reveal'
   const ThemeIcon = theme === 'light' ? Sun : theme === 'dark' ? Moon : SunMoon
@@ -59,6 +62,14 @@ export function Sidebar() {
         })}
       </nav>
       <div className="mt-auto">
+        <button
+          onClick={() => go('settings')}
+          className="mb-1 flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm transition hover:bg-fg/5 cursor-pointer"
+          title="Профиль"
+        >
+          <span className="bg-gradient-accent flex h-8 w-8 items-center justify-center rounded-lg text-lg">{profileEmoji}</span>
+          <span className={cx('truncate font-semibold', !profileName && 'font-normal text-muted')}>{profileName || 'Задать имя'}</span>
+        </button>
         <button
           onClick={() => go('stats')}
           className="mb-2 w-full rounded-xl px-3 py-2 text-left transition hover:bg-fg/5 cursor-pointer"

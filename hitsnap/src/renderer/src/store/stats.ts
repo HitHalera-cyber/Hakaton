@@ -19,6 +19,7 @@ export interface GameRecord {
   total: number
   bestStreak: number
   dailyKey?: string
+  weekKey?: string
   /** Station / playlist the game was drawn from. */
   label?: string
   rounds: Array<{ songId: string; label: string; stage: number | null; points: number }>
@@ -44,6 +45,8 @@ interface StatsData {
   langsWon: string[]
   decadeWins: Record<string, number>
   daily: Record<string, { score: number; correct: number; total: number }>
+  /** «Испытание недели»: best result per week and how many tries. */
+  weekly: Record<string, { score: number; correct: number; total: number; tries: number }>
   achievements: Record<string, number>
   /** Rounds played per day (YYYY-MM-DD) — the activity calendar. */
   activity: Record<string, number>
@@ -84,6 +87,7 @@ const EMPTY: StatsData = {
   langsWon: [],
   decadeWins: {},
   daily: {},
+  weekly: {},
   achievements: {},
   activity: {},
   arcade: {},
@@ -203,7 +207,18 @@ export const useStats = create<StatsStore>()(
             record.mode === 'daily' && record.dailyKey && !s.daily[record.dailyKey]
               ? { ...s.daily, [record.dailyKey]: { score: record.score, correct: record.correct, total: record.total } }
               : s.daily
+          const prev = record.weekKey ? s.weekly[record.weekKey] : undefined
+          const weekly = record.weekKey
+            ? {
+                ...s.weekly,
+                [record.weekKey]:
+                  prev && prev.score >= record.score
+                    ? { ...prev, tries: prev.tries + 1 }
+                    : { score: record.score, correct: record.correct, total: record.total, tries: (prev?.tries ?? 0) + 1 }
+              }
+            : s.weekly
           set({
+            weekly,
             totals: { ...s.totals, games: s.totals.games + 1 },
             bestScore:
               record.mode === 'party' ? s.bestScore : { ...s.bestScore, [record.mode]: Math.max(s.bestScore[record.mode] ?? 0, record.score) },

@@ -31,7 +31,7 @@ import { usePlayback } from '@/hooks/usePlayback'
 import { api } from '@/lib/api'
 import { audio, EFFECTS } from '@/lib/audio'
 import { formatNumber, formatSeconds, plural } from '@/lib/format'
-import { answerKind, BLITZ_SECONDS, hintsFor, MAX_HINTS, MODE_INFO, streakMultiplier, SURVIVAL_LIVES, YEAR_WIN_DISTANCE, type Round } from '@/lib/game'
+import { answerKind, BLITZ_SECONDS, BOT_LEVELS, hintsFor, MAX_HINTS, MODE_INFO, streakMultiplier, SURVIVAL_LIVES, YEAR_WIN_DISTANCE, type BotLevel, type Round } from '@/lib/game'
 import { shareText } from '@/lib/progress'
 import { stagesOf, useGame } from '@/store/game'
 import { replay } from '@/store/launch'
@@ -83,7 +83,8 @@ function BlitzClock() {
 }
 
 function Header() {
-  const { config, rounds, score, streak, lives, finish } = useGame()
+  const { config, rounds, score, streak, lives, finish, botScore } = useGame()
+  const profile = useSettings((s) => s.profileEmoji)
   if (!config) return null
   const effect = config.effect && config.effect !== 'none' ? EFFECTS[config.effect] : null
   const roundNo = rounds.length || 1
@@ -126,9 +127,17 @@ function Header() {
             </motion.div>
           )}
         </AnimatePresence>
+        {config.mode === 'duel' && (
+          <div className="glass rounded-xl px-4 py-1.5 text-right" title={`Бот «${BOT_LEVELS[config.bot ?? 'mid'].label}»`}>
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted">{BOT_LEVELS[config.bot ?? 'mid'].emoji} Бот</div>
+            <motion.div key={botScore} initial={{ scale: 1.25 }} animate={{ scale: 1 }} className="text-lg font-bold tabular-nums">
+              {formatNumber(botScore)}
+            </motion.div>
+          </div>
+        )}
         {scored && (
           <div className="glass rounded-xl px-4 py-1.5 text-right">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted">Очки</div>
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted">{config.mode === 'duel' ? `${profile} Вы` : 'Очки'}</div>
             <motion.div key={score} initial={{ scale: 1.25 }} animate={{ scale: 1 }} className="text-lg font-bold tabular-nums">
               {formatNumber(score)}
             </motion.div>
@@ -298,6 +307,15 @@ function Board() {
                     )}
                   </>
                 )}
+                {config?.mode === 'duel' && round.botStage != null && round.stage > round.botStage && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex items-center gap-2 rounded-2xl bg-warn/15 px-4 py-2.5 text-sm font-semibold text-warn"
+                  >
+                    {BOT_LEVELS[config.bot ?? 'mid'].emoji} Бот уже узнал эту песню за {formatSeconds(stages[round.botStage])} — догоняйте!
+                  </motion.div>
+                )}
                 <HintsAndGuesses round={round} kind={kind} players={players} />
               </motion.div>
             ) : (
@@ -451,6 +469,7 @@ function RevealCard({ round, stages }: { round: Round; stages: number[] }) {
       <div className={cx('px-6 py-3 text-sm font-semibold', good ? 'bg-good/15 text-good' : 'bg-bad/10 text-bad')}>
         <RevealBanner round={round} stages={stages} />
       </div>
+      {config?.mode === 'duel' && round.botStage !== undefined && <DuelLine round={round} stages={stages} />}
       <div className="flex items-center gap-6 p-6">
         <motion.div initial={{ rotate: -8, scale: 0.8 }} animate={{ rotate: 0, scale: 1 }} transition={{ type: 'spring', stiffness: 200 }}>
           <Cover song={round.song} url={round.coverUrl} className="h-36 w-36 rounded-2xl shadow-2xl" />
@@ -480,6 +499,28 @@ function RevealCard({ round, stages }: { round: Round; stages: number[] }) {
         </div>
       </div>
     </Card>
+  )
+}
+
+/** Duel: who was faster in this round. */
+function DuelLine({ round, stages }: { round: Round; stages: number[] }) {
+  const bot = useGame((s) => BOT_LEVELS[s.config?.bot ?? 'mid'])
+  const me = round.status === 'won' ? round.stage : null
+  const b = round.botStage ?? null
+  const verdict =
+    me === null && b === null
+      ? 'Никто не узнал'
+      : b === null || (me !== null && me < b)
+        ? 'Раунд ваш!'
+        : me === null || b < me
+          ? 'Раунд за ботом'
+          : 'Ничья в раунде'
+  return (
+    <div className="flex items-center gap-3 border-b border-line px-6 py-2.5 text-sm">
+      <span className="text-lg">{bot.emoji}</span>
+      <span className="text-muted">{b === null ? 'Бот не узнал песню' : `Бот узнал за ${formatSeconds(stages[b])}`}</span>
+      <span className="ml-auto font-semibold">{verdict}</span>
+    </div>
   )
 }
 
@@ -545,8 +586,31 @@ function PartyPodium() {
   )
 }
 
+function DuelScore({ you, bot, level }: { you: number; bot: number; level: BotLevel }) {
+  const emoji = useSettings((s) => s.profileEmoji)
+  const name = useSettings((s) => s.profileName) || 'Вы'
+  const total = Math.max(1, you + bot)
+  return (
+    <Card className="mt-6 p-5">
+      <div className="mb-3 flex items-center justify-between text-lg font-bold">
+        <span>
+          {emoji} {name} <span className="tabular-nums">{formatNumber(you)}</span>
+        </span>
+        <span>
+          <span className="tabular-nums">{formatNumber(bot)}</span> {BOT_LEVELS[level].label} {BOT_LEVELS[level].emoji}
+        </span>
+      </div>
+      <div className="flex h-3 overflow-hidden rounded-full bg-fg/10">
+        <motion.div className="bg-gradient-accent h-full" initial={{ width: '50%' }} animate={{ width: `${(you / total) * 100}%` }} transition={{ duration: 0.8 }} />
+        <div className="h-full flex-1 bg-warn/60" />
+      </div>
+    </Card>
+  )
+}
+
 function Results() {
-  const { rounds, score, bestStreak, config, quit, partyScores } = useGame()
+  const { rounds, score, bestStreak, config, quit, partyScores, botScore } = useGame()
+  const duel = config?.mode === 'duel'
   const toast = useUi((u) => u.toast)
   const done = rounds.filter((r) => r.status !== 'playing')
   const correct = done.filter((r) => r.status === 'won').length
@@ -560,7 +624,13 @@ function Results() {
   const top = Math.max(0, ...partyScores)
   const leaders = partyScores.filter((p) => p === top).length
   const winner = party && config?.players && top > 0 && leaders === 1 ? config.players[partyScores.indexOf(top)] : undefined
-  const grade = winner
+  const grade = duel
+    ? score > botScore
+      ? 'Победа над ботом! 🏆'
+      : score < botScore
+        ? 'Бот оказался быстрее 🤖'
+        : 'Ничья! 🤝'
+    : winner
     ? `Победа: ${winner.name}! 🏆`
     : party
       ? 'Ничья! 🤝'
@@ -607,6 +677,7 @@ function Results() {
       </motion.div>
 
       {party && <PartyPodium />}
+      {duel && config && <DuelScore you={score} bot={botScore} level={config.bot ?? 'mid'} />}
 
       <div className="mt-6 grid gap-6 md:grid-cols-[240px_1fr]">
         <Card className="p-5">

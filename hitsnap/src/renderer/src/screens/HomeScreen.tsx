@@ -1,9 +1,12 @@
 import { motion } from 'framer-motion'
-import { CalendarDays, CalendarClock, Dumbbell, Flame, Heart, ListChecks, Mic2, PartyPopper, Play, Timer, Trophy } from 'lucide-react'
-import type { ComponentType } from 'react'
+import { CalendarDays, Dices, Flame, Play, Radio, Trophy } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import type { Genre, Lang } from '@shared/types'
+import { BotPicker } from '@/components/BotPicker'
 import { LevelBadge } from '@/components/LevelBadge'
+import { Modal } from '@/components/Modal'
+import { MODE_ICONS } from '@/components/modeIcons'
+import { Roulette } from '@/components/Roulette'
 import { LogoMark } from '@/components/Logo'
 import { PartySetup } from '@/components/PartySetup'
 import { QuestsCard } from '@/components/QuestsCard'
@@ -24,24 +27,16 @@ import {
 } from '@/lib/game'
 import { dailyStreak } from '@/lib/progress'
 import { todayKey } from '@/lib/random'
-import { launch } from '@/store/launch'
+import { daysLeftInWeek, weeklyChallenge, WEEKLY_ROUNDS } from '@/lib/weekly'
+import { useUi } from '@/store/ui'
+import { launch, launchWeekly } from '@/store/launch'
 import { useAllSongs } from '@/store/library'
 import { useSettings } from '@/store/settings'
 import { useStats } from '@/store/stats'
 
 const DECADES = [1960, 1970, 1980, 1990, 2000, 2010, 2020]
 
-const MODES: Array<{ mode: GameMode; icon: ComponentType<{ size?: number }> }> = [
-  { mode: 'classic', icon: Trophy },
-  { mode: 'survival', icon: Heart },
-  { mode: 'blitz', icon: Timer },
-  { mode: 'quiz', icon: ListChecks },
-  { mode: 'artist', icon: Mic2 },
-  { mode: 'year', icon: CalendarClock },
-  { mode: 'daily', icon: CalendarDays },
-  { mode: 'party', icon: PartyPopper },
-  { mode: 'practice', icon: Dumbbell }
-]
+const MODES: GameMode[] = ['classic', 'survival', 'blitz', 'duel', 'quiz', 'artist', 'year', 'daily', 'party', 'practice']
 
 function toggle<T>(list: T[], item: T): T[] {
   return list.includes(item) ? list.filter((x) => x !== item) : [...list, item]
@@ -52,6 +47,12 @@ export function HomeScreen() {
   const songs = useAllSongs()
   const stats = useStats()
   const [partyOpen, setPartyOpen] = useState(false)
+  const [duelOpen, setDuelOpen] = useState(false)
+  const [rouletteOpen, setRouletteOpen] = useState(false)
+  const go = useUi((u) => u.go)
+  const week = weeklyChallenge()
+  const weekResult = stats.weekly?.[week.key]
+  const daysLeft = daysLeftInWeek()
   const today = todayKey()
   const dailyResult = stats.daily[today]
   const streak = dailyStreak(Object.keys(stats.daily))
@@ -62,7 +63,7 @@ export function HomeScreen() {
   const setFilters = (patch: Partial<typeof f>) => settings.update({ filters: { ...f, ...patch } })
   const anyFilter = f.decades.length || f.genres.length || f.langs.length
 
-  const play = (mode: GameMode) => (mode === 'party' ? setPartyOpen(true) : launch(mode))
+  const play = (mode: GameMode) => (mode === 'party' ? setPartyOpen(true) : mode === 'duel' ? setDuelOpen(true) : launch(mode))
 
   const accuracy = stats.totals.rounds ? Math.round((stats.totals.wins / stats.totals.rounds) * 100) : 0
   const stages = STAGES[settings.difficulty]
@@ -104,8 +105,9 @@ export function HomeScreen() {
       </motion.section>
 
       <SectionTitle>Режимы</SectionTitle>
-      <div className="mb-8 grid grid-cols-2 gap-4 md:grid-cols-3">
-        {MODES.map(({ mode, icon: Icon }, i) => {
+      <div className="mb-8 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
+        {MODES.map((mode, i) => {
+          const Icon = MODE_ICONS[mode]
           const best = stats.bestScore[mode]
           return (
             <motion.button
@@ -129,6 +131,10 @@ export function HomeScreen() {
                     : 'Ещё не сыграно сегодня'
                   : mode === 'practice'
                     ? 'Результаты не идут в рекорды'
+                    : mode === 'duel'
+                      ? best
+                        ? `Рекорд: ${formatNumber(best)}`
+                        : 'Выберите соперника'
                     : mode === 'party'
                       ? `${settings.players.length} ${plural(settings.players.length, 'игрок', 'игрока', 'игроков')} · ${settings.partyRounds} раундов`
                       : best
@@ -138,6 +144,54 @@ export function HomeScreen() {
             </motion.button>
           )
         })}
+      </div>
+
+      <SectionTitle>Ещё во что поиграть</SectionTitle>
+      <div className="mb-8 grid gap-4 md:grid-cols-3">
+        <motion.button
+          whileHover={{ y: -3 }}
+          onClick={launchWeekly}
+          className="relative overflow-hidden rounded-2xl p-5 text-left text-white shadow-lg cursor-pointer"
+          style={{ background: `linear-gradient(135deg, ${week.theme.from}, ${week.theme.to})` }}
+        >
+          <span className="absolute -bottom-4 -right-1 text-7xl opacity-30">{week.theme.emoji}</span>
+          <span className="relative flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-white/80">
+            <Trophy size={13} /> Испытание недели
+          </span>
+          <span className="relative mt-1 block text-xl font-black">{week.theme.title}</span>
+          <span className="relative mt-1 block text-sm text-white/85">
+            {WEEKLY_ROUNDS} песен, одинаковых для всех. Ещё {daysLeft} {plural(daysLeft, 'день', 'дня', 'дней')}.
+          </span>
+          <span className="relative mt-3 inline-block rounded-full bg-white/20 px-3 py-1 text-xs font-semibold backdrop-blur">
+            {weekResult ? `Лучший результат: ${weekResult.correct}/${weekResult.total} · ${formatNumber(weekResult.score)}` : 'Ещё не пройдено'}
+          </span>
+        </motion.button>
+        <motion.button
+          whileHover={{ y: -3 }}
+          onClick={() => setRouletteOpen(true)}
+          className="relative overflow-hidden rounded-2xl p-5 text-left text-white shadow-lg cursor-pointer"
+          style={{ background: 'linear-gradient(135deg, #475569, #7c3aed)' }}
+        >
+          <span className="absolute -bottom-4 -right-1 text-7xl opacity-30">🎰</span>
+          <span className="relative flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-white/80">
+            <Dices size={13} /> Рулетка
+          </span>
+          <span className="relative mt-1 block text-xl font-black">Испытай удачу</span>
+          <span className="relative mt-1 block text-sm text-white/85">Случайный режим, жанр и звуковой эффект — играем то, что выпало.</span>
+        </motion.button>
+        <motion.button
+          whileHover={{ y: -3 }}
+          onClick={() => go('radio')}
+          className="relative overflow-hidden rounded-2xl p-5 text-left text-white shadow-lg cursor-pointer"
+          style={{ background: 'linear-gradient(135deg, #0ea5e9, #16a34a)' }}
+        >
+          <span className="absolute -bottom-4 -right-1 text-7xl opacity-30">📻</span>
+          <span className="relative flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-white/80">
+            <Radio size={13} /> Радио
+          </span>
+          <span className="relative mt-1 block text-xl font-black">Слушай и угадывай</span>
+          <span className="relative mt-1 block text-sm text-white/85">Песни идут подряд, название скрыто — угадывайте вслух, без очков и спешки.</span>
+        </motion.button>
       </div>
 
       <div className="mb-8">
@@ -261,6 +315,18 @@ export function HomeScreen() {
         </div>
       </div>
       <PartySetup open={partyOpen} onClose={() => setPartyOpen(false)} />
+      <Roulette open={rouletteOpen} onClose={() => setRouletteOpen(false)} />
+      <Modal open={duelOpen} onClose={() => setDuelOpen(false)} title="Дуэль с ботом">
+        <p className="-mt-2 mb-4 text-sm text-muted">
+          Вы и бот слушаете одни и те же отрывки. Кто узнал песню на более короткой попытке, тот выиграл раунд. Выберите соперника:
+        </p>
+        <BotPicker
+          onPick={() => {
+            setDuelOpen(false)
+            launch('duel')
+          }}
+        />
+      </Modal>
     </div>
   )
 }

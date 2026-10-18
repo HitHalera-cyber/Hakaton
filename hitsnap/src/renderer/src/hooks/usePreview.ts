@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import type { Song } from '@shared/types'
 import { api } from '@/lib/api'
 import { audio } from '@/lib/audio'
-import { useGame } from '@/store/game'
 import { useUi } from '@/store/ui'
 import { usePlayback } from './usePlayback'
 
@@ -11,7 +10,6 @@ export function usePreview() {
   const [current, setCurrent] = useState<string | null>(null)
   const [loading, setLoading] = useState<string | null>(null)
   const playback = usePlayback()
-  const inGame = useGame((s) => s.phase === 'playing' || s.phase === 'reveal')
 
   useEffect(() => {
     if (!playback.playing && current && !loading) setCurrent(null)
@@ -43,5 +41,9 @@ export function usePreview() {
       setLoading(null)
     }
   }
-  return { current, loading, toggle, disabled: inGame }
+  const stop = () => {
+    if (current) audio.stop()
+    setCurrent(null)
+  }
+  return { current, loading, toggle, stop }
 }

@@ -1,7 +1,7 @@
 import type { SoundEffect } from './audio'
 import type { GameMode, Round } from './game'
 import type { ArcadeGame } from './quests'
-import { decadeOf } from './game'
+import { decadeOf, pointsFor } from './game'
 
 // Achievements are derived from stats after each round / game.
 
@@ -27,6 +27,7 @@ export interface Achievement {
 }
 
 const won = (r: Round): boolean => r.status === 'won'
+const botPoints = (rounds: Round[]): number => rounds.reduce((sum, r) => sum + (r.botStage != null ? pointsFor(r.botStage, 0, 0) : 0), 0)
 
 export const ACHIEVEMENTS: Achievement[] = [
   { id: 'first-win', icon: '🎵', title: 'Первая нота', description: 'Угадать первую песню', test: (c) => c.totals.wins >= 1 },
@@ -98,6 +99,13 @@ export const ACHIEVEMENTS: Achievement[] = [
     title: 'Узнаю по голосу',
     description: 'Назвать 8 исполнителей за игру в «Кто поёт?»',
     test: (c) => !!c.game && c.game.mode === 'artist' && c.game.rounds.filter(won).length >= 8
+  },
+  {
+    id: 'duel-win',
+    icon: '🤖',
+    title: 'Человек сильнее машины',
+    description: 'Обыграть бота в «Дуэли» (от 5 раундов)',
+    test: (c) => !!c.game && c.game.mode === 'duel' && c.game.rounds.length >= 5 && c.game.score > botPoints(c.game.rounds)
   },
   { id: 'reverse', icon: '🔄', title: 'Ухо наизнанку', description: 'Угадать песню, звучащую задом наперёд', test: (c) => (c.effectWins.reverse ?? 0) >= 1 },
   {
