@@ -14,12 +14,20 @@ win:
       arch: [x64]
     - target: portable
       arch: [x64]
-  artifactName: ${productName}-${version}-${arch}-${target}.${ext}
 nsis:
+  artifactName: HitSnap-Setup-${version}.${ext}
   oneClick: false
+  perMachine: false
   allowToChangeInstallationDirectory: true
-  createDesktopShortcut: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
   shortcutName: HitSnap
+  runAfterFinish: true
+  installerLanguages: [ru_RU]
+  language: "1049"
+  uninstallDisplayName: HitSnap
+portable:
+  artifactName: HitSnap-Portable-${version}.${ext}
 mac:
   icon: build/icon.png
   target: dmg
