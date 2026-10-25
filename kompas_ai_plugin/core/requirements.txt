@@ -1,4 +1,4 @@
-pymupdf>=1.24
+pymupdf>=1.24,<2  # 2.0 pulls in pymupdf_layout, whose model files PyInstaller misses
 numpy>=1.24,<2.4  # 2.5 fails to initialise on some PCs ("DLL initialization routine failed")
 ezdxf>=1.1
 shapely>=2.0
