@@ -1,7 +1,9 @@
 """«Уточнить размеры»: every size of the drawing in one table — what is
 written, what the lines measure, whether it was held — and the user's own
-value for any of them. The drawing is then recognised again with those
-values (pipeline: ``recognize_pdf(..., overrides=...)``)."""
+value for any of them; under them the numbers whose dimension line was not
+found, each with what it may measure. The drawing is then recognised again
+with those values and choices (pipeline: ``recognize_pdf(..., overrides=...,
+attach=...)``)."""
 
 from __future__ import annotations
 
@@ -9,10 +11,11 @@ import re
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
-from PySide6.QtWidgets import (QAbstractItemView, QDialog, QHBoxLayout, QHeaderView, QPushButton,
-                               QTableWidget, QTableWidgetItem, QVBoxLayout)
+from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QHBoxLayout, QHeaderView,
+                               QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout)
 
 from .. import ir
+from ..semantics.orphans import key_of
 from .widgets import label
 
 KINDS = {"linear": "линейный", "diameter": "диаметр", "radius": "радиус", "angular": "угол"}
@@ -44,9 +47,18 @@ def dimension_rows(drawing: ir.Drawing) -> list[dict]:
     return rows
 
 
+def orphan_rows(drawing: ir.Drawing) -> list[dict]:
+    """The numbers kept as text for want of a dimension line."""
+    return [dict(o, orphan=True) for o in getattr(drawing, "orphans", None) or []]
+
+
 def questions(drawing: ir.Drawing) -> list[dict]:
-    """The sizes the window asks about before building: those not held."""
-    return [r for r in dimension_rows(drawing) if r["conflict"]]
+    """What the window asks about before building: the sizes not held, then
+    the numbers without a dimension line (they would silently not hold)."""
+    return [r for r in dimension_rows(drawing) if r["conflict"]] + orphan_rows(drawing)
+
+
+KEEP, AS_TEXT = "— не трогать", "это просто текст"
 
 
 def _number(value) -> str:
@@ -66,13 +78,15 @@ class RefineDialog(QDialog):
     «Пересчитать»."""
 
     def __init__(self, drawing: ir.Drawing, overrides: dict, parent=None, photo: bool = False,
-                 focus: str | None = None):
+                 focus: str | None = None, attach: dict | None = None):
         super().__init__(parent)
         self.setWindowTitle("Уточнить размеры")
-        self.resize(820, 520)
+        self.resize(860, 560)
         self.overrides = dict(overrides)
+        self.attach = dict(attach or {})  # text id → {"kind", "refs"} | None (just text)
         self.photo_requested = False
         self.rows = dimension_rows(drawing)
+        self.orphans = orphan_rows(drawing)
         lay = QVBoxLayout(self)
         lay.setSpacing(10)
         intro = ("Введите своё число в столбце «Значение» — чертёж пересчитается так, чтобы "
@@ -85,7 +99,11 @@ class RefineDialog(QDialog):
         note.setWordWrap(True)
         lay.addWidget(note)
 
-        self.table = QTableWidget(len(self.rows), 6)
+        if self.orphans:
+            intro += (" Ниже — числа без размерной линии: выберите, что каждое из них измеряет "
+                      "(или «это просто текст»).")
+            note.setText(intro)
+        self.table = QTableWidget(len(self.rows) + len(self.orphans), 6)
         self.table.setHorizontalHeaderLabels(["Размер", "Вид", "На чертеже", "По линиям",
                                               "Состояние", "Значение"])
         self.table.verticalHeader().setVisible(False)
@@ -108,8 +126,29 @@ class RefineDialog(QDialog):
             self.table.setItem(i, VALUE_COLUMN, item)
             if focus and r["id"] == focus:
                 self.table.selectRow(i)
+        self.combos: list[QComboBox] = []
+        for k, o in enumerate(self.orphans):
+            i = len(self.rows) + k
+            cells = [o["id"], "без размерной линии", o["text"], "—", "не привязан"]
+            for j, text in enumerate(cells):
+                item = QTableWidgetItem(text)
+                item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                if j == 4:
+                    item.setForeground(warn)
+                self.table.setItem(i, j, item)
+            combo = QComboBox()
+            combo.addItems([KEEP, AS_TEXT] + [c["label"] for c in o["candidates"]])
+            combo.setToolTip("Что измеряет это число — размер будет построен и выдержан")
+            self.table.setCellWidget(i, VALUE_COLUMN, combo)
+            self.combos.append(combo)
+            if focus and o["id"] == focus:
+                self.table.selectRow(i)
+        if focus:
+            for i in range(self.table.rowCount()):
+                if self.table.item(i, 0).text() == focus:
+                    self.table.scrollToItem(self.table.item(i, 0))
         lay.addWidget(self.table, 1)
-        if not self.rows:
+        if not self.rows and not self.orphans:
             self.table.hide()
 
         row = QHBoxLayout()
@@ -130,7 +169,7 @@ class RefineDialog(QDialog):
         cancel.clicked.connect(self.reject)
         apply = QPushButton("Пересчитать", objectName="primary")
         apply.clicked.connect(self._apply)
-        apply.setEnabled(bool(self.rows))
+        apply.setEnabled(bool(self.rows or self.orphans))
         row.addWidget(cancel)
         row.addWidget(apply)
         lay.addLayout(row)
@@ -139,7 +178,7 @@ class RefineDialog(QDialog):
             reset.hide()
 
     def _selected(self) -> list[int]:
-        return sorted({i.row() for i in self.table.selectedIndexes()})
+        return sorted({i.row() for i in self.table.selectedIndexes() if i.row() < len(self.rows)})
 
     def trust_lines(self) -> None:
         for i in self._selected():
@@ -164,4 +203,10 @@ class RefineDialog(QDialog):
             if r["original"] is None or abs(value - r["original"]) > 1e-9:
                 out[r["id"]] = value  # what the drawing says is no override
         self.overrides = out
+        for o, combo in zip(self.orphans, self.combos):
+            k = combo.currentIndex()
+            if k == 1:
+                self.attach[o["id"]] = None
+            elif k >= 2:
+                self.attach[o["id"]] = key_of(o["candidates"][k - 2])
         self.accept()

@@ -46,13 +46,16 @@ class RecognizeJob(QObject):
     stage = Signal(str)  # one of pipeline.STAGES, then PREVIEW_STAGE
 
     def __init__(self, pdf: Path, exact: bool, page: int = 0, sheet_mm=None,
-                 scale: float | None = None, overrides: dict | None = None):
+                 scale: float | None = None, overrides: dict | None = None,
+                 attach: dict | None = None):
         """``sheet_mm``, ``scale``: of a photo — its sheet format and the
-        drawing's scale, as the user read them on the photo's title block."""
+        drawing's scale, as the user read them on the photo's title block.
+        ``attach``: the user's choices for sizes without a dimension line."""
         super().__init__()
         self.pdf, self.exact, self.page = pdf, exact, page
         self.sheet_mm, self.scale = sheet_mm, scale
         self.overrides = overrides or {}  # dimension id → the user's value
+        self.attach = attach or {}
         self.dpi = PREVIEW_DPI
         self.cancelled = False
 
@@ -78,7 +81,7 @@ class RecognizeJob(QObject):
             try:
                 drawing = recognize_pdf(self.pdf, self.page, exact=self.exact,
                                         progress=self._stage, raster=raster, scale=self.scale,
-                                        overrides=self.overrides)
+                                        overrides=self.overrides, attach=self.attach)
                 if raster:
                     drawing.warnings.insert(0, photo.text() + ". Надписи с фото не читаются: "
                                             "числа размеров впишите в КОМПАС")
@@ -91,7 +94,7 @@ class RecognizeJob(QObject):
                 error = traceback.format_exc().strip().splitlines()[-1]
                 drawing = recognize_pdf(self.pdf, self.page, exact=False,
                                         progress=self._stage, raster=raster, scale=self.scale,
-                                        overrides=self.overrides)
+                                        overrides=self.overrides, attach=self.attach)
                 drawing.warnings.insert(0, "Точный режим не удался, чертёж открыт как в PDF "
                                            f"(без выравнивания): {error}")
             self._stage(MODEL_STAGE)

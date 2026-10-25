@@ -10,6 +10,7 @@ widget here, so all the layouts can do all of it.
 
 from __future__ import annotations
 
+import math
 import re
 import sys
 from pathlib import Path
@@ -22,11 +23,12 @@ from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog, 
 from .. import ir
 from ..export.dxf_writer import write_dxf
 from ..pipeline import STAGES
-from ..report.preview import sheet_to_pixel
+from ..report.preview import pixel_to_sheet, sheet_to_pixel
 from ..report.summary import TYPE_NAMES, summary_text
 from .layouts import LAYOUT_NAMES, LAYOUTS, PAGES
 from .loader import DraftingLoader
-from .refine import RefineDialog, dimension_rows, questions
+from ..semantics.orphans import key_of, text_center
+from .refine import RefineDialog, dimension_rows, orphan_rows, questions
 from .session import SessionLog, app_folder, recent_files, remember_file, stamped
 from .theme import THEME_ICONS, THEME_NAMES, THEMES, style_sheet
 from .widgets import PreviewView, label
@@ -72,6 +74,7 @@ class MainWindow(QMainWindow):
         self.model_ok: bool | None = None
         self.ready = False
         self.overrides: dict = {}  # dimension id → the user's value, for the open drawing
+        self.attach: dict = {}  # text id of a size without its line → what it measures
         self.counters = {"opened": 0, "built": 0, "refined": 0, "photos": 0}
         self.ui = None
 
@@ -138,8 +141,9 @@ class MainWindow(QMainWindow):
         self.preview = PreviewView()
         self.preview.setAcceptDrops(False)  # a PDF dropped on the drawing reaches the window
         self.preview.viewport().setAcceptDrops(False)
-        self.preview.setToolTip("Колесо — масштаб, перетаскивание — сдвиг, двойной щелчок или "
-                                "Ctrl+0 — весь лист")
+        self.preview.clicked.connect(self.on_sheet_clicked)
+        self.preview.setToolTip("Щелчок по размеру — изменить его. Колесо — масштаб, "
+                                "перетаскивание — сдвиг, двойной щелчок или Ctrl+0 — весь лист")
         self.summary = QPlainTextEdit(readOnly=True, objectName="report")
         self.summary.setLineWrapMode(QPlainTextEdit.NoWrap)
         self.review = QListWidget()
@@ -340,7 +344,7 @@ class MainWindow(QMainWindow):
             return None
         exact = MODES[self.mode.currentIndex()][1]
         rows = dimension_rows(d)
-        ask = questions(d) if exact else []
+        ask = questions(d) if exact else orphan_rows(d)
         ok, why = getattr(d, "model_verdict", None) or (None, "не проверено")
         if ok is False:
             model_text = f"3D-модель не строится — будет только чертёж: {why}."
@@ -357,8 +361,8 @@ class MainWindow(QMainWindow):
                           "warn" if issues else "ok"))
         else:
             chips.append(("как в PDF, без выравнивания", ""))
-        if self.overrides:
-            chips.append((f"уточнено вручную: {len(self.overrides)}", ""))
+        if self.overrides or self.attach:
+            chips.append((f"уточнено вручную: {len(self.overrides) + len(self.attach)}", ""))
         return {
             "name": self.pdf.name if self.pdf else "",
             "format": d.sheet.format, "scale": d.scale.text, "exact": exact,
@@ -417,6 +421,7 @@ class MainWindow(QMainWindow):
         self.drawing = None
         self.model_ok = None
         self.overrides = {}
+        self.attach = {}
         self.counters["opened"] += 1
         self.settings.setValue("last_dir", str(path.parent))
         self._fill_recent(remember_file(self.settings, path))
@@ -476,7 +481,7 @@ class MainWindow(QMainWindow):
             if self.pdf.suffix.lower() in IMAGE_SUFFIXES else (None, None)
         exact = MODES[self.mode.currentIndex()][1]
         job = RecognizeJob(self.pdf, exact=exact, sheet_mm=sheet_mm, scale=scale,
-                           overrides=self.overrides)
+                           overrides=self.overrides, attach=self.attach)
         stages = [s for s in STAGES if exact or s not in STAGES[5:]] + [MODEL_STAGE,
                                                                        PREVIEW_STAGE]
         if self.pdf.suffix.lower() in IMAGE_SUFFIXES:
@@ -528,7 +533,8 @@ class MainWindow(QMainWindow):
         if self.drawing is None or self._busy():
             return
         photo = bool(getattr(self.drawing, "raster", False))
-        dialog = RefineDialog(self.drawing, self.overrides, self, photo=photo, focus=focus)
+        dialog = RefineDialog(self.drawing, self.overrides, self, photo=photo, focus=focus,
+                              attach=self.attach)
         if dialog.exec() != RefineDialog.DialogCode.Accepted:
             return
         if dialog.photo_requested:
@@ -537,12 +543,42 @@ class MainWindow(QMainWindow):
                 self.photo_options = options
                 self.recognize()
             return
-        if dialog.overrides == self.overrides:
+        if dialog.overrides == self.overrides and dialog.attach == self.attach:
             return
-        self.counters["refined"] += len(set(dialog.overrides) - set(self.overrides))
-        self.overrides = dialog.overrides
-        self._log("Размеры уточнены вручную: " + (", ".join(
-            f"{k} = {v:g}" for k, v in sorted(self.overrides.items())) or "сброшены"))
+        self.counters["refined"] += len(set(dialog.overrides) - set(self.overrides)) \
+            + len(set(dialog.attach) - set(self.attach))
+        if dialog.overrides != self.overrides:
+            self._log("Размеры уточнены вручную: " + (", ".join(
+                f"{k} = {v:g}" for k, v in sorted(dialog.overrides.items())) or "сброшены"))
+        for text_id in sorted(set(dialog.attach) - set(self.attach)):
+            self._log(self._attach_note(text_id, dialog.attach[text_id]))
+        self.overrides, self.attach = dialog.overrides, dialog.attach
+        self.recognize()
+
+    def _attach_note(self, text_id: str, choice) -> str:
+        t = self.drawing.get(text_id) if self.drawing else None
+        what = f"«{t.text}»" if t is not None else text_id
+        if choice is None:
+            return f"{what}: оставлен текстом"
+        return f"{what}: привязан — {choice['kind']} по {', '.join(choice['refs'])}"
+
+    def attach_orphan(self, text_id: str, index) -> None:
+        """A size without its dimension line: the object it measures (its
+        candidate ``index``) or None — just text; the drawing is read again."""
+        if self.drawing is None or self._busy():
+            return
+        row = next((o for o in orphan_rows(self.drawing) if o["id"] == text_id), None)
+        if row is None:
+            return
+        if index is None:
+            choice = None
+        elif 0 <= index < len(row["candidates"]):
+            choice = key_of(row["candidates"][index])
+        else:
+            return
+        self.attach[text_id] = choice
+        self.counters["refined"] += 1
+        self._log(self._attach_note(text_id, choice))
         self.recognize()
 
     def trust_lines(self, dim_id: str) -> None:
@@ -556,6 +592,38 @@ class MainWindow(QMainWindow):
         self.counters["refined"] += 1
         self._log(f"{dim_id}: принято значение по линиям {self.overrides[dim_id]:g}")
         self.recognize()
+
+    REACH = 8.0  # sheet mm: how far from a size's number a click still picks it
+
+    def size_at(self, p) -> str | None:
+        """The size (or the number without a dimension line) nearest to a
+        sheet point: its number, its dimension line."""
+        best, found = self.REACH, None
+        for e in self.drawing.entities:
+            if isinstance(e, ir.Dimension):
+                spots = [q for q in (e.text_center, e.text_pos, e.line_point) if q]
+            elif isinstance(e, ir.Text) and any(o["id"] == e.id
+                                                for o in orphan_rows(self.drawing)):
+                spots = [text_center(e), e.position]
+            else:
+                continue
+            for q in spots:
+                d = math.dist(p, q)
+                if d < best:
+                    best, found = d, e.id
+        return found
+
+    def on_sheet_clicked(self, x: float, y: float) -> None:
+        """A click on a size on the sheet: its row in «Уточнить размеры»."""
+        if self.drawing is None or self._busy():
+            return
+        p = pixel_to_sheet(self.drawing, self.page_height,
+                           getattr(self, "preview_dpi", PREVIEW_DPI), x, y)
+        found = self.size_at(p)
+        if found is None:
+            self.statusBar().showMessage("Щёлкните по числу размера, чтобы изменить его", 4000)
+            return
+        self.refine(found)
 
     def point_at_entity(self, entity_id: str) -> None:
         if self.drawing is None:

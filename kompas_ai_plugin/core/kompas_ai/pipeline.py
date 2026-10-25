@@ -33,6 +33,8 @@ from .semantics.dimensions import (FoundDimension, attach_deviations, find_dimen
                                    parse_dim_text)
 from .semantics.hatch import detect_hatches
 from .semantics.linewidth import infer_thin
+from .semantics.orphans import apply as attach_orphans
+from .semantics.orphans import describe as describe_orphans
 from .semantics.regions import hatch_regions
 from .semantics.sheet import analyse_sheet, is_title_block_text, read_title_block
 
@@ -46,12 +48,15 @@ STAGES = ["Читаю PDF", "Рамка и основная надпись", "Л
 
 def recognize_pdf(pdf_path: str | Path, page: int = 0, exact: bool = True,
                   progress=None, raster: bool = False,
-                  scale: float | None = None, overrides: dict | None = None) -> ir.Drawing:
+                  scale: float | None = None, overrides: dict | None = None,
+                  attach: dict | None = None) -> ir.Drawing:
     """Recognise one PDF page. ``exact`` corrects the geometry to the written
     dimensions (see geometry/regularize.py); False keeps the measured PDF values.
     ``progress(stage)`` is called with each of STAGES as it starts. ``scale``:
     the drawing's scale when the sheet does not say it (a photo). ``overrides``:
-    dimension id → the value the user means (the window's «Уточнить размеры»)."""
+    dimension id → the value the user means (the window's «Уточнить размеры»).
+    ``attach``: text id of a size without a dimension line → the object it
+    measures ({"kind", "refs"}, see semantics/orphans.py) or None (just text)."""
     step = progress or (lambda stage: None)
     step(STAGES[0])
     content = extract_page(pdf_path, page)
@@ -155,6 +160,11 @@ def recognize_pdf(pdf_path: str | Path, page: int = 0, exact: bool = True,
 
     _build_entities(drawing, geometry, is_thin, found, plain_texts, regions, orphan_groups,
                     suspicious)
+    if attach:
+        made, kept = attach_orphans(drawing, attach)
+        if made or kept:
+            drawing.processing.append(f"Размеры без размерной линии: привязано {made}, "
+                                      f"оставлено текстом {kept}")
     refined = _apply_overrides(drawing, overrides or {})
     if refined:
         drawing.processing.append(f"Размеры уточнены вручную: {refined}")
@@ -200,6 +210,7 @@ def recognize_pdf(pdf_path: str | Path, page: int = 0, exact: bool = True,
         snapped = snap_annotations(drawing)
         if snapped:
             drawing.processing.append(f"Точки размеров и штриховок притянуты к контуру: {snapped}")
+    drawing.orphans = describe_orphans(drawing)
     drawing.constraints = find_constraints(drawing.entities)
     if content.unknown_symbols:
         drawing.warnings.append(

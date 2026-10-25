@@ -82,6 +82,13 @@ def sheet_to_pixel(drawing: ir.Drawing, page_height_pt: float, dpi: int, p) -> t
     return ((p[0] + ox) / PT_TO_MM * k, (page_height_pt - (p[1] + oy) / PT_TO_MM) * k)
 
 
+def pixel_to_sheet(drawing: ir.Drawing, page_height_pt: float, dpi: int, x: float, y: float):
+    """Pixel of the preview image → sheet mm (the inverse of sheet_to_pixel)."""
+    ox, oy = drawing.sheet.offset
+    k = dpi / 72.0
+    return (x / k * PT_TO_MM - ox, (page_height_pt - y / k) * PT_TO_MM - oy)
+
+
 def _polyline(shape, points, color, width):
     for a, b in zip(points, points[1:]):
         shape.draw_line(a, b)

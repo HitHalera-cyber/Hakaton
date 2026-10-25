@@ -14,10 +14,15 @@ GRID = 20  # px between grid lines behind the drawing
 
 
 class PreviewView(QGraphicsView):
-    """Zoomable, draggable preview of the source drawing with the recognised objects."""
+    """Zoomable, draggable preview of the source drawing with the recognised objects.
+    A click (not a drag) reports the point under it in image pixels."""
+
+    clicked = Signal(float, float)
+    CLICK = 5  # px the mouse may move for a press and release to be a click
 
     def __init__(self):
         super().__init__()
+        self._pressed = None
         self.setScene(QGraphicsScene(self))
         self.setRenderHints(QPainter.Antialiasing | QPainter.SmoothPixmapTransform)
         self.setDragMode(QGraphicsView.ScrollHandDrag)
@@ -94,6 +99,20 @@ class PreviewView(QGraphicsView):
     def fit(self) -> None:
         if not self.scene().sceneRect().isEmpty():
             self.fitInView(self.scene().sceneRect(), Qt.KeepAspectRatio)
+
+    def mousePressEvent(self, event):
+        self._pressed = event.position() if event.button() == Qt.LeftButton else None
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        super().mouseReleaseEvent(event)
+        start, self._pressed = self._pressed, None
+        if start is None or event.button() != Qt.LeftButton:
+            return
+        moved = event.position() - start
+        if abs(moved.x()) + abs(moved.y()) <= self.CLICK and self.png is not None:
+            p = self.mapToScene(event.position().toPoint())
+            self.clicked.emit(p.x(), p.y())
 
     def mouseDoubleClickEvent(self, event):
         self.fit()  # the whole sheet again

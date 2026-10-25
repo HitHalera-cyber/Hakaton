@@ -244,6 +244,9 @@ class Layout:
             lay.addWidget(text)
             return
         for r in rows[:limit]:
+            if r.get("orphan"):
+                lay.addWidget(self._orphan_card(r, cards))
+                continue
             box = QFrame(objectName="question" if cards else "questionFlat")
             inner = QVBoxLayout(box)
             inner.setContentsMargins(12, 10, 12, 10)
@@ -251,6 +254,7 @@ class Layout:
             title = label(f"{r['id']} «{r['text']}» не выдержан", "questionTitle")
             title.setWordWrap(True)
             show = QPushButton("Показать", objectName="link")
+            show.setMinimumWidth(show.fontMetrics().horizontalAdvance(show.text()) + 12)
             show.setToolTip("Показать этот размер на листе")
             show.clicked.connect(lambda _=False, i=r["id"]: w.point_at_entity(i))
             inner.addLayout(_row(title, show, spacing=6))
@@ -277,6 +281,51 @@ class Layout:
             more = QPushButton(f"Ещё {len(rows) - limit}…", objectName="flat")
             more.clicked.connect(lambda: w.refine())
             lay.addWidget(more)
+
+
+    def _orphan_card(self, r: dict, cards: bool) -> QFrame:
+        """A number without a dimension line: what it may measure, best first."""
+        w = self.win
+        box = QFrame(objectName="question" if cards else "questionFlat")
+        inner = QVBoxLayout(box)
+        inner.setContentsMargins(12, 10, 12, 10)
+        inner.setSpacing(6)
+        title = label(f"«{r['text']}» — размер без размерной линии", "questionTitle")
+        title.setWordWrap(True)
+        show = QPushButton("Показать на листе", objectName="link")
+        show.setToolTip("Показать это число на листе")
+        show.clicked.connect(lambda _=False, i=r["id"]: w.point_at_entity(i))
+        inner.addWidget(title)  # the link under it: a long number wraps, the link stays whole
+        cands = r["candidates"]
+        note = label("Что он измеряет? Размер будет построен и выдержан." if cands else
+                     "Подходящих линий не найдено — выберите в таблице или оставьте текстом.",
+                     "sub")
+        note.setWordWrap(True)
+        inner.addWidget(note)
+        picks = []
+        for k, c in enumerate(cands[:2]):
+            b = QPushButton(c["short"], objectName="small")
+            b.setToolTip(c["label"])
+            b.clicked.connect(lambda _=False, i=r["id"], k=k: w.attach_orphan(i, k))
+            picks.append(b)
+        more = QPushButton("Другое…", objectName="small")
+        more.setToolTip("Все варианты — в таблице размеров")
+        more.clicked.connect(lambda _=False, i=r["id"]: w.refine(i))
+        text = QPushButton("Это текст", objectName="small")
+        text.setToolTip("Оставить надписью, размер не строить")
+        text.clicked.connect(lambda _=False, i=r["id"]: w.attach_orphan(i, None))
+        for b in picks + [more, text, show]:
+            b.setCursor(Qt.PointingHandCursor)
+            b.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        for b in picks:  # each on its own line: the labels are long
+            inner.addWidget(b)
+        if getattr(self, "narrow_questions", False):
+            inner.addWidget(more)
+            inner.addWidget(text)
+        else:
+            inner.addLayout(_row(more, text, stretch_at=2))
+        inner.addLayout(_row(show, stretch_at=1))
+        return box
 
 
 # --- А · Инженер --------------------------------------------------------------------------
@@ -867,6 +916,9 @@ class Console(Layout):
         self.verdict = label("откройте чертёж", "sub")
         self.verdict.setWordWrap(True)
         bl.addWidget(self.verdict)
+        self.question_box = QVBoxLayout()  # sizes not held, numbers without their line
+        self.question_box.setSpacing(6)
+        bl.addLayout(self.question_box)
         self._options(bl)
         bl.addWidget(action_button(w.acts["refine"]))
         bl.addStretch(1)
@@ -902,6 +954,10 @@ class Console(Layout):
             self.dims_card.set_value("—", "откройте чертёж")
         self.verdict.setText(info["model_text"] if info else "откройте чертёж")
         restyle(self.verdict, "subWarn" if info and info["model_ok"] is False else "sub")
+        if info and info["questions"]:
+            self._questions(self.question_box, info, limit=2, cards=False)
+        else:
+            _clear(self.question_box)
         self.nav.button(3).setText(f"Проверка · {info['to_check']}" if info and info["to_check"]
                                    else "Проверка")
         for key, v in self.session_figures.items():
