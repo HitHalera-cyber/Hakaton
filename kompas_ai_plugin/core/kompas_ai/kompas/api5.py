@@ -1491,6 +1491,64 @@ class Api5Backend:
         finally:
             _close(doc)
 
+    def export_mesh(self, source: str, out_stl: str) -> bool:
+        """The saved part as an STL mesh (for views drawn by the program).
+        Several ways, as KOMPAS versions differ; the file is checked."""
+        from pathlib import Path
+
+        out = Path(out_stl)
+
+        def written() -> bool:
+            return out.exists() and out.stat().st_size > 84
+
+        doc = self.kompas.Document3D()
+        if not doc.Open(source, True):
+            raise RuntimeError(f"КОМПАС не открыл модель {source} (код {self.last_error()})")
+        try:
+            # API5: ksDocument3D.SaveAsToAdditionFormat + ksAdditionFormatParam
+            try:
+                par = self._param("ko_AdditionFormatParam", "ksAdditionFormatParam")
+                par.Init()
+                for key, value in (("format", getattr(self.constants, "format_STL", 3)),
+                                   ("formatBinary", True), ("angle", 5.0), ("length", 0.05),
+                                   ("maxLength", 2.0)):
+                    try:
+                        setattr(par, key, value)
+                    except Exception as exc:
+                        self.log(f"    ksAdditionFormatParam.{key}: {exc!r}")
+                doc.SaveAsToAdditionFormat(str(out), par)
+                if written():
+                    self.log("  STL: API5 SaveAsToAdditionFormat")
+                    return True
+            except Exception as exc:
+                self.log(f"  STL через API5 SaveAsToAdditionFormat: {exc!r}")
+            # the document saved under an .stl name (KOMPAS picks the format)
+            for how in ("SaveAs", "ksSaveDocument"):
+                try:
+                    getattr(doc, how)(str(out))
+                    if written():
+                        self.log(f"  STL: API5 {how}")
+                        return True
+                except Exception as exc:
+                    self.log(f"  STL через API5 {how}: {exc!r}")
+        finally:
+            _close(doc)
+        try:  # API7: open unseen, SaveAs with the .stl name
+            from win32com.client import gencache
+
+            app = gencache.EnsureDispatch("Kompas.Application.7")
+            doc7 = app.Documents.Open(source, False, True)
+            try:
+                doc7.SaveAs(str(out))
+            finally:
+                doc7.Close(getattr(self.constants, "kdDoNotSaveChanges", 0))
+            if written():
+                self.log("  STL: API7 SaveAs")
+                return True
+        except Exception as exc:
+            self.log(f"  STL через API7 SaveAs: {exc!r}")
+        return False
+
     def _model_view7(self, source, at, scale, angle, projection, hidden) -> bool:
         from win32com.client import CastTo, gencache
 

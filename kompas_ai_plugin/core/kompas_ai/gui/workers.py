@@ -6,7 +6,9 @@ both run in a QThread and report back through signals.
 
 from __future__ import annotations
 
+import os
 import sys
+import tempfile
 import traceback
 from pathlib import Path
 
@@ -69,8 +71,6 @@ class RecognizeJob(QObject):
                 # a photo or a scan: its lines into a PDF the recognition reads
                 self._stage(PHOTO_STAGE)
                 from ..raster.photo import photo_to_pdf
-
-                import tempfile
 
                 vector = Path(tempfile.gettempdir()) / f"kompas_ai_photo_{self.pdf.stem}.pdf"
                 photo = photo_to_pdf(self.pdf, vector, self.sheet_mm)
@@ -405,10 +405,46 @@ def lay_out_views(size, view_scale=None):
 
 
 def drawing_of_model(model: Path, out: Path, view_scale, log) -> str:
+    """Views of the part drawn by the program from its mesh (KOMPAS saves it
+    as STL); when KOMPAS cannot save the mesh, KOMPAS' own linked views."""
     from ..kompas.api5 import Api5Backend
 
     log("Подключение к КОМПАС…")
     backend = Api5Backend(log=log, parametric=False)
+    stl = Path(tempfile.gettempdir()) / f"kompas_ai_{os.getpid()}_{model.stem}.stl"
+    try:
+        exported = backend.export_mesh(str(model), str(stl))
+    except Exception as exc:
+        log(f"  сетка модели не сохранена: {exc!r}")
+        exported = False
+    if exported:
+        try:
+            return _drawing_from_mesh(backend, model, stl, out, view_scale, log)
+        finally:
+            try:
+                stl.unlink()
+            except OSError:
+                pass
+    log("КОМПАС не сохранил сетку модели (STL) — виды, связанные с моделью")
+    return _linked_views(backend, model, out, view_scale, log)
+
+
+def _drawing_from_mesh(backend, model: Path, stl: Path, out: Path, view_scale, log) -> str:
+    from ..kompas.writer import DrawingWriter
+    from ..model3d.projection import model_drawing, read_stl
+
+    log("Строю виды по сетке модели…")
+    drawing, notes = model_drawing(read_stl(stl), view_scale, source=str(model))
+    log(f"Лист {drawing.sheet.format}, масштаб {drawing.scale.text}, объектов {len(drawing.entities)}")
+    report = DrawingWriter(backend, mode="view", with_dimensions=False).write(drawing)
+    saved = backend.save(str(out))
+    return ("Чертёж по модели " + model.name + "\n" + "\n".join(notes) + "\n" + report.text()
+            + "\nВиды не связаны с моделью: после изменения модели постройте чертёж заново. "
+            "Размеры ставятся в КОМПАС (Авторазмеры или вручную)\n"
+            + (f"Сохранено: {out}" if saved else f"Не удалось сохранить {out}"))
+
+
+def _linked_views(backend, model: Path, out: Path, view_scale, log) -> str:
     x1, y1, z1, x2, y2, z2 = backend.model_gabarit(str(model))
     size = (x2 - x1, y2 - y1, z2 - z1)
     log(f"Габарит модели: {size[0]:.1f} × {size[1]:.1f} × {size[2]:.1f} мм")
@@ -431,6 +467,9 @@ def drawing_of_model(model: Path, out: Path, view_scale, log) -> str:
         made.append(f"{projection.lstrip('#')}: {'да' if ok else 'нет'}")
     saved = backend.save(str(out))
     return ("Чертёж по модели " + model.name + "\nВиды (связаны с моделью): " + ", ".join(made)
+            + ("\nЕсли виды на листе пустые — пришлите журнал (вкладка «Журнал») и файл "
+               "проверки КОМПАС: в этой версии КОМПАС связанные виды не строятся через API"
+               if not any(m.endswith("да") for m in made) else "")
             + "\nРазмеры на виды ставятся в КОМПАС (Авторазмеры или вручную)\n"
             + (f"Сохранено: {out}" if saved else f"Не удалось сохранить {out}"))
 
