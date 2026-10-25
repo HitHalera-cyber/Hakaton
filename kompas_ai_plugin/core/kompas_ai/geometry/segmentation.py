@@ -54,6 +54,8 @@ RESAMPLE_STEP = 0.4  # mm
 def segment_chain(chain: Chain, smooth: bool = True) -> list[Primitive]:
     """``smooth=False`` for exact polylines (no pixel-grid staircase to remove)."""
     points = _smooth_dense_runs(chain.points) if smooth else chain.points
+    if chain.closed:
+        points = _start_at_corner(points)
     pieces = _greedy(points, chain.width)
     pieces = _rebalance(pieces, chain.width)
     pieces = _merge_neighbours(pieces, chain.width, closed=chain.closed)
@@ -64,6 +66,23 @@ def segment_chain(chain: Chain, smooth: bool = True) -> list[Primitive]:
         return [Primitive("circle", arc.points, chain.width, arc.error,
                           center=arc.center, radius=arc.radius)]
     return pieces
+
+
+def _start_at_corner(points):
+    """A closed chain starts where it turns most. Where it happens to start
+    is up to the file (and the direction it was drawn in); a seam at a
+    line/arc tangent point would hand the arc's first chord to the line."""
+    ring = points[:-1]
+    n = len(ring)
+    if n < 4 or points[0] != points[-1]:
+        return points
+
+    def turn(i):
+        a, b, c = ring[i - 1], ring[i], ring[(i + 1) % n]
+        return angle_diff(direction_deg(a, b), direction_deg(b, c), 360.0)
+
+    k = max(range(n), key=turn)
+    return ring[k:] + ring[:k] + [ring[k]]
 
 
 def _smooth_dense_runs(points):

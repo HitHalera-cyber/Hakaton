@@ -19,6 +19,7 @@ from pathlib import Path
 from . import ir
 from .geometry.chains import build_chains
 from .geometry.constraints import find_constraints
+from .geometry.fitting import point_segment_distance
 from .geometry.ellipses import chord_fillets, chords_to_arcs, merge_ellipses
 from .geometry.linetypes import merge_dashed
 from .geometry.regularize import regularize, snap_annotations, solve_contour
@@ -31,6 +32,7 @@ from .semantics.axes import mark_axis_lines
 from .semantics.dimensions import (FoundDimension, attach_deviations, find_dimensions,
                                    parse_dim_text)
 from .semantics.hatch import detect_hatches
+from .semantics.linewidth import infer_thin
 from .semantics.regions import hatch_regions
 from .semantics.sheet import analyse_sheet, is_title_block_text, read_title_block
 
@@ -73,13 +75,19 @@ def recognize_pdf(pdf_path: str | Path, page: int = 0, exact: bool = True,
     title_scale = read_title_block(content, layout)
 
     step(STAGES[2])
-    chains = build_chains(content.segments)
-    outline_arrows, chains = arrows_from_chains(chains)
-    arrows = merge_arrow_sources(outline_arrows, find_arrows(content.fills))
-
-    prims = snap_concentric(merge_cocircular([p for chain in chains for p in segment_chain(chain)]))
-    prims = [p for p in prims if not layout.is_sheet_graphic(p.points)]
+    prims, arrows = _primitives(content, layout)
     widths = sorted({round(p.width, 3) for p in prims})
+    if len(widths) == 1 and not raster and len(prims) > 20:
+        # Plotted without lineweights (AutoCAD): thin lines are told by their
+        # role, then everything is traced again with two widths — a hatch
+        # stroke must not join the contour it ends on.
+        n = infer_thin(prims, arrows)
+        _widths_from(prims, arrows, content.segments)
+        prims, arrows = _primitives(content, layout)
+        drawing.warnings.append(
+            "В PDF все линии одной толщины (печать без весов линий) — основные и тонкие "
+            f"линии определены по назначению (тонких: {n}). Проверьте контур.")
+        widths = sorted({round(p.width, 3) for p in prims})
     thin_w = widths[0] if len(widths) > 1 else -1.0  # one width only: everything is main
 
     def is_thin(p: Primitive) -> bool:
@@ -260,6 +268,44 @@ def _across(p, a, b):
     n = math.dist(a, b)
     ux, uy = (b[0] - a[0]) / n, (b[1] - a[1]) / n
     return ((p[0] - a[0]) * uy - (p[1] - a[1]) * ux, (p[0] - a[0]) * ux + (p[1] - a[1]) * uy)
+
+
+def _primitives(content, layout):
+    """Strokes → chains → arrowheads and lines / arcs / circles."""
+    chains = build_chains(content.segments)
+    outline_arrows, chains = arrows_from_chains(chains)
+    arrows = merge_arrow_sources(outline_arrows, find_arrows(content.fills))
+    prims = snap_concentric(merge_cocircular([p for chain in chains for p in segment_chain(chain)]))
+    return [p for p in prims if not layout.is_sheet_graphic(p.points)], arrows
+
+
+def _widths_from(prims: list[Primitive], arrows, segments) -> None:
+    """Give each stroke the width of the primitive traced through it
+    (arrowheads are thin). Chain nodes are averaged ends, so a stroke is
+    matched to the nearest traced polyline, not by its exact points."""
+    main, thin = max(p.width for p in prims), min(p.width for p in prims)
+    cell = 2.0
+    grid: dict[tuple[int, int], list] = {}
+    for pts, w in [(p.points, p.width) for p in prims] + [(a.points + a.points[:1], thin)
+                                                          for a in arrows]:
+        for a, b in zip(pts, pts[1:]):
+            for cx in range(math.floor(min(a[0], b[0]) / cell), math.floor(max(a[0], b[0]) / cell) + 1):
+                for cy in range(math.floor(min(a[1], b[1]) / cell),
+                                math.floor(max(a[1], b[1]) / cell) + 1):
+                    grid.setdefault((cx, cy), []).append((a, b, w))
+    for s in segments:
+        mid = ((s.a[0] + s.b[0]) / 2, (s.a[1] + s.b[1]) / 2)
+        near = grid.get((math.floor(mid[0] / cell), math.floor(mid[1] / cell)), ())
+        best, w = (0.3, 0.0), main
+        for a, b, pw in near:
+            ang = abs((b[0] - a[0]) * (s.b[1] - s.a[1]) - (b[1] - a[1]) * (s.b[0] - s.a[0]))
+            if ang > 0.2 * math.dist(a, b) * s.length + 1e-9:  # not along it
+                continue
+            # nearest; of lines drawn over each other, the one of its length
+            score = (round(point_segment_distance(mid, a, b), 2), abs(math.dist(a, b) - s.length))
+            if score < best:
+                best, w = score, pw
+        s.width = w
 
 
 def _ends_in_arrow(line: Primitive, arrows) -> bool:

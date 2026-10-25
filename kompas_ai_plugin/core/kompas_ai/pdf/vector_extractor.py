@@ -41,6 +41,7 @@ class RawSegment:
     a: tuple[float, float]
     b: tuple[float, float]
     width: float  # stroke width, mm
+    loop: int = -1  # the closed hairline outline it belongs to (see normalize)
 
     @property
     def length(self) -> float:
@@ -53,6 +54,7 @@ class RawFill:
 
     points: list[tuple[float, float]]
     color: tuple[float, float, float]
+    rings: list[list[tuple[float, float]]] | None = None  # the polygons of the path
 
 
 @dataclass
@@ -78,6 +80,7 @@ class PageContent:
     texts: list[RawText] = field(default_factory=list)
     images: int = 0
     unknown_symbols: set[str] = field(default_factory=set)
+    loops: int = 0  # closed outlines numbered so far
 
     @property
     def is_vector(self) -> bool:
@@ -164,13 +167,17 @@ def _extract_geometry(page: pymupdf.Page, conv: _Converter, content: PageContent
             # A filled path is one area even when its items are not chained.
             points = [p for poly in polylines for p in poly]
             if len(points) >= 3:
-                content.fills.append(RawFill(points=points, color=tuple(fill)))
+                content.fills.append(RawFill(points=points, color=tuple(fill),
+                                             rings=[p for p in polylines if len(p) >= 3]))
         if path["type"] in ("s", "fs") and path.get("color") is not None and fill is None:
             width = (path.get("width") or 0.0) * PT_TO_MM
             pattern = _dash_pattern(path.get("dashes"))
             if pattern:
                 polylines = [piece for poly in polylines for piece in _apply_dashes(poly, *pattern)]
             for poly in polylines:
+                loop = -1
+                if len(poly) > 3 and math.dist(poly[0], poly[-1]) < 1e-3:
+                    loop = content.loops = content.loops + 1
                 for a, b in zip(poly, poly[1:]):
                     if math.dist(a, b) < 1e-6:
                         continue
@@ -179,7 +186,7 @@ def _extract_geometry(page: pymupdf.Page, conv: _Converter, content: PageContent
                     if key in seen:  # KOMPAS draws every chord there and back
                         continue
                     seen.add(key)
-                    content.segments.append(RawSegment(a, b, width))
+                    content.segments.append(RawSegment(a, b, width, loop))
 
 
 def _dash_pattern(dashes: str | None):
@@ -406,12 +413,14 @@ def attach_indices(texts: list[RawText]) -> list[RawText]:
 
 def extract_page(pdf_path: str | Path, page_number: int = 0) -> PageContent:
     """Read one PDF page into raw primitives (sheet mm, origin bottom-left)."""
+    from .normalize import normalise
     with pymupdf.open(str(pdf_path)) as doc:
         page = doc[page_number]
         conv = _Converter(page.rect.height)
         content = PageContent(width=page.rect.width * PT_TO_MM,
                               height=page.rect.height * PT_TO_MM)
         _extract_geometry(page, conv, content)
+        normalise(content)  # AutoCAD-style bands and outlines → strokes
         _extract_text(page, conv, content)
         content.images = len(page.get_images())
     return content
