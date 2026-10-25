@@ -68,18 +68,75 @@ def _find_kompas_typelibs() -> list[tuple[str, int, int, str]]:
 
 def _prepare_win32com() -> None:
     """In the packaged exe the pywin32 cache folder is read-only; the wrappers
-    generated for the KOMPAS type libraries go to the user's profile instead."""
+    generated for the KOMPAS type libraries go to the user's profile instead,
+    in a folder of this build (wrappers made by another pywin32 are not
+    importable: «No module named win32com.gen_py…», «no attribute
+    CLSIDToClassMap»). The package path is pointed there too — win32com
+    fixed it on import, before this ran."""
     if not getattr(sys, "frozen", False):
         return
     import win32com
+    import win32com.gen_py
 
-    gen = Path(os.environ.get("LOCALAPPDATA", tempfile.gettempdir())) / "KompasAI" / "gen_py"
+    try:  # one folder per build of the exe: a new build makes its own wrappers
+        build = int(Path(sys.executable).stat().st_mtime)
+    except OSError:
+        build = 0
+    root = Path(os.environ.get("LOCALAPPDATA", tempfile.gettempdir())) / "KompasAI"
+    gen = root / f"gen_py_{build}"
     gen.mkdir(parents=True, exist_ok=True)
     win32com.__gen_path__ = str(gen)
+    win32com.gen_py.__path__ = [str(gen)]
     from win32com.client import gencache
 
     gencache.is_readonly = False
     gencache.GetGeneratePath()
+    try:  # the index of wrappers read again from the new folder
+        gencache.__init__()
+    except Exception:
+        pass
+
+
+def _module_name(guid: str, major: int, minor: int) -> str:
+    return f"{str(guid).strip('{}').upper()}x0x{major}x{minor}"
+
+
+def _forget_wrapper(guid: str, major: int, minor: int) -> None:
+    """Remove a broken generated wrapper (files and imported module) so that
+    it is generated again."""
+    import shutil
+
+    import win32com
+
+    name = _module_name(guid, major, minor)
+    for key in [k for k in sys.modules if k.startswith(f"win32com.gen_py.{name}")]:
+        del sys.modules[key]
+    for folder in {str(win32com.__gen_path__)} | set(getattr(win32com.gen_py, "__path__", [])):
+        base = Path(folder) / name
+        shutil.rmtree(base, ignore_errors=True)
+        for f in (base.with_suffix(".py"), base.with_suffix(".pyc")):
+            try:
+                f.unlink()
+            except OSError:
+                pass
+
+
+def ensure_wrapper(guid: str, major: int, minor: int):
+    """gencache.EnsureModule that regenerates a wrapper it cannot import."""
+    from win32com.client import gencache
+
+    try:
+        m = gencache.EnsureModule(guid, 0, major, minor)
+        if m is not None and hasattr(m, "CLSIDToClassMap"):
+            return m
+    except Exception:
+        pass
+    _forget_wrapper(guid, major, minor)
+    try:
+        gencache.Rebuild(verbose=0)
+    except Exception:
+        pass
+    return gencache.EnsureModule(guid, 0, major, minor)
 
 
 class Api5Backend:
@@ -94,20 +151,24 @@ class Api5Backend:
         self._arcs: dict[int, object] = {}  # API7 arcs made here, by id (kept alive)
         self._arc_indices: dict[int, int] | None = None  # our 0/1 → KOMPAS point index
         import pythoncom
-        from win32com.client import Dispatch, constants, gencache
+        from win32com.client import Dispatch, constants
 
         self.log = log
         module = None
         for guid, major, minor, name in _find_kompas_typelibs():
             try:
-                m = gencache.EnsureModule(guid, 0, major, minor)
+                m = ensure_wrapper(guid, major, minor)
             except Exception as exc:  # some KOMPAS type libraries are not needed
                 log(f"  библиотека {name}: {exc!r}")
                 continue
             if m is not None and hasattr(m, "KompasObject"):
                 module = m
         if module is None:
-            raise RuntimeError("Не найдена библиотека типов API5 КОМПАС (Kompas6API5)")
+            raise RuntimeError(
+                "Не найдена библиотека типов API5 КОМПАС (Kompas6API5). Проверьте, что КОМПАС-3D "
+                "установлен и хотя бы раз запускался; если ошибка повторится — закройте программу, "
+                "удалите папку %LOCALAPPDATA%\\KompasAI (служебные файлы связи с КОМПАС) и "
+                "запустите снова")
         self.m = module
         self.constants = constants
         raw = Dispatch("Kompas.Application.5")

@@ -44,6 +44,16 @@ def selftest(report_path: str) -> int:
                      f"окружностей {len(drawing.of_type(ir.Circle))}")
         if len(drawing.of_type(ir.Circle)) != 1 or len(drawing.of_type(ir.Line)) != 4:
             raise RuntimeError("распознавание тестового чертежа дало неверный результат")
+        if sys.platform == "win32":
+            # COM wrappers generated and imported in the exe as for KOMPAS (Microsoft
+            # Scripting Runtime: on every Windows): «No module named win32com.gen_py…»
+            from kompas_ai.kompas.api5 import _prepare_win32com, ensure_wrapper
+
+            _prepare_win32com()
+            m = ensure_wrapper("{420B2830-E718-11CF-893D-00A0C9054228}", 1, 0)
+            if m is None or not hasattr(m, "CLSIDToClassMap"):
+                raise RuntimeError("обёртка COM не создана")
+            lines.append(f"COM: {m.__name__}")
         lines.append("OK")
     except BaseException:
         lines.append(traceback.format_exc())
