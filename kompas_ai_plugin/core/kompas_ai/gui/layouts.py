@@ -751,7 +751,8 @@ class Console(Layout):
     def on_resize(self, width: int, height: int) -> None:
         super().on_resize(width, height)
         narrow = width < 1300
-        self.rail.setFixedWidth(170 if narrow else 230)
+        self.rail_base = 170 if narrow else 230
+        self._fit_rail()
         self.side_scroll.setFixedWidth(clamp(width * 0.3, 320, 390))
         self.rules_card.set_title("Контур" if narrow else "Правила контура")
         self.info_card.setFixedWidth(clamp(width * 0.22, 240, 330))
@@ -764,6 +765,11 @@ class Console(Layout):
         if cols != self.recent_cols:
             self.recent_cols = cols
             self._fill_recent()
+
+    def _fit_rail(self) -> None:
+        """The rail as narrow as the window wants, but no tab cut («Проверка · 12»)."""
+        need = max(b.sizeHint().width() for b in self.nav.buttons()) + 32  # rail margins
+        self.rail.setFixedWidth(max(getattr(self, "rail_base", 230), need))
 
     def _home(self) -> QWidget:
         w = self.win
@@ -960,6 +966,7 @@ class Console(Layout):
             _clear(self.question_box)
         self.nav.button(3).setText(f"Проверка · {info['to_check']}" if info and info["to_check"]
                                    else "Проверка")
+        self._fit_rail()
         for key, v in self.session_figures.items():
             v.setText(str(w.counters.get(key, 0)))
         if self.stack.currentIndex() == 0:
