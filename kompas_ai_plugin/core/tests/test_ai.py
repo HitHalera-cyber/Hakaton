@@ -99,3 +99,9 @@ def test_the_dialog_applies_what_is_ticked(server, monkeypatch, tmp_path):
     dialog.list.item(1).setCheckState(Qt.Unchecked)  # T2: not agreed
     dialog._apply()
     assert set(dialog.attach) == {"T1", "T3"} and dialog.attach["T3"] is None
+
+
+def test_too_little_memory_is_explained():
+    msg = ollama.explain("model requires more system memory (12.5 GiB) than is available "
+                         "(10.1 GiB)", "qwen2.5vl:7b")
+    assert "12.5 ГБ" in msg and "10.1 ГБ" in msg and "qwen2.5vl:3b" in msg

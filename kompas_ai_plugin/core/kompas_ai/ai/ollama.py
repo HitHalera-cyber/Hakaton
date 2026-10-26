@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 import urllib.error
 import urllib.request
 
@@ -16,7 +17,8 @@ DEFAULT_URL = "http://localhost:11434"
 # names of models that take images, best first
 VISION = ("qwen2.5vl", "qwen3-vl", "gemma3", "llama3.2-vision", "minicpm-v", "llava",
           "granite3.2-vision", "mistral-small3", "moondream", "bakllava")
-SUGGESTED = "qwen2.5vl:7b"  # what to «ollama pull» (gemma3:4b on a weak computer)
+SUGGESTED = "qwen2.5vl:3b"  # what to «ollama pull» (6–7 GB of memory; gemma3:4b smaller still)
+CONTEXT = 8192  # tokens: the sheet and the recognition fit; less memory than the model's default
 
 
 class OllamaError(RuntimeError):
@@ -32,6 +34,20 @@ def _open(req, timeout):
         raise OllamaError(
             "Ollama не отвечает. Запустите её (значок Ollama в трее или команда «ollama serve») "
             f"и проверьте адрес ({exc.reason})") from exc
+
+
+def explain(error: str, model: str) -> str:
+    """Ollama's error in words the user can act on."""
+    m = re.search(r"requires more system memory \(([\d.]+) GiB\) than is available "
+                  r"\(([\d.]+) GiB\)", error)
+    if m:
+        return (f"Модели {model} нужно {m.group(1)} ГБ памяти, а свободно {m.group(2)} ГБ. "
+                "Возьмите модель поменьше — в командной строке «ollama pull qwen2.5vl:3b» "
+                "(или «ollama pull gemma3:4b»), потом «Обновить» и выберите её; или закройте "
+                "КОМПАС, браузер и другие тяжёлые программы.")
+    if "not found" in error and "model" in error:
+        return f"Модель {model} не скачана: в командной строке «ollama pull {model}»."
+    return f"Ollama: {error}"
 
 
 def models(url: str = DEFAULT_URL, timeout: float = 5.0) -> list[str]:
@@ -61,14 +77,20 @@ def chat(messages: list[dict], model: str, url: str = DEFAULT_URL, images: list[
     if images and msgs:
         msgs[-1]["images"] = [base64.b64encode(b).decode("ascii") for b in images]
     body = {"model": model, "messages": msgs, "stream": False,
-            "options": {"temperature": 0.1}}
+            "options": {"temperature": 0.1, "num_ctx": CONTEXT}}
     if json_mode:
         body["format"] = "json"
     req = urllib.request.Request(url.rstrip("/") + "/api/chat",
                                  data=json.dumps(body).encode("utf-8"),
                                  headers={"Content-Type": "application/json"})
-    with _open(req, timeout) as r:
-        data = json.loads(r.read().decode("utf-8"))
+    try:
+        with _open(req, timeout) as r:
+            data = json.loads(r.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:  # Ollama tells why in the body
+        try:
+            data = json.loads(exc.read().decode("utf-8"))
+        except Exception:
+            data = {"error": str(exc)}
     if "error" in data:
-        raise OllamaError(f"Ollama: {data['error']}")
+        raise OllamaError(explain(str(data["error"]), model))
     return data.get("message", {}).get("content", "")

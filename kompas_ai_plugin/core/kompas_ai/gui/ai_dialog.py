@@ -16,7 +16,7 @@ from .widgets import label
 
 HELP = ("Нужна Ollama с моделью, которая понимает картинки. В командной строке один раз:\n"
         f"    ollama pull {ollama.SUGGESTED}\n"
-        "(на слабом компьютере — ollama pull gemma3:4b). Потом нажмите «Обновить».")
+        "(нужно 6–7 ГБ памяти; меньше — ollama pull gemma3:4b). Потом нажмите «Обновить».")
 
 
 class _Call(QObject):
