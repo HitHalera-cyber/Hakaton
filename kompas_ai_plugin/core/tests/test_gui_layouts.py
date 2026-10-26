@@ -27,8 +27,8 @@ def window(tmp_path, monkeypatch):
 
 
 # the commands every look must offer as a button of its own
-COMMANDS = ["open", "from_model", "build", "model", "both", "refine", "dxf", "report", "check",
-            "logs", "theme"]
+COMMANDS = ["open", "from_model", "build", "model", "both", "refine", "ai", "dxf", "report",
+            "check", "logs", "theme"]
 
 
 def test_every_layout_offers_every_command(window):

@@ -180,8 +180,11 @@ class Layout:
         fit = action_button(w.acts["fit"], "icon", "⤢")
         fit.setToolTip("Весь лист (Ctrl+0, или двойной щелчок по листу)")
         fit.setMinimumWidth(40)
+        ai = action_button(w.acts["ai"], "secondary", "ИИ…")
+        ai.setToolTip("Спросить ИИ (Ctrl+I): локальная модель Ollama посмотрит на лист и "
+                      "подскажет в спорных местах")
         lay.addLayout(_row(self.view_label, None, w.marks_box, self.contour_chip, fit,
-                           action_button(w.acts["refine"], "secondary", "Размеры…"),
+                           action_button(w.acts["refine"], "secondary", "Размеры…"), ai,
                            stretch_at=1))
         lay.addWidget(w.preview, 1)
         self.sheet_host = frame

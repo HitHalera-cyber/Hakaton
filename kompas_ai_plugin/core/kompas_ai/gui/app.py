@@ -121,6 +121,8 @@ class MainWindow(QMainWindow):
         act("refine", "Уточнить размеры…", lambda: self.refine(), "Ctrl+R",
             "Все размеры чертежа: что написано, что по линиям, выдержан ли; своё число — и "
             "чертёж пересчитается")
+        act("ai", "Спросить ИИ…", lambda: self.ask_ai(), "Ctrl+I",
+            "Локальная модель ИИ (Ollama) посмотрит на лист и подскажет в спорных местах")
         act("dxf", "Сохранить DXF…", self.save_dxf)
         act("report", "Сохранить отчёт…", self.save_report)
         act("check", "Проверить КОМПАС", self.check_kompas, None,
@@ -313,7 +315,7 @@ class MainWindow(QMainWindow):
 
     def _set_ready(self, ready: bool) -> None:
         self.ready = ready
-        for key in ("build", "model", "both", "dxf", "report", "refine"):
+        for key in ("build", "model", "both", "dxf", "report", "refine", "ai"):
             self.acts[key].setEnabled(ready)
         if self.model_ok is False:
             self.acts["model"].setEnabled(False)  # only the drawing for this part
@@ -555,6 +557,55 @@ class MainWindow(QMainWindow):
             self._log(self._attach_note(text_id, dialog.attach[text_id]))
         self.overrides, self.attach = dialog.overrides, dialog.attach
         self.recognize()
+
+    def ask_ai(self) -> None:
+        """«Спросить ИИ»: the model's suggestions; the ticked ones go to the
+        next recognition, like the user's own choices."""
+        if self.drawing is None or self._busy():
+            return
+        from .ai_dialog import AiDialog
+
+        dialog = AiDialog(self.drawing, self._sheet_image(), self.settings, self)
+        if dialog.exec() != AiDialog.DialogCode.Accepted:
+            return
+        if not dialog.attach and not dialog.overrides:
+            return
+        for text_id, choice in sorted(dialog.attach.items()):
+            self._log("ИИ: " + self._attach_note(text_id, choice))
+        for dim_id, value in sorted(dialog.overrides.items()):
+            self._log(f"ИИ: {dim_id} = {_override_text(value)}")
+        self.attach.update(dialog.attach)
+        self.overrides.update(dialog.overrides)
+        self.counters["refined"] += len(dialog.attach) + len(dialog.overrides)
+        self.recognize()
+
+    def _sheet_image(self, longest: int = 1600) -> bytes | None:
+        """The source sheet as a PNG for the model (no marks of the program)."""
+        try:
+            if self.pdf.suffix.lower() in IMAGE_SUFFIXES:
+                from PySide6.QtCore import QBuffer, QByteArray, QIODevice
+                from PySide6.QtGui import QImage
+
+                image = QImage(str(self.pdf))
+                if image.isNull():
+                    return None
+                if max(image.width(), image.height()) > longest:
+                    image = image.scaled(longest, longest, Qt.KeepAspectRatio,
+                                         Qt.SmoothTransformation)
+                data = QByteArray()
+                buf = QBuffer(data)
+                buf.open(QIODevice.WriteOnly)
+                image.save(buf, "PNG")
+                return bytes(data)
+            import pymupdf
+
+            with pymupdf.open(str(self.pdf)) as doc:
+                page = doc[0]
+                zoom = longest / max(page.rect.width, page.rect.height)
+                return page.get_pixmap(matrix=pymupdf.Matrix(zoom, zoom)).tobytes("png")
+        except Exception as exc:
+            self._log(f"Изображение листа для ИИ не подготовлено: {exc!r}")
+            return None
 
     def _attach_note(self, text_id: str, choice) -> str:
         t = self.drawing.get(text_id) if self.drawing else None
