@@ -476,7 +476,7 @@ def _linked_views(backend, model: Path, out: Path, view_scale, log) -> str:
         u, v = shown[projection]
         at = (cx - u * sc, cy - v * sc)
         ok = backend.model_view(str(model), at, sc, projection=projection,
-                                hidden=not projection.startswith("#Изометрия"))
+                                hidden=False)  # no hidden lines: the drawing stays readable
         made.append(f"{projection.lstrip('#')}: {'да' if ok else 'нет'}")
     saved = backend.save(str(out))
     return ("Чертёж по модели " + model.name + "\nВиды (связаны с моделью): " + ", ".join(made)

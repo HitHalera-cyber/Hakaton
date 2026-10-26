@@ -49,17 +49,21 @@ def test_a_part_turned_around_z_is_laid_along_its_axis():
 
 
 def test_plate_with_hole_views(tmp_path):
+    """A part that is no body of revolution: no hidden lines; the side views
+    are sections through the hole, hatched, the planes marked on the main
+    view; the overall sizes and the hole's diameter."""
     write_stl(tmp_path / "p.stl", plate_with_hole(80, 50, 10, 10))
-    d, _ = model_drawing(read_stl(tmp_path / "p.stl"))
+    d, notes = model_drawing(read_stl(tmp_path / "p.stl"))
     s = d.scale.value
-    circles = _styles(d, ir.Circle)
-    assert [round(c.radius / s, 2) for c in circles] == [10.0]
-    lines = _styles(d, ir.Line)
-    lengths = sorted(round(math.dist(l.p1, l.p2) / s, 1) for l in lines if l.style == "main")
-    assert lengths.count(80.0) >= 4 and lengths.count(50.0) >= 4  # front, top, left
-    hidden = [l for l in lines if l.style == "dashed"]
-    assert len(hidden) == 4 and all(abs(math.dist(l.p1, l.p2) / s - 10) < 0.2 for l in hidden)
-    assert sum(1 for l in lines if l.style == "axial") == 2  # the hole's centre mark
+    assert not [e for e in d.entities if getattr(e, "style", "") == ir.STYLE_DASHED]
+    assert [round(c.radius / s, 2) for c in d.of_type(ir.Circle)] == [10.0]
+    assert any("разрезы А-А, Б-Б" in n for n in notes)
+    # two sections, each the plate cut through the hole: two hatched pieces
+    assert len(d.of_type(ir.Hatch)) == 4
+    labels = {t.text for t in d.of_type(ir.Text)}
+    assert {"А-А", "Б-Б", "А", "Б"} <= labels
+    texts = sorted(x.text for x in d.of_type(ir.Dimension))
+    assert "80" in texts and "50" in texts and "Ø20" in texts
 
 
 def test_views_from_mesh_are_written_into_kompas(tmp_path):

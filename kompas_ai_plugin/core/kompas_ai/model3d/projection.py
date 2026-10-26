@@ -34,6 +34,7 @@ from ..pdf.vector_extractor import RawSegment
 FEATURE = 30.0  # deg: faces meeting at a sharper angle make an edge
 GRID = 1000  # depth-buffer pixels along the larger side of a view
 VISIBLE, HIDDEN = 0.5, 0.35  # stroke widths the tracer keeps apart
+FLAT_ARC = 1000.0  # sheet mm: an "arc" of a bigger radius is a straight edge
 
 # view → (right, up, towards the viewer) in model axes; KOMPAS: Y up, Z to the viewer
 VIEWS = {
@@ -306,6 +307,9 @@ def trace(view: View, scale: float, at, start_id: int = 1) -> list[ir.Entity]:
             out.append(ir.Line(f"L{n}", p1=p.p1, p2=p.p2, style=style))
         elif p.kind == "circle":
             out.append(ir.Circle(f"C{n}", center=p.center, radius=p.radius, style=style))
+        elif p.radius > FLAT_ARC:  # nearly straight chords: a line, not an arc off the sheet
+            out.append(ir.Line(f"L{n}", p1=tuple(p.points[0]), p2=tuple(p.points[-1]),
+                               style=style))
         else:
             out.append(ir.Arc(f"A{n}", center=p.center, radius=p.radius,
                               start_angle=p.start_angle, end_angle=p.end_angle, style=style))
@@ -477,6 +481,222 @@ def _revolve_drawing(mesh: Mesh, axis, view_scale, layout, notes):
     return fmt, land, s, W, H, entities
 
 
+def _main_direction(mesh: Mesh):
+    """(right, up, toward) of the main view: looking along the axis the part
+    shows its biggest outline across (X, Y or Z); up is Z, or Y looking down Z."""
+    tri = mesh.vertices[mesh.faces]
+    n = np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0])  # 2 × area along the normal
+    shown = [float(np.abs(n[:, k]).sum()) for k in range(3)]
+    k = int(np.argmax(shown))
+    w = np.eye(3)[k]
+    up = np.eye(3)[2] if k != 2 else np.eye(3)[1]
+    return np.cross(up, w), up, w
+
+
+def _cut_view(mesh: Mesh, R, c, s, at, start_id, name):
+    """A section: the material behind the plane through ``c`` facing R[2] —
+    its edges seen, its cut hatched — placed at ``at``."""
+    tri = mesh.vertices[mesh.faces]
+    half = build_mesh(_clip_behind(tri, c, R[2]))
+    view = project(half, *R, name=name, hidden=False)
+    out = trace(view, s, at, start_id=start_id)
+    cu, cv = (view.lo[0] + view.hi[0]) / 2, (view.lo[1] + view.hi[1]) / 2
+
+    def place(p):
+        return (at[0] + (p[0] - cu) * s, at[1] + (p[1] - cv) * s)
+
+    cut = _section(tri, c, R)
+    for k, poly in enumerate(cut):
+        rings = [[place(q) for q in poly.exterior.coords]] + \
+            [[place(q) for q in ring.coords] for ring in poly.interiors]
+        out.append(ir.Hatch(f"H{start_id}_{k + 1}", angle=45.0, spacing=2.0, contours=rings))
+    return out, view, place, bool(cut)
+
+
+def _prismatic_drawing(mesh: Mesh, view_scale, layout, notes):
+    """A part that is no body of revolution: the main view where its outline
+    is biggest; the left and the top views as sections А-А and Б-Б through
+    the centre of the biggest hole of the main view (the bores and pockets
+    show without hidden lines); the overall sizes and the holes' diameters;
+    the isometry in the free corner. No hidden lines anywhere."""
+    u, v, w = _main_direction(mesh)
+    R_main = np.array([u, v, w])
+    R_left = np.array([w, v, -u])
+    R_top = np.array([u, -w, v])
+    ext = [float(np.ptp(mesh.vertices @ d)) for d in (u, v, w)]
+    # room kept for a further section and the isometry (the sheet one size up
+    # rather than four views crammed)
+    fmt, land, s, places = layout(tuple(1.35 * e for e in ext), view_scale)
+    entities: list[ir.Entity] = []
+    main = project(mesh, *R_main, name="Главный", hidden=False)
+    at = places["#Спереди"]
+    entities += trace(main, s, at, start_id=1)
+    cu, cv = (main.lo[0] + main.hi[0]) / 2, (main.lo[1] + main.hi[1]) / 2
+
+    def place(p):
+        return (at[0] + (p[0] - cu) * s, at[1] + (p[1] - cv) * s)
+
+    # the cutting planes through the biggest hole seen in the main view
+    circles = [e for e in entities if isinstance(e, ir.Circle)]
+    centre3 = (mesh.lo + mesh.hi) / 2
+    if circles:
+        big = max(circles, key=lambda e: e.radius)
+        pu = cu + (big.center[0] - at[0]) / s
+        pv = cv + (big.center[1] - at[1]) / s
+    else:
+        pu, pv = cu, cv
+    depth = float(centre3 @ w)
+    c = u * pu + v * pv + w * depth
+    letters = []
+    for name, R, place_key, line in (("А", R_left, "#Слева", "u"), ("Б", R_top, "#Сверху", "v")):
+        part, view, _, has_cut = _cut_view(mesh, R, c, s, places[place_key],
+                                           len(entities) + 1, f"{name}-{name}")
+        if not has_cut:
+            view = project(mesh, *R, name=name, hidden=False)
+            entities += trace(view, s, places[place_key], start_id=len(entities) + 1)
+            continue
+        entities += part
+        letters.append(name)
+        top = max(q[1] for e in part if isinstance(e, ir.Line) for q in (e.p1, e.p2))
+        px = places[place_key][0]
+        entities.append(ir.Text(f"T{name}", text=f"{name}-{name}", position=(px - 6, top + 5),
+                                height=5.0))
+        # the plane's trace on the main view: short thick strokes past the outline
+        lo_m, hi_m = place(main.lo), place(main.hi)
+        if line == "u":
+            x = place((pu, pv))[0]
+            ends = [((x, hi_m[1] + 3), (x, hi_m[1] + 11)), ((x, lo_m[1] - 3), (x, lo_m[1] - 11))]
+            tags = [(x + 1.5, hi_m[1] + 9), (x + 1.5, lo_m[1] - 13)]
+        else:
+            y = place((pu, pv))[1]
+            ends = [((lo_m[0] - 3, y), (lo_m[0] - 11, y)), ((hi_m[0] + 3, y), (hi_m[0] + 11, y))]
+            tags = [(lo_m[0] - 11, y + 2), (hi_m[0] + 7, y + 2)]
+        for k, (a, b) in enumerate(ends):
+            entities.append(ir.Line(f"LS{name}{k}", p1=a, p2=b, style=ir.STYLE_MAIN))
+            entities.append(ir.Text(f"TS{name}{k}", text=name, position=tags[k], height=5.0))
+    sizes = {0: (1189, 841), 1: (841, 594), 2: (594, 420), 3: (420, 297), 4: (297, 210)}
+    W, H = sizes[fmt] if land else sizes[fmt][::-1]
+    (_, ly_), (tx, _) = places["#Слева"], places["#Сверху"]
+    # the free parts of the sheet: right of the top view under the left one,
+    # and left of the top view under the main one (above the title block)
+    boxes = [(tx + ext[0] * s / 2 + 10.0, W - 10.0, 65.0, ly_ - ext[1] * s / 2 - 16.0),
+             (30.0, tx - ext[0] * s / 2 - 10.0, 65.0, at[1] - ext[1] * s / 2 - 20.0)]
+    boxes = [b for b in boxes if b[1] > b[0] and b[3] > b[2]]
+    extra = _local_section(mesh, R_main, R_left, circles, (pu, pv), cu, cv, depth, s, place,
+                           at, boxes, ext, entities)
+    if extra:
+        letters.append("В")
+    if letters:
+        notes.append("Вместо видов слева и сверху — разрезы " + ", ".join(
+            f"{x}-{x}" for x in letters) + " через центр самого большого отверстия главного вида")
+    notes.append("Невидимые линии не показаны — внутреннее устройство видно на разрезах")
+    entities += _centre_marks(entities, s, len(entities) + 1)
+    entities += _prismatic_dims(main, place, s, entities, len(entities) + 1)
+
+    if boxes:  # the isometry into the biggest free part left
+        _isometry_into(mesh, entities, max(boxes, key=lambda b: (b[1] - b[0]) * (b[3] - b[2])),
+                       s, notes)
+    return fmt, land, s, W, H, entities
+
+
+def _local_section(mesh, R_main, R_left, circles, first, cu, cv, depth, s, place, at0, boxes,
+                   ext, entities) -> bool:
+    """Разрез В-В: a hole of the main view that А-А and Б-Б miss (a boss
+    beside the body) cut along its axis, the part around it only, put under
+    the main view where the sheet is free."""
+    u, v, w = R_main
+    pu, pv = first
+    pick = None
+    for e in sorted(circles, key=lambda e: -e.radius):
+        qu = cu + (e.center[0] - at0[0]) / s
+        qv = cv + (e.center[1] - at0[1]) / s
+        r = e.radius / s
+        if abs(qu - pu) > r + 1.0 and abs(qv - pv) > r + 1.0 and r > 2.0:
+            pick = (qu, qv, r)
+            break
+    if pick is None:
+        return False
+    qu, qv, r = pick
+    # around the hole: the boss and a little of what holds it
+    reach = 1.6 * r + 5.0
+    tri = mesh.vertices[mesh.faces]
+    c = u * qu + v * qv + w * depth
+    band = _clip_behind(tri, c + v * reach, v)
+    band = _clip_behind(band, c - v * reach, -v)
+    if not len(band):
+        return False
+    piece = build_mesh(band)
+    width_w, height = ext[2] * s, 2 * reach * s
+    box = next((b for b in boxes if b[1] - b[0] >= width_w + 10 and b[3] - b[2] >= height + 14),
+               None)
+    if box is None:
+        return False
+    boxes.remove(box)
+    at = ((box[0] + box[1]) / 2, (box[2] + box[3]) / 2 - 3)
+    view = project(piece, *R_left, name="В-В", hidden=False)
+    entities += trace(view, s, at, start_id=len(entities) + 1)
+    vu, vv = (view.lo[0] + view.hi[0]) / 2, (view.lo[1] + view.hi[1]) / 2
+    from shapely.geometry import box as sbox
+
+
+    window = sbox(-1e6, qv - reach, 1e6, qv + reach)
+    cut = []
+    for poly in _section(tri, c, R_left):
+        part = poly.intersection(window)
+        cut += [g for g in getattr(part, "geoms", [part]) if g.area > 1e-6]
+    for k, poly in enumerate(cut):
+        rings = [[(at[0] + (q[0] - vu) * s, at[1] + (q[1] - vv) * s) for q in ring.coords]
+                 for ring in [poly.exterior] + list(poly.interiors)]
+        entities.append(ir.Hatch(f"HV{k}", angle=45.0, spacing=2.0, contours=rings))
+    top = at[1] + height / 2
+    entities.append(ir.Text("TВ", text="В-В", position=(at[0] - 6, top + 5), height=5.0))
+    x = place((qu, qv))[0]
+    y_hi = place((qu, qv + r))[1] + 6
+    y_lo = place((qu, qv - r))[1] - 6
+    for k, (a, b, tag) in enumerate((((x, y_hi), (x, y_hi + 8), (x + 1.5, y_hi + 6)),
+                                     ((x, y_lo), (x, y_lo - 8), (x + 1.5, y_lo - 10)))):
+        entities.append(ir.Line(f"LSВ{k}", p1=a, p2=b, style=ir.STYLE_MAIN))
+        entities.append(ir.Text(f"TSВ{k}", text="В", position=tag, height=5.0))
+    return True
+
+
+def _prismatic_dims(main: View, place, s: float, entities, start_id: int) -> list:
+    """The overall width and height under and left of the main view, and the
+    diameters of its round holes (each size once, biggest first)."""
+    out = []
+    n = start_id
+    (x0, y0), (x1, y1) = place(main.lo), place(main.hi)
+    w, h = round((main.hi[0] - main.lo[0]), 2), round((main.hi[1] - main.lo[1]), 2)
+    out.append(ir.Dimension(f"D{n}", 0.9, ["по модели"], dim_type="linear", text=_num(w),
+                            nominal=w, measured=round(x1 - x0, 4), p1=(x0, y0), p2=(x1, y0),
+                            line_point=((x0 + x1) / 2, y0 - 12), orientation="horizontal"))
+    out.append(ir.Dimension(f"D{n + 1}", 0.9, ["по модели"], dim_type="linear", text=_num(h),
+                            nominal=h, measured=round(y1 - y0, 4), p1=(x0, y0), p2=(x0, y1),
+                            line_point=(x0 - 12, (y0 + y1) / 2), orientation="vertical"))
+    n += 2
+    seen = set()
+    holes = sorted((e for e in entities if isinstance(e, ir.Circle)
+                    and x0 - 1 <= e.center[0] <= x1 + 1 and y0 - 1 <= e.center[1] <= y1 + 1),
+                   key=lambda e: -e.radius)
+    count: dict[float, int] = {}
+    for e in holes:
+        count[round(2 * e.radius / s, 2)] = count.get(round(2 * e.radius / s, 2), 0) + 1
+    for e in holes:
+        d = round(2 * e.radius / s, 2)
+        if d in seen or len(seen) >= 6:
+            continue
+        seen.add(d)
+        many = f"{count[d]} отв. " if count[d] > 1 else ""
+        p = (e.center[0] + e.radius * math.cos(math.radians(45)),
+             e.center[1] + e.radius * math.sin(math.radians(45)))
+        out.append(ir.Dimension(f"D{n}", 0.9, ["по модели"], dim_type="diameter",
+                                text=many + "Ø" + _num(d), nominal=d,
+                                measured=round(2 * e.radius, 4),
+                                p1=p, center=e.center, radius=e.radius))
+        n += 1
+    return out
+
+
 def _num(v: float) -> str:
     text = f"{v:.2f}".rstrip("0").rstrip(".")
     return text.replace(".", ",")
@@ -593,20 +813,7 @@ def model_drawing(triangles: np.ndarray, view_scale: float | None = None,
     if axis is not None:
         fmt, land, s, W, H, entities = _revolve_drawing(mesh, axis, view_scale, layout, notes)
     else:
-        lo, hi = mesh.lo, mesh.hi
-        size = tuple(float(v) for v in hi - lo)
-        fmt, land, s, places = layout(size, view_scale)
-        entities: list[ir.Entity] = []
-        for name, basis in VIEWS.items():
-            view = project(mesh, *basis, name=name)
-            entities += trace(view, s, places["#" + name], start_id=len(entities) + 1)
-        entities += _centre_marks(entities, s, len(entities) + 1)
-        sizes = {0: (1189, 841), 1: (841, 594), 2: (594, 420), 3: (420, 297), 4: (297, 210)}
-        W, H = sizes[fmt] if land else sizes[fmt][::-1]
-        lx_, _ = places["#Слева"]
-        _, ty = places["#Сверху"]
-        _isometry_into(mesh, entities, (lx_ - size[2] * s / 2, W - 10.0, 65.0,
-                                        ty + size[2] * s / 2), s, notes)
+        fmt, land, s, W, H, entities = _prismatic_drawing(mesh, view_scale, layout, notes)
     drawing = ir.Drawing(source=source)
     drawing.sheet = ir.Sheet(format=f"A{fmt}", orientation="landscape" if land else "portrait",
                              width=W, height=H)
