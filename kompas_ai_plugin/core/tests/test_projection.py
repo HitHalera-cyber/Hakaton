@@ -75,3 +75,21 @@ def test_views_from_mesh_are_written_into_kompas(tmp_path):
     assert len(backend.of("circle")) == 3 and backend.of("line") and backend.of("hatch")
     assert len(backend.of("linear_dim")) >= 7  # the diameters and the lengths
     assert "не связаны с моделью" in report
+
+
+def test_hole_positions_and_a_bolt_circle():
+    """Holes of the main view placed from the biggest hole's centre; equal
+    holes round a boss get its pitch circle and diameter, not positions."""
+    from kompas_ai.model3d.projection import _hole_positions
+
+    s = 0.5
+    holes = [ir.Circle("C1", center=(100, 100), radius=26), ir.Circle("C2", center=(157.5, 126), radius=12.5),
+             ir.Circle("C3", center=(127.5, 120), radius=2.5)]
+    holes += [ir.Circle(f"B{k}", center=(157.5 + 9 * math.cos(a), 126 + 9 * math.sin(a)), radius=1.0)
+              for k, a in enumerate((0.785, 2.356, 3.927, 5.498))]
+    holes.sort(key=lambda e: -e.radius)
+    out = _hole_positions(holes, s, 1)
+    pitch = [e for e in out if isinstance(e, ir.Circle)]
+    assert len(pitch) == 1 and abs(pitch[0].radius - 9) < 1e-6 and pitch[0].style == ir.STYLE_AXIAL
+    texts = sorted(e.text for e in out if isinstance(e, ir.Dimension))
+    assert texts == sorted(["Ø18", "115", "52", "55", "40"])

@@ -694,6 +694,71 @@ def _prismatic_dims(main: View, place, s: float, entities, start_id: int) -> lis
                                 measured=round(2 * e.radius, 4),
                                 p1=p, center=e.center, radius=e.radius))
         n += 1
+    out += _hole_positions(holes, s, n)
+    return out
+
+
+POSITIONS = 6  # position sizes at most: more crowd the main view
+
+
+def _hole_positions(holes, s: float, start_id: int) -> list:
+    """Where the holes are: equal holes on a circle round another hole's
+    centre (a bolt pattern) get their pitch circle and its diameter; the
+    other hole centres their distances from the biggest hole's centre."""
+    out = []
+    n = start_id
+    if len(holes) < 2:
+        return out
+    base = holes[0]
+    centres = []  # distinct centres (concentric circles share one)
+    for e in holes:
+        if not any(math.dist(e.center, c) < 0.05 for c in centres):
+            centres.append(e.center)
+    placed = {tuple(base.center)}
+    groups: dict[float, list] = {}
+    for e in holes:
+        groups.setdefault(round(e.radius, 3), []).append(e)
+    for members in groups.values():
+        if len(members) < 3:
+            continue
+        for c in centres:
+            r = [math.dist(e.center, c) for e in members]
+            if min(r) > 0.5 and max(r) - min(r) < 0.05:
+                R = sum(r) / len(r)
+                out.append(ir.Circle(f"C{n}", center=c, radius=R, style=ir.STYLE_AXIAL))
+                d = round(2 * R / s, 2)
+                p = (c[0] + R * math.cos(math.radians(-60)), c[1] + R * math.sin(math.radians(-60)))
+                out.append(ir.Dimension(f"D{n + 1}", 0.9, ["по модели", "межцентровая окружность"],
+                                        dim_type="diameter", text="Ø" + _num(d), nominal=d,
+                                        measured=round(2 * R, 4), p1=p, center=c, radius=R))
+                n += 2
+                placed.update(tuple(e.center) for e in members)
+                break
+    made = 0
+    bx, by = base.center
+    for c in centres:
+        if tuple(c) in placed or made >= POSITIONS:
+            continue
+        placed.add(tuple(c))
+        for axis in (0, 1):
+            gap = abs(c[axis] - base.center[axis])
+            if gap < 0.5:
+                continue
+            value = round(gap / s, 2)
+            if axis == 0:
+                p1, p2 = (bx, by), (c[0], by)
+                lp = ((bx + c[0]) / 2, max(by, c[1]) + 8 + 6 * made)
+                orient = "horizontal"
+            else:
+                p1, p2 = (c[0], by), (c[0], c[1])
+                lp = (c[0] + 8 + 6 * made, (by + c[1]) / 2)
+                orient = "vertical"
+            out.append(ir.Dimension(f"D{n}", 0.9, ["по модели", "положение отверстия"],
+                                    dim_type="linear", text=_num(value), nominal=value,
+                                    measured=round(gap, 4), p1=p1, p2=p2, line_point=lp,
+                                    orientation=orient))
+            n += 1
+        made += 1
     return out
 
 
