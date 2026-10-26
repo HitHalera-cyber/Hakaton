@@ -229,9 +229,11 @@ def _merge_collinear(lines):
         if L < 1e-9:
             continue
         ang = math.atan2(d[1], d[0]) % math.pi
+        if math.pi - ang < 5e-5:  # 179.99° is 0°: one direction, one sign of the offset
+            ang = 0.0
         u = (math.cos(ang), math.sin(ang))
         off = -a[0] * u[1] + a[1] * u[0]
-        key = (round(ang, 4) % round(math.pi, 4), round(off, 3), v)
+        key = (round(ang, 4), round(off, 3), v)
         t0, t1 = sorted((a[0] * u[0] + a[1] * u[1], b[0] * u[0] + b[1] * u[1]))
         groups.setdefault(key, []).append((t0, t1, u, off))
     out = []
@@ -320,24 +322,262 @@ def _isometry():
     return tuple(u), tuple(v), tuple(w)
 
 
-def axis_of_revolution(mesh: Mesh) -> tuple[float, float] | None:
-    """(y, z) of the X axis the part is turned around, if it is a body of
-    revolution about X (every vertex ring centred on one axis)."""
+REVOLVED = 0.7  # of the surface turned around an axis: a body of revolution
+
+
+def revolve_axis(mesh: Mesh):
+    """(direction, point) of the axis the part is turned around — X, Y or Z,
+    whichever most of its surface is turned around (a flange's flats and
+    holes aside) — or None."""
     v = mesh.vertices
-    y0, z0 = (v[:, 1].min() + v[:, 1].max()) / 2, (v[:, 2].min() + v[:, 2].max()) / 2
     size = float(np.ptp(v, axis=0).max()) or 1.0
-    if abs(np.ptp(v[:, 1]) - np.ptp(v[:, 2])) > 1e-3 * size:
+    tri = mesh.vertices[mesh.faces]
+    centres = tri.mean(axis=1)
+    area = np.linalg.norm(np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0]), axis=1) / 2
+    best = None
+    for k in range(3):
+        a = np.zeros(3)
+        a[k] = 1.0
+        others = [i for i in range(3) if i != k]
+        if abs(np.ptp(v[:, others[0]]) - np.ptp(v[:, others[1]])) > 0.05 * size:
+            continue  # not round across this axis
+        c = (v.min(axis=0) + v.max(axis=0)) / 2
+        radial = centres - c
+        radial[:, k] = 0.0
+        rn = np.linalg.norm(radial, axis=1)
+        ok = rn > 1e-6 * size
+        around = np.abs(np.cross(radial[ok] / rn[ok, None], mesh.normals[ok]) @ a)
+        share = float(area[ok][around < 0.05].sum() / (area[ok].sum() or 1.0))
+        if share >= REVOLVED and (best is None or share > best[0]):
+            best = (share, a, c)
+    return (best[1], best[2]) if best else None
+
+
+def axis_of_revolution(mesh: Mesh) -> tuple[float, float] | None:
+    """(y, z) of the axis when the part is turned around X (see revolve_axis)."""
+    found = revolve_axis(mesh)
+    if found is None or abs(found[0][0]) < 0.5:
         return None
-    # every face normal lies in the plane of the axis and its own position
-    c = mesh.vertices[mesh.faces].mean(axis=1)
-    radial = np.stack([np.zeros(len(c)), c[:, 1] - y0, c[:, 2] - z0], axis=1)
-    rn = np.linalg.norm(radial, axis=1)
-    ok = rn > 1e-6 * size
-    cross = np.cross(radial[ok] / rn[ok, None], mesh.normals[ok])
-    # the normal has no part around the axis (no X component of the cross)
-    if np.abs(cross[:, 0]).max() > 0.05:
-        return None
-    return float(y0), float(z0)
+    return float(found[1][1]), float(found[1][2])
+
+
+def _clip_behind(tri: np.ndarray, c, w) -> np.ndarray:
+    """The triangles (pieces) behind the plane through ``c`` facing ``w``."""
+    d = (tri - c) @ w  # (n, 3) signed distances
+    behind = (d <= 1e-9).all(axis=1)
+    out = list(tri[behind])
+    for t, dd in zip(tri[~behind], d[~behind]):
+        if (dd > 1e-9).all():
+            continue
+        poly = []
+        for i in range(3):
+            p, q, dp, dq = t[i], t[(i + 1) % 3], dd[i], dd[(i + 1) % 3]
+            if dp <= 1e-9:
+                poly.append(p)
+            if (dp <= 1e-9) != (dq <= 1e-9):
+                poly.append(p + (q - p) * (dp / (dp - dq)))
+        for i in range(1, len(poly) - 1):
+            out.append(np.array([poly[0], poly[i], poly[i + 1]]))
+    return np.array(out) if out else np.zeros((0, 3, 3))
+
+
+def _section(tri: np.ndarray, c, R) -> list:
+    """The cut faces of the part in the plane through ``c`` facing R[2], in
+    the view's (right, up) coordinates: shapely polygons of material."""
+    from shapely.geometry import LineString
+    from shapely.ops import polygonize, unary_union
+
+    w = R[2]
+    # a hair off the plane: vertices lying on it would cut their edges twice
+    d = (tri - c) @ w - 1e-6 * float(np.ptp(tri.reshape(-1, 3), axis=0).max() or 1.0)
+    segs = []
+    for t, dd in zip(tri, d):
+        pts = []
+        for i in range(3):
+            p, q, dp, dq = t[i], t[(i + 1) % 3], dd[i], dd[(i + 1) % 3]
+            if tuple(q) < tuple(p):  # one order per edge: its two faces cut it at one point
+                p, q, dp, dq = q, p, dq, dp
+            if (dp < 0) != (dq < 0) and abs(dp - dq) > 1e-12:
+                pts.append(p + (q - p) * (dp / (dp - dq)))
+        if len(pts) == 2:
+            a, b = pts[0] @ R[:2].T, pts[1] @ R[:2].T
+            if np.linalg.norm(a - b) > 1e-9:
+                segs.append((tuple(a), tuple(b)))
+    if not segs:
+        return []
+    lines = [LineString(sg) for sg in segs]
+    faces = list(polygonize(unary_union(lines)))
+
+    def inside(p) -> bool:  # ray to +right: odd crossings of the cut lines
+        x, y = p.x, p.y
+        n = 0
+        for (x1, y1), (x2, y2) in segs:
+            if (y1 > y) != (y2 > y):
+                xc = x1 + (y - y1) * (x2 - x1) / (y2 - y1)
+                n += xc > x
+        return n % 2 == 1
+
+    return [f for f in faces if f.area > 1e-6 and inside(f.representative_point())]
+
+
+def _revolve_drawing(mesh: Mesh, axis, view_scale, layout, notes):
+    """A body of revolution as ГОСТ draws it: the main view a section along
+    the axis (hatched, the axis horizontal), the view from the end on its
+    right, the isometry below; no hidden lines."""
+    a, c = axis
+    # looking across the axis: the coordinate axis that shows more of the part
+    cands = [np.eye(3)[k] for k in range(3) if abs(a[k]) < 0.5]
+    v_ext = []
+    for t in cands:
+        up = np.cross(t, a)
+        v_ext.append(float(np.ptp(mesh.vertices @ up)))
+    t = cands[int(np.argmax(v_ext))]
+    R_main = np.array([a, np.cross(t, a), t])
+    R_end = np.array([t, np.cross(t, a), -a])
+    length = float(np.ptp(mesh.vertices @ a))
+    dia = max(v_ext)
+    fmt, land, s, places = layout((length, dia, dia), view_scale)
+    entities: list[ir.Entity] = []
+
+    # the section: the half behind the cut, its edges seen; the cut hatched
+    tri = mesh.vertices[mesh.faces]
+    half = build_mesh(_clip_behind(tri, c, t))
+    main = project(half, *R_main, name="Разрез", hidden=False)
+    at = places["#Спереди"]
+    entities += trace(main, s, at, start_id=1)
+    cu, cv = (main.lo[0] + main.hi[0]) / 2, (main.lo[1] + main.hi[1]) / 2
+
+    def place(p):
+        return (at[0] + (p[0] - cu) * s, at[1] + (p[1] - cv) * s)
+
+    cut = _section(tri, c, R_main)
+    entities += _revolve_dims(cut, c @ R_main[1], place, s, len(entities) + 1)
+    for k, poly in enumerate(cut):
+        rings = [[place(q) for q in poly.exterior.coords]] + \
+            [[place(q) for q in ring.coords] for ring in poly.interiors]
+        entities.append(ir.Hatch(f"H{k + 1}", angle=45.0, spacing=2.0, contours=rings))
+    # the axis, 5 mm past the part
+    ax = c @ R_main[1]
+    y = at[1] + (ax - cv) * s
+    entities.append(ir.Line(f"L{len(entities) + 1}", p1=(place(main.lo)[0] - 5, y),
+                            p2=(place(main.hi)[0] + 5, y), style=ir.STYLE_AXIAL))
+    if cut:
+        notes.append("Главный вид — разрез по оси (тело вращения), штриховка по сечению; "
+                     "основные размеры (диаметры, длины ступеней, общая длина) проставлены по "
+                     "модели — проверьте и добавьте остальные в КОМПАС")
+
+    end = project(mesh, *R_end, name="Слева", hidden=False)
+    entities += trace(end, s, places["#Слева"], start_id=len(entities) + 1)
+    entities += _centre_marks(entities, s, len(entities) + 1)
+
+    sizes = {0: (1189, 841), 1: (841, 594), 2: (594, 420), 3: (420, 297), 4: (297, 210)}
+    W, H = sizes[fmt] if land else sizes[fmt][::-1]
+    box = (30.0, W - 10.0, 65.0, at[1] - dia * s / 2 - 10.0)
+    _isometry_into(mesh, entities, box, s, notes)
+    return fmt, land, s, W, H, entities
+
+
+def _num(v: float) -> str:
+    text = f"{v:.2f}".rstrip("0").rstrip(".")
+    return text.replace(".", ",")
+
+
+def _revolve_dims(cut, axis_v: float, place, s: float, start_id: int) -> list:
+    """The main sizes of a body of revolution off its section: the diameters
+    of the outer steps and of the bores (across the view, as on a turned
+    part's drawing), the lengths of the steps under the view and the overall
+    length. Model mm in, sheet mm out."""
+    from shapely.geometry import Point
+
+    outer: dict[float, tuple] = {}
+    inner: dict[float, tuple] = {}
+    steps: set[float] = set()
+    spans: list[tuple[float, float, float]] = []  # outer edges: x from, x to, radius
+    xs = []
+    for poly in cut:
+        rings = [poly.exterior] + list(poly.interiors)
+        for ring in rings:
+            pts = list(ring.coords)
+            xs += [p[0] for p in pts]
+            for (x1, y1), (x2, y2) in zip(pts, pts[1:]):
+                r = y1 - axis_v
+                if abs(y2 - y1) > 1e-3 or abs(x2 - x1) < 0.3 or r < 0.05:
+                    continue
+                xm = (x1 + x2) / 2
+                key = round(r, 2)
+                below = poly.contains(Point(xm, y1 - 0.05))
+                table = outer if below else inner
+                if key not in table or abs(x2 - x1) > table[key][1]:
+                    table[key] = (xm, abs(x2 - x1))
+                if below:
+                    steps.update((round(x1, 3), round(x2, 3)))
+                    spans.append((min(x1, x2), max(x1, x2), r))
+    if not xs:
+        return []
+    out = []
+    n = start_id
+    used_x: list[float] = []
+
+    def free_x(x):  # two diameters on one line would overlap
+        while any(abs(x - u) < 2.5 / s for u in used_x):
+            x += 3.0 / s
+        used_x.append(x)
+        return x
+
+    rmax = max(outer) if outer else 0.0
+    for r, (xm, _) in sorted(outer.items()) + sorted(inner.items()):
+        x = free_x(xm)
+        a, b = place((x, axis_v - r)), place((x, axis_v + r))
+        value = round(2 * r, 2)
+        out.append(ir.Dimension(f"D{n}", 0.9, ["по модели"], dim_type="linear",
+                                text="Ø" + _num(value), nominal=value,
+                                measured=round(abs(b[1] - a[1]), 4), p1=a, p2=b,
+                                line_point=((a[0] + b[0]) / 2, (a[1] + b[1]) / 2),
+                                orientation="vertical"))
+        n += 1
+    # the steps' lengths under the view, the overall length under them
+    bottom = axis_v - rmax
+
+    def foot(x):  # the outline under the view at x: where the extension line starts
+        r = max([sp[2] for sp in spans if sp[0] - 1e-3 <= x <= sp[1] + 1e-3] or [rmax])
+        return (x, axis_v - r)
+
+    xs_steps = sorted(steps)
+    level = place((0.0, bottom))[1] - 10.0
+    for x1, x2 in zip(xs_steps, xs_steps[1:]):
+        if x2 - x1 < 0.5:
+            continue
+        a, b = place(foot(x1)), place(foot(x2))
+        value = round(x2 - x1, 2)
+        out.append(ir.Dimension(f"D{n}", 0.9, ["по модели"], dim_type="linear",
+                                text=_num(value), nominal=value, measured=round(b[0] - a[0], 4),
+                                p1=a, p2=b, line_point=((a[0] + b[0]) / 2, level),
+                                orientation="horizontal"))
+        n += 1
+    x0, x1 = min(xs), max(xs)
+    a, b = place(foot(x0)), place(foot(x1))
+    value = round(x1 - x0, 2)
+    out.append(ir.Dimension(f"D{n}", 0.9, ["по модели"], dim_type="linear", text=_num(value),
+                            nominal=value, measured=round(b[0] - a[0], 4), p1=a, p2=b,
+                            line_point=((a[0] + b[0]) / 2, level - 10.0),
+                            orientation="horizontal"))
+    return out
+
+
+def _isometry_into(mesh, entities, box, s, notes) -> None:
+    from ..kompas.writer import scale_name
+
+    iso = project(mesh, *_isometry(), name="Изометрия", hidden=False)
+    iw, ih = iso.hi[0] - iso.lo[0], iso.hi[1] - iso.lo[1]
+    bw, bh = box[1] - box[0], box[3] - box[2]
+    if bw <= 0 or bh <= 0:
+        return
+    k = min(s, 0.9 * bw / iw if iw else s, 0.9 * bh / ih if ih else s)
+    if k >= 0.2 * s:
+        k = _standard_below(k)
+        at = ((box[0] + box[1]) / 2, (box[2] + box[3]) / 2)
+        entities += trace(iso, k, at, start_id=len(entities) + 1)
+        notes.append(f"Изометрия в масштабе {scale_name(k)} (без невидимых линий)")
 
 
 def model_drawing(triangles: np.ndarray, view_scale: float | None = None,
@@ -348,43 +588,25 @@ def model_drawing(triangles: np.ndarray, view_scale: float | None = None,
 
     layout = layout or lay_out_views
     mesh = build_mesh(triangles)
-    lo, hi = mesh.lo, mesh.hi
-    size = tuple(float(v) for v in hi - lo)
-    fmt, land, s, places = layout(size, view_scale)
-    axis = axis_of_revolution(mesh)
     notes = [f"Виды построены программой по сетке модели ({len(mesh.faces)} треугольников)"]
-    views = dict(VIEWS)
+    axis = revolve_axis(mesh)
     if axis is not None:
-        views.pop("Сверху")  # the same as the front view
-        notes.append("Тело вращения: вид сверху не нужен (совпадает с главным)")
-    entities: list[ir.Entity] = []
-    for name, basis in views.items():
-        view = project(mesh, *basis, name=name)
-        entities += trace(view, s, places["#" + name], start_id=len(entities) + 1)
-        if axis is not None and name == "Спереди":
-            entities += _axis_line(view, s, places["#Спереди"], mesh, axis, len(entities) + 1)
-    entities += _centre_marks(entities, s, len(entities) + 1)
-    # the isometry (visible edges only) in the free corner, as big as it fits:
-    # under the front view (a body of revolution: no top view there), else
-    # under the left view, above the title block
-    sizes = {0: (1189, 841), 1: (841, 594), 2: (594, 420), 3: (420, 297), 4: (297, 210)}
-    W, H = sizes[fmt] if land else sizes[fmt][::-1]
-    fx, fy = places["#Спереди"]
-    if axis is not None:
-        box = (30.0, W - 10.0, 65.0, fy - size[1] * s / 2 - 10.0)
+        fmt, land, s, W, H, entities = _revolve_drawing(mesh, axis, view_scale, layout, notes)
     else:
+        lo, hi = mesh.lo, mesh.hi
+        size = tuple(float(v) for v in hi - lo)
+        fmt, land, s, places = layout(size, view_scale)
+        entities: list[ir.Entity] = []
+        for name, basis in VIEWS.items():
+            view = project(mesh, *basis, name=name)
+            entities += trace(view, s, places["#" + name], start_id=len(entities) + 1)
+        entities += _centre_marks(entities, s, len(entities) + 1)
+        sizes = {0: (1189, 841), 1: (841, 594), 2: (594, 420), 3: (420, 297), 4: (297, 210)}
+        W, H = sizes[fmt] if land else sizes[fmt][::-1]
         lx_, _ = places["#Слева"]
         _, ty = places["#Сверху"]
-        box = (lx_ - size[2] * s / 2, W - 10.0, 65.0, ty + size[2] * s / 2)
-    iso = project(mesh, *_isometry(), name="Изометрия", hidden=False)
-    iw, ih = iso.hi[0] - iso.lo[0], iso.hi[1] - iso.lo[1]
-    bw, bh = box[1] - box[0], box[3] - box[2]
-    k = min(s, 0.9 * bw / iw if iw else s, 0.9 * bh / ih if ih else s)
-    if k >= 0.2 * s and bw > 0 and bh > 0:
-        k = _standard_below(k)
-        at = ((box[0] + box[1]) / 2, (box[2] + box[3]) / 2)
-        entities += trace(iso, k, at, start_id=len(entities) + 1)
-        notes.append(f"Изометрия в масштабе {scale_name(k)} (без невидимых линий)")
+        _isometry_into(mesh, entities, (lx_ - size[2] * s / 2, W - 10.0, 65.0,
+                                        ty + size[2] * s / 2), s, notes)
     drawing = ir.Drawing(source=source)
     drawing.sheet = ir.Sheet(format=f"A{fmt}", orientation="landscape" if land else "portrait",
                              width=W, height=H)
@@ -398,15 +620,6 @@ def _standard_below(k: float) -> float:
     from ..gui.workers import STANDARD_SCALES
 
     return next((v for v in STANDARD_SCALES if v <= k + 1e-9), k)
-
-
-def _axis_line(view: View, s, at, mesh: Mesh, axis, start_id):
-    """The axis of a body of revolution in the front view, 5 mm past it."""
-    cu, cv = (view.lo[0] + view.hi[0]) / 2, (view.lo[1] + view.hi[1]) / 2
-    y = at[1] + (axis[0] - cv) * s
-    x0 = at[0] + (view.lo[0] - cu) * s - 5.0
-    x1 = at[0] + (view.hi[0] - cu) * s + 5.0
-    return [ir.Line(f"L{start_id}", p1=(x0, y), p2=(x1, y), style=ir.STYLE_AXIAL)]
 
 
 def _centre_marks(entities, s, start_id):

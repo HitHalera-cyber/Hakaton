@@ -449,11 +449,11 @@ def _drawing_from_mesh(backend, model: Path, stl: Path, out: Path, view_scale, l
     log("Строю виды по сетке модели…")
     drawing, notes = model_drawing(read_stl(stl), view_scale, source=str(model))
     log(f"Лист {drawing.sheet.format}, масштаб {drawing.scale.text}, объектов {len(drawing.entities)}")
-    report = DrawingWriter(backend, mode="view", with_dimensions=False).write(drawing)
+    report = DrawingWriter(backend, mode="view", with_dimensions=True).write(drawing)
     saved = backend.save(str(out))
     return ("Чертёж по модели " + model.name + "\n" + "\n".join(notes) + "\n" + report.text()
             + "\nВиды не связаны с моделью: после изменения модели постройте чертёж заново. "
-            "Размеры ставятся в КОМПАС (Авторазмеры или вручную)\n"
+            "Допуски, фаски, резьбу, шероховатость и выносные элементы добавьте в КОМПАС\n"
             + (f"Сохранено: {out}" if saved else f"Не удалось сохранить {out}"))
 
 
