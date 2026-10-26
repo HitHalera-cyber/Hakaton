@@ -549,7 +549,8 @@ class MainWindow(QMainWindow):
             + len(set(dialog.attach) - set(self.attach))
         if dialog.overrides != self.overrides:
             self._log("Размеры уточнены вручную: " + (", ".join(
-                f"{k} = {v:g}" for k, v in sorted(dialog.overrides.items())) or "сброшены"))
+                f"{k} = {_override_text(v)}" for k, v in sorted(dialog.overrides.items()))
+                or "сброшены"))
         for text_id in sorted(set(dialog.attach) - set(self.attach)):
             self._log(self._attach_note(text_id, dialog.attach[text_id]))
         self.overrides, self.attach = dialog.overrides, dialog.attach
@@ -885,6 +886,18 @@ def _broken_rules(drawing: ir.Drawing) -> int:
         if m:
             return int(m.group(1))
     return 0
+
+
+def _override_text(v) -> str:
+    """How one of the user's values reads in the journal."""
+    if not isinstance(v, dict):
+        return f"{v:g}"
+    if v.get("text"):
+        return f"«{v['text']}»"
+    parts = [f"{v['value']:g}"] if v.get("value") is not None else []
+    if v.get("tol") is not None:
+        parts.append(f"допуск «{v['tol']}»")
+    return ", ".join(parts)
 
 
 def _anchor(e: ir.Entity):

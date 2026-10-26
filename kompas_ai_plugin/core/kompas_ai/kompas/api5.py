@@ -1554,60 +1554,102 @@ class Api5Backend:
 
     def export_mesh(self, source: str, out_stl: str) -> bool:
         """The saved part as an STL mesh (for views drawn by the program).
-        Several ways, as KOMPAS versions differ; the file is checked."""
+        KOMPAS versions name the export differently, so several ways (and the
+        format numbers) are tried; only a file that reads as STL counts — a
+        plain «save as …stl» writes the KOMPAS model under that name."""
         from pathlib import Path
+
+        from ..model3d.projection import read_stl
 
         out = Path(out_stl)
 
-        def written() -> bool:
-            return out.exists() and out.stat().st_size > 84
+        def good(how: str) -> bool:
+            try:
+                ok = out.exists() and len(read_stl(out)) > 0
+            except Exception:
+                ok = False
+            if ok:
+                self.log(f"  STL: {how}")
+            else:
+                try:
+                    out.unlink()
+                except OSError:
+                    pass
+            return ok
 
         doc = self.kompas.Document3D()
         if not doc.Open(source, True):
             raise RuntimeError(f"КОМПАС не открыл модель {source} (код {self.last_error()})")
+        tried = []
         try:
-            # API5: ksDocument3D.SaveAsToAdditionFormat + ksAdditionFormatParam
-            try:
-                par = self._param("ko_AdditionFormatParam", "ksAdditionFormatParam")
-                par.Init()
-                for key, value in (("format", getattr(self.constants, "format_STL", 3)),
-                                   ("formatBinary", True), ("angle", 5.0), ("length", 0.05),
-                                   ("maxLength", 2.0)):
-                    try:
-                        setattr(par, key, value)
-                    except Exception as exc:
-                        self.log(f"    ksAdditionFormatParam.{key}: {exc!r}")
-                doc.SaveAsToAdditionFormat(str(out), par)
-                if written():
-                    self.log("  STL: API5 SaveAsToAdditionFormat")
-                    return True
-            except Exception as exc:
-                self.log(f"  STL через API5 SaveAsToAdditionFormat: {exc!r}")
-            # the document saved under an .stl name (KOMPAS picks the format)
-            for how in ("SaveAs", "ksSaveDocument"):
+            # API5: ksDocument3D.AdditionFormatParam() + SaveAsToAdditionFormat
+            par = None
+            for get in (lambda: doc.AdditionFormatParam(),
+                        lambda: self._param("ko_AdditionFormatParam", "ksAdditionFormatParam")):
                 try:
-                    getattr(doc, how)(str(out))
-                    if written():
-                        self.log(f"  STL: API5 {how}")
-                        return True
+                    raw = get()
+                    par = self._sub("ksAdditionFormatParam", raw) \
+                        if hasattr(self.m, "ksAdditionFormatParam") else raw
+                    break
                 except Exception as exc:
-                    self.log(f"  STL через API5 {how}: {exc!r}")
+                    tried.append(f"параметры: {exc!r}")
+            if par is not None:
+                named = [getattr(self.constants, n) for n in ("format_STL", "D3_STL", "ksStl")
+                         if hasattr(self.constants, n)]
+                for fmt in named + [v for v in range(0, 16) if v not in named]:
+                    try:
+                        par.Init()
+                    except Exception:
+                        pass
+                    for key, value in (("format", fmt), ("formatBinary", True),
+                                       ("angle", 5.0), ("length", 0.05)):
+                        try:
+                            setattr(par, key, value)
+                        except Exception:
+                            pass
+                    try:
+                        doc.SaveAsToAdditionFormat(str(out), par)
+                    except Exception as exc:
+                        tried.append(f"формат {fmt}: {exc!r}")
+                        continue
+                    if good(f"API5 SaveAsToAdditionFormat, формат {fmt}"):
+                        return True
         finally:
             _close(doc)
-        try:  # API7: open unseen, SaveAs with the .stl name
-            from win32com.client import gencache
+        try:  # API7: the document's SaveAs with an .stl name, and its export
+            from win32com.client import CastTo, gencache
 
             app = gencache.EnsureDispatch("Kompas.Application.7")
             doc7 = app.Documents.Open(source, False, True)
             try:
-                doc7.SaveAs(str(out))
+                try:
+                    doc7.SaveAs(str(out))
+                    if good("API7 SaveAs"):
+                        return True
+                except Exception as exc:
+                    tried.append(f"API7 SaveAs: {exc!r}")
+                try:
+                    d3 = CastTo(doc7, "IKompasDocument3D")
+                    p7 = d3.AdditionFormatParam()
+                    for fmt in range(0, 16):
+                        try:
+                            p7.FileFormat = fmt
+                        except Exception:
+                            pass
+                        try:
+                            d3.SaveAsToAdditionFormat(str(out), p7)
+                        except Exception:
+                            continue
+                        if good(f"API7 SaveAsToAdditionFormat, формат {fmt}"):
+                            return True
+                except Exception as exc:
+                    tried.append(f"API7 экспорт: {exc!r}")
             finally:
                 doc7.Close(getattr(self.constants, "kdDoNotSaveChanges", 0))
-            if written():
-                self.log("  STL: API7 SaveAs")
-                return True
         except Exception as exc:
-            self.log(f"  STL через API7 SaveAs: {exc!r}")
+            tried.append(f"API7: {exc!r}")
+        for line in tried[:6]:
+            self.log(f"  STL не сохранён — {line}")
         return False
 
     def _model_view7(self, source, at, scale, angle, projection, hidden) -> bool:

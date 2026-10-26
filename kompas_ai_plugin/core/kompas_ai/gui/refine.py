@@ -1,7 +1,8 @@
 """«Уточнить размеры»: every size of the drawing in one table — what is
-written, what the lines measure, whether it was held — and the user's own
-value for any of them; under them the numbers whose dimension line was not
-found, each with what it may measure. The drawing is then recognised again
+written, what the lines measure, whether it was held, its tolerance and
+limits — and the user's own value and tolerance for any of them; under them
+the numbers whose dimension line was not found, each with what it may
+measure, and the roughness marks of the sheet. The drawing is then recognised again
 with those values and choices (pipeline: ``recognize_pdf(..., overrides=...,
 attach=...)``)."""
 
@@ -16,10 +17,13 @@ from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QHBoxLayou
 
 from .. import ir
 from ..semantics.orphans import key_of
+from ..semantics.tolerance import limits_text, middle, roughness, split_size
 from .widgets import label
 
 KINDS = {"linear": "линейный", "diameter": "диаметр", "radius": "радиус", "angular": "угол"}
-VALUE_COLUMN = 5
+VALUE_COLUMN, TOL_COLUMN, LIMITS_COLUMN = 5, 6, 7
+HEADERS = ["Размер", "Вид", "На чертеже", "По линиям", "Состояние", "Значение", "Допуск",
+           "Пределы"]
 
 
 def dimension_rows(drawing: ir.Drawing) -> list[dict]:
@@ -37,8 +41,12 @@ def dimension_rows(drawing: ir.Drawing) -> list[dict]:
             state = "прочитан с сомнением"
         else:
             state = "выдержан"
+        _, _, tol = split_size(d.text)
+        _, _, tol0 = split_size(getattr(d, "original_text", d.text))
         rows.append({"id": d.id, "kind": KINDS.get(d.dim_type, d.dim_type), "text": d.text,
                      "nominal": d.nominal, "lines": lines, "state": state,
+                     "tol": tol, "original_tol": tol0,
+                     "limits": limits_text(d.nominal, tol) if d.dim_type != "angular" else "",
                      # the number of the drawing itself, before any value of the user
                      "original": getattr(d, "original_nominal", d.nominal),
                      "conflict": d.id in skipped, "manual": "уточнён вручную" in d.notes})
@@ -50,6 +58,17 @@ def dimension_rows(drawing: ir.Drawing) -> list[dict]:
 def orphan_rows(drawing: ir.Drawing) -> list[dict]:
     """The numbers kept as text for want of a dimension line."""
     return [dict(o, orphan=True) for o in getattr(drawing, "orphans", None) or []]
+
+
+def roughness_rows(drawing: ir.Drawing) -> list[dict]:
+    """The roughness marks written on the sheet (Ra 3,2; Rz 20 (√) — the rest)."""
+    out = []
+    for t in drawing.of_type(ir.Text):
+        r = roughness(t.text)
+        if r:
+            out.append({"id": t.id, "text": t.text, "kind": r[0], "value": r[1],
+                        "rest": "(" in t.text or "√" in t.text})
+    return out
 
 
 def questions(drawing: ir.Drawing) -> list[dict]:
@@ -103,9 +122,8 @@ class RefineDialog(QDialog):
             intro += (" Ниже — числа без размерной линии: выберите, что каждое из них измеряет "
                       "(или «это просто текст»).")
             note.setText(intro)
-        self.table = QTableWidget(len(self.rows) + len(self.orphans), 6)
-        self.table.setHorizontalHeaderLabels(["Размер", "Вид", "На чертеже", "По линиям",
-                                              "Состояние", "Значение"])
+        self.table = QTableWidget(len(self.rows) + len(self.orphans), len(HEADERS))
+        self.table.setHorizontalHeaderLabels(HEADERS)
         self.table.verticalHeader().setVisible(False)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         header = self.table.horizontalHeader()
@@ -120,10 +138,17 @@ class RefineDialog(QDialog):
                 if r["conflict"] and j == 4:
                     item.setForeground(warn)
                 self.table.setItem(i, j, item)
-            value = self.overrides.get(r["id"], r["nominal"])
-            item = QTableWidgetItem(_number(value))
+            own = self.overrides.get(r["id"])
+            value = own.get("value") if isinstance(own, dict) else own
+            item = QTableWidgetItem(_number(value if value is not None else r["nominal"]))
             item.setToolTip("Двойной щелчок — ввести своё число")
             self.table.setItem(i, VALUE_COLUMN, item)
+            tol = QTableWidgetItem(r["tol"])
+            tol.setToolTip("Допуск: ±0,1  -0,2  +0,3  +0,2/-0,1  или поле: h12, H7, js9")
+            self.table.setItem(i, TOL_COLUMN, tol)
+            limits = QTableWidgetItem(r["limits"])
+            limits.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+            self.table.setItem(i, LIMITS_COLUMN, limits)
             if focus and r["id"] == focus:
                 self.table.selectRow(i)
         self.combos: list[QComboBox] = []
@@ -135,6 +160,10 @@ class RefineDialog(QDialog):
                 item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
                 if j == 4:
                     item.setForeground(warn)
+                self.table.setItem(i, j, item)
+            for j in (TOL_COLUMN, LIMITS_COLUMN):
+                item = QTableWidgetItem("")
+                item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
                 self.table.setItem(i, j, item)
             combo = QComboBox()
             combo.addItems([KEEP, AS_TEXT] + [c["label"] for c in o["candidates"]])
@@ -150,15 +179,45 @@ class RefineDialog(QDialog):
         lay.addWidget(self.table, 1)
         if not self.rows and not self.orphans:
             self.table.hide()
+        self.table.itemChanged.connect(self._limits)
+
+        self.rough = roughness_rows(drawing)
+        self.rough_table = QTableWidget(len(self.rough), 3)
+        self.rough_table.setHorizontalHeaderLabels(["Надпись", "На чертеже", "Значение"])
+        self.rough_table.verticalHeader().setVisible(False)
+        self.rough_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+        self.rough_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
+        for i, r in enumerate(self.rough):
+            for j, text in enumerate([r["id"], r["text"]]):
+                item = QTableWidgetItem(text)
+                item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                self.rough_table.setItem(i, j, item)
+            own = self.overrides.get(r["id"])
+            item = QTableWidgetItem(own["text"] if isinstance(own, dict) and own.get("text")
+                                    else r["text"])
+            item.setToolTip("Например: Ra 3,2 · Rz 20 (√) — «(√)»: шероховатость остальных "
+                            "поверхностей")
+            self.rough_table.setItem(i, 2, item)
+        if self.rough:
+            lay.addWidget(label("Шероховатость поверхностей", "cardHead"))
+            self.rough_table.setMaximumHeight(36 + 30 * min(len(self.rough), 4))
+            lay.addWidget(self.rough_table)
+        else:
+            self.rough_table.hide()
 
         row = QHBoxLayout()
         lines = QPushButton("Верить линиям", objectName="secondary")
         lines.setToolTip("Для выбранных размеров взять значение, намеренное по линиям")
         lines.clicked.connect(self.trust_lines)
+        mid = QPushButton("Середина допуска", objectName="secondary")
+        mid.setToolTip("Для выбранных размеров строить по середине поля допуска "
+                       "(так деталь изготавливают)")
+        mid.clicked.connect(self.to_middle)
         reset = QPushButton("Как на чертеже", objectName="secondary")
         reset.setToolTip("Вернуть выбранным размерам числа с чертежа")
         reset.clicked.connect(self.reset_rows)
         row.addWidget(lines)
+        row.addWidget(mid)
         row.addWidget(reset)
         if photo:
             sheet = QPushButton("Формат и масштаб фото…", objectName="secondary")
@@ -169,12 +228,13 @@ class RefineDialog(QDialog):
         cancel.clicked.connect(self.reject)
         apply = QPushButton("Пересчитать", objectName="primary")
         apply.clicked.connect(self._apply)
-        apply.setEnabled(bool(self.rows or self.orphans))
+        apply.setEnabled(bool(self.rows or self.orphans or self.rough))
         row.addWidget(cancel)
         row.addWidget(apply)
         lay.addLayout(row)
         if not self.rows:
             lines.hide()
+            mid.hide()
             reset.hide()
 
     def _selected(self) -> list[int]:
@@ -189,6 +249,29 @@ class RefineDialog(QDialog):
     def reset_rows(self) -> None:
         for i in self._selected():
             self.table.item(i, VALUE_COLUMN).setText(_number(self.rows[i]["original"]))
+            self.table.item(i, TOL_COLUMN).setText(self.rows[i]["original_tol"])
+
+    def to_middle(self) -> None:
+        for i in self._selected():
+            value = parse_value(self.table.item(i, VALUE_COLUMN).text())
+            tol = self.table.item(i, TOL_COLUMN).text()
+            m = middle(value, tol) if value else None
+            if m is not None:
+                self.table.item(i, VALUE_COLUMN).setText(_number(round(m, 3)))
+                self.table.item(i, TOL_COLUMN).setText("")  # the middle is the size now
+
+    def _limits(self, item) -> None:
+        """The limits follow the value and the tolerance as they are typed."""
+        i = item.row()
+        if i >= len(self.rows) or item.column() not in (VALUE_COLUMN, TOL_COLUMN):
+            return
+        value = parse_value(self.table.item(i, VALUE_COLUMN).text())
+        tol = self.table.item(i, TOL_COLUMN).text() if self.table.item(i, TOL_COLUMN) else ""
+        cell = self.table.item(i, LIMITS_COLUMN)
+        if cell is not None:
+            self.table.blockSignals(True)
+            cell.setText(limits_text(value, tol) if value else "")
+            self.table.blockSignals(False)
 
     def _ask_photo(self) -> None:
         self.photo_requested = True
@@ -198,10 +281,19 @@ class RefineDialog(QDialog):
         out = {}
         for i, r in enumerate(self.rows):
             value = parse_value(self.table.item(i, VALUE_COLUMN).text())
-            if value is None or value <= 0:
-                continue
-            if r["original"] is None or abs(value - r["original"]) > 1e-9:
-                out[r["id"]] = value  # what the drawing says is no override
+            if value is not None and (value <= 0 or r["original"] is not None
+                                      and abs(value - r["original"]) <= 1e-9):
+                value = None  # what the drawing says is no override
+            tol = self.table.item(i, TOL_COLUMN).text().strip()
+            tol = tol if tol != r["original_tol"] else None
+            if tol is None and value is not None:
+                out[r["id"]] = value
+            elif tol is not None:
+                out[r["id"]] = {"value": value, "tol": tol}
+        for i, r in enumerate(self.rough):
+            text = self.rough_table.item(i, 2).text().strip()
+            if text and text != r["text"]:
+                out[r["id"]] = {"text": text}
         self.overrides = out
         for o, combo in zip(self.orphans, self.combos):
             k = combo.currentIndex()

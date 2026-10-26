@@ -169,6 +169,9 @@ class KompasJob(QObject):
             self.failed.emit(traceback.format_exc())
 
 
+LINK_MAIN_VIEW = False  # «Построить всё»: the main view as the model's associative view
+
+
 def write_drawing(drawing, out: Path, with_dimensions: bool, log, model: Path | None = None,
                   link=None, view_scale: float | None = None) -> str:
     """The drawing built and saved. With ``model`` (a saved part) and ``link``
@@ -185,6 +188,11 @@ def write_drawing(drawing, out: Path, with_dimensions: bool, log, model: Path | 
     writer = DrawingWriter(backend, mode="view", with_dimensions=with_dimensions,
                            view_scale=view_scale)
     linked = []
+    # The model's associative view in place of the main view came out as an
+    # empty frame on some installations (the drawing lost its outline), so
+    # the main view is drawn by hand unless that is switched on.
+    if not LINK_MAIN_VIEW:
+        link = None
     if model is not None and link is not None:
         def on_sheet(b, d):
             old = d.scale.value or 1.0
@@ -423,6 +431,8 @@ def drawing_of_model(model: Path, out: Path, view_scale, log) -> str:
     if exported:
         try:
             return _drawing_from_mesh(backend, model, stl, out, view_scale, log)
+        except Exception as exc:
+            log(f"Виды по сетке не построены: {exc!r}")
         finally:
             try:
                 stl.unlink()

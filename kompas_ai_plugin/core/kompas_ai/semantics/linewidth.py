@@ -34,8 +34,9 @@ DASH_MAX = 40.0  # mm: the longest dash
 DOT = 1.5  # mm: the dot of a dash-dot line
 
 
-def infer_thin(prims: list[Primitive], arrows) -> int:
-    """Set widths by role; returns the number of lines found thin."""
+def infer_thin(prims: list[Primitive], arrows, texts=()) -> int:
+    """Set widths by role; returns the number of lines found thin. ``texts``:
+    the page's texts (RawText), for the shelves under them."""
     thin: set[int] = set()
     lines = [p for p in prims if p.kind == "line"]
     for p in prims:
@@ -67,6 +68,8 @@ def infer_thin(prims: list[Primitive], arrows) -> int:
             if all(corner(e) for e in _ends(l)):
                 hatch.discard(id(l))
     thin.update(hatch)
+    thin.update(_shelves(lines, texts))
+    thin.update(_symmetry_axes(lines, thin))
     for p in prims:
         p.width = THIN if id(p) in thin else MAIN
     return len(thin)
@@ -188,6 +191,70 @@ def _split_dashes(prims: list[Primitive], dashed: set[int]) -> set[int]:
             if same:
                 out.add(id(q))
                 todo.append(q)
+    return out
+
+
+SYMMETRIC = 0.5  # of the contour lines mirrored across a line: it is the axis
+
+
+def _symmetry_axes(lines: list[Primitive], thin: set[int]) -> set[int]:
+    """A long line the contour is mirrored across: the axis of a body of
+    revolution, drawn solid and as thick as the rest."""
+    contour = [l for l in lines if id(l) not in thin and l.length > 0.5]
+    if len(contour) < 6:
+        return set()
+    xs = [c for l in contour for c in (l.p1[0], l.p2[0])]
+    ys = [c for l in contour for c in (l.p1[1], l.p2[1])]
+    extent = max(max(xs) - min(xs), max(ys) - min(ys))
+    keys = {_key(l) for l in contour}
+    out = set()
+    for axis in contour:
+        if axis.length < 0.5 * extent:
+            continue
+        mirrored = sum(1 for l in contour if l is not axis and _key(_mirror(l, axis)) in keys)
+        if mirrored >= SYMMETRIC * (len(contour) - 1):
+            out.add(id(axis))
+    return out
+
+
+def _key(l, step: float = 0.25):
+    a, b = sorted(((round(l.p1[0] / step), round(l.p1[1] / step)),
+                   (round(l.p2[0] / step), round(l.p2[1] / step))))
+    return a, b
+
+
+def _mirror(l: Primitive, axis: Primitive):
+    ux, uy = axis.p2[0] - axis.p1[0], axis.p2[1] - axis.p1[1]
+    n = math.hypot(ux, uy)
+    ux, uy = ux / n, uy / n
+
+    def m(p):
+        vx, vy = p[0] - axis.p1[0], p[1] - axis.p1[1]
+        t = vx * ux + vy * uy
+        fx, fy = axis.p1[0] + ux * t, axis.p1[1] + uy * t
+        return (2 * fx - p[0], 2 * fy - p[1])
+
+    return Primitive("line", [], 0.0, 0.0, p1=m(l.p1), p2=m(l.p2))
+
+
+def _shelves(lines: list[Primitive], texts) -> set[int]:
+    """A line right under a text along it: the shelf of a leader or the
+    underline of a note."""
+    out = set()
+    for t in texts:
+        a = math.radians(t.angle)
+        u, n = (math.cos(a), math.sin(a)), (-math.sin(a), math.cos(a))
+        x0, y0 = t.origin
+        width = (t.last_origin and math.dist(t.origin, t.last_origin) or 0.0) + t.height
+        for l in lines:
+            if angle_diff(direction_deg(l.p1, l.p2), t.angle % 180.0) > 2.0:
+                continue
+            below = [((p[0] - x0) * n[0] + (p[1] - y0) * n[1]) for p in (l.p1, l.p2)]
+            along = sorted(((p[0] - x0) * u[0] + (p[1] - y0) * u[1]) for p in (l.p1, l.p2))
+            if all(-0.6 * t.height - 0.3 <= b <= 0.1 for b in below) and \
+                    along[0] <= 0.5 * width and along[1] >= 0.5 * width and \
+                    along[1] - along[0] <= width + 4 * t.height:
+                out.add(id(l))
     return out
 
 

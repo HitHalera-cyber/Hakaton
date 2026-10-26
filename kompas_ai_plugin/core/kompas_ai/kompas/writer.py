@@ -83,6 +83,7 @@ class DrawingWriter:
         # centred on the sheet (of a bigger format when it does not fit)
         self.view_scale = view_scale
         self.place = lambda p: p  # sheet point of the source → of the new sheet
+        self.shift = (0.0, 0.0)  # a drawing without a sheet of its own, moved onto ours
         self.mode = mode
         # False: a plain drawing (lines, arcs, texts, hatches) without dimensions
         self.with_dimensions = with_dimensions
@@ -98,6 +99,7 @@ class DrawingWriter:
 
     def _p(self, p):
         """Sheet mm → current drawing space."""
+        p = (p[0] + self.shift[0], p[1] + self.shift[1])
         if self.mode == "view":
             return ((p[0] - self.origin[0]) / self.scale, (p[1] - self.origin[1]) / self.scale)
         return (p[0], p[1])
@@ -142,6 +144,25 @@ class DrawingWriter:
         self.place = lambda p: (tx + (p[0] - cx) * k, ty + (p[1] - cy) * k)
         return fmt, landscape, origin
 
+    def _onto_sheet(self, drawing):
+        """(format, landscape, shift) for a drawing with no sheet of its own."""
+        pts = [q for e in drawing.entities
+               for name in ("p1", "p2", "center", "position", "line_point", "text_pos")
+               for q in [getattr(e, name, None)] if q is not None]
+        if not pts:
+            return 4, False, (0.0, 0.0)
+        x0, x1 = min(q[0] for q in pts), max(q[0] for q in pts)
+        y0, y1 = min(q[1] for q in pts), max(q[1] for q in pts)
+        w, h = x1 - x0 + 10.0, y1 - y0 + 10.0  # dimension texts reach past their points
+        sizes = {0: (1189, 841), 1: (841, 594), 2: (594, 420), 3: (420, 297), 4: (297, 210)}
+        for f, land in ((4, False), (4, True), (3, True), (2, True), (1, True), (0, True)):
+            a, b = sizes[f]
+            W, H = (a, b) if land else (b, a)
+            if w <= W - 45 and h <= H - 85:
+                break
+        tx, ty = (25.0 + W - 5.0) / 2, (60.0 + H - 5.0) / 2  # the field above the title block
+        return f, land, (tx - (x0 + x1) / 2, ty - (y0 + y1) / 2)
+
     def _len(self, v: float) -> float:
         """Sheet mm → view mm for geometry. Text heights and hatch steps are not
         scaled: KOMPAS keeps them in sheet millimetres in any view."""
@@ -156,16 +177,33 @@ class DrawingWriter:
         report = WriteReport(mode=self.mode)
         sheet = drawing.sheet
         fmt = FORMAT_INDEX.get(sheet.format)
-        if fmt is None:
-            report.notes.append(f"Формат {sheet.format} не стандартный — создан A4")
+        custom = fmt is None
+        if custom:
             fmt = 4
         landscape = sheet.orientation == "landscape"
         old = drawing.scale.value or 1.0
+        if custom and self.view_scale is None and self.mode == "view":
+            k = _enlarge_for_text(drawing)
+            if k > 1.0:
+                self.view_scale = old * k
+                h = f"{_text_height(drawing):.1f}".replace(".", ",")
+                report.notes.append(
+                    f"Эскиз мелкий (текст {h} мм, размеры КОМПАС — 3,5 мм): построен в "
+                    f"масштабе {scale_name(old * k)}, чтобы размеры не налезали друг на друга")
         new = self.view_scale or old
         view_origin = (0.0, 0.0)
+        self.shift = (0.0, 0.0)
         if self.mode == "view" and abs(new - old) > 1e-9:
             fmt, landscape, view_origin = self._rescale(drawing, old, new, fmt, landscape,
                                                         report)
+        elif custom:
+            # a sketch without a frame (AutoCAD, a cut-out): onto the smallest
+            # sheet that holds it, in the middle of the field above the title block
+            fmt, landscape, self.shift = self._onto_sheet(drawing)
+            self.place = lambda p: (p[0] + self.shift[0], p[1] + self.shift[1])
+            report.notes.append(f"Лист в PDF без рамки ({sheet.format}) — чертёж помещён в "
+                                f"середину листа A{fmt}"
+                                + (" альбомного" if landscape else " книжного"))
         self.b.new_sheet(fmt, landscape)
 
         # tables first, in the sheet's own view (in sheet millimetres); a
@@ -508,6 +546,24 @@ class DrawingWriter:
 
 
 DIM_LINE_GAP = 7.0  # mm on the sheet between parallel dimension lines (ГОСТ 2.307)
+
+
+GOST_TEXT = 3.5  # mm: the dimension text KOMPAS writes
+
+
+def _text_height(drawing) -> float:
+    heights = sorted(t.height for t in drawing.of_type(ir.Text) if t.height)
+    return heights[len(heights) // 2] if heights else 0.0
+
+
+def _enlarge_for_text(drawing) -> float:
+    """How much bigger a frameless sketch with small text is drawn (a
+    standard enlargement; 1 = as it is)."""
+    h = _text_height(drawing)
+    if not h or h >= 0.7 * GOST_TEXT or not drawing.of_type(ir.Dimension):
+        return 1.0
+    want = GOST_TEXT / h
+    return max([k for k in (2.0, 2.5, 4.0) if k <= want + 1e-9] or [1.0])
 
 
 def spread_dimension_lines(dims) -> int:

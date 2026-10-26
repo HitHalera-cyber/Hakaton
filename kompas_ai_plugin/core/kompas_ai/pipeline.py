@@ -86,7 +86,7 @@ def recognize_pdf(pdf_path: str | Path, page: int = 0, exact: bool = True,
         # Plotted without lineweights (AutoCAD): thin lines are told by their
         # role, then everything is traced again with two widths — a hatch
         # stroke must not join the contour it ends on.
-        n = infer_thin(prims, arrows)
+        n = infer_thin(prims, arrows, content.texts)
         _widths_from(prims, arrows, content.segments)
         prims, arrows = _primitives(content, layout)
         drawing.warnings.append(
@@ -536,19 +536,36 @@ def _slanted(p) -> bool:
 
 def _apply_overrides(drawing, overrides: dict) -> int:
     """The user's values for sizes: the number written becomes theirs (its
-    sign and prefix kept), so the fitting and KOMPAS hold that one."""
+    sign and prefix kept), so the fitting and KOMPAS hold that one. A value
+    may also carry a new tolerance ({"value": v, "tol": "-0,2"}); a text id
+    takes a new text ({"text": "Ra 3,2"} — a roughness mark)."""
+    from .semantics.tolerance import num, split_size
+
     done = 0
     for d in drawing.of_type(ir.Dimension):
-        value = overrides.get(d.id)
-        if value is None or value <= 0:
+        o = overrides.get(d.id)
+        if o is None:
             continue
-        d.original_nominal = d.nominal
-        number = f"{value:.3f}".rstrip("0").rstrip(".").replace(".", ",")
-        d.text = re.sub(r"\d+(?:[.,]\d+)?", number, d.text, count=1) if re.search(r"\d", d.text) \
-            else number
-        d.nominal = float(value)
+        value, tol = (o.get("value"), o.get("tol")) if isinstance(o, dict) else (o, None)
+        head, number, tail = split_size(d.text)
+        if value is not None and value > 0:
+            d.original_nominal = d.nominal
+            rest = re.sub(r"^\d+(?:[.,]\d+)?", "", number)  # a pitch «×1,5» stays
+            number = num(value) + rest
+            d.nominal = float(value)
+        if tol is not None:
+            d.original_text = d.text
+            tail = tol.strip()
+        if number:
+            d.text = head + number + tail
         d.notes = list(d.notes) + ["уточнён вручную"]
         done += 1
+    for t in drawing.of_type(ir.Text):
+        o = overrides.get(t.id)
+        if isinstance(o, dict) and o.get("text"):
+            t.text = o["text"]
+            t.parts = None
+            done += 1
     return done
 
 

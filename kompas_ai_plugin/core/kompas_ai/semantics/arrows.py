@@ -16,7 +16,7 @@ from ..pdf.vector_extractor import RawFill
 
 TOUCH_TOLERANCE = 0.2  # mm between halves of one arrow
 MIN_LENGTH, MAX_LENGTH = 1.0, 12.0  # mm
-MIN_ELONGATION = 1.8  # length / width
+MIN_ELONGATION = 1.4  # length / width  # AutoCAD: short stepped arrows (1.5 × 0.9 mm)
 
 
 @dataclass
@@ -126,6 +126,13 @@ def _arrow_from_points(points) -> Arrow | None:
     near = np.abs(t - tip_t) < 0.15
     across = w[near].mean() if near.any() else 0.0
     tip = centroid + axis * tip_t + normal * across
+    # the direction from the middle of the base to the tip: the principal
+    # axis of a short stepped arrow leans with its steps (7° seen)
+    base_t = t.min() if tip_t == t.max() else t.max()
+    back = np.abs(t - base_t) < 0.15
+    if back.any():
+        base = centroid + axis * base_t + normal * (w[back].max() + w[back].min()) / 2
+        direction = tip - base
     d = direction / np.linalg.norm(direction)
     return Arrow(tip=(float(tip[0]), float(tip[1])), direction=(float(d[0]), float(d[1])),
                  length=length, points=[tuple(p) for p in points])

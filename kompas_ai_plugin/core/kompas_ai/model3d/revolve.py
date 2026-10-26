@@ -61,7 +61,8 @@ def find_revolve_profile(drawing: ir.Drawing) -> RevolveProfile | None:
                 continue
             region, source = _hatched(drawing, faces, hatches), "hatch"
             if region is None or region.is_empty:
-                region, source = unary_union(faces), "outline"
+                drilled = _drilled(faces, axis)
+                region, source = unary_union([f for f in faces if f not in drilled]), "outline"
             # A section shows the bore; a plain view on the other side of a
             # half-section does not — prefer the hatched side.
             score = (source == "hatch", region.area)
@@ -81,6 +82,47 @@ def find_revolve_profile(drawing: ir.Drawing) -> RevolveProfile | None:
     sheet_rings = [[tuple(p) for p in ring.coords] for part in _polygons(region)
                    for ring in [part.exterior] + list(part.interiors)]
     return RevolveProfile(rings, axis, source, region.area / scale ** 2, sheet_rings, side, scale)
+
+
+DRILL_POINT = (20.0, 75.0)  # deg: the sides of a drill's point (118°) off the axis
+
+
+def _drilled(faces, axis) -> list:
+    """Faces of an unhatched view that are a drilled hole, not material: on
+    the axis, ending in a drill point (two sides meeting on the axis at about
+    60° to it), with material around them (another face on the far side of
+    their edge). A solid conical tip has nothing beyond it."""
+    (x1, y1), (x2, y2) = axis
+    n = math.hypot(x2 - x1, y2 - y1) or 1.0
+    ux, uy = (x2 - x1) / n, (y2 - y1) / n
+
+    def local(p):
+        vx, vy = p[0] - x1, p[1] - y1
+        return vx * ux + vy * uy, abs(-vx * uy + vy * ux)
+
+    out = []
+    for f in faces:
+        ring = [local(p) for p in f.exterior.coords[:-1]]
+        k = len(ring)
+        point = False
+        for i, (t, s) in enumerate(ring):
+            if s > TOUCH:
+                continue
+            for a, b in ((ring[i - 1], ring[(i + 1) % k]), (ring[(i + 1) % k], ring[i - 1])):
+                if a[1] <= TOUCH and b[1] > TOUCH:  # along the axis, then off it
+                    angle = math.degrees(math.atan2(b[1], abs(b[0] - t)))
+                    # the point lies at the face's end along the axis
+                    ends = (min(q[0] for q in ring), max(q[0] for q in ring))
+                    if DRILL_POINT[0] <= angle <= DRILL_POINT[1] and \
+                            min(abs(t - e) for e in ends) < 0.5:
+                        point = True
+        if not point:
+            continue
+        around = [g for g in faces if g is not f and g.distance(f) <= TOUCH
+                  and g.boundary.intersection(f.boundary).length > 0.5 * f.length / 4]
+        if around:
+            out.append(f)
+    return out
 
 
 FACING = 0.5  # sheet mm: a point this near a piece's top (bottom) is on that edge
