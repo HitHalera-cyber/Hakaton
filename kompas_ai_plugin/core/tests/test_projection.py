@@ -92,4 +92,4 @@ def test_hole_positions_and_a_bolt_circle():
     pitch = [e for e in out if isinstance(e, ir.Circle)]
     assert len(pitch) == 1 and abs(pitch[0].radius - 9) < 1e-6 and pitch[0].style == ir.STYLE_AXIAL
     texts = sorted(e.text for e in out if isinstance(e, ir.Dimension))
-    assert texts == sorted(["Ø18", "115", "52", "55", "40"])
+    assert texts == sorted(["Ø36", "115", "52", "55", "40"])  # radius 9 on the sheet at 1:2
