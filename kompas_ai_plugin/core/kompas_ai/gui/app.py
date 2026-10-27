@@ -33,8 +33,8 @@ from .session import SessionLog, app_folder, recent_files, remember_file, stampe
 from .theme import THEME_ICONS, THEME_NAMES, THEMES, style_sheet
 from .widgets import PreviewView, label
 from .workers import (CANCELLED, IMAGE_SUFFIXES, MODEL_STAGE, PHOTO_STAGE, PREVIEW_DPI,
-                      PREVIEW_STAGE, BothJob, CheckJob, KompasJob, ModelDrawingJob, RecognizeJob,
-                      RevolveJob)
+                      PREVIEW_STAGE, AutoDimJob, BothJob, CheckJob, KompasJob, ModelDrawingJob,
+                      RecognizeJob, RevolveJob)
 
 APP_NAME = "КОМПАС-AI"
 MODES = [("Точно по размерам", True), ("Как в PDF (без выравнивания)", False)]
@@ -111,6 +111,9 @@ class MainWindow(QMainWindow):
         act("from_model", "Чертёж по модели…", self.drawing_from_model, None,
             "Открыть 3D-модель КОМПАС (.m3d) и построить её чертёж: виды спереди, сверху, слева "
             "и изометрия, связанные с моделью")
+        act("autodim", "Образмерить чертёж…", self.auto_dimension, "Ctrl+D",
+            "Чертёж КОМПАС (.cdw) или DXF: программа проставит размеры по ГОСТ 2.307 так, "
+            "чтобы размерные линии не наезжали друг на друга, и сохранит копию")
         act("build", "Построить чертёж", self.build_in_kompas, "Ctrl+B",
             "Лист в КОМПАС: геометрия, размеры, таблицы")
         act("model", "Построить модель", self.build_3d, "Ctrl+M",
@@ -824,6 +827,41 @@ class MainWindow(QMainWindow):
             self._run_build(ModelDrawingJob(model, Path(out),
                                             SCALES[self.scale_box.currentIndex()][1]),
                             "Строю чертёж по модели…")
+
+    def auto_dimension(self) -> None:
+        """Sizes put on a finished drawing (KOMPAS .cdw or DXF), into a copy of it."""
+        if self._busy():
+            return
+        start = self.settings.value("last_dir", str(Path.home()))
+        name, _ = QFileDialog.getOpenFileName(self, "Чертёж, который образмерить", start,
+                                              "Чертёж КОМПАС или DXF (*.cdw *.dxf)")
+        if not name:
+            return
+        src = Path(name)
+        if src.suffix.lower() == ".cdw" and sys.platform != "win32":
+            QMessageBox.warning(self, APP_NAME, "Чертёж .cdw открывает только КОМПАС-3D "
+                                "(Windows). Сохраните его в КОМПАС как DXF и откройте DXF.")
+            return
+        box = QMessageBox(self)
+        box.setWindowTitle("Образмерить чертёж")
+        box.setText("Что делать с размерами, которые на чертеже уже есть?")
+        box.setInformativeText("«Добавить недостающие» оставит их как есть и поставит "
+                               "остальные, не наезжая на них. «Проставить заново» снимет все "
+                               "и расставит размеры программы.")
+        keep = box.addButton("Добавить недостающие", QMessageBox.AcceptRole)
+        anew = box.addButton("Проставить заново", QMessageBox.DestructiveRole)
+        box.addButton("Отмена", QMessageBox.RejectRole)
+        box.exec()
+        if box.clickedButton() not in (keep, anew):
+            return
+        out, _ = QFileDialog.getSaveFileName(
+            self, "Сохранить образмеренный чертёж",
+            str(src.with_name(src.stem + "_размеры" + src.suffix.lower())),
+            "Чертёж КОМПАС (*.cdw)" if src.suffix.lower() == ".cdw" else "DXF (*.dxf)")
+        if out:
+            self.settings.setValue("last_dir", str(src.parent))
+            self._run_build(AutoDimJob(src, Path(out), replace=box.clickedButton() is anew),
+                            "Расставляю размеры…")
 
     def check_kompas(self) -> None:
         if self._busy():

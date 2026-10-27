@@ -27,7 +27,7 @@ def window(tmp_path, monkeypatch):
 
 
 # the commands every look must offer as a button of its own
-COMMANDS = ["open", "from_model", "build", "model", "both", "refine", "ai", "dxf", "report",
+COMMANDS = ["open", "from_model", "autodim", "build", "model", "both", "refine", "ai", "dxf", "report",
             "check", "logs", "theme"]
 
 

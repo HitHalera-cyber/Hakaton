@@ -383,6 +383,83 @@ class ModelDrawingJob(QObject):
             self.failed.emit(traceback.format_exc())
 
 
+class AutoDimJob(QObject):
+    """Sizes put on a finished drawing by ГОСТ 2.307, into a copy of it."""
+
+    progress = Signal(str)
+    finished = Signal(str)
+    failed = Signal(str)
+
+    def __init__(self, source: Path, out: Path, replace: bool = False):
+        super().__init__()
+        self.source, self.out, self.replace = source, out, replace
+
+    def run(self) -> None:
+        try:
+            if self.source.suffix.lower() == ".dxf":
+                self.finished.emit(dimension_dxf(self.source, self.out, self.replace,
+                                                 self.progress.emit))
+                return
+            if sys.platform != "win32":
+                self.failed.emit("Чертёж .cdw открывает только КОМПАС-3D (Windows).")
+                return
+            import pythoncom
+
+            pythoncom.CoInitialize()
+            try:
+                self.finished.emit(dimension_cdw(self.source, self.out, self.replace,
+                                                 self.progress.emit))
+            finally:
+                pythoncom.CoUninitialize()
+        except Exception:
+            self.failed.emit(traceback.format_exc())
+
+
+def dimension_dxf(src: Path, out: Path, replace: bool, log) -> str:
+    from .. import dimensioning
+
+    log(f"Читаю {src.name}…")
+    result = dimensioning.dimension(dimensioning.read_dxf(src), replace=replace)
+    dimensioning.write_dxf(src, result, out)
+    return (f"Образмерен {src.name}\n" + dimensioning.report(result)
+            + f"\nСохранено: {out}")
+
+
+def dimension_cdw(src: Path, out: Path, replace: bool, log) -> str:
+    """The KOMPAS drawing opened, saved as DXF to be read, its sizes put in
+    the sheet's own view (sheet millimetres) and the copy saved as ``out``."""
+    from .. import dimensioning
+    from ..kompas.api5 import Api5Backend
+    from ..kompas.writer import DrawingWriter
+
+    log("Подключение к КОМПАС…")
+    backend = Api5Backend(log=log, parametric=False)
+    backend.open_drawing(str(src))
+    dxf = Path(tempfile.gettempdir()) / f"kompas_ai_{os.getpid()}_{src.stem}.dxf"
+    try:
+        if not backend.save_dxf(str(dxf)):
+            raise RuntimeError("КОМПАС не сохранил чертёж в DXF — сохраните его как DXF сами "
+                               "(Файл → Сохранить как → DXF) и образмерьте DXF")
+        log("Ищу виды и расставляю размеры…")
+        result = dimensioning.dimension(dimensioning.read_dxf(dxf), replace=replace)
+    finally:
+        try:
+            dxf.unlink()
+        except OSError:
+            pass
+    lines = [f"Образмерен {src.name}", dimensioning.report(result)]
+    if replace:
+        lines.append(f"Снято размеров в КОМПАС: {backend.delete_dimensions()}")
+    backend.sheet_view()
+    report = DrawingWriter(backend).write_dimensions(result.drawing, result.added)
+    lines.append(report.text())
+    lines.append("Размеры стоят в виде листа (не в видах) с числами, вписанными программой: "
+                 "при изменении геометрии они сами не пересчитаются")
+    saved = backend.save(str(out))
+    lines.append(f"Сохранено: {out}" if saved else f"Не удалось сохранить {out}")
+    return "\n".join(lines)
+
+
 SHEETS = [(4, False, 210, 297), (3, True, 420, 297), (2, True, 594, 420), (1, True, 841, 594),
           (0, True, 1189, 841)]
 STANDARD_SCALES = (10.0, 5.0, 4.0, 2.5, 2.0, 1.0, 0.5, 0.4, 0.25, 0.2, 0.1)

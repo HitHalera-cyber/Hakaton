@@ -137,7 +137,8 @@ class Layout:
         # the header's full labels only where they fit with room to spare
         # (Windows' fonts are wider than they look on another system)
         tight = width < 1500
-        for key, short in (("open", "Открыть"), ("model", "По модели…"), ("theme", "icon")):
+        for key, short in (("open", "Открыть"), ("model", "По модели…"),
+                           ("autodim", "По ГОСТ…"), ("theme", "icon")):
             if head and key in head and head[key].fixed_short is None:
                 head[key].set_short(short if tight else None)
 
@@ -150,14 +151,17 @@ class Layout:
         recent.setCursor(Qt.PointingHandCursor)
         self.recent_button = recent
         self.head = {"model": action_button(w.acts["from_model"]),
+                     "autodim": action_button(w.acts["autodim"]),
                      "open": action_button(w.acts["open"]),
                      "theme": action_button(w.acts["theme"], "flat")}
-        return [recent, self.head["model"], self.head["open"], w.layout_box, self.head["theme"]]
+        return [recent, self.head["model"], self.head["autodim"], self.head["open"],
+                w.layout_box, self.head["theme"]]
 
     def _log_page(self) -> QWidget:
         w = self.win
         frame, lay = card()
-        lay.addLayout(_row(label("Журнал", "cardTitle"), None, action_button(w.acts["logs"]),
+        lay.addLayout(_row(label("Журнал", "cardTitle"), None, action_button(w.acts["autodim"]),
+                           action_button(w.acts["logs"]),
                            action_button(w.acts["check"]), action_button(w.acts["dxf"]),
                            action_button(w.acts["report"]), stretch_at=1))
         lay.addWidget(w.log, 1)
@@ -759,7 +763,7 @@ class Console(Layout):
         self.side_scroll.setFixedWidth(clamp(width * 0.3, 320, 390))
         self.rules_card.set_title("Контур" if narrow else "Правила контура")
         self.info_card.setFixedWidth(clamp(width * 0.22, 240, 330))
-        cols = 2 if narrow else 4
+        cols = 3 if narrow else 5
         if cols != self.tile_cols:  # the big actions in two rows on a narrow screen
             self.tile_cols = cols
             for i, tile in enumerate(self.tiles):
@@ -785,11 +789,12 @@ class Console(Layout):
         col.addWidget(label("С какого чертежа начнём?", "title"))
         tiles = QGridLayout()
         tiles.setSpacing(14)
-        self.tiles, self.tile_grid, self.tile_cols = [], tiles, 4
+        self.tiles, self.tile_grid, self.tile_cols = [], tiles, 5
         for i, (key, text, note) in enumerate((
                 ("open", "Открыть PDF", "или перетащите файл в окно"),
                 ("photo", "Чертёж с фото", "телефон, скан, скриншот"),
                 ("from_model", "Чертёж по модели", "из файла .m3d"),
+                ("autodim", "Образмерить чертёж", "КОМПАС .cdw или .dxf по ГОСТ"),
                 ("check", "Проверить КОМПАС", "таблицы и связанные виды"))):
             b = ClickCard("tile")
             tl = QVBoxLayout(b)

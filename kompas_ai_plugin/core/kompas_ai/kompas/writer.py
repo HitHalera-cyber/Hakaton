@@ -274,6 +274,26 @@ class DrawingWriter:
                                 "замкнутыми овалами из четырёх дуг")
         return report
 
+    def write_dimensions(self, drawing: ir.Drawing, dims) -> WriteReport:
+        """Only ``dims`` into the current view of an open drawing, in sheet
+        millimetres, their values written as they are."""
+        self._drawing = drawing
+        self._angular_shelves = angular_shelves(dims)
+        self._refs, self._tied, self._nodes = {}, 0, {}
+        self.mode, self.scale = "sheet", 1.0
+        report = WriteReport(mode="sheet")
+        for d in dims:
+            try:
+                ref = self._dimension(d)
+            except Exception as exc:
+                ref = None
+                report.notes.append(f"{d.id} «{d.text}»: {exc!r}")
+            if ref:
+                report.count("dimension")
+            else:
+                report.failed.append(d.id)
+        return report
+
     def _constraints(self, drawing: ir.Drawing, refs) -> tuple[int, int]:
         """Relations found on the drawing → KOMPAS constraints (parametric mode)."""
         jobs = []

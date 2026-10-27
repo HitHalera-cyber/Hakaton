@@ -708,6 +708,89 @@ class Api5Backend:
                     self.doc.ksLineSeg(a[0], a[1], b[0], b[1], 1)
         return self.doc.ksEndObj()
 
+    # --- a drawing that is there already ----------------------------------------------
+
+    def open_drawing(self, path: str) -> None:
+        """Open a KOMPAS drawing (.cdw) to work on it."""
+        doc = self.kompas.Document2D()
+        if not doc.ksOpenDocument(path, False):
+            raise RuntimeError(f"КОМПАС не открыл {path} (код {self.last_error()})")
+        self.doc = doc
+        self._drawing7 = None
+
+    def save_dxf(self, path: str) -> bool:
+        """The open drawing saved as DXF (the sheet in sheet millimetres)."""
+        import os
+
+        def good() -> bool:
+            try:
+                with open(path, "rb") as f:
+                    head = f.read(2048)
+                return os.path.getsize(path) > 0 and b"SECTION" in head
+            except OSError:
+                return False
+
+        tries = [("API5 ksSaveToDXF", lambda: self.doc.ksSaveToDXF(path))]
+        try:
+            from win32com.client import CastTo, gencache
+
+            app = gencache.EnsureDispatch("Kompas.Application.7")
+            doc7 = CastTo(app.ActiveDocument, "IKompasDocument")
+            tries.append(("API7 SaveAs", lambda: doc7.SaveAs(path)))
+        except Exception as exc:
+            self.log(f"  API7: {exc!r}")
+        for name, call in tries:
+            try:
+                call()
+            except Exception as exc:
+                self.log(f"  {name}: {exc!r}")
+                continue
+            if good():
+                self.log(f"  DXF сохранён ({name})")
+                return True
+            self.log(f"  {name}: файл не DXF")
+        return False
+
+    DIMENSION_COLLECTIONS = (
+        ("LineDimensions", "LineDimension"), ("RadialDimensions", "RadialDimension"),
+        ("DiametralDimensions", "DiametralDimension"), ("AngleDimensions", "AngleDimension"),
+        ("ArcDimensions", "ArcDimension"), ("BreakLineDimensions", "BreakLineDimension"),
+        ("BreakRadialDimensions", "BreakRadialDimension"),
+        ("BreakAngleDimensions", "BreakAngleDimension"))
+
+    def delete_dimensions(self) -> int:
+        """All sizes of the open drawing taken off, in every view. Returns how many."""
+        from win32com.client import CastTo, gencache
+
+        app = gencache.EnsureDispatch("Kompas.Application.7")
+        views = CastTo(app.ActiveDocument, "IKompasDocument2D").ViewsAndLayersManager.Views
+        gone = 0
+        for i in range(views.Count):
+            try:
+                symbols = CastTo(views.View(i), "ISymbols2DContainer")
+            except Exception as exc:
+                self.log(f"  вид {i}: {exc!r}")
+                continue
+            for plural, single in self.DIMENSION_COLLECTIONS:
+                try:
+                    coll = getattr(symbols, plural)
+                    items = [getattr(coll, single)(j) for j in range(coll.Count)]
+                except Exception as exc:
+                    self.log(f"  вид {i}, {plural}: {exc!r}")
+                    continue
+                for item in items:
+                    try:
+                        if CastTo(item, "IDrawingObject").Delete():
+                            gone += 1
+                    except Exception as exc:
+                        self.log(f"  размер не удалён: {exc!r}")
+        return gone
+
+    def sheet_view(self) -> None:
+        """The sheet's own view (sheet millimetres) made the current one."""
+        self.doc.ksOpenView(0)
+        self._drawing7 = None
+
     def save(self, path):
         if getattr(self, "_model_views", 0):
             self.rebuild()
