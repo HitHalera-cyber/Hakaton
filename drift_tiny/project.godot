@@ -1,0 +1,45 @@
+; Engine configuration file.
+; Drift Tiny — Godot 4.3+ (GDScript), GL Compatibility renderer.
+
+config_version=5
+
+[application]
+
+config/name="Drift Tiny"
+config/description="Small cars. Big drift. Top-down pixel drift racer for 1-2 players on one PC."
+config/version="0.1.0"
+run/main_scene="res://scenes/main_menu.tscn"
+config/features=PackedStringArray("4.3", "GL Compatibility")
+config/icon="res://icon.svg"
+
+[autoload]
+
+SaveManager="*res://scripts/autoload/save_manager.gd"
+InputSetup="*res://scripts/autoload/input_setup.gd"
+Game="*res://scripts/autoload/game.gd"
+AudioManager="*res://scripts/autoload/audio_manager.gd"
+
+[display]
+
+window/size/viewport_width=960
+window/size/viewport_height=540
+window/size/window_width_override=1280
+window/size/window_height_override=720
+window/stretch/mode="canvas_items"
+window/stretch/aspect="keep"
+
+[gui]
+
+common/drop_mouse_on_gui_input_disabled=true
+
+[physics]
+
+common/physics_ticks_per_second=60
+2d/default_gravity=0.0
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/canvas_textures/default_texture_filter=0
+environment/defaults/default_clear_color=Color(0.05, 0.05, 0.1, 1)
