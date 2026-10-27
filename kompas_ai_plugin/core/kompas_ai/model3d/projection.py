@@ -326,13 +326,31 @@ def _isometry():
     return tuple(u), tuple(v), tuple(w)
 
 
-REVOLVED = 0.7  # of the surface turned around an axis: a body of revolution
+REVOLVED = 0.6  # of the surface turned around an axis: a body of revolution
+
+
+def _axis_centre(points2, normals2, weights):
+    """The point all the faces' normals pass through (the axis, in the plane
+    across it): least squares, faces off it (flats) dropped and solved again."""
+    m = np.stack([-normals2[:, 1], normals2[:, 0]], axis=1)  # across each normal
+    keep = np.ones(len(points2), dtype=bool)
+    c = points2.mean(axis=0)
+    for _ in range(3):
+        if keep.sum() < 3:
+            break
+        A = m[keep] * np.sqrt(weights[keep])[:, None]
+        b = (m[keep] * points2[keep]).sum(axis=1) * np.sqrt(weights[keep])
+        c, *_ = np.linalg.lstsq(A, b, rcond=None)
+        res = np.abs((m * (c - points2)).sum(axis=1))
+        keep = res < max(1e-3, 0.02 * float(np.ptp(points2, axis=0).max() or 1.0))
+    return c
 
 
 def revolve_axis(mesh: Mesh):
     """(direction, point) of the axis the part is turned around — X, Y or Z,
-    whichever most of its surface is turned around (a flange's flats and
-    holes aside) — or None."""
+    whichever most of its surface is turned around — or None. Flats, holes
+    and a flange cut square (a fitting's spanner flats) are allowed: the axis
+    goes where the round faces' normals meet, not through the box's middle."""
     v = mesh.vertices
     size = float(np.ptp(v, axis=0).max()) or 1.0
     tri = mesh.vertices[mesh.faces]
@@ -340,18 +358,24 @@ def revolve_axis(mesh: Mesh):
     area = np.linalg.norm(np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0]), axis=1) / 2
     best = None
     for k in range(3):
-        a = np.zeros(3)
-        a[k] = 1.0
+        a = np.eye(3)[k]
         others = [i for i in range(3) if i != k]
-        if abs(np.ptp(v[:, others[0]]) - np.ptp(v[:, others[1]])) > 0.05 * size:
-            continue  # not round across this axis
+        side = np.abs(mesh.normals[:, k]) < 0.1  # faces along the axis (round or flat)
+        if side.sum() < 8:
+            continue
+        n2 = mesh.normals[side][:, others]
+        n2 = n2 / (np.linalg.norm(n2, axis=1)[:, None] + 1e-12)
+        c2 = _axis_centre(centres[side][:, others], n2, area[side])
         c = (v.min(axis=0) + v.max(axis=0)) / 2
+        c[others[0]], c[others[1]] = c2
         radial = centres - c
         radial[:, k] = 0.0
         rn = np.linalg.norm(radial, axis=1)
-        ok = rn > 1e-6 * size
-        around = np.abs(np.cross(radial[ok] / rn[ok, None], mesh.normals[ok]) @ a)
-        share = float(area[ok][around < 0.05].sum() / (area[ok].sum() or 1.0))
+        # of the faces along the axis, how much is round about it (the ends,
+        # square to it, would count as round whatever the part)
+        ok = side & (rn > 1e-6 * size)
+        rad = np.abs((radial[ok] / rn[ok, None] * mesh.normals[ok]).sum(axis=1))
+        share = float(area[ok][rad > 0.995].sum() / (area[ok].sum() or 1.0))
         if share >= REVOLVED and (best is None or share > best[0]):
             best = (share, a, c)
     return (best[1], best[2]) if best else None
@@ -424,59 +448,95 @@ def _section(tri: np.ndarray, c, R) -> list:
     return [f for f in faces if f.area > 1e-6 and inside(f.representative_point())]
 
 
+SHEETS_LANDSCAPE = [(4, False, 210, 297), (3, True, 420, 297), (2, True, 594, 420),
+                    (1, True, 841, 594), (0, True, 1189, 841)]
+
+
+def _revolve_layout(length: float, dia: float, view_scale):
+    """Sheet, scale and the centres of the section, the outside view under it
+    and the end view right of the section, with room for the sizes: the
+    diameters left of the section, two rows of lengths under the view."""
+    from ..gui.workers import STANDARD_SCALES
+
+    scales = [view_scale] if view_scale else list(STANDARD_SCALES)
+    # the biggest scale that fits up to A2 (a small part at 2:1 or more reads
+    # better than at 1:1 on A4), then any
+    tries = [(sc, sh) for sc in scales if sc >= 0.5 or view_scale for sh in SHEETS_LANDSCAPE[:3]] \
+        + [(sc, sh) for sc in scales for sh in SHEETS_LANDSCAPE]
+    for sc, (fmt, land, W, H) in tries:
+        left, gap, dims_below, top = 22.0, 18.0, 26.0, 12.0
+        width = left + length * sc + gap + dia * sc
+        height = top + dia * sc + gap + dia * sc + dims_below
+        free_w, free_h = W - 25.0 - 10.0, H - 10.0 - 65.0
+        if width <= free_w and height <= free_h:
+            x0 = 25.0 + (free_w - width) / 2 + left
+            y_top = H - 10.0 - (free_h - height) / 2 - top
+            section = (x0 + length * sc / 2, y_top - dia * sc / 2)
+            outside = (section[0], section[1] - dia * sc - gap)
+            end = (x0 + length * sc + gap + dia * sc / 2, section[1])
+            return fmt, land, sc, W, H, section, outside, end
+    raise RuntimeError("Деталь не помещается даже на листе A0 в масштабе 1:10")
+
+
 def _revolve_drawing(mesh: Mesh, axis, view_scale, layout, notes):
-    """A body of revolution as ГОСТ draws it: the main view a section along
-    the axis (hatched, the axis horizontal), the view from the end on its
-    right, the isometry below; no hidden lines."""
+    """A body of revolution as ГОСТ draws it: the section along the axis on
+    top (hatched, the axis horizontal, the diameters on it), the part from
+    outside under it (its flats and steps, the lengths under it), the view
+    from the end on the right, the isometry in the free corner; no hidden
+    lines."""
     a, c = axis
     # looking across the axis: the coordinate axis that shows more of the part
     cands = [np.eye(3)[k] for k in range(3) if abs(a[k]) < 0.5]
-    v_ext = []
-    for t in cands:
-        up = np.cross(t, a)
-        v_ext.append(float(np.ptp(mesh.vertices @ up)))
+    v_ext = [float(np.ptp(mesh.vertices @ np.cross(t, a))) for t in cands]
     t = cands[int(np.argmax(v_ext))]
     R_main = np.array([a, np.cross(t, a), t])
     R_end = np.array([t, np.cross(t, a), -a])
     length = float(np.ptp(mesh.vertices @ a))
     dia = max(v_ext)
-    fmt, land, s, places = layout((length, dia, dia), view_scale)
+    fmt, land, s, W, H, at, at_out, at_end = _revolve_layout(length, dia, view_scale)
     entities: list[ir.Entity] = []
 
     # the section: the half behind the cut, its edges seen; the cut hatched
     tri = mesh.vertices[mesh.faces]
     half = build_mesh(_clip_behind(tri, c, t))
     main = project(half, *R_main, name="Разрез", hidden=False)
-    at = places["#Спереди"]
     entities += trace(main, s, at, start_id=1)
     cu, cv = (main.lo[0] + main.hi[0]) / 2, (main.lo[1] + main.hi[1]) / 2
 
     def place(p):
         return (at[0] + (p[0] - cu) * s, at[1] + (p[1] - cv) * s)
 
+    def place_out(p):  # the outside view: the same along the axis, lower on the sheet
+        q = place(p)
+        return (q[0], q[1] - at[1] + at_out[1])
+
     cut = _section(tri, c, R_main)
-    entities += _revolve_dims(cut, c @ R_main[1], place, s, len(entities) + 1)
+    entities += _revolve_dims(cut, c @ R_main[1], place, s, len(entities) + 1,
+                              lengths_at=place_out)
     for k, poly in enumerate(cut):
         rings = [[place(q) for q in poly.exterior.coords]] + \
             [[place(q) for q in ring.coords] for ring in poly.interiors]
         entities.append(ir.Hatch(f"H{k + 1}", angle=45.0, spacing=2.0, contours=rings))
-    # the axis, 5 mm past the part
     ax = c @ R_main[1]
-    y = at[1] + (ax - cv) * s
-    entities.append(ir.Line(f"L{len(entities) + 1}", p1=(place(main.lo)[0] - 5, y),
-                            p2=(place(main.hi)[0] + 5, y), style=ir.STYLE_AXIAL))
-    if cut:
-        notes.append("Главный вид — разрез по оси (тело вращения), штриховка по сечению; "
-                     "основные размеры (диаметры, длины ступеней, общая длина) проставлены по "
-                     "модели — проверьте и добавьте остальные в КОМПАС")
+    for pl in (place, place_out):  # the axis, 5 mm past the part
+        y = pl((0.0, ax))[1]
+        entities.append(ir.Line(f"L{len(entities) + 1}", p1=(pl(main.lo)[0] - 5, y),
+                                p2=(pl(main.hi)[0] + 5, y), style=ir.STYLE_AXIAL))
+
+    # the part from outside, placed so that it lines up with the section
+    outside = project(mesh, *R_main, name="Вид", hidden=False)
+    ou, ov = (outside.lo[0] + outside.hi[0]) / 2, (outside.lo[1] + outside.hi[1]) / 2
+    shift = place_out((ou, ov))
+    entities += trace(outside, s, shift, start_id=len(entities) + 1)
 
     end = project(mesh, *R_end, name="Слева", hidden=False)
-    entities += trace(end, s, places["#Слева"], start_id=len(entities) + 1)
+    entities += trace(end, s, at_end, start_id=len(entities) + 1)
     entities += _centre_marks(entities, s, len(entities) + 1)
-
-    sizes = {0: (1189, 841), 1: (841, 594), 2: (594, 420), 3: (420, 297), 4: (297, 210)}
-    W, H = sizes[fmt] if land else sizes[fmt][::-1]
-    box = (30.0, W - 10.0, 65.0, at[1] - dia * s / 2 - 10.0)
+    if cut:
+        notes.append("Тело вращения: сверху разрез по оси с диаметрами, под ним вид снаружи с "
+                     "длинами ступеней, справа вид с торца; размеры по модели — допуски, "
+                     "фаски и резьбу добавьте в КОМПАС")
+    box = (at_end[0] - dia * s / 2, W - 10.0, 65.0, at_out[1] + dia * s / 2)
     _isometry_into(mesh, entities, box, s, notes)
     return fmt, land, s, W, H, entities
 
@@ -767,7 +827,11 @@ def _num(v: float) -> str:
     return text.replace(".", ",")
 
 
-def _revolve_dims(cut, axis_v: float, place, s: float, start_id: int) -> list:
+MIN_DIA_EDGE = 1.5  # model mm: a shorter surface (between chamfers) gets no diameter
+DIA_GAP = 7.0  # sheet mm between two diameters' lines (their texts stand along them)
+
+
+def _revolve_dims(cut, axis_v: float, place, s: float, start_id: int, lengths_at=None) -> list:
     """The main sizes of a body of revolution off its section: the diameters
     of the outer steps and of the bores (across the view, as on a turned
     part's drawing), the lengths of the steps under the view and the overall
@@ -777,6 +841,7 @@ def _revolve_dims(cut, axis_v: float, place, s: float, start_id: int) -> list:
     outer: dict[float, tuple] = {}
     inner: dict[float, tuple] = {}
     steps: set[float] = set()
+    shoulders: set[float] = set()
     spans: list[tuple[float, float, float]] = []  # outer edges: x from, x to, radius
     xs = []
     for poly in cut:
@@ -786,13 +851,20 @@ def _revolve_dims(cut, axis_v: float, place, s: float, start_id: int) -> list:
             xs += [p[0] for p in pts]
             for (x1, y1), (x2, y2) in zip(pts, pts[1:]):
                 r = y1 - axis_v
+                if abs(x2 - x1) < 1e-3 and abs(y2 - y1) > 0.3 and max(y1, y2) > axis_v:
+                    # a shoulder: a face square to the axis (a chamfer is no step)
+                    xm = x1
+                    if poly.contains(Point(xm - 0.05, (y1 + y2) / 2)) != \
+                            poly.contains(Point(xm + 0.05, (y1 + y2) / 2)):
+                        shoulders.add(round(x1, 3))
+                    continue
                 if abs(y2 - y1) > 1e-3 or abs(x2 - x1) < 0.3 or r < 0.05:
                     continue
                 xm = (x1 + x2) / 2
                 key = round(r, 2)
                 below = poly.contains(Point(xm, y1 - 0.05))
                 table = outer if below else inner
-                if key not in table or abs(x2 - x1) > table[key][1]:
+                if abs(x2 - x1) >= MIN_DIA_EDGE and (key not in table or abs(x2 - x1) > table[key][1]):
                     table[key] = (xm, abs(x2 - x1))
                 if below:
                     steps.update((round(x1, 3), round(x2, 3)))
@@ -803,9 +875,12 @@ def _revolve_dims(cut, axis_v: float, place, s: float, start_id: int) -> list:
     n = start_id
     used_x: list[float] = []
 
-    def free_x(x):  # two diameters on one line would overlap
-        while any(abs(x - u) < 2.5 / s for u in used_x):
-            x += 3.0 / s
+    def free_x(x):  # two diameters side by side need room for their texts
+        for step in [0.0] + [k * sgn for k in (1, 2, 3) for sgn in (1, -1)]:
+            y = x + step * DIA_GAP / s
+            if all(abs(y - u) >= DIA_GAP / s for u in used_x):
+                used_x.append(y)
+                return y
         used_x.append(x)
         return x
 
@@ -827,7 +902,9 @@ def _revolve_dims(cut, axis_v: float, place, s: float, start_id: int) -> list:
         r = max([sp[2] for sp in spans if sp[0] - 1e-3 <= x <= sp[1] + 1e-3] or [rmax])
         return (x, axis_v - r)
 
-    xs_steps = sorted(steps)
+    xs_steps = sorted(shoulders | {round(min(xs), 3), round(max(xs), 3)}) if shoulders \
+        else sorted(steps)
+    place = lengths_at or place  # the lengths under the outside view, if there is one
     level = place((0.0, bottom))[1] - 10.0
     for x1, x2 in zip(xs_steps, xs_steps[1:]):
         if x2 - x1 < 0.5:

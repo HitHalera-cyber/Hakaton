@@ -171,6 +171,10 @@ QPushButton#flat {{ min-height: 36px; padding: 0 12px; border: none; border-radi
                     background: transparent; color: {c['muted']}; text-align: left; }}
 QPushButton#flat:hover {{ background: {c['card_alt']}; color: {c['text']}; }}
 
+QLineEdit {{ min-height: 32px; padding: 0 10px; border: 1px solid {c['border']}; border-radius: 10px;
+             background: {c['card']}; selection-background-color: {c['select']};
+             selection-color: {c['card']}; }}
+QLineEdit:focus {{ border-color: {c['select']}; }}
 QComboBox {{ min-height: 36px; padding: 0 12px; border: 1px solid {c['border']}; border-radius: 10px;
              background: {c['card']}; }}
 QComboBox:hover {{ border-color: {c['select']}; }}
@@ -267,6 +271,10 @@ QTabBar::tab:hover {{ color: {c['text']}; }}
 QTableWidget {{ background: {c['card']}; border: 1px solid {c['border']}; border-radius: 10px;
                 gridline-color: {c['border']}; selection-background-color: {c['select_soft']};
                 selection-color: {c['select']}; }}
+QAbstractItemView QLineEdit, QAbstractItemView QComboBox {{
+    background: {c['card_alt']}; color: {c['text']}; border: 1px solid {c['select']};
+    border-radius: 6px; padding: 0 6px; min-height: 0; selection-background-color: {c['select']};
+    selection-color: {c['card']}; }}
 QHeaderView::section {{ background: {c['card_alt']}; color: {c['muted']}; border: none;
                         padding: 6px 8px; font-weight: 600; }}
 QMenu {{ background: {c['card']}; border: 1px solid {c['border']}; padding: 4px; }}
