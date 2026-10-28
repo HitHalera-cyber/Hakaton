@@ -17,6 +17,7 @@ var all_cars: Array = []
 var ghost: Node2D
 var track: TrackData
 var compact := false      # split screen: narrower layout
+var show_race_info := true  # timer, minimap, lap (off for the 2nd HUD of a shared screen)
 
 var _font: Font
 var _popups: Array = []   # {text, pts, kind, t}
@@ -79,13 +80,13 @@ func _draw() -> void:
 	var col: Color = car.tag_color
 
 	# --- score panel (top-left)
-	var sp := Rect2(10, 10, 190 if compact else 230, 58 if rival_cars.is_empty() else 84)
+	var sp := Rect2(10, 10, 150 if compact else 230, 58 if rival_cars.is_empty() else 84)
 	_panel(sp, col)
 	_text(Vector2(sp.position.x + 10, sp.position.y + 30), "%dP" % maxi(car.player_index, 1), 24, col)
 	_text(Vector2(sp.position.x + 52, sp.position.y + 30), _fmt_points(car.scoring.total), 24, WHITE)
 	if car.scoring.in_chain:
-		_text(Vector2(sp.end.x - 52, sp.position.y + 30), "x%.1f" % car.scoring.multiplier, 18, PINK)
-	_text(Vector2(sp.position.x + 52, sp.position.y + 50), "BEST COMBO %s" % _fmt_points(car.scoring.best_combo), 12, Color(WHITE, 0.6))
+		_text(Vector2(sp.end.x - 46, sp.position.y + 30), "x%.1f" % car.scoring.multiplier, 16, PINK)
+	_text(Vector2(sp.position.x + 52, sp.position.y + 50), ("COMBO %s" if compact else "BEST COMBO %s") % _fmt_points(car.scoring.best_combo), 12, Color(WHITE, 0.6))
 	var ry := sp.position.y + 74
 	for r in rival_cars:
 		var rc := r as Car
@@ -93,22 +94,29 @@ func _draw() -> void:
 		_text(Vector2(sp.position.x + 52, ry), _fmt_points(rc.scoring.total), 14, Color(WHITE, 0.8))
 		ry += 16
 
+	_draw_race_info(w, info)
+	_draw_bottom(w, h)
+
+
+func _draw_race_info(w: float, info: Dictionary) -> void:
+	if not show_race_info:
+		return
 	# --- timer (top-centre)
 	var t: float = race.elapsed_for(car)
-	var tw := 150.0
-	var tr := Rect2(w * 0.5 - tw * 0.5, 10, tw, 40)
+	var tw := 116.0 if compact else 150.0
+	var tr := Rect2(w * 0.5 - tw * 0.5 + (14.0 if compact else 0.0), 10, tw, 40)
 	_panel(tr, EDGE)
-	_text_c(Vector2(w * 0.5, tr.position.y + 29), format_time(t), 24, WHITE)
+	_text_c(Vector2(tr.get_center().x, tr.position.y + 28), format_time(t), 20 if compact else 24, WHITE)
 	var sub := ""
 	if float(info.get("last_lap", 0.0)) > 0.0:
 		sub = "LAST %s" % format_time(info["last_lap"])
 	if float(info.get("best_lap", 0.0)) > 0.0:
 		sub += "   BEST %s" % format_time(info["best_lap"])
 	if sub != "":
-		_text_c(Vector2(w * 0.5, tr.end.y + 16), sub, 12, Color(WHITE, 0.75))
+		_text_c(Vector2(tr.get_center().x, tr.end.y + 16), sub, 12, Color(WHITE, 0.75))
 	var mode_line: String = race.mode_line(car)
 	if mode_line != "":
-		_text_c(Vector2(w * 0.5, tr.end.y + (32 if sub != "" else 16)), mode_line, 14, PINK)
+		_text_c(Vector2(tr.get_center().x, tr.end.y + (32 if sub != "" else 16)), mode_line, 14, PINK)
 
 	# --- minimap + lap + position (top-right)
 	var mw := 104.0 if compact else 130.0
@@ -122,18 +130,21 @@ func _draw() -> void:
 	_text_c(Vector2(lr.get_center().x, lr.position.y + 22), lap_text, 18, WHITE)
 	var pos: int = info.get("position", 0)
 	if pos > 0 and int(info.get("racers", 1)) > 1:
-		_text(Vector2(mr.position.x - 58, mr.position.y + 34), _ordinal(pos), 26, PINK if pos == 1 else WHITE)
+		_text_c(Vector2(lr.get_center().x, lr.end.y + 30), _ordinal(pos), 26, PINK if pos == 1 else WHITE)
 
+
+func _draw_bottom(w: float, h: float) -> void:
+	var info: Dictionary = race.racer_info(car)
 	# --- speed (bottom-left)
 	var kr := Rect2(10, h - 58, 170 if compact else 200, 48)
 	_panel(kr, EDGE)
 	_text(Vector2(kr.position.x + 12, kr.position.y + 32), "%d" % car.kmh(), 28, WHITE)
-	_text(Vector2(kr.position.x + 76, kr.position.y + 32), "KM/H", 12, Color(WHITE, 0.7))
-	var segs := 8
+	_text(Vector2(kr.position.x + 72, kr.position.y + 32), "KM/H", 12, Color(WHITE, 0.7))
+	var segs := 5 if compact else 8
 	var fill := int(round(clampf(car.speed / car.stats.max_speed, 0.0, 1.0) * segs))
 	for i in segs:
 		var c := PINK.lerp(PURPLE, float(i) / segs) if i < fill else Color(1, 1, 1, 0.12)
-		draw_rect(Rect2(kr.position.x + 116 + i * 9 - (30 if compact else 0), kr.position.y + 18, 7, 14), c)
+		draw_rect(Rect2(kr.position.x + (116 if compact else 122) + i * 9, kr.position.y + 18, 7, 14), c)
 	if not car.on_road:
 		_text(Vector2(kr.position.x, kr.position.y - 8), "OFF ROAD", 12, Color("ffb347"))
 	elif car.surface_name == "ice":

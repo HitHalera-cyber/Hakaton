@@ -75,8 +75,10 @@ func _ready() -> void:
 	buttons.add_child(back)
 
 	# Right side: track preview, record, car.
-	_track_name = UiTheme.label("", 24, UiTheme.TEXT)
+	_track_name = UiTheme.label("", 20, UiTheme.TEXT)
 	_track_name.position = Vector2(520, 84)
+	_track_name.size = Vector2(400, 30)
+	_track_name.clip_text = true
 	add_child(_track_name)
 	_preview = Widgets.TrackPreview.new()
 	_preview.position = Vector2(520, 120)
@@ -136,8 +138,8 @@ func _refresh_info() -> void:
 		_track.disabled = false
 	var td := Game.track_data(tid)
 	_preview.set_track(td)
-	_track_name.text = "%s — %s" % [td.name, td.subtitle] if m != "championship" else "Championship: all %d tracks" % Game.tracks.size()
-	var lines: PackedStringArray = []
+	_track_name.text = td.name if m != "championship" else "Championship: all %d tracks" % Game.tracks.size()
+	var lines: PackedStringArray = [td.subtitle]
 	var rec := SaveManager.get_record(tid, m if m != "practice" else "practice")
 	if rec.has("best_time"):
 		lines.append("Best race (3 laps): %s" % RaceHUD.format_time(float(rec["best_time"])))

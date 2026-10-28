@@ -20,9 +20,9 @@ func _ready() -> void:
 	add_child(logo)
 
 	_menu = VBoxContainer.new()
-	_menu.position = Vector2(48, 214)
+	_menu.position = Vector2(48, 196)
 	_menu.custom_minimum_size = Vector2(280, 0)
-	_menu.add_theme_constant_override("separation", 2)
+	_menu.add_theme_constant_override("separation", 0)
 	add_child(_menu)
 	var items := [
 		["PLAY", _on_play],
@@ -35,14 +35,14 @@ func _ready() -> void:
 	]
 	for it in items:
 		var b := UiTheme.button(it[0], it[1], 22)
-		b.custom_minimum_size = Vector2(280, 36)
+		b.custom_minimum_size = Vector2(280, 34)
 		_menu.add_child(b)
 
 	_credits = UiTheme.label("", 18, UiTheme.CYAN)
-	_credits.position = Vector2(48, 486)
+	_credits.position = Vector2(48, 470)
 	add_child(_credits)
 	var hint := UiTheme.label("Enter / A — select     Esc / Start — pause in race     v0.1", 12, UiTheme.DIM)
-	hint.position = Vector2(48, 512)
+	hint.position = Vector2(48, 506)
 	add_child(hint)
 	_toast = UiTheme.label("", 16, UiTheme.PINK)
 	_toast.position = Vector2(560, 500)

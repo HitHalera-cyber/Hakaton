@@ -8,7 +8,7 @@ extends Node2D
 
 const THEMES := {
 	"mountain": {
-		"ground": "3f6b3b", "ground_dark": "33582f", "ground_light": "58884a",
+		"ground": "3d6a48", "ground_dark": "32583c", "ground_light": "558a58",
 		"road": "4b4757", "road_dark": "3f3b4b", "road_light": "5a5568", "shoulder": "6b5a4a",
 		"line": "e9e4ea", "curb_a": "d94056", "curb_b": "efe9ee",
 		"wall": "c9cdd8", "wall_dark": "6c7080", "wall_style": "rail",
@@ -69,7 +69,9 @@ func build(track_data: TrackData) -> void:
 	pal = {}
 	var raw: Dictionary = THEMES.get(theme_name, THEMES["mountain"])
 	for k in raw.keys():
-		pal[k] = Color.html(raw[k]) if typeof(raw[k]) == TYPE_STRING else raw[k]
+		# Everything except the few non-colour settings is a hex colour.
+		var is_color: bool = typeof(raw[k]) == TYPE_STRING and k != "wall_style"
+		pal[k] = Color.html(raw[k]) if is_color else raw[k]
 	_rng.seed = hash(data.id)
 	_shore = _compute_shore_y()
 	wall_left = data.wall_points(-1.0)
@@ -83,6 +85,11 @@ func build(track_data: TrackData) -> void:
 	_add_layer("Scenery", 6, _draw_scenery)
 	if night:
 		_add_layer("Glow", 7, _draw_glow, false, true)
+	if theme_name == "mountain":
+		# Warm sunset light over the whole world.
+		var tint := CanvasModulate.new()
+		tint.color = Color(1.0, 0.84, 0.9)
+		add_child(tint)
 
 
 func _add_layer(layer_name: String, z: int, painter: Callable, repeat := false, additive := false) -> Node2D:
@@ -203,22 +210,16 @@ func _draw_sea(ci: Node2D, r: Rect2) -> void:
 		var x := r.position.x + rng.randf() * r.size.x
 		var y := shore + 10.0 + rng.randf() * (sea.size.y - 10.0)
 		ci.draw_rect(Rect2(x, y, rng.randf_range(3, 10), 1.0), Color("4a64b0"))
-	# Cliff: jagged band of rock between grass and water.
+	# Cliff: jagged band of rock between grass and water (drawn as columns,
+	# so no polygon triangulation is involved).
 	var x0 := r.position.x
-	var pts := PackedVector2Array()
-	pts.append(Vector2(x0, shore - 30.0))
 	var x := x0
 	while x < r.end.x:
-		pts.append(Vector2(x, shore - 24.0 + rng.randf_range(-8, 8)))
-		x += rng.randf_range(10, 24)
-	pts.append(Vector2(r.end.x, shore - 24.0))
-	pts.append(Vector2(r.end.x, shore + 8.0))
-	x = r.end.x
-	while x > x0:
-		pts.append(Vector2(x, shore + rng.randf_range(0, 10)))
-		x -= rng.randf_range(10, 24)
-	pts.append(Vector2(x0, shore + 6.0))
-	ci.draw_colored_polygon(pts, Color("6b5f70"))
+		var w := rng.randf_range(6, 14)
+		var top := shore - 24.0 + rng.randf_range(-8, 8)
+		var bottom := shore + rng.randf_range(2, 10)
+		ci.draw_rect(Rect2(x, top, w + 1.0, bottom - top), Color("6b5f70"))
+		x += w
 	for i in 120:
 		var px := x0 + rng.randf() * r.size.x
 		ci.draw_rect(Rect2(px, shore - 18.0 + rng.randf() * 22.0, 3, 2), Color("8a7e8e") if i % 2 == 0 else Color("4e4456"))

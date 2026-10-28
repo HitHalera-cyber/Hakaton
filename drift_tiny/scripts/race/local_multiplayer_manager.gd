@@ -100,6 +100,8 @@ func build_views() -> void:
 				half.mouse_filter = Control.MOUSE_FILTER_IGNORE
 				halves.add_child(half)
 				_add_hud(half, h, true)
+			# One timer / minimap is enough on a shared screen.
+			(huds[-1] as RaceHUD).show_race_info = false
 	for c in cars:
 		(c as Car).set_shake_callback(_shake_for.bind(c))
 

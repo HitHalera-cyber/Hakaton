@@ -76,8 +76,12 @@ class Shade:
 	func _draw() -> void:
 		var w := size.x
 		if left:
+			# Whole-pixel columns that never overlap (overlaps showed as stripes).
 			var steps := 24
+			var band := w * 0.55
 			for i in steps:
 				var a := 0.85 * (1.0 - float(i) / steps)
-				draw_rect(Rect2(i * (w * 0.55 / steps), 0, w * 0.55 / steps + 1, size.y), Color(0.03, 0.02, 0.09, a))
+				var x0 := floorf(band * i / steps)
+				var x1 := floorf(band * (i + 1) / steps)
+				draw_rect(Rect2(x0, 0, x1 - x0, size.y), Color(0.03, 0.02, 0.09, a))
 		draw_rect(Rect2(0, 0, w, size.y), Color(0.03, 0.02, 0.09, 0.15))
