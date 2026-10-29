@@ -12,7 +12,7 @@ draw the views ourselves:
     where something lies in front of it;
   * the pieces are traced into lines, arcs and circles like the strokes of
     a PDF and placed on a sheet by ГОСТ 2.305 (front view, top view under
-    it, left view to its right, isometry in the free corner).
+    it, left view to its right; no isometry).
 
 The result is a plain drawing (not linked to the model).
 """
@@ -176,8 +176,10 @@ def project(mesh: Mesh, right, up, toward, name: str = "", hidden: bool = True) 
     lines = []
     for i, (a, b) in enumerate(mesh.edges):
         fs = mesh.edge_faces[i]
-        outline = len(fs) == 2 and facing[fs[0]] * facing[fs[1]] < 0 \
-            and min(abs(facing[fs[0]]), abs(facing[fs[1]])) > 1e-9 \
+        # the outline: a face turned to us next to one turned away or seen
+        # edge-on (a cylinder's facet edge-on at its outline left it undrawn)
+        outline = len(fs) == 2 and (facing[fs[0]] > 1e-9) != (facing[fs[1]] > 1e-9) \
+            and max(abs(facing[fs[0]]), abs(facing[fs[1]])) > 1e-9 \
             and abs(float(mesh.normals[fs[0]] @ mesh.normals[fs[1]])) < 1 - 1e-6
         if not (sharp[i] or outline):
             continue
@@ -482,7 +484,7 @@ def _revolve_drawing(mesh: Mesh, axis, view_scale, layout, notes):
     """A body of revolution as ГОСТ draws it: the section along the axis on
     top (hatched, the axis horizontal, the diameters on it), the part from
     outside under it (its flats and steps, the lengths under it), the view
-    from the end on the right, the isometry in the free corner; no hidden
+    from the end on the right; no isometry (it only crowds the sheet), no hidden
     lines."""
     a, c = axis
     # looking across the axis: the coordinate axis that shows more of the part
@@ -512,7 +514,7 @@ def _revolve_drawing(mesh: Mesh, axis, view_scale, layout, notes):
 
     cut = _section(tri, c, R_main)
     entities += _revolve_dims(cut, c @ R_main[1], place, s, len(entities) + 1,
-                              lengths_at=place_out)
+                              lengths_at=place_out, true_radius=_true_radius(mesh, a, c))
     for k, poly in enumerate(cut):
         rings = [[place(q) for q in poly.exterior.coords]] + \
             [[place(q) for q in ring.coords] for ring in poly.interiors]
@@ -536,8 +538,6 @@ def _revolve_drawing(mesh: Mesh, axis, view_scale, layout, notes):
         notes.append("Тело вращения: сверху разрез по оси с диаметрами, под ним вид снаружи с "
                      "длинами ступеней, справа вид с торца; размеры по модели — допуски, "
                      "фаски и резьбу добавьте в КОМПАС")
-    box = (at_end[0] - dia * s / 2, W - 10.0, 65.0, at_out[1] + dia * s / 2)
-    _isometry_into(mesh, entities, box, s, notes)
     return fmt, land, s, W, H, entities
 
 
@@ -578,7 +578,7 @@ def _prismatic_drawing(mesh: Mesh, view_scale, layout, notes):
     is biggest; the left and the top views as sections А-А and Б-Б through
     the centre of the biggest hole of the main view (the bores and pockets
     show without hidden lines); the overall sizes and the holes' diameters;
-    the isometry in the free corner. No hidden lines anywhere."""
+    no isometry. No hidden lines anywhere."""
     u, v, w = _main_direction(mesh)
     R_main = np.array([u, v, w])
     R_left = np.array([w, v, -u])
@@ -652,10 +652,6 @@ def _prismatic_drawing(mesh: Mesh, view_scale, layout, notes):
     notes.append("Невидимые линии не показаны — внутреннее устройство видно на разрезах")
     entities += _centre_marks(entities, s, len(entities) + 1)
     entities += _prismatic_dims(main, place, s, entities, len(entities) + 1)
-
-    if boxes:  # the isometry into the biggest free part left
-        _isometry_into(mesh, entities, max(boxes, key=lambda b: (b[1] - b[0]) * (b[3] - b[2])),
-                       s, notes)
     return fmt, land, s, W, H, entities
 
 
@@ -831,7 +827,20 @@ MIN_DIA_EDGE = 1.5  # model mm: a shorter surface (between chamfers) gets no dia
 DIA_GAP = 7.0  # sheet mm between two diameters' lines (their texts stand along them)
 
 
-def _revolve_dims(cut, axis_v: float, place, s: float, start_id: int, lengths_at=None) -> list:
+def _true_radius(mesh: Mesh, a, c):
+    """r as cut through a facetted surface (R·cos(π/n) where the cut goes
+    through a facet) → the radius its vertices stand at: Ø39,84 was Ø40."""
+    d = mesh.vertices - c
+    radii = np.unique(np.round(np.linalg.norm(d - np.outer(d @ a, a), axis=1), 4))
+
+    def snap(r):
+        near = radii[(radii >= r - 1e-3) & (radii <= r / math.cos(math.pi / 8) + 1e-3)]
+        return float(near[0]) if len(near) else r
+    return snap
+
+
+def _revolve_dims(cut, axis_v: float, place, s: float, start_id: int, lengths_at=None,
+                  true_radius=None) -> list:
     """The main sizes of a body of revolution off its section: the diameters
     of the outer steps and of the bores (across the view, as on a turned
     part's drawing), the lengths of the steps under the view and the overall
@@ -888,7 +897,7 @@ def _revolve_dims(cut, axis_v: float, place, s: float, start_id: int, lengths_at
     for r, (xm, _) in sorted(outer.items()) + sorted(inner.items()):
         x = free_x(xm)
         a, b = place((x, axis_v - r)), place((x, axis_v + r))
-        value = round(2 * r, 2)
+        value = round(2 * (true_radius(r) if true_radius else r), 2)
         out.append(ir.Dimension(f"D{n}", 0.9, ["по модели"], dim_type="linear",
                                 text="Ø" + _num(value), nominal=value,
                                 measured=round(abs(b[1] - a[1]), 4), p1=a, p2=b,
@@ -924,22 +933,6 @@ def _revolve_dims(cut, axis_v: float, place, s: float, start_id: int, lengths_at
                             line_point=((a[0] + b[0]) / 2, level - 10.0),
                             orientation="horizontal"))
     return out
-
-
-def _isometry_into(mesh, entities, box, s, notes) -> None:
-    from ..kompas.writer import scale_name
-
-    iso = project(mesh, *_isometry(), name="Изометрия", hidden=False)
-    iw, ih = iso.hi[0] - iso.lo[0], iso.hi[1] - iso.lo[1]
-    bw, bh = box[1] - box[0], box[3] - box[2]
-    if bw <= 0 or bh <= 0:
-        return
-    k = min(s, 0.9 * bw / iw if iw else s, 0.9 * bh / ih if ih else s)
-    if k >= 0.2 * s:
-        k = _standard_below(k)
-        at = ((box[0] + box[1]) / 2, (box[2] + box[3]) / 2)
-        entities += trace(iso, k, at, start_id=len(entities) + 1)
-        notes.append(f"Изометрия в масштабе {scale_name(k)} (без невидимых линий)")
 
 
 def model_drawing(triangles: np.ndarray, view_scale: float | None = None,

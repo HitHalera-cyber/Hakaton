@@ -93,3 +93,25 @@ def test_hole_positions_and_a_bolt_circle():
     assert len(pitch) == 1 and abs(pitch[0].radius - 9) < 1e-6 and pitch[0].style == ir.STYLE_AXIAL
     texts = sorted(e.text for e in out if isinstance(e, ir.Dimension))
     assert texts == sorted(["Ø36", "115", "52", "55", "40"])  # radius 9 on the sheet at 1:2
+
+
+def test_coarse_facets_outline_and_true_diameters():
+    """A part of 40 facets turned half a facet off the cut (as KOMPAS saves
+    it): the outside view still has the outline of every step (a facet seen
+    edge-on there left it undrawn), the diameters are the true ones (the cut
+    through facets gave Ø39,84 for Ø40), and no isometry is drawn."""
+    tris = revolve(SHAFT, n=40)
+    t = math.radians(4.5)  # half a facet about the axis
+    rot = [[1, 0, 0], [0, math.cos(t), -math.sin(t)], [0, math.sin(t), math.cos(t)]]
+    d, notes = model_drawing(tris @ __import__("numpy").array(rot).T)
+    s = d.scale.value
+    texts = {x.text for x in d.of_type(ir.Dimension)}
+    assert {"Ø16", "Ø24", "Ø30", "Ø40"} <= texts, texts
+    assert not any("Изометрия" in n for n in notes)
+    # the outside view (under the section, unhatched): the long lines along the
+    # axis at r = 20, 15, 12 above and below it
+    hatch_low = min(p[1] for h in d.of_type(ir.Hatch) for ring in h.contours for p in ring)
+    along = [l for l in d.of_type(ir.Line) if l.style == ir.STYLE_MAIN
+             and abs(l.p1[1] - l.p2[1]) < 1e-6 and max(l.p1[1], l.p2[1]) < hatch_low - 1]
+    lengths = sorted(round(abs(l.p2[0] - l.p1[0]) / s) for l in along)
+    assert lengths.count(40) >= 2 and lengths.count(30) >= 2, lengths
