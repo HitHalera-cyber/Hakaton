@@ -468,7 +468,7 @@ STANDARD_SCALES = (10.0, 5.0, 4.0, 2.5, 2.0, 1.0, 0.5, 0.4, 0.25, 0.2, 0.1)
 def lay_out_views(size, view_scale=None):
     """Sheet and places of the views of a part ``size`` = (Lx, Ly, Lz) mm by
     ГОСТ 2.305: the front view, the top view under it, the left view to its
-    right, the isometry in the free corner. Returns (format, landscape, scale,
+    right (no isometry: it only crowds the drawing). Returns (format, landscape, scale,
     {projection: centre on the sheet})."""
     lx, ly, lz = size
     gap = 25.0
@@ -486,9 +486,7 @@ def lay_out_views(size, view_scale=None):
             front = (x0 + lx * s / 2, y0 + lz * s + gap + ly * s / 2)
             top = (front[0], y0 + lz * s / 2)
             left = (x0 + lx * s + gap + lz * s / 2, front[1])
-            iso = (left[0], top[1])
-            return fmt, land, s, {"#Спереди": front, "#Сверху": top, "#Слева": left,
-                                  "#Изометрия XYZ": iso}
+            return fmt, land, s, {"#Спереди": front, "#Сверху": top, "#Слева": left}
     raise RuntimeError("Модель не помещается даже на листе A0 в масштабе 1:10")
 
 
