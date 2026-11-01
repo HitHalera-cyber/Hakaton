@@ -19,6 +19,12 @@
 
 1. Установите **Godot 4.3 или новее** (обычная версия, не .NET):
    <https://godotengine.org/download>.
+   Godot 4.5+ требует процессор с SSE4.2 («A CPU with SSE4.2 instruction set
+   support is required»). На более старом процессоре возьмите **4.4.1** —
+   проект проверен на 4.3 и 4.4.1:
+   <https://github.com/godotengine/godot/releases/tag/4.4.1-stable>
+   (файл `Godot_v4.4.1-stable_win64.exe.zip`, для 32-битной Windows —
+   `win32`).
 2. В Project Manager: **Import → выберите `drift_tiny/project.godot`**.
 3. Дождитесь первичного импорта (редактор создаст папку `.godot/` и кэш
    глобальных классов — без этого шага `class_name`-скрипты не найдутся).
