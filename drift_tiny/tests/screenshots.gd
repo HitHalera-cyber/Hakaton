@@ -60,6 +60,13 @@ func _run() -> void:
 		await _race(2, "versus", "neon", "split", 12.0, "ru_race")
 		get_tree().quit()
 		return
+	if "worlds" in OS.get_cmdline_user_args():
+		SaveManager.data["settings"]["style"] = "neon_sunset"
+		for tid in ["desk", "midnight", "vector", "autumn"]:
+			await _race(2, "versus", tid, "split", 9.0, "world_%s_split" % tid)
+			await _race(1, "time_attack", tid, "split", 12.0, "world_%s" % tid)
+		get_tree().quit()
+		return
 	if "drift" in OS.get_cmdline_user_args():
 		# A burst of frames from a drifting car, to check the drift effects.
 		SaveManager.data["settings"]["style"] = "neon_sunset"

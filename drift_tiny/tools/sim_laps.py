@@ -90,7 +90,7 @@ def wrap(a):
 
 def run(track_def, car_def, skill=1.0, laps=2):
     tr = Track(track_def)
-    grip_mult = {"asphalt": 1.0, "wet": 0.86, "dirt": 0.8, "snow": 0.72}[tr.surface]
+    grip_mult = {"asphalt": 1.0, "wet": 0.86, "dirt": 0.8, "snow": 0.72, "plastic": 0.95}[tr.surface]
     if car_def.get("loose_surface_bonus", 0) and tr.surface in ("dirt", "snow"):
         grip_mult += (1 - grip_mult) * car_def["loose_surface_bonus"]
     c = Car(car_def)

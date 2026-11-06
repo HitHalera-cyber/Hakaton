@@ -43,6 +43,49 @@ const THEMES := {
 		"accent": "bfe6ff", "accent_dark": "8fc4e8", "rock": "6e7488",
 		"lamp": "ffe0a0", "dashes": true,
 	},
+	"desk": {
+		"ground": "b8794a", "ground_dark": "a86c40", "ground_light": "c58856",
+		"road": "ff8f2e", "road_dark": "f07a1a", "road_light": "ffa04a", "shoulder": "5a2c0c",
+		"line": "ffd0a0", "curb_a": "e8313f", "curb_b": "f4f4f4",
+		"wall": "f2c430", "wall_dark": "8a6a10", "wall_style": "ruler",
+		"tree": "2fa046", "tree_dark": "1d7a3c", "tree_light": "62d06a",
+		"accent": "ff9db2", "accent_dark": "4a8af5", "rock": "b8b8c8",
+		"lamp": "ffd27a", "dashes": false,
+	},
+	"midnight": {
+		"ground": "2a2a36", "ground_dark": "24242f", "ground_light": "32323f",
+		"road": "26262f", "road_dark": "1f1f27", "road_light": "30303a", "shoulder": "6a6c80",
+		"line": "c9cad6", "curb_a": "d8b23a", "curb_b": "26262f",
+		"wall": "5a5c6c", "wall_dark": "2a2b36", "wall_style": "concrete",
+		"tree": "1f3a2a", "tree_dark": "142a1e", "tree_light": "2f5a3a",
+		"accent": "ff3da5", "accent_dark": "3ee0ff", "rock": "4a4a58",
+		"lamp": "ffcf7a", "dashes": false,
+	},
+	"vector": {
+		"ground": "05040e", "ground_dark": "080618", "ground_light": "0c0a24",
+		"road": "0e0820", "road_dark": "0a0618", "road_light": "140c2c", "shoulder": "05040e",
+		"line": "6a50f0", "curb_a": "ff2aa8", "curb_b": "0e0820",
+		"wall": "ff2aa8", "wall_dark": "2a0a30", "wall_style": "laser",
+		"tree": "3cff8c", "tree_dark": "0a3a20", "tree_light": "a0ffd0",
+		"accent": "2ae0ff", "accent_dark": "a95cff", "rock": "a95cff",
+		"lamp": "2ae0ff", "dashes": true,
+	},
+	"autumn": {
+		"ground": "4f7a3a", "ground_dark": "3f6630", "ground_light": "648f44",
+		"road": "54565e", "road_dark": "4a4c54", "road_light": "60626a", "shoulder": "8a6a46",
+		"line": "e2d6a8", "curb_a": "d24a3e", "curb_b": "f0e6cc",
+		"wall": "a0703c", "wall_dark": "5a3a1c", "wall_style": "fence",
+		"tree": "b4451e", "tree_dark": "7a2a18", "tree_light": "ffb04a",
+		"accent": "dc9a26", "accent_dark": "a6621a", "rock": "8a8690",
+		"lamp": "ffd27a", "dashes": true,
+	},
+}
+
+## Radius ranges of the world tracks' scenery items.
+const WORLD_SIZES := {
+	"pencil": [40.0, 44.0], "mug": [24.0, 24.0], "eraser": [16.0, 16.0], "brick": [20.0, 20.0],
+	"clip": [14.0, 14.0], "coin": [6.0, 6.0], "planter": [7.0, 7.0], "cone": [3.0, 3.0],
+	"hex": [5.0, 12.0], "cube": [6.0, 9.0], "atree": [9.0, 16.0], "leafpile": [5.0, 7.0],
 }
 
 const NEON_WORDS := ["DRIFT", "TINY", "CAFE", "24H", "NEON", "HOTEL", "RAMEN", "ARCADE", "BAR", "GAS"]
@@ -62,12 +105,14 @@ var _chevrons: Array = []
 var _shore := INF
 var toy := false             # "Toy Racer" style: banners, tyre walls, more curbs
 var _banners: Array = []
+var creek := PackedVector2Array()   # Golden Hour: water running across the map
+var bridges: Array = []             # road sample indices where it crosses the creek
 
 
 func build(track_data: TrackData) -> void:
 	data = track_data
 	theme_name = data.theme
-	night = theme_name == "neon" or GraphicsStyle.flag("night")
+	night = theme_name in ["neon", "midnight"] or GraphicsStyle.flag("night")
 	toy = GraphicsStyle.flag("toy")
 	pal = {}
 	var raw: Dictionary = THEMES.get(theme_name, THEMES["mountain"])
@@ -92,14 +137,19 @@ func build(track_data: TrackData) -> void:
 	_add_layer("Markings", -7, _draw_markings)
 	_add_layer("Barriers", 3, _draw_barriers)
 	_add_layer("Scenery", 6, _draw_scenery)
-	if night and Game.quality() > 0:
+	if (night or theme_name == "vector") and Game.quality() > 0:
 		_add_layer("Glow", 7, _draw_glow, false, true)
 	if theme_name == "mountain" and GraphicsStyle.flag("sunset_tint"):
 		# Warm sunset light over the whole world.
 		var tint := CanvasModulate.new()
 		tint.color = Color(1.0, 0.84, 0.9)
 		add_child(tint)
-	elif night and theme_name != "neon":
+	elif theme_name == "autumn":
+		# Golden hour: low warm sun.
+		var gold := CanvasModulate.new()
+		gold.color = Color(1.0, 0.9, 0.76)
+		add_child(gold)
+	elif night and not (theme_name in ["neon", "midnight"]):
 		# Night falls over a daytime track.
 		var dark := CanvasModulate.new()
 		dark.color = Color(0.42, 0.45, 0.66)
@@ -203,6 +253,8 @@ func _draw_ground(ci: Node2D) -> void:
 		_draw_sea(tb, r)
 	elif theme_name == "neon":
 		_draw_city_blocks(tb, r)
+	elif TrackWorlds.is_world(theme_name):
+		TrackWorlds.ground(self, tb, r)
 	tb.flush(ci)
 
 
@@ -259,8 +311,10 @@ func _draw_city_blocks(tb: TriBatch, _r: Rect2) -> void:
 func _draw_road(ci: Node2D) -> void:
 	var tb := TriBatch.new()
 	var hw := data.width * 0.5
+	TrackWorlds.under_road(self, tb, hw)
 	_band(tb, -hw - 3.0, hw + 3.0, color("shoulder"))
 	_band(tb, -hw, hw, color("road"))
+	TrackWorlds.road_extra(self, tb, hw)
 	# Worn racing line: darker band that swings to the inside of corners.
 	var m := data.size()
 	for i in m:
@@ -322,7 +376,8 @@ func _draw_markings(ci: Node2D) -> void:
 	var hw := data.width * 0.5
 	var m := data.size()
 	var line_col := color("line")
-	if data.surface != "dirt":
+	TrackWorlds.markings_extra(self, tb, hw)
+	if data.surface != "dirt" and theme_name != "vector":
 		_band(tb, -hw + 2.0, -hw + 3.0, line_col)
 		_band(tb, hw - 3.0, hw - 2.0, line_col)
 	if pal.get("dashes", false):
@@ -412,6 +467,8 @@ func _draw_barriers(ci: Node2D) -> void:
 		for p in lines:
 			shadow.append(p + Vector2(1.5, 2.0))
 		tb.multiline(shadow, Color(0, 0, 0, 0.35), 3.0)
+		if TrackWorlds.barrier(tb, style, pts, lines):
+			continue
 		match style:
 			"rail":
 				tb.multiline(lines, color("wall_dark"), 3.0)
@@ -469,6 +526,9 @@ func _clear(p: Vector2, r: float, near_idx: int) -> bool:
 		var rect: Rect2 = b["rect"]
 		if rect.grow(r + 4.0).has_point(p):
 			return false
+	for k in range(0, creek.size(), 3):
+		if p.distance_to(creek[k]) < 18.0 + r:
+			return false
 	return true
 
 
@@ -483,8 +543,8 @@ func _place_scenery() -> void:
 			var outer := -signf(k)
 			var p := data.samples[i] + data.normals[i] * outer * (wd + 5.0)
 			_chevrons.append({"pos": p, "dir": data.normals[i] * signf(k)})
-	# Lamps every ~150 px on alternating sides.
-	var step := int(150.0 / TrackData.SPACING)
+	# Lamps every ~150 px on alternating sides (none on the desk or in the void).
+	var step := int(150.0 / TrackData.SPACING) if not (theme_name in ["desk", "vector"]) else m + 1
 	var flip := 1.0
 	for i in range(0, m, step):
 		flip = -flip
@@ -493,6 +553,8 @@ func _place_scenery() -> void:
 			_lamps.append({"pos": p, "toward": -data.normals[i] * flip})
 	if toy:
 		_place_banners()
+	if TrackWorlds.place(self):
+		return
 	match theme_name:
 		"neon":
 			_place_buildings()
@@ -518,7 +580,10 @@ func _scatter(types: Array, count: int, min_gap: float, max_dist: float) -> void
 		var p := data.samples[i] + data.normals[i] * side * dist + Vector2(_rng.randf_range(-10, 10), _rng.randf_range(-10, 10))
 		var type: String = types[_rng.randi_range(0, types.size() - 1)]
 		var r := _rng.randf_range(5.0, 11.0)
-		if type == "rock" or type == "bush":
+		if WORLD_SIZES.has(type):
+			var sz: Array = WORLD_SIZES[type]
+			r = _rng.randf_range(sz[0], sz[1])
+		elif type == "rock" or type == "bush":
 			r = _rng.randf_range(2.5, 5.0)
 		elif type == "log":
 			r = 4.0
@@ -526,11 +591,22 @@ func _scatter(types: Array, count: int, min_gap: float, max_dist: float) -> void
 			r = _rng.randf_range(6.0, 12.0)
 		if theme_name == "mountain" and p.y > _shore - 36.0:
 			continue
-		if not _clear(p, r * 0.6, i):
+		if not _clear(p, r * (0.9 if WORLD_SIZES.has(type) else 0.6), i):
+			continue
+		if r > 12.0 and _overlaps_decor(p, r):
 			continue
 		_decor.append({"type": type, "pos": p.round(), "r": r, "seed": _rng.randi()})
 	# Draw back-to-front (top of screen first) so canopies overlap naturally.
 	_decor.sort_custom(func(a, b): return a["pos"].y < b["pos"].y)
+
+
+## Big props (pencils, mugs, bricks) should not pile up on each other.
+func _overlaps_decor(p: Vector2, r: float) -> bool:
+	for d in _decor:
+		var q: Vector2 = d["pos"]
+		if q.distance_to(p) < (r + float(d["r"])) * 0.85:
+			return true
+	return false
 
 
 func _compute_shore_y() -> float:
@@ -604,9 +680,13 @@ func _draw_scenery(ci: Node2D) -> void:
 	for bn in _banners:
 		_draw_banner(tb, bn)
 	for b in _buildings:
-		_draw_building(tb, b)
+		if theme_name == "midnight":
+			TrackWorlds.city_building(tb, b)
+		else:
+			_draw_building(tb, b)
 	for d in _decor:
-		_draw_decor(tb, d)
+		if not TrackWorlds.decor(self, tb, d):
+			_draw_decor(tb, d)
 	for l in _lamps:
 		var p: Vector2 = l["pos"]
 		var t: Vector2 = l["toward"]
@@ -696,6 +776,10 @@ func _draw_decor(tb: TriBatch, d: Dictionary) -> void:
 
 ## Additive glow pass for the night city: lamps, neon signs, reflections.
 func _draw_glow(ci: Node2D) -> void:
+	if theme_name == "vector":
+		var vt := TriBatch.new()
+		TrackWorlds.vector_glow(self, vt)
+		vt.flush(ci)
 	var tex := FxTextures.radial_light()
 	for l in _lamps:
 		var p: Vector2 = l["pos"]

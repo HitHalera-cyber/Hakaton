@@ -12,6 +12,10 @@ const CONFIGS := [
 	{"players": 2, "mode": "versus", "track": "snow", "view": "split"},
 	{"players": 2, "mode": "coop", "track": "mountain", "view": "shared"},
 	{"players": 2, "mode": "time_attack", "track": "forest", "view": "split"},
+	{"players": 1, "mode": "time_attack", "track": "desk"},
+	{"players": 1, "mode": "drift_attack", "track": "midnight"},
+	{"players": 2, "mode": "versus", "track": "vector", "view": "split"},
+	{"players": 1, "mode": "ghost", "track": "autumn"},
 ]
 const RACE_TIMEOUT := 90.0
 

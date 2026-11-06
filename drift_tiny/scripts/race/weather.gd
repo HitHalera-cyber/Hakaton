@@ -26,6 +26,10 @@ func setup(weather_kind: String, cam: Camera2D) -> void:
 			count = 26
 		"dust":
 			count = 30
+		"leaves":
+			count = 40
+		"data":
+			count = 50
 	count = int(count * float(Game.by_quality([0.0, 0.6, 1.0])))
 	for i in count:
 		_parts.append(_spawn(true))
@@ -40,8 +44,10 @@ func _spawn(anywhere: bool) -> Dictionary:
 			v = Vector2(-40, 260) * _rng.randf_range(0.8, 1.2)
 		"snow":
 			v = Vector2(_rng.randf_range(-12, 6), _rng.randf_range(18, 40))
-		"petals":
+		"petals", "leaves":
 			v = Vector2(_rng.randf_range(8, 22), _rng.randf_range(10, 22))
+		"data":
+			v = Vector2(0, _rng.randf_range(-30, -12))
 		"dust":
 			v = Vector2(_rng.randf_range(-6, 6), _rng.randf_range(-4, 4))
 	return {"p": p, "v": v, "s": _rng.randf_range(0.6, 1.4), "ph": _rng.randf() * TAU}
@@ -63,7 +69,7 @@ func _process(delta: float) -> void:
 		var ph: float = d["ph"] + delta * 2.0
 		d["ph"] = ph
 		var v: Vector2 = d["v"]
-		var sway := Vector2(sin(ph) * 8.0, 0.0) if kind in ["snow", "petals"] else Vector2.ZERO
+		var sway := Vector2(sin(ph) * 8.0, 0.0) if kind in ["snow", "petals", "leaves"] else Vector2.ZERO
 		var p: Vector2 = d["p"] + (v + sway) * delta - cam_delta * parallax
 		if p.y > size.y + 6.0 or p.x < -10.0 or p.x > size.x + 10.0 or p.y < -10.0:
 			var n := _spawn(false)
@@ -103,6 +109,20 @@ func _draw() -> void:
 				var p: Vector2 = d["p"]
 				var flip := sin(float(d["ph"]) * 2.0) > 0.0
 				tb.rect(Rect2(p.floor(), Vector2(2, 1) if flip else Vector2(1, 2)), Color("f7a6cf"))
+		"leaves":
+			var cols := [Color("e0742a"), Color("ffb04a"), Color("d24a3e"), Color("dc9a26")]
+			for d in _parts:
+				var p: Vector2 = d["p"]
+				var flip := sin(float(d["ph"]) * 2.0) > 0.0
+				var c: Color = cols[int(float(d["s"]) * 10.0) % 4]
+				tb.rect(Rect2(p.floor(), Vector2(2, 1) if flip else Vector2(1, 2)), c)
+		"data":
+			var dcols := [Color(0.2, 0.9, 1.0, 0.7), Color(1.0, 0.2, 0.7, 0.7), Color(0.6, 0.4, 1.0, 0.7)]
+			for d in _parts:
+				var p: Vector2 = d["p"]
+				var c: Color = dcols[int(float(d["s"]) * 10.0) % 3]
+				tb.rect(Rect2(p.floor(), Vector2.ONE), c)
+				tb.rect(Rect2(p.floor() + Vector2(0, 2), Vector2.ONE), Color(c, 0.3))
 		"dust":
 			for d in _parts:
 				var p: Vector2 = d["p"]
@@ -118,6 +138,12 @@ static func kind_for_theme(theme: String) -> String:
 			return "snow"
 		"mountain":
 			return "petals"
-		"forest":
+		"forest", "desk":
 			return "dust"
+		"midnight":
+			return "rain"
+		"vector":
+			return "data"
+		"autumn":
+			return "leaves"
 	return "none"

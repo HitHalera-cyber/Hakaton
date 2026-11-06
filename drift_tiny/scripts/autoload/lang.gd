@@ -35,6 +35,9 @@ const RU := {
 	# tracks
 	"Serpentine, sunset, cliffs": "Серпантин, закат, обрывы", "Rain, neon, reflections": "Дождь, неон, отражения",
 	"Dirt, trees, tight turns": "Грунт, деревья, узкие повороты", "Snow, ice, tricky corners": "Снег, лёд, коварные повороты",
+	"Toy track across a desk": "Игрушечная трасса по письменному столу", "Downtown at night, rain": "Ночной центр города под дождём",
+	"Light lines in a digital void": "Линии света в цифровой пустоте", "Autumn forest, creek, sunset": "Осенний лес, ручей, закат",
+	"Plastic": "Пластик",
 	# garage
 	"TUNING": "ТЮНИНГ", "PAINT": "ПОКРАСКА", "RIMS": "ДИСКИ", "DECAL": "НАКЛЕЙКА",
 	"ENGINE": "ДВИГАТЕЛЬ", "TYRES": "ШИНЫ", "SUSPENSION": "ПОДВЕСКА", "BRAKES": "ТОРМОЗА",

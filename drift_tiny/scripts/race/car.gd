@@ -346,7 +346,15 @@ func _surface() -> Dictionary:
 	if track == null:
 		return {"grip": grip, "drag": drag, "speed": spd}
 	if not on_road:
-		surface_name = "snowbank" if track.surface == "snow" else ("sand" if track.theme == "neon" else "grass")
+		match track.theme:
+			"neon", "midnight":
+				surface_name = "pavement"
+			"desk":
+				surface_name = "wood"
+			"vector":
+				surface_name = "grid"
+			_:
+				surface_name = "snowbank" if track.surface == "snow" else "grass"
 		grip = 0.65
 		drag = 1.6 if track.surface == "snow" else 1.2
 		spd = 0.6
@@ -356,6 +364,8 @@ func _surface() -> Dictionary:
 		match track.surface:
 			"wet":
 				grip = 0.86
+			"plastic":
+				grip = 0.95
 			"dirt":
 				grip = 0.8
 				loose = true
