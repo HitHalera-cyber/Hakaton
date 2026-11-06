@@ -50,6 +50,10 @@ func default_data() -> Dictionary:
 			"camera_shake": true,
 			"pad_layout": 0,
 			"show_ghost": true,
+			"language": "",
+			"quality": 2,
+			"style": "neon_sunset",
+			"show_fps": false,
 		},
 	}
 

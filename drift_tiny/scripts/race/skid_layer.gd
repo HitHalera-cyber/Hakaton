@@ -3,7 +3,7 @@ extends Node2D
 ## Tyre marks. A fixed ring buffer of segments, drawn in a handful of
 ## draw_multiline calls (one per alpha band) so thousands of marks stay cheap.
 
-const MAX_SEGMENTS := 3600
+var max_segments := 3600
 const BANDS := 3
 
 var mark_color := Color(0.06, 0.06, 0.08)
@@ -16,9 +16,10 @@ var _dirty := false
 
 func _ready() -> void:
 	z_index = 1
+	max_segments = int(Game.by_quality([1200, 2400, 3600]))
 	for b in BANDS * 2:
 		var arr := PackedVector2Array()
-		arr.resize(MAX_SEGMENTS / BANDS * 2)
+		arr.resize(max_segments / BANDS * 2)
 		arr.fill(Vector2.ZERO)
 		_points.append(arr)
 		_cursor.append(0)

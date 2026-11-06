@@ -17,7 +17,7 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var svc := SubViewportContainer.new()
 	svc.stretch = true
-	svc.stretch_shrink = 2
+	GraphicsStyle.apply_to_view(svc)
 	svc.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	svc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	svc.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)

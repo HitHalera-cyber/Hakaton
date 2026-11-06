@@ -60,14 +60,23 @@ var _buildings: Array = []
 var _lamps: Array = []
 var _chevrons: Array = []
 var _shore := INF
+var toy := false             # "Toy Racer" style: banners, tyre walls, more curbs
+var _banners: Array = []
 
 
 func build(track_data: TrackData) -> void:
 	data = track_data
 	theme_name = data.theme
-	night = theme_name == "neon"
+	night = theme_name == "neon" or GraphicsStyle.flag("night")
+	toy = GraphicsStyle.flag("toy")
 	pal = {}
 	var raw: Dictionary = THEMES.get(theme_name, THEMES["mountain"])
+	if GraphicsStyle.flag("toy"):
+		# Toy box palette: sandy track, bright lawn, white lines.
+		raw = raw.duplicate()
+		raw.merge({"ground": "4fae4a", "ground_dark": "449a40", "ground_light": "62c25a",
+				"road": "c89664", "road_dark": "b4844f", "road_light": "d8a876", "shoulder": "8e6a44",
+				"line": "f4f4f4", "dashes": true}, true)
 	for k in raw.keys():
 		# Everything except the few non-colour settings is a hex colour.
 		var is_color: bool = typeof(raw[k]) == TYPE_STRING and k != "wall_style"
@@ -83,13 +92,18 @@ func build(track_data: TrackData) -> void:
 	_add_layer("Markings", -7, _draw_markings)
 	_add_layer("Barriers", 3, _draw_barriers)
 	_add_layer("Scenery", 6, _draw_scenery)
-	if night:
+	if night and Game.quality() > 0:
 		_add_layer("Glow", 7, _draw_glow, false, true)
-	if theme_name == "mountain":
+	if theme_name == "mountain" and GraphicsStyle.flag("sunset_tint"):
 		# Warm sunset light over the whole world.
 		var tint := CanvasModulate.new()
 		tint.color = Color(1.0, 0.84, 0.9)
 		add_child(tint)
+	elif night and theme_name != "neon":
+		# Night falls over a daytime track.
+		var dark := CanvasModulate.new()
+		dark.color = Color(0.42, 0.45, 0.66)
+		add_child(dark)
 
 
 func _add_layer(layer_name: String, z: int, painter: Callable, repeat := false, additive := false) -> Node2D:
@@ -145,58 +159,58 @@ func _segments(pts: PackedVector2Array) -> PackedVector2Array:
 	return segs
 
 
-# --- strip helper -------------------------------------------------------------
+# --- strip helpers (into a TriBatch) -------------------------------------------------------------
 
 ## Fills the band between two offsets from the centre line (closed loop).
-## Uses raw triangles, so folded inner corners never break triangulation.
-func _band(ci: CanvasItem, off_a: float, off_b: float, col: Color, from_i := 0, to_i := -1) -> void:
+## Plain triangles, so folded inner corners never break triangulation.
+func _band(tb: TriBatch, off_a: float, off_b: float, col: Color, from_i := 0, to_i := -1) -> void:
 	var m := data.size()
 	if to_i < 0:
 		to_i = m
-	var pts := PackedVector2Array()
-	var cols := PackedColorArray()
-	var idx := PackedInt32Array()
-	var count := 0
-	for k in range(from_i, to_i + 1):
+	var s := data.samples
+	var nr := data.normals
+	for k in range(from_i, to_i):
 		var i := posmod(k, m)
-		pts.append(data.samples[i] + data.normals[i] * off_a)
-		pts.append(data.samples[i] + data.normals[i] * off_b)
-		cols.append(col)
-		cols.append(col)
-		if count > 0:
-			var b := count * 2
-			idx.append_array(PackedInt32Array([b - 2, b - 1, b, b - 1, b + 1, b]))
-		count += 1
-	if idx.is_empty():
-		return
-	RenderingServer.canvas_item_add_triangle_array(ci.get_canvas_item(), idx, pts, cols)
+		var j := posmod(k + 1, m)
+		tb.quad(s[i] + nr[i] * off_a, s[j] + nr[j] * off_a, s[j] + nr[j] * off_b, s[i] + nr[i] * off_b, col)
 
 
-func _quad(ci: CanvasItem, i: int, j: int, off_a: float, off_b: float, col: Color) -> void:
+func _quad(tb: TriBatch, i: int, j: int, off_a: float, off_b: float, col: Color) -> void:
 	var s := data.samples
 	var n := data.normals
-	var pts := PackedVector2Array([s[i] + n[i] * off_a, s[j] + n[j] * off_a, s[j] + n[j] * off_b, s[i] + n[i] * off_b])
-	RenderingServer.canvas_item_add_triangle_array(ci.get_canvas_item(), PackedInt32Array([0, 1, 2, 0, 2, 3]),
-			pts, PackedColorArray([col, col, col, col]))
+	tb.quad(s[i] + n[i] * off_a, s[j] + n[j] * off_a, s[j] + n[j] * off_b, s[i] + n[i] * off_b, col)
 
 
 # --- painters -------------------------------------------------------------
 
 func _draw_ground(ci: Node2D) -> void:
+	var tb := TriBatch.new()
 	var tex := FxTextures.ground(theme_name, color("ground"), color("ground_dark"), color("ground_light"), hash(theme_name))
 	var r := data.bounds
 	ci.draw_texture_rect(tex, r, true)
+	if toy:
+		# Mowed-lawn checkerboard.
+		var cell := 24.0
+		var y := floorf(r.position.y / cell) * cell
+		while y < r.end.y:
+			var x := floorf(r.position.x / cell) * cell
+			while x < r.end.x:
+				if int(x / cell + y / cell) % 2 == 0:
+					tb.rect(Rect2(x, y, cell, cell), Color(1, 1, 1, 0.07))
+				x += cell
+			y += cell
 	if theme_name == "mountain":
-		_draw_sea(ci, r)
+		_draw_sea(tb, r)
 	elif theme_name == "neon":
-		_draw_city_blocks(ci, r)
+		_draw_city_blocks(tb, r)
+	tb.flush(ci)
 
 
-func _draw_sea(ci: Node2D, r: Rect2) -> void:
+func _draw_sea(tb: TriBatch, r: Rect2) -> void:
 	# The sea lies south of the track, beyond a rocky cliff edge.
 	var shore := _shore
 	var sea := Rect2(r.position.x, shore, r.size.x, r.end.y - shore + 400.0)
-	ci.draw_rect(sea, Color("2c3f86"))
+	tb.rect(sea, Color("2c3f86"))
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 7
 	# Sunset reflection: warm streaks under the sun's position.
@@ -205,11 +219,11 @@ func _draw_sea(ci: Node2D, r: Rect2) -> void:
 		var y := shore + 14.0 + i * 5.0
 		var w := 40.0 + rng.randf() * 120.0 * (1.0 - i / 90.0)
 		var c := Color("ff9a5a").lerp(Color("c05a8a"), i / 70.0)
-		ci.draw_rect(Rect2(sun_x - w * 0.5 + rng.randf_range(-20, 20), y, w, 1.0), c)
+		tb.rect(Rect2(sun_x - w * 0.5 + rng.randf_range(-20, 20), y, w, 1.0), c)
 	for i in 260:
 		var x := r.position.x + rng.randf() * r.size.x
 		var y := shore + 10.0 + rng.randf() * (sea.size.y - 10.0)
-		ci.draw_rect(Rect2(x, y, rng.randf_range(3, 10), 1.0), Color("4a64b0"))
+		tb.rect(Rect2(x, y, rng.randf_range(3, 10), 1.0), Color("4a64b0"))
 	# Cliff: jagged band of rock between grass and water (drawn as columns,
 	# so no polygon triangulation is involved).
 	var x0 := r.position.x
@@ -218,34 +232,35 @@ func _draw_sea(ci: Node2D, r: Rect2) -> void:
 		var w := rng.randf_range(6, 14)
 		var top := shore - 24.0 + rng.randf_range(-8, 8)
 		var bottom := shore + rng.randf_range(2, 10)
-		ci.draw_rect(Rect2(x, top, w + 1.0, bottom - top), Color("6b5f70"))
+		tb.rect(Rect2(x, top, w + 1.0, bottom - top), Color("6b5f70"))
 		x += w
 	for i in 120:
 		var px := x0 + rng.randf() * r.size.x
-		ci.draw_rect(Rect2(px, shore - 18.0 + rng.randf() * 22.0, 3, 2), Color("8a7e8e") if i % 2 == 0 else Color("4e4456"))
+		tb.rect(Rect2(px, shore - 18.0 + rng.randf() * 22.0, 3, 2), Color("8a7e8e") if i % 2 == 0 else Color("4e4456"))
 	for i in 160:
 		var px := x0 + rng.randf() * r.size.x
-		ci.draw_rect(Rect2(px, shore + 6.0 + rng.randf() * 4.0, rng.randf_range(2, 6), 1.0), Color(1, 1, 1, 0.6))
+		tb.rect(Rect2(px, shore + 6.0 + rng.randf() * 4.0, rng.randf_range(2, 6), 1.0), Color(1, 1, 1, 0.6))
 
 
-func _draw_city_blocks(ci: Node2D, _r: Rect2) -> void:
+func _draw_city_blocks(tb: TriBatch, _r: Rect2) -> void:
 	# Pavement grid lines on the ground read as city blocks from above.
 	var r := data.bounds
 	var c := Color("221f3c")
 	var x := r.position.x
 	while x < r.end.x:
-		ci.draw_rect(Rect2(x, r.position.y, 1, r.size.y), c)
+		tb.rect(Rect2(x, r.position.y, 1, r.size.y), c)
 		x += 32.0
 	var y := r.position.y
 	while y < r.end.y:
-		ci.draw_rect(Rect2(r.position.x, y, r.size.x, 1), c)
+		tb.rect(Rect2(r.position.x, y, r.size.x, 1), c)
 		y += 32.0
 
 
 func _draw_road(ci: Node2D) -> void:
+	var tb := TriBatch.new()
 	var hw := data.width * 0.5
-	_band(ci, -hw - 3.0, hw + 3.0, color("shoulder"))
-	_band(ci, -hw, hw, color("road"))
+	_band(tb, -hw - 3.0, hw + 3.0, color("shoulder"))
+	_band(tb, -hw, hw, color("road"))
 	# Worn racing line: darker band that swings to the inside of corners.
 	var m := data.size()
 	for i in m:
@@ -258,8 +273,7 @@ func _draw_road(ci: Node2D) -> void:
 				s[j] + n[j] * (shift_j + 7.0), s[i] + n[i] * (shift_i + 7.0)])
 		var col := color("road_dark")
 		col.a = 0.45
-		RenderingServer.canvas_item_add_triangle_array(ci.get_canvas_item(), PackedInt32Array([0, 1, 2, 0, 2, 3]),
-				pts, PackedColorArray([col, col, col, col]))
+		tb.quad(pts[0], pts[1], pts[2], pts[3], col)
 	# Grain of the surface.
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(data.id) + 3
@@ -268,15 +282,15 @@ func _draw_road(ci: Node2D) -> void:
 		var i := rng.randi_range(0, m - 1)
 		var p := data.samples[i] + data.normals[i] * rng.randf_range(-hw + 1.0, hw - 1.0)
 		var c := color("road_light") if rng.randf() < 0.5 else color("road_dark")
-		ci.draw_rect(Rect2(p.floor(), Vector2.ONE * (2.0 if rng.randf() < 0.15 else 1.0)), c)
+		tb.rect(Rect2(p.floor(), Vector2.ONE * (2.0 if rng.randf() < 0.15 else 1.0)), c)
 	match data.surface:
 		"dirt":
 			for off in [-9.0, 9.0]:
-				_band(ci, off - 1.5, off + 1.5, Color(color("road_dark"), 0.8))
+				_band(tb, off - 1.5, off + 1.5, Color(color("road_dark"), 0.8))
 			for k in 260:
 				var i := rng.randi_range(0, m - 1)
 				var p := data.samples[i] + data.normals[i] * rng.randf_range(-hw, hw)
-				ci.draw_rect(Rect2(p.floor(), Vector2(2, 2)), Color("6a6a6e"))
+				tb.rect(Rect2(p.floor(), Vector2(2, 2)), Color("6a6a6e"))
 		"snow":
 			# Packed snow drifting onto the edges, ice on corner exits.
 			for side in [-1.0, 1.0]:
@@ -286,12 +300,12 @@ func _draw_road(ci: Node2D) -> void:
 						continue
 					var j := (i + 2) % m
 					if side < 0:
-						_quad(ci, i, j, -hw, -hw + depth, color("ground_light"))
+						_quad(tb, i, j, -hw, -hw + depth, color("ground_light"))
 					else:
-						_quad(ci, i, j, hw - depth, hw, color("ground_light"))
+						_quad(tb, i, j, hw - depth, hw, color("ground_light"))
 			for rgi in data.ice_ranges:
-				_band(ci, -hw * 0.8, hw * 0.7, Color(0.75, 0.9, 1.0, 0.55), int(rgi[0]), int(rgi[1]))
-				_band(ci, -hw * 0.3, -hw * 0.1, Color(1, 1, 1, 0.45), int(rgi[0]) + 2, int(rgi[1]) - 2)
+				_band(tb, -hw * 0.8, hw * 0.7, Color(0.75, 0.9, 1.0, 0.55), int(rgi[0]), int(rgi[1]))
+				_band(tb, -hw * 0.3, -hw * 0.1, Color(1, 1, 1, 0.45), int(rgi[0]) + 2, int(rgi[1]) - 2)
 		"wet":
 			for k in 90:
 				var i := rng.randi_range(0, m - 1)
@@ -299,30 +313,35 @@ func _draw_road(ci: Node2D) -> void:
 				var t := data.tangents[i]
 				var streak := rng.randf_range(6, 18)
 				var pts := PackedVector2Array([p - t * streak, p + Vector2(-t.y, t.x) * 3.0, p + t * streak, p - Vector2(-t.y, t.x) * 3.0])
-				ci.draw_colored_polygon(pts, Color(0.35, 0.34, 0.6, 0.5))
+				tb.polygon(pts, Color(0.35, 0.34, 0.6, 0.5))
+	tb.flush(ci)
 
 
 func _draw_markings(ci: Node2D) -> void:
+	var tb := TriBatch.new()
 	var hw := data.width * 0.5
 	var m := data.size()
 	var line_col := color("line")
 	if data.surface != "dirt":
-		_band(ci, -hw + 2.0, -hw + 3.0, line_col)
-		_band(ci, hw - 3.0, hw - 2.0, line_col)
+		_band(tb, -hw + 2.0, -hw + 3.0, line_col)
+		_band(tb, hw - 3.0, hw - 2.0, line_col)
 	if pal.get("dashes", false):
 		for i in m:
 			if fmod(data.cum_len[i], 26.0) < 12.0:
-				_quad(ci, i, (i + 1) % m, -0.5, 0.5, Color(line_col, 0.85))
+				_quad(tb, i, (i + 1) % m, -0.5, 0.5, Color(line_col, 0.85))
 	# Curbs on the outside (and inside) of tight corners.
 	for i in m:
 		var k := absf(data.curvature[i])
-		if k < 1.0 / 170.0:
+		if k < (1.0 / 420.0 if toy else 1.0 / 170.0):
 			continue
-		var stripe := int(data.cum_len[i] / 7.0) % 2 == 0
+		var stripe := int(data.cum_len[i] / (10.0 if toy else 7.0)) % 2 == 0
 		var c := color("curb_a") if stripe else color("curb_b")
+		if toy:
+			c = Color("e8313f") if stripe else Color("f4f4f4")
 		var j := (i + 1) % m
-		_quad(ci, i, j, hw, hw + 4.0, c)
-		_quad(ci, i, j, -hw - 4.0, -hw, c)
+		var cw := 6.0 if toy else 4.0
+		_quad(tb, i, j, hw, hw + cw, c)
+		_quad(tb, i, j, -hw - cw, -hw, c)
 	# Start / finish: checker strip across the road at sample 0.
 	var s0 := data.samples[0]
 	var t0 := data.tangents[0]
@@ -335,19 +354,21 @@ func _draw_markings(ci: Node2D) -> void:
 			var col := Color("141418") if black else Color("f2f2f2")
 			var pts := PackedVector2Array([
 				center + (-t0 - n0) * 2.0, center + (t0 - n0) * 2.0, center + (t0 + n0) * 2.0, center + (-t0 + n0) * 2.0])
-			ci.draw_colored_polygon(pts, col)
+			tb.polygon(pts, col)
 	# Grid boxes.
 	for slot in 4:
 		var g := data.grid_slot(slot)
 		var p: Vector2 = g["position"]
 		var a: float = g["rotation"]
-		ci.draw_set_transform(p, a, Vector2.ONE)
-		ci.draw_rect(Rect2(-9, -6, 18, 12), Color(1, 1, 1, 0.7), false, 1.0)
-		ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		tb.set_transform(p, a, Vector2.ONE)
+		tb.rect(Rect2(-9, -6, 18, 12), Color(1, 1, 1, 0.7), false, 1.0)
+		tb.reset_transform()
+	tb.flush(ci)
 
 
 func _draw_barriers(ci: Node2D) -> void:
-	var style: String = pal.get("wall_style", "rail")
+	var tb := TriBatch.new()
+	var style: String = "tires" if toy else str(pal.get("wall_style", "rail"))
 	for side_pts in [wall_left, wall_right]:
 		var pts: PackedVector2Array = side_pts
 		var n := pts.size()
@@ -363,36 +384,45 @@ func _draw_barriers(ci: Node2D) -> void:
 		var shadow := PackedVector2Array()
 		for p in lines:
 			shadow.append(p + Vector2(1.5, 2.0))
-		ci.draw_multiline(shadow, Color(0, 0, 0, 0.35), 3.0)
+		tb.multiline(shadow, Color(0, 0, 0, 0.35), 3.0)
 		match style:
 			"rail":
-				ci.draw_multiline(lines, color("wall_dark"), 3.0)
-				ci.draw_multiline(lines, color("wall"), 1.5)
+				tb.multiline(lines, color("wall_dark"), 3.0)
+				tb.multiline(lines, color("wall"), 1.5)
 				for i in range(0, n, 3):
-					ci.draw_rect(Rect2(pts[i] - Vector2(1, 1), Vector2(2, 2)), color("wall_dark"))
+					tb.rect(Rect2(pts[i] - Vector2(1, 1), Vector2(2, 2)), color("wall_dark"))
 			"concrete":
-				ci.draw_multiline(lines, color("wall_dark"), 4.0)
-				ci.draw_multiline(lines, color("wall"), 2.0)
+				tb.multiline(lines, color("wall_dark"), 4.0)
+				tb.multiline(lines, color("wall"), 2.0)
 				for i in range(0, n, 4):
 					var col := Color("ffd84a") if (i / 4) % 2 == 0 else Color("1a1a24")
-					ci.draw_rect(Rect2(pts[i] - Vector2(1, 1), Vector2(2, 2)), col)
+					tb.rect(Rect2(pts[i] - Vector2(1, 1), Vector2(2, 2)), col)
+			"tires":
+				# Stacks of old tyres, like a toy race track.
+				for i in range(0, n, 1):
+					var tp := pts[i]
+					tb.circle(tp + Vector2(1, 1.5), 2.6, Color(0, 0, 0, 0.35))
+					tb.circle(tp, 2.6, Color("1c1c22"))
+					tb.circle(tp + Vector2(-0.6, -0.6), 1.0, Color("4a4a56"))
 			"fence":
-				ci.draw_multiline(lines, color("wall_dark"), 2.0)
-				ci.draw_multiline(lines, color("wall"), 1.0)
+				tb.multiline(lines, color("wall_dark"), 2.0)
+				tb.multiline(lines, color("wall"), 1.0)
 				for i in range(0, n, 2):
-					ci.draw_rect(Rect2(pts[i] - Vector2(1.5, 1.5), Vector2(3, 3)), color("wall_dark"))
+					tb.rect(Rect2(pts[i] - Vector2(1.5, 1.5), Vector2(3, 3)), color("wall_dark"))
 	# Chevron signs at sharp corners (yellow arrows like a real mountain road).
 	for ch in _chevrons:
 		var p: Vector2 = ch["pos"]
 		var dir: Vector2 = ch["dir"]
-		ci.draw_set_transform(p, dir.angle(), Vector2.ONE)
-		ci.draw_rect(Rect2(-3, -4, 6, 8), Color("1a1a1a"))
-		ci.draw_rect(Rect2(-2.5, -3.5, 5, 7), Color("f2c230"))
-		ci.draw_polyline(PackedVector2Array([Vector2(-1.5, -2.5), Vector2(1, 0), Vector2(-1.5, 2.5)]), Color("1a1a1a"), 1.0)
-		ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		tb.set_transform(p, dir.angle(), Vector2.ONE)
+		tb.rect(Rect2(-3, -4, 6, 8), Color("1a1a1a"))
+		tb.rect(Rect2(-2.5, -3.5, 5, 7), Color("f2c230"))
+		tb.polyline(PackedVector2Array([Vector2(-1.5, -2.5), Vector2(1, 0), Vector2(-1.5, 2.5)]), Color("1a1a1a"), 1.0)
+		tb.reset_transform()
 
 
 # --- scenery ----------------------------------------------------------------
+	tb.flush(ci)
+
 
 func _wall_dist() -> float:
 	return data.width * 0.5 + TrackData.WALL_MARGIN
@@ -434,6 +464,8 @@ func _place_scenery() -> void:
 		var p := data.samples[i] + data.normals[i] * flip * (wd + 7.0)
 		if _clear(p, 0.0, i):
 			_lamps.append({"pos": p, "toward": -data.normals[i] * flip})
+	if toy:
+		_place_banners()
 	match theme_name:
 		"neon":
 			_place_buildings()
@@ -447,6 +479,7 @@ func _place_scenery() -> void:
 
 
 func _scatter(types: Array, count: int, min_gap: float, max_dist: float) -> void:
+	count = int(count * float(Game.by_quality([0.5, 0.8, 1.0])))
 	var m := data.size()
 	var wd := _wall_dist()
 	var tries := 0
@@ -511,95 +544,127 @@ func _place_buildings() -> void:
 		})
 
 
+func _place_banners() -> void:
+	var m := data.size()
+	var wd := _wall_dist()
+	var cols := [Color("2f5fd8"), Color("f2c230"), Color("e8313f"), Color("2fae5a"), Color("f4f4f4")]
+	var i := 20
+	while i < m:
+		var side := -1.0 if (i / 60) % 2 == 0 else 1.0
+		var p := data.samples[i] + data.normals[i] * side * (wd + 12.0)
+		if _clear(p, 8.0, i):
+			_banners.append({"pos": p, "angle": data.tangents[i].angle(), "color": cols[_rng.randi_range(0, cols.size() - 1)],
+					"word": NEON_WORDS[_rng.randi_range(0, NEON_WORDS.size() - 1)]})
+		i += 45
+
+
+## Sponsor banners standing along the track (Toy Racer style).
+func _draw_banner(tb: TriBatch, b: Dictionary) -> void:
+	var col: Color = b["color"]
+	var word: String = b["word"]
+	var w := PixelText.width_of(word) + 8.0
+	tb.set_transform(b["pos"], b["angle"])
+	tb.rect(Rect2(-w * 0.5 + 2, -4, w, 10), Color(0, 0, 0, 0.35))
+	tb.rect(Rect2(-w * 0.5, -6, w, 10), Color("1a1a1a"))
+	tb.rect(Rect2(-w * 0.5 + 1, -5, w - 2, 8), col)
+	var txt := Color("1a1a1a") if col.get_luminance() > 0.6 else Color.WHITE
+	PixelText.draw(tb, Vector2(-w * 0.5 + 4, -3.5), word, txt, 1.0, false)
+	tb.reset_transform()
+
+
 func _draw_scenery(ci: Node2D) -> void:
+	var tb := TriBatch.new()
+	for bn in _banners:
+		_draw_banner(tb, bn)
 	for b in _buildings:
-		_draw_building(ci, b)
+		_draw_building(tb, b)
 	for d in _decor:
-		_draw_decor(ci, d)
+		_draw_decor(tb, d)
 	for l in _lamps:
 		var p: Vector2 = l["pos"]
 		var t: Vector2 = l["toward"]
-		ci.draw_rect(Rect2(p + Vector2(1, 2), Vector2(2, 2)), Color(0, 0, 0, 0.35))
-		ci.draw_rect(Rect2(p - Vector2(1, 1), Vector2(2, 2)), Color("3a3a48"))
+		tb.rect(Rect2(p + Vector2(1, 2), Vector2(2, 2)), Color(0, 0, 0, 0.35))
+		tb.rect(Rect2(p - Vector2(1, 1), Vector2(2, 2)), Color("3a3a48"))
 		var head := p + t * 4.0
-		ci.draw_line(p, head, Color("3a3a48"), 1.0)
-		ci.draw_rect(Rect2(head - Vector2(1, 1), Vector2(2, 2)), color("lamp"))
+		tb.line(p, head, Color("3a3a48"), 1.0)
+		tb.rect(Rect2(head - Vector2(1, 1), Vector2(2, 2)), color("lamp"))
 		if not night:
-			ci.draw_circle(head + t * 2.0, 5.0, Color(color("lamp"), 0.12))
+			tb.circle(head + t * 2.0, 5.0, Color(color("lamp"), 0.12))
+	tb.flush(ci)
 
 
-func _draw_building(ci: Node2D, b: Dictionary) -> void:
+func _draw_building(tb: TriBatch, b: Dictionary) -> void:
 	var rect: Rect2 = b["rect"]
 	var rng := RandomNumberGenerator.new()
 	rng.seed = b["seed"]
-	ci.draw_rect(Rect2(rect.position + Vector2(4, 5), rect.size), Color(0, 0, 0, 0.45))
-	ci.draw_rect(rect, Color("16132a"))
-	ci.draw_rect(rect.grow(-2.0), b["roof"])
+	tb.rect(Rect2(rect.position + Vector2(4, 5), rect.size), Color(0, 0, 0, 0.45))
+	tb.rect(rect, Color("16132a"))
+	tb.rect(rect.grow(-2.0), b["roof"])
 	# Roof clutter: AC units, vents, water tanks.
 	for i in rng.randi_range(2, 6):
 		var s := Vector2(rng.randi_range(4, 9), rng.randi_range(3, 7))
 		var p := rect.position + Vector2(rng.randf_range(4, rect.size.x - s.x - 4), rng.randf_range(4, rect.size.y - s.y - 4))
-		ci.draw_rect(Rect2(p.round() + Vector2(1, 1), s), Color(0, 0, 0, 0.35))
-		ci.draw_rect(Rect2(p.round(), s), Color("4a4570"))
-		ci.draw_rect(Rect2(p.round(), Vector2(s.x, 1)), Color("625c8c"))
+		tb.rect(Rect2(p.round() + Vector2(1, 1), s), Color(0, 0, 0, 0.35))
+		tb.rect(Rect2(p.round(), s), Color("4a4570"))
+		tb.rect(Rect2(p.round(), Vector2(s.x, 1)), Color("625c8c"))
 	# Neon outline + sign.
 	var neon: Color = b["neon"]
-	ci.draw_rect(rect.grow(-1.0), neon, false, 1.0)
+	tb.rect(rect.grow(-1.0), neon, false, 1.0)
 	var word: String = b["word"]
 	var scale := 2.0 if rect.size.x > PixelText.width_of(word, 2.0) + 10.0 else 1.0
-	PixelText.draw_centered(ci, rect.get_center(), word, neon, scale)
+	PixelText.draw_centered(tb, rect.get_center(), word, neon, scale)
 
 
-func _draw_decor(ci: Node2D, d: Dictionary) -> void:
+func _draw_decor(tb: TriBatch, d: Dictionary) -> void:
 	var p: Vector2 = d["pos"]
 	var r: float = d["r"]
 	var rng := RandomNumberGenerator.new()
 	rng.seed = d["seed"]
 	match d["type"]:
 		"pine", "tree":
-			ci.draw_circle(p + Vector2(3, 4), r, Color(0, 0, 0, 0.3))
-			ci.draw_circle(p, r, color("tree_dark"))
-			ci.draw_circle(p + Vector2(-1, -1), r * 0.75, color("tree"))
-			ci.draw_circle(p + Vector2(-2, -2), r * 0.4, color("tree_light"))
-			ci.draw_rect(Rect2(p - Vector2(0.5, 0.5), Vector2(1, 1)), color("tree_dark"))
+			tb.circle(p + Vector2(3, 4), r, Color(0, 0, 0, 0.3))
+			tb.circle(p, r, color("tree_dark"))
+			tb.circle(p + Vector2(-1, -1), r * 0.75, color("tree"))
+			tb.circle(p + Vector2(-2, -2), r * 0.4, color("tree_light"))
+			tb.rect(Rect2(p - Vector2(0.5, 0.5), Vector2(1, 1)), color("tree_dark"))
 		"snowpine":
-			ci.draw_circle(p + Vector2(3, 4), r, Color(0.2, 0.25, 0.4, 0.25))
-			ci.draw_circle(p, r, color("tree_dark"))
-			ci.draw_circle(p + Vector2(-1, -1), r * 0.75, color("tree"))
+			tb.circle(p + Vector2(3, 4), r, Color(0.2, 0.25, 0.4, 0.25))
+			tb.circle(p, r, color("tree_dark"))
+			tb.circle(p + Vector2(-1, -1), r * 0.75, color("tree"))
 			for i in 5:
 				var o := Vector2(rng.randf_range(-r * 0.6, r * 0.4), rng.randf_range(-r * 0.6, r * 0.4))
-				ci.draw_circle(p + o, r * rng.randf_range(0.2, 0.35), color("tree_light"))
+				tb.circle(p + o, r * rng.randf_range(0.2, 0.35), color("tree_light"))
 		"blossom":
-			ci.draw_circle(p + Vector2(3, 4), r, Color(0, 0, 0, 0.3))
-			ci.draw_circle(p, r, color("accent_dark"))
+			tb.circle(p + Vector2(3, 4), r, Color(0, 0, 0, 0.3))
+			tb.circle(p, r, color("accent_dark"))
 			for i in 6:
 				var o := Vector2(rng.randf_range(-r * 0.6, r * 0.5), rng.randf_range(-r * 0.6, r * 0.5))
-				ci.draw_circle(p + o, r * rng.randf_range(0.3, 0.5), color("accent"))
-			ci.draw_circle(p + Vector2(-r * 0.3, -r * 0.3), r * 0.25, Color("ffd6ea"))
+				tb.circle(p + o, r * rng.randf_range(0.3, 0.5), color("accent"))
+			tb.circle(p + Vector2(-r * 0.3, -r * 0.3), r * 0.25, Color("ffd6ea"))
 		"rock":
-			ci.draw_circle(p + Vector2(1, 2), r, Color(0, 0, 0, 0.3))
-			ci.draw_circle(p, r, color("rock"))
-			ci.draw_circle(p + Vector2(-0.5, -0.5), r * 0.6, color("rock").lightened(0.2))
+			tb.circle(p + Vector2(1, 2), r, Color(0, 0, 0, 0.3))
+			tb.circle(p, r, color("rock"))
+			tb.circle(p + Vector2(-0.5, -0.5), r * 0.6, color("rock").lightened(0.2))
 			if theme_name == "snow":
-				ci.draw_circle(p + Vector2(-0.5, -1.0), r * 0.5, Color.WHITE)
+				tb.circle(p + Vector2(-0.5, -1.0), r * 0.5, Color.WHITE)
 		"bush":
-			ci.draw_circle(p + Vector2(1, 2), r, Color(0, 0, 0, 0.3))
-			ci.draw_circle(p, r, color("tree"))
-			ci.draw_circle(p + Vector2(-1, -1), r * 0.5, color("tree_light"))
+			tb.circle(p + Vector2(1, 2), r, Color(0, 0, 0, 0.3))
+			tb.circle(p, r, color("tree"))
+			tb.circle(p + Vector2(-1, -1), r * 0.5, color("tree_light"))
 			if rng.randf() < 0.4:
-				ci.draw_rect(Rect2(p + Vector2(1, 0), Vector2(1, 1)), color("accent"))
+				tb.rect(Rect2(p + Vector2(1, 0), Vector2(1, 1)), color("accent"))
 		"log":
 			var a := rng.randf() * PI
-			ci.draw_set_transform(p, a, Vector2.ONE)
-			ci.draw_rect(Rect2(-7, -1, 14, 4), Color(0, 0, 0, 0.3))
-			ci.draw_rect(Rect2(-7, -2, 14, 4), Color("6a4528"))
-			ci.draw_rect(Rect2(-7, -2, 14, 1), Color("8a6038"))
-			ci.draw_rect(Rect2(6, -2, 1, 4), Color("c09060"))
-			ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+			tb.set_transform(p, a, Vector2.ONE)
+			tb.rect(Rect2(-7, -1, 14, 4), Color(0, 0, 0, 0.3))
+			tb.rect(Rect2(-7, -2, 14, 4), Color("6a4528"))
+			tb.rect(Rect2(-7, -2, 14, 1), Color("8a6038"))
+			tb.rect(Rect2(6, -2, 1, 4), Color("c09060"))
+			tb.reset_transform()
 		"bank":
-			ci.draw_circle(p + Vector2(1, 2), r, Color(0.5, 0.6, 0.8, 0.25))
-			ci.draw_circle(p, r, color("ground_light"))
-			ci.draw_circle(p + Vector2(r * 0.3, r * 0.3), r * 0.5, color("ground_dark"))
+			tb.circle(p + Vector2(1, 2), r, Color(0.5, 0.6, 0.8, 0.25))
+			tb.circle(p, r, color("ground_light"))
+			tb.circle(p + Vector2(r * 0.3, r * 0.3), r * 0.5, color("ground_dark"))
 
 
 ## Additive glow pass for the night city: lamps, neon signs, reflections.

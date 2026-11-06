@@ -61,7 +61,7 @@ func _exit_tree() -> void:
 
 
 func _on_achievement(_id: String, title: String) -> void:
-	_achievement_notes.append("Achievement: " + title)
+	_achievement_notes.append(tr("Achievement: ") + tr(title))
 
 
 # --- setup --------------------------------------------------------------------
@@ -193,17 +193,17 @@ func mode_line(car: Car) -> String:
 			var team := 0
 			for h in humans:
 				team += (h as Car).scoring.total
-			return "TEAM %s" % RaceHUD._fmt_points(team)
+			return tr("TEAM %s") % RaceHUD._fmt_points(team)
 		"ghost":
 			if _ghost_best > 0.0:
-				return "GHOST %s" % RaceHUD.format_time(_ghost_best)
-			return "SET A LAP TO RACE YOUR GHOST"
+				return tr("GHOST %s") % RaceHUD.format_time(_ghost_best)
+			return tr("SET A LAP TO RACE YOUR GHOST")
 		"practice":
-			return "PRACTICE — ESC TO LEAVE"
+			return tr("PRACTICE — ESC TO LEAVE")
 		"drift_attack":
-			return "SCORE ATTACK"
+			return tr("SCORE ATTACK")
 	if _grace > 0.0 and not racers[car]["finished"]:
-		return "FINISH IN %d" % ceili(_grace)
+		return tr("FINISH IN %d") % ceili(_grace)
 	return ""
 
 
@@ -229,7 +229,7 @@ func _tick_countdown(delta: float) -> void:
 			views.message_all(str(n), Color.WHITE, 0.8)
 			AudioManager.play("count")
 		else:
-			views.message_all("GO!", UiTheme.PINK, 1.0)
+			views.message_all(tr("GO!"), UiTheme.PINK, 1.0)
 			AudioManager.play("go")
 			_start_race()
 
@@ -320,7 +320,7 @@ func _complete_lap(car: Car, info: Dictionary) -> void:
 		_finish_order.append(car)
 		car.scoring.bank()
 		if car.player_index > 0:
-			views.message_for(car, "FINISH!", UiTheme.CYAN, 2.0)
+			views.message_for(car, tr("FINISH!"), UiTheme.CYAN, 2.0)
 			# The CPU takes the wheel for a cool-down lap.
 			car.controller = AutopilotController.new(0.6, 0.0, 3)
 		if _grace < 0.0 and cars.size() > 1 and mode in ["versus", "championship", "coop", "time_attack", "drift_attack"]:
@@ -328,10 +328,10 @@ func _complete_lap(car: Car, info: Dictionary) -> void:
 	else:
 		info["lap"] = int(info["laps_done"]) + 1
 		if car.player_index > 0:
-			var txt := "LAP %d" % int(info["lap"])
+			var txt := tr("LAP %d") % int(info["lap"])
 			if laps_total > 0 and int(info["lap"]) == laps_total:
-				txt = "FINAL LAP"
-			views.message_for(car, txt + ("   BEST!" if is_best and int(info["laps_done"]) > 1 else ""), Color.WHITE, 1.4)
+				txt = tr("FINAL LAP")
+			views.message_for(car, txt + (tr("   BEST!") if is_best and int(info["laps_done"]) > 1 else ""), Color.WHITE, 1.4)
 
 
 func _ghost_lap(car: Car, info: Dictionary, lap_time: float) -> void:
@@ -339,7 +339,7 @@ func _ghost_lap(car: Car, info: Dictionary, lap_time: float) -> void:
 	if _ghost_best <= 0.0 or lap_time < _ghost_best:
 		if _ghost_best > 0.0:
 			_ghost_beaten = true
-			views.message_for(car, "GHOST BEATEN!", UiTheme.CYAN, 1.6)
+			views.message_for(car, tr("GHOST BEATEN!"), UiTheme.CYAN, 1.6)
 		_ghost_best = lap_time
 		SaveManager.save_ghost(track_data.id, GhostCar.to_dict(rec.frames, lap_time, car.stats.id))
 		ghost.load_from(SaveManager.load_ghost(track_data.id))
@@ -395,7 +395,7 @@ func _end_race() -> void:
 			pts = "+%d (%d)" % [gained, table[key]]
 		rows.append([
 			"%d." % (i + 1), info["name"],
-			RaceHUD.format_time(float(info["finish_time"])) if info["finished"] else "DNF" if laps_total > 0 else "-",
+			RaceHUD.format_time(float(info["finish_time"])) if info["finished"] else tr("DNF") if laps_total > 0 else "-",
 			RaceHUD.format_time(float(info["best_lap"])),
 			RaceHUD._fmt_points(c.scoring.total), RaceHUD._fmt_points(c.scoring.best_combo),
 			pts if mode == "championship" else ("+%d CR" % reward if reward > 0 else ""),
@@ -407,7 +407,7 @@ func _end_race() -> void:
 			SaveManager.unlock_achievement("duo")
 	if _ghost_beaten:
 		SaveManager.unlock_achievement("ghost_buster")
-	var title := "RESULTS"
+	var title := tr("RESULTS")
 	match mode:
 		"coop":
 			var team := 0
@@ -421,9 +421,9 @@ func _end_race() -> void:
 				medal = "SILVER"
 			elif per_lap >= COOP_TARGETS[0]:
 				medal = "BRONZE"
-			title = "TEAM %s — %s" % [RaceHUD._fmt_points(team), medal]
+			title = tr("TEAM %s — %s") % [RaceHUD._fmt_points(team), tr(medal)]
 		"versus", "drift_attack", "championship", "time_attack", "ghost":
-			title = "%s WINS!" % (racers[winner]["name"] as String) if cars.size() > 1 else "FINISHED"
+			title = tr("%s WINS!") % (racers[winner]["name"] as String) if cars.size() > 1 else tr("FINISHED")
 	var columns := ["#", "DRIVER", "TIME", "BEST LAP", "DRIFT", "BEST COMBO", "CHAMP" if mode == "championship" else "REWARD"]
 	var buttons: Array = []
 	if Game.championship_active():
@@ -438,7 +438,7 @@ func _end_race() -> void:
 		buttons.append(["Garage", Game.goto.bind("garage")])
 		buttons.append(["Menu", Game.goto.bind("menu")])
 	notes.append_array(_achievement_notes)
-	var sub := "%s · %s · %s" % [track_data.name, Game.mode_name(mode), "%d laps" % laps_total if laps_total > 0 else "free run"]
+	var sub := "%s · %s · %s" % [track_data.name, tr(Game.mode_name(mode)), tr("%d laps") % laps_total if laps_total > 0 else tr("free run")]
 	_results.show_results({
 		"title": title, "subtitle": sub, "columns": columns, "rows": rows,
 		"row_colors": row_colors, "notes": notes, "buttons": buttons,
@@ -485,11 +485,11 @@ func _save_records(c: Car, info: Dictionary, notes: Array) -> void:
 	for f in improved:
 		match f:
 			"time":
-				notes.append("%dP: new best race time!" % c.player_index)
+				notes.append(tr("%dP: new best race time!") % c.player_index)
 			"lap":
-				notes.append("%dP: new best lap!" % c.player_index)
+				notes.append(tr("%dP: new best lap!") % c.player_index)
 			"score":
-				notes.append("%dP: new drift record!" % c.player_index)
+				notes.append(tr("%dP: new drift record!") % c.player_index)
 	SaveManager.add_stats(c.scoring.total, c.scoring.best_combo, c.distance_driven)
 	if c.scoring.drifts_banked > 0:
 		SaveManager.unlock_achievement("first_drift")
@@ -503,12 +503,12 @@ func _championship_final() -> Array:
 	var table: Dictionary = Game.championship["points"]
 	var names := table.keys()
 	names.sort_custom(func(a, b): return int(table[a]) > int(table[b]))
-	var out: Array = ["CHAMPIONSHIP STANDINGS:"]
+	var out: Array = [tr("CHAMPIONSHIP STANDINGS:")]
 	for i in names.size():
-		out.append("%d. %s — %d pts" % [i + 1, names[i], int(table[names[i]])])
+		out.append(tr("%d. %s — %d pts") % [i + 1, names[i], int(table[names[i]])])
 	if not names.is_empty() and (str(names[0]).begins_with("1P") or str(names[0]).begins_with("2P")):
 		SaveManager.unlock_achievement("champion")
 		SaveManager.add_currency(500)
-		out.append("Champion bonus: +500 CR")
+		out.append(tr("Champion bonus: +500 CR"))
 	Game.championship = {}
 	return out

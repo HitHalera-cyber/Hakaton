@@ -1,6 +1,7 @@
 extends Node
 ## Renders screenshots of menus and races (needs a display, e.g. xvfb-run).
-## Run:  xvfb-run godot --path . --fixed-fps 60 res://tests/screenshots.tscn -- <out_dir>
+## Run:  xvfb-run godot --path . res://tests/screenshots.tscn -- <out_dir> [styles]
+## With "styles" it renders the same race moment once per graphics style.
 
 var _out := "user://shots"
 
@@ -44,6 +45,29 @@ func _race(players: int, mode: String, track: String, view: String, sec: float, 
 
 
 func _run() -> void:
+	if "ru" in OS.get_cmdline_user_args():
+		SaveManager.data["settings"]["style"] = "neon_sunset"
+		Lang.apply("ru")
+		Game.goto("menu")
+		await _wait(3.0)
+		await _shot("ru_menu")
+		Game.goto("settings")
+		await _wait(0.5)
+		await _shot("ru_settings")
+		Game.goto("garage")
+		await _wait(0.5)
+		await _shot("ru_garage")
+		await _race(2, "versus", "neon", "split", 12.0, "ru_race")
+		get_tree().quit()
+		return
+	if "styles" in OS.get_cmdline_user_args():
+		var n := 1
+		for sid in GraphicsStyle.ORDER:
+			SaveManager.data["settings"]["style"] = sid
+			await _race(1, "time_attack", "mountain", "split", 14.0, "style_%d_%s" % [n, sid])
+			n += 1
+		get_tree().quit()
+		return
 	Game.goto("menu")
 	await _wait(6.0)
 	await _shot("01_menu")

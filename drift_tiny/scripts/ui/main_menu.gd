@@ -65,7 +65,7 @@ func _refresh_credits() -> void:
 
 
 func _on_achievement(_id: String, title: String) -> void:
-	_toast.text = "Achievement: " + title
+	_toast.text = tr("Achievement: ") + tr(title)
 	_toast.visible = true
 	_toast_t = 4.0
 

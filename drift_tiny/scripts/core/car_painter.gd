@@ -22,7 +22,8 @@ static func draw_shadow(ci: CanvasItem, base: Transform2D, length: float, width:
 
 
 static func draw_car(ci: CanvasItem, base: Transform2D, shape: String, length: float, width: float,
-		color: Color, rims: int, decal: int, steer_angle := 0.0, braking := false, alpha := 1.0) -> void:
+		color: Color, rims: int, decal: int, steer_angle := 0.0, braking := false, alpha := 1.0,
+		with_outline := false) -> void:
 	var L := roundf(length)
 	var W := roundf(width)
 	var hl := L * 0.5
@@ -38,6 +39,10 @@ static func draw_car(ci: CanvasItem, base: Transform2D, shape: String, length: f
 	var rim: Color = RIM_COLORS[clampi(rims, 0, RIM_COLORS.size() - 1)]
 	rim.a = alpha
 
+	if with_outline:
+		# Thick dark outline around body and wheels (Toy Racer / handheld styles).
+		ci.draw_set_transform_matrix(base)
+		ci.draw_colored_polygon(_box(hl + 1.5, hw + 1.5, 2.0), Color(0.05, 0.05, 0.07, alpha))
 	# Wheels first so the body overlaps them.
 	var wheel_out := 1.0 if shape == "wide" else 0.5
 	var front_x := hl - 4.0

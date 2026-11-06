@@ -85,14 +85,14 @@ func bank() -> void:
 	best_combo = maxi(best_combo, pts)
 	drifts_banked += 1
 	if pts > 0:
-		popup.emit(label + (" CLEAN" if clean and pts > 150 else ""), pts, "bank")
+		popup.emit(Lang.t(label) + (Lang.t(" CLEAN") if clean and pts > 150 else ""), pts, "bank")
 	_clear_chain()
 
 
 ## Chain lost (crash, spin, respawn).
 func fail(reason: String) -> void:
 	if in_chain and current > 5.0 and reason != "":
-		popup.emit(reason, int(current * multiplier), "fail")
+		popup.emit(Lang.t(reason), int(current * multiplier), "fail")
 	_clear_chain()
 
 

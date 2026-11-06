@@ -2,6 +2,7 @@ class_name PixelText
 extends RefCounted
 ## Tiny 3x5 bitmap font for text inside the low-resolution game world
 ## (player tags above cars, billboard letters). One glyph = 15 bits, row by row.
+## Draws onto anything with draw_rect(): a CanvasItem or a TriBatch.
 
 const GLYPHS := {
 	"0": "111101101101111", "1": "010110010010111", "2": "111001111100111", "3": "111001111001111",
@@ -23,13 +24,13 @@ static func width_of(text: String, scale := 1.0) -> float:
 
 
 ## Draws text with its top-left corner at pos. Shadow adds a dark copy 1px down.
-static func draw(ci: CanvasItem, pos: Vector2, text: String, color: Color, scale := 1.0, shadow := true) -> void:
+static func draw(ci: Object, pos: Vector2, text: String, color: Color, scale := 1.0, shadow := true) -> void:
 	if shadow:
 		_draw_raw(ci, pos + Vector2(0, scale), text, Color(0, 0, 0, color.a * 0.7), scale)
 	_draw_raw(ci, pos, text, color, scale)
 
 
-static func _draw_raw(ci: CanvasItem, pos: Vector2, text: String, color: Color, scale: float) -> void:
+static func _draw_raw(ci: Object, pos: Vector2, text: String, color: Color, scale: float) -> void:
 	var x := pos.x
 	for ch in text.to_upper():
 		var g: String = GLYPHS.get(ch, GLYPHS["-"])
@@ -39,5 +40,5 @@ static func _draw_raw(ci: CanvasItem, pos: Vector2, text: String, color: Color, 
 		x += 4.0 * scale
 
 
-static func draw_centered(ci: CanvasItem, center: Vector2, text: String, color: Color, scale := 1.0) -> void:
+static func draw_centered(ci: Object, center: Vector2, text: String, color: Color, scale := 1.0) -> void:
 	draw(ci, center - Vector2(width_of(text, scale) * 0.5, 2.5 * scale), text, color, scale)

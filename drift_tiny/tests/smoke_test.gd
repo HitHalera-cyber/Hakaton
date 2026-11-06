@@ -1,7 +1,7 @@
 extends Node
 ## Headless smoke test: opens every menu, then plays one race per config with
 ## the CPU driving the "human" cars, and reports how each race ended.
-## Run:  godot --headless --path . --fixed-fps 60 res://tests/smoke_test.tscn
+## Run:  godot --headless --path . --fixed-fps 60 res://tests/smoke_test.tscn [-- low]
 
 const CONFIGS := [
 	{"players": 1, "mode": "time_attack", "track": "mountain"},
@@ -30,6 +30,10 @@ func _frames(n: int) -> void:
 
 
 func _run() -> void:
+	if "low" in OS.get_cmdline_user_args():
+		# Low quality + a non-default style exercise the other drawing paths.
+		SaveManager.data["settings"]["quality"] = 0
+		SaveManager.data["settings"]["style"] = "toy_racer"
 	await _frames(2)
 	for key in ["menu", "setup", "garage", "records", "settings"]:
 		Game.goto(key)

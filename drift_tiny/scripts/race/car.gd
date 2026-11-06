@@ -65,6 +65,7 @@ var _smoke: Array = []
 var _sparks: CPUParticles2D
 var _light: Sprite2D
 var _shake_cb: Callable
+var _outline := GraphicsStyle.flag("outline")
 
 
 func setup(car_stats: CarStats, track_data: TrackData, skid_layer: SkidLayer) -> void:
@@ -462,7 +463,7 @@ func _spark_at(pos: Vector2, normal: Vector2) -> void:
 
 func _make_smoke() -> CPUParticles2D:
 	var p := CPUParticles2D.new()
-	p.amount = 40
+	p.amount = int(Game.by_quality([12, 24, 40]))
 	p.lifetime = 0.9
 	p.local_coords = false
 	p.emitting = false
@@ -521,7 +522,7 @@ func _draw() -> void:
 	var shadow_off := Vector2(1.5, 2.0).rotated(-rotation)
 	CarPainter.draw_shadow(self, Transform2D(0.0, shadow_off), stats.length, stats.width)
 	CarPainter.draw_car(self, Transform2D.IDENTITY, stats.shape, stats.length, stats.width,
-			stats.color, stats.rims, stats.decal, steer_visual, braking_visual)
+			stats.color, stats.rims, stats.decal, steer_visual, braking_visual, 1.0, _outline)
 	if player_index > 0 or display_name != "":
 		# Tag above the car, kept upright regardless of the car's rotation.
 		draw_set_transform(Vector2(0, -12).rotated(-rotation), -rotation, Vector2.ONE)

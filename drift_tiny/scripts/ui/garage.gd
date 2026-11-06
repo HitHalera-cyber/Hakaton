@@ -125,8 +125,8 @@ func _refresh() -> void:
 	var unlocked := SaveManager.is_unlocked(_car_id)
 	var st := SaveManager.car_state(_car_id)
 	_credits.text = "%d CR" % SaveManager.get_currency()
-	_name.text = str(def["name"]).to_upper() + ("" if unlocked else "  (LOCKED)")
-	_desc.text = str(def.get("desc", ""))
+	_name.text = str(def["name"]).to_upper() + ("" if unlocked else "  " + tr("(LOCKED)"))
+	_desc.text = tr(str(def.get("desc", "")))
 	var stats := CarStats.build(_car_id)
 	_preview.stats = stats
 	_bars.set_bars(stats.bars(), CarStats.build(_car_id, false).bars())
@@ -142,15 +142,15 @@ func _refresh() -> void:
 			pips += "#" if i < lvl else "-"
 		pips += "]"
 		var cost := CarStats.upgrade_cost(lvl)
-		var txt := "%s  %s" % [str(part[1]).rpad(11), pips]
+		var txt := "%s  %s" % [tr(str(part[1])).rpad(11), pips]
 		if not unlocked:
-			txt += "   locked"
+			txt += "   " + tr("locked")
 		elif cost < 0:
-			txt += "   MAX"
+			txt += "   " + tr("MAX")
 		else:
-			txt += "   upgrade %d CR" % cost
+			txt += "   " + tr("upgrade %d CR") % cost
 		var b := UiTheme.button(txt, _buy_upgrade.bind(key), 17)
-		b.tooltip_text = part[2]
+		b.tooltip_text = tr(part[2])
 		b.custom_minimum_size = Vector2(380, 32)
 		b.disabled = not unlocked or cost < 0
 		_parts_box.add_child(b)
@@ -193,7 +193,7 @@ func _refresh() -> void:
 		_actions.add_child(_action_button("USE FOR 2P", _use.bind(2)))
 	else:
 		var price := int(def.get("price", 0))
-		_actions.add_child(_action_button("UNLOCK %d CR" % price, _unlock))
+		_actions.add_child(_action_button(tr("UNLOCK %d CR") % price, _unlock))
 	_actions.add_child(_action_button("BACK", Game.goto.bind("menu")))
 
 
@@ -211,14 +211,21 @@ func _buy_upgrade(part: String) -> void:
 	if cost < 0:
 		return
 	if not SaveManager.spend(cost):
-		_status.text = "Not enough credits — race to earn more."
+		_status.text = tr("Not enough credits — race to earn more.")
 		AudioManager.play("ui_error")
 		return
 	st["upgrades"][part] = lvl + 1
 	SaveManager.save_game()
-	_status.text = "%s upgraded to level %d" % [part.capitalize(), lvl + 1]
+	_status.text = tr("%s upgraded to level %d") % [tr(_part_label(part)), lvl + 1]
 	AudioManager.play("reward")
 	_refresh_keep_focus()
+
+
+func _part_label(key: String) -> String:
+	for part in PARTS:
+		if part[0] == key:
+			return part[1]
+	return key
 
 
 func _paint(i: int) -> void:
@@ -242,12 +249,12 @@ func _on_decal(v: Variant) -> void:
 func _unlock() -> void:
 	var price := int(Game.car_def(_car_id).get("price", 0))
 	if not SaveManager.spend(price):
-		_status.text = "Need %d CR to unlock." % price
+		_status.text = tr("Need %d CR to unlock.") % price
 		AudioManager.play("ui_error")
 		return
 	SaveManager.unlock_car(_car_id)
 	AudioManager.play("unlock")
-	_status.text = "%s unlocked!" % Game.car_def(_car_id)["name"]
+	_status.text = tr("%s unlocked!") % Game.car_def(_car_id)["name"]
 	if SaveManager.data["unlocked"].size() >= Game.cars.size():
 		SaveManager.unlock_achievement("collector")
 	_build_list()
@@ -256,7 +263,7 @@ func _unlock() -> void:
 
 func _use(player: int) -> void:
 	SaveManager.set_selected(player, _car_id)
-	_status.text = "%dP drives the %s" % [player, Game.car_def(_car_id)["name"]]
+	_status.text = tr("%dP drives the %s") % [player, Game.car_def(_car_id)["name"]]
 	_build_list()
 
 

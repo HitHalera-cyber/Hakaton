@@ -4,7 +4,7 @@ extends Node
 ## through AudioStreamGenerator. Player 1 is panned a little left and player 2
 ## a little right in two-player races.
 
-const MIX := 22050.0
+var MIX := 22050.0
 
 var _voices: Array = []
 
@@ -21,6 +21,11 @@ class Voice:
 	var rng := RandomNumberGenerator.new()
 	var vol := 0.0
 	var squeal := 0.0
+
+
+func _ready() -> void:
+	# Low quality halves the synth work (old CPUs).
+	MIX = 11025.0 if Game.quality() == 0 else 22050.0
 
 
 func add_car(car: Car, pan: float) -> void:

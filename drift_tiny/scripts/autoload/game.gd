@@ -39,6 +39,7 @@ var view_mode := "split"
 var championship: Dictionary = {}
 
 var _track_cache: Dictionary = {}
+var _fps_label: Label
 
 
 func _ready() -> void:
@@ -47,6 +48,7 @@ func _ready() -> void:
 	tracks = _load_json("res://data/tracks.json").get("tracks", [])
 	view_mode = str(SaveManager.get_setting("two_player_view", "split"))
 	_apply_display_settings()
+	_build_fps_overlay()
 
 
 func _load_json(path: String) -> Dictionary:
@@ -158,6 +160,39 @@ func _apply_display_settings() -> void:
 	set_fullscreen(bool(SaveManager.get_setting("fullscreen", false)))
 	set_vsync(bool(SaveManager.get_setting("vsync", true)))
 	set_integer_scaling(bool(SaveManager.get_setting("integer_scaling", false)))
+
+
+## Graphics quality: 0 low, 1 medium, 2 high.
+func quality() -> int:
+	return clampi(int(SaveManager.get_setting("quality", 2)), 0, 2)
+
+
+## Picks the value for the current quality from [low, medium, high].
+func by_quality(values: Array) -> Variant:
+	return values[quality()]
+
+
+func _build_fps_overlay() -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = 100
+	add_child(layer)
+	_fps_label = Label.new()
+	_fps_label.position = Vector2(4, 0)
+	_fps_label.add_theme_font_size_override("font_size", 14)
+	_fps_label.add_theme_color_override("font_color", Color("ffe14d"))
+	_fps_label.add_theme_color_override("font_outline_color", Color.BLACK)
+	_fps_label.add_theme_constant_override("outline_size", 4)
+	layer.add_child(_fps_label)
+	set_show_fps(bool(SaveManager.get_setting("show_fps", false)))
+
+
+func set_show_fps(on: bool) -> void:
+	_fps_label.visible = on
+	set_process(on)
+
+
+func _process(_delta: float) -> void:
+	_fps_label.text = "FPS %d" % Engine.get_frames_per_second()
 
 
 func set_fullscreen(on: bool) -> void:

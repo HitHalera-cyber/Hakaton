@@ -56,7 +56,7 @@ class OptionCycler:
 
 	func _refresh() -> void:
 		var v := str(labels[index]) if index < labels.size() else "-"
-		text = "%s   <  %s  >" % [title.rpad(14), v]
+		text = "%s   <  %s  >" % [tr(title).rpad(14), tr(v)]
 
 
 ## Large rotating car for the garage and setup screens.
@@ -110,7 +110,7 @@ class StatBars:
 		var font := ThemeDB.fallback_font
 		var y := 4.0
 		for key in bars.keys():
-			draw_string(font, Vector2(0, y + 13), str(key).to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, UiTheme.DIM)
+			draw_string(font, Vector2(0, y + 13), tr(str(key)).to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, UiTheme.DIM)
 			var w := size.x - 90.0
 			var x := 86.0
 			draw_rect(Rect2(x, y + 2, w, 12), Color("241f45"))
@@ -197,7 +197,7 @@ class Logo:
 			for c in 6:
 				var col := Color.WHITE if (r + c) % 2 == 0 else Color("141418")
 				draw_rect(Rect2(14 + c * 11, 84 + r * 11, 11, 11), col)
-		draw_string(font, Vector2(16, 148), "SMALL CARS. BIG DRIFT.", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color("f4ecff"))
+		draw_string(font, Vector2(16, 148), tr("SMALL CARS. BIG DRIFT."), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color("f4ecff"))
 
 	func _process(_d: float) -> void:
 		queue_redraw()

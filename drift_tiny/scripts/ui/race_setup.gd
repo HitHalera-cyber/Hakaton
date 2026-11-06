@@ -128,7 +128,7 @@ func _on_players_changed() -> void:
 
 func _refresh_info() -> void:
 	var m: String = _mode.value()
-	_desc.text = Game.MODES[m]["desc"]
+	_desc.text = tr(Game.MODES[m]["desc"])
 	_laps.visible = m != "practice" and m != "championship"
 	var tid: String = _track.value()
 	if m == "championship":
@@ -138,16 +138,16 @@ func _refresh_info() -> void:
 		_track.disabled = false
 	var td := Game.track_data(tid)
 	_preview.set_track(td)
-	_track_name.text = td.name if m != "championship" else "Championship: all %d tracks" % Game.tracks.size()
-	var lines: PackedStringArray = [td.subtitle]
+	_track_name.text = td.name if m != "championship" else tr("Championship: all %d tracks") % Game.tracks.size()
+	var lines: PackedStringArray = [tr(td.subtitle)]
 	var rec := SaveManager.get_record(tid, m if m != "practice" else "practice")
 	if rec.has("best_time"):
-		lines.append("Best race (3 laps): %s" % RaceHUD.format_time(float(rec["best_time"])))
+		lines.append(tr("Best race (3 laps): %s") % RaceHUD.format_time(float(rec["best_time"])))
 	if rec.has("best_lap"):
-		lines.append("Best lap: %s" % RaceHUD.format_time(float(rec["best_lap"])))
+		lines.append(tr("Best lap: %s") % RaceHUD.format_time(float(rec["best_lap"])))
 	if rec.has("best_score"):
-		lines.append("Best drift score: %s" % RaceHUD._fmt_points(int(rec["best_score"])))
-	lines.append("Surface: %s    Target lap: %s" % [td.surface.capitalize(), RaceHUD.format_time(td.target_lap)])
+		lines.append(tr("Best drift score: %s") % RaceHUD._fmt_points(int(rec["best_score"])))
+	lines.append(tr("Surface: %s    Target lap: %s") % [tr(td.surface.capitalize()), RaceHUD.format_time(td.target_lap)])
 	_record.text = "\n".join(lines)
 	_car_preview.stats = CarStats.build(str(_car1.value()))
 

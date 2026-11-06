@@ -44,11 +44,11 @@ func _ready() -> void:
 		var mode_key := parts[1]
 		var laps_note := ""
 		if "_" in mode_key and mode_key.get_slice("_", mode_key.get_slice_count("_") - 1).is_valid_int():
-			laps_note = " (%s laps)" % mode_key.get_slice("_", mode_key.get_slice_count("_") - 1)
+			laps_note = tr(" (%s laps)") % mode_key.get_slice("_", mode_key.get_slice_count("_") - 1)
 			mode_key = mode_key.substr(0, mode_key.rfind("_"))
 		any = true
 		grid.add_child(UiTheme.label(Game.track_def(parts[0]).get("name", parts[0]), 16))
-		grid.add_child(UiTheme.label(Game.mode_name(mode_key) + laps_note, 16, UiTheme.CYAN))
+		grid.add_child(UiTheme.label(tr(Game.mode_name(mode_key)) + laps_note, 16, UiTheme.CYAN))
 		grid.add_child(UiTheme.label(RaceHUD.format_time(float(rec.get("best_time", 0.0))), 16))
 		grid.add_child(UiTheme.label(RaceHUD.format_time(float(rec.get("best_lap", 0.0))), 16))
 		grid.add_child(UiTheme.label(RaceHUD._fmt_points(int(rec.get("best_score", 0))), 16))
@@ -61,13 +61,13 @@ func _ready() -> void:
 	var got: Array = SaveManager.data["achievements"]
 	for id in SaveManager.ACHIEVEMENTS.keys():
 		var have: bool = id in got
-		col.add_child(UiTheme.label(("[x] " if have else "[ ] ") + SaveManager.ACHIEVEMENTS[id], 15,
+		col.add_child(UiTheme.label(("[x] " if have else "[ ] ") + tr(SaveManager.ACHIEVEMENTS[id]), 15,
 				UiTheme.TEXT if have else UiTheme.DIM))
 
 	var st: Dictionary = SaveManager.data["stats"]
 	col.add_child(UiTheme.label(" ", 8))
 	col.add_child(UiTheme.label("CAREER", 18, UiTheme.PINK))
-	col.add_child(UiTheme.label("Races: %d    Drift points: %s    Best combo: %s    Distance: %.1f km" % [
+	col.add_child(UiTheme.label(tr("Races: %d    Drift points: %s    Best combo: %s    Distance: %.1f km") % [
 		int(st["races"]), RaceHUD._fmt_points(int(st["drift_points"])), RaceHUD._fmt_points(int(st["best_combo"])),
 		float(st["distance"]) / 1000.0 * 0.6 / 3.6], 15))
 
@@ -89,7 +89,7 @@ func _ready() -> void:
 func _on_reset() -> void:
 	if not _reset_armed:
 		_reset_armed = true
-		_reset_btn.text = "PRESS AGAIN TO CONFIRM"
+		_reset_btn.text = tr("PRESS AGAIN TO CONFIRM")
 		return
 	SaveManager.reset_progress()
 	Game.goto("records")

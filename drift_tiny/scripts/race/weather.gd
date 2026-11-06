@@ -26,6 +26,7 @@ func setup(weather_kind: String, cam: Camera2D) -> void:
 			count = 26
 		"dust":
 			count = 30
+	count = int(count * float(Game.by_quality([0.0, 0.6, 1.0])))
 	for i in count:
 		_parts.append(_spawn(true))
 
@@ -82,28 +83,31 @@ func _process(delta: float) -> void:
 
 
 func _draw() -> void:
+	# All particles go into one batch: one draw call instead of ~140.
+	var tb := TriBatch.new()
 	match kind:
 		"rain":
 			for d in _parts:
 				var p: Vector2 = d["p"]
 				var s: float = d["s"]
-				draw_line(p, p + Vector2(-1.2, 6.0) * s, Color(0.7, 0.75, 1.0, 0.45), 1.0)
+				tb.line(p, p + Vector2(-1.2, 6.0) * s, Color(0.7, 0.75, 1.0, 0.45), 1.0)
 			if _flash > 0.0:
-				draw_rect(get_viewport_rect(), Color(0.8, 0.8, 1.0, _flash * 0.25))
+				tb.rect(get_viewport_rect(), Color(0.8, 0.8, 1.0, _flash * 0.25))
 		"snow":
 			for d in _parts:
 				var p: Vector2 = d["p"]
 				var s: float = d["s"]
-				draw_rect(Rect2(p.floor(), Vector2.ONE * (2.0 if s > 1.1 else 1.0)), Color(1, 1, 1, 0.85))
+				tb.rect(Rect2(p.floor(), Vector2.ONE * (2.0 if s > 1.1 else 1.0)), Color(1, 1, 1, 0.85))
 		"petals":
 			for d in _parts:
 				var p: Vector2 = d["p"]
 				var flip := sin(float(d["ph"]) * 2.0) > 0.0
-				draw_rect(Rect2(p.floor(), Vector2(2, 1) if flip else Vector2(1, 2)), Color("f7a6cf"))
+				tb.rect(Rect2(p.floor(), Vector2(2, 1) if flip else Vector2(1, 2)), Color("f7a6cf"))
 		"dust":
 			for d in _parts:
 				var p: Vector2 = d["p"]
-				draw_rect(Rect2(p.floor(), Vector2.ONE), Color(1.0, 0.95, 0.7, 0.35 + 0.3 * sin(float(d["ph"]))))
+				tb.rect(Rect2(p.floor(), Vector2.ONE), Color(1.0, 0.95, 0.7, 0.35 + 0.3 * sin(float(d["ph"]))))
+	tb.flush(self)
 
 
 static func kind_for_theme(theme: String) -> String:

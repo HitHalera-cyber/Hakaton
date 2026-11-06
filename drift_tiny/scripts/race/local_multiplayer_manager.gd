@@ -57,7 +57,7 @@ func build_views() -> void:
 		row.add_child(slot)
 		var svc := SubViewportContainer.new()
 		svc.stretch = true
-		svc.stretch_shrink = 2
+		GraphicsStyle.apply_to_view(svc)
 		svc.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		svc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		svc.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -143,7 +143,7 @@ func keep_together(delta: float, progress: Callable) -> void:
 	trail.rotation = track_data.tangents[idx].angle()
 	trail.velocity = lead.velocity * 0.8
 	trail.respawn_soft()
-	message_for(trail, "CATCH UP", UiTheme.CYAN, 1.0, false)
+	message_for(trail, tr("CATCH UP"), UiTheme.CYAN, 1.0, false)
 
 
 func message_all(text: String, col: Color, dur: float) -> void:

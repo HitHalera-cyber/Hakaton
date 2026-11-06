@@ -1,5 +1,6 @@
 extends Control
-## Settings: display, audio volumes, two-player options and key remapping.
+## Settings: language, display and graphics, audio volumes, two-player options
+## and key remapping.
 
 var _waiting_action := ""
 var _bind_buttons: Dictionary = {}
@@ -21,6 +22,7 @@ func _ready() -> void:
 	scroll.position = Vector2(30, 72)
 	scroll.size = Vector2(900, 410)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.follow_focus = true
 	add_child(scroll)
 	var cols := HBoxContainer.new()
 	cols.add_theme_constant_override("separation", 40)
@@ -32,10 +34,34 @@ func _ready() -> void:
 	right.add_theme_constant_override("separation", 2)
 	cols.add_child(right)
 
+	var codes: Array = Lang.NAMES.keys()
+	var lang := Widgets.OptionCycler.new("LANGUAGE", Lang.NAMES.values(), codes, codes.find(Lang.current()))
+	lang.custom_minimum_size = Vector2(400, 32)
+	lang.changed.connect(_on_language)
+	left.add_child(lang)
 	left.add_child(UiTheme.label("DISPLAY", 16, UiTheme.DIM))
 	left.add_child(_toggle("Fullscreen", "fullscreen", func(on): Game.set_fullscreen(on)))
 	left.add_child(_toggle("VSync", "vsync", func(on): Game.set_vsync(on)))
 	left.add_child(_toggle("Pixel-perfect (integer) scaling", "integer_scaling", func(on): Game.set_integer_scaling(on)))
+	left.add_child(_toggle("Show FPS", "show_fps", func(on): Game.set_show_fps(on)))
+	left.add_child(UiTheme.label("GRAPHICS", 16, UiTheme.DIM))
+	var quality := Widgets.OptionCycler.new("QUALITY", ["Low", "Medium", "High"], [0, 1, 2],
+			int(SaveManager.get_setting("quality", 2)))
+	quality.custom_minimum_size = Vector2(400, 32)
+	quality.changed.connect(func(v): SaveManager.set_setting("quality", int(v)))
+	left.add_child(quality)
+	var sids: Array = GraphicsStyle.ORDER
+	var snames: Array = []
+	for sid in sids:
+		snames.append(GraphicsStyle.STYLES[sid]["name"])
+	var style := Widgets.OptionCycler.new("STYLE", snames, sids, sids.find(GraphicsStyle.current_id()))
+	style.custom_minimum_size = Vector2(400, 32)
+	style.changed.connect(func(v): SaveManager.set_setting("style", str(v)))
+	left.add_child(style)
+	var qhint := UiTheme.label("Low quality turns off weather and glow and thins out smoke — for older PCs.", 12, UiTheme.DIM)
+	qhint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	qhint.custom_minimum_size = Vector2(400, 0)
+	left.add_child(qhint)
 	left.add_child(UiTheme.label("AUDIO", 16, UiTheme.DIM))
 	left.add_child(_slider("Master", "master_volume"))
 	left.add_child(_slider("Music", "music_volume"))
@@ -58,9 +84,12 @@ func _ready() -> void:
 	left.add_child(pads)
 	left.add_child(_toggle("Camera shake", "camera_shake", func(_on): pass))
 
-	right.add_child(UiTheme.label("CONTROLS (keyboard) — select and press a key", 16, UiTheme.DIM))
+	var ctl := UiTheme.label("CONTROLS (keyboard) — select and press a key", 16, UiTheme.DIM)
+	ctl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	ctl.custom_minimum_size = Vector2(400, 0)
+	right.add_child(ctl)
 	for p in [1, 2]:
-		right.add_child(UiTheme.label("PLAYER %d" % p, 15, UiTheme.PINK if p == 1 else UiTheme.CYAN))
+		right.add_child(UiTheme.label(tr("PLAYER %d") % p, 15, UiTheme.PINK if p == 1 else UiTheme.CYAN))
 		for a in InputSetup.ACTIONS:
 			var action := "p%d_%s" % [p, a]
 			var b := UiTheme.button("", _start_rebind.bind(action), 15)
@@ -79,7 +108,13 @@ func _ready() -> void:
 	back.custom_minimum_size = Vector2(160, 40)
 	back.position = Vector2(30, 488)
 	add_child(back)
-	(left.get_child(1) as Control).grab_focus()
+	(left.get_child(0) as Control).grab_focus()
+
+
+func _on_language(code: Variant) -> void:
+	Lang.set_language(str(code))
+	# Rebuild the screen so every label picks up the new language.
+	Game.goto("settings")
 
 
 func _toggle(text: String, key: String, apply: Callable) -> CheckButton:
@@ -121,13 +156,13 @@ func _refresh_bindings() -> void:
 		var a: String = action
 		var short := a.substr(3)
 		var b: Button = _bind_buttons[a]
-		var keys := InputSetup.key_names(a) if a != _waiting_action else "press a key...  (Esc cancels)"
-		b.text = "%s   %s" % [str(InputSetup.ACTION_LABELS[short]).rpad(18), keys]
+		var keys := InputSetup.key_names(a) if a != _waiting_action else tr("press a key...  (Esc cancels)")
+		b.text = "%s   %s" % [tr(str(InputSetup.ACTION_LABELS[short])).rpad(18), keys]
 
 
 func _start_rebind(action: String) -> void:
 	_waiting_action = action
-	_info.text = "Press the new key for %s" % action.to_upper()
+	_info.text = tr("Press the new key for %s") % action.to_upper()
 	_refresh_bindings()
 
 
@@ -138,7 +173,7 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		var k := event as InputEventKey
 		if k.physical_keycode == KEY_ESCAPE:
-			_info.text = "Cancelled"
+			_info.text = tr("Cancelled")
 		else:
 			InputSetup.rebind(_waiting_action, k)
 			_info.text = "%s = %s" % [_waiting_action.to_upper(), InputSetup.key_names(_waiting_action)]
@@ -151,7 +186,7 @@ func _input(event: InputEvent) -> void:
 
 func _reset_controls() -> void:
 	InputSetup.reset_bindings()
-	_info.text = "Controls reset"
+	_info.text = tr("Controls reset")
 	_refresh_bindings()
 
 
