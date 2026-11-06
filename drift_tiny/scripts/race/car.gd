@@ -12,15 +12,22 @@ extends CharacterBody2D
 signal crashed(impact: float, at: Vector2)
 signal bumped(other: Car, impact: float)
 signal respawned
+signal boosted(level: int)
 
 const DRAG := 0.22
 const ROLL := 35.0
 const PX_TO_KMH := 0.6
-const DRIFT_YAW := 1.35        # rad/s of yaw per full steer while drifting (x drift_steer)
+const DRIFT_YAW := 2.1         # rad/s of yaw per full steer while drifting (x drift_steer)
 const POWER_YAW := 1.4         # how hard throttle pushes the rear out (x power_slide)
-const ALIGN := 2.0             # tyres pulling the drift angle back to zero
+const ALIGN := 1.6             # tyres pulling the drift angle back to zero
 const HB_YAW := 1.8            # extra pivot while the handbrake is held
 const DRIFT_FRICTION := 130.0  # sideways deceleration of sliding tyres (x drift_grip)
+# Drift boost ("mini-turbo"): seconds of drifting needed for levels 1..3, and
+# what each level gives when the drift ends cleanly.
+const BOOST_CHARGE := [0.5, 1.2, 2.2]
+const BOOST_POWER := [0.15, 0.25, 0.35]
+const BOOST_TIME := [0.6, 0.9, 1.3]
+const BOOST_COLORS := [Color("3ee0ff"), Color("ffae2a"), Color("ff5fb8")]
 
 var stats: CarStats
 var controller: Object = null      # anything with update_inputs(car, delta)
@@ -54,6 +61,9 @@ var distance_driven := 0.0
 var braking_visual := false
 var grip_now := 1.0
 var scoring := DriftScoring.new()
+var drift_charge := 0.0      # seconds of good drifting in the current slide
+var boost_t := 0.0
+var boost_level := 0
 
 var _exit_t := 0.0
 var _stuck_t := 0.0
@@ -66,6 +76,13 @@ var _sparks: CPUParticles2D
 var _light: Sprite2D
 var _shake_cb: Callable
 var _outline := GraphicsStyle.flag("outline")
+var _boost_power := 0.0
+var _charge_fx: CPUParticles2D
+# Physics runs at 60 Hz; the car is drawn between the last two physics
+# positions so motion stays smooth at any frame rate.
+var _prev_pos := Vector2.ZERO
+var _floats: Array = []      # score texts rising above the car: {text, color, t}
+var _prev_rot := 0.0
 
 
 func setup(car_stats: CarStats, track_data: TrackData, skid_layer: SkidLayer) -> void:
@@ -90,6 +107,10 @@ func setup(car_stats: CarStats, track_data: TrackData, skid_layer: SkidLayer) ->
 		_smoke.append(p)
 	_sparks = _make_sparks()
 	add_child(_sparks)
+	scoring.popup.connect(_on_score_popup)
+	_charge_fx = _make_charge_fx()
+	_charge_fx.position = Vector2(-stats.length * 0.5, 0)
+	add_child(_charge_fx)
 	if night:
 		# Headlight beam: additive sprite, no 2D lights needed.
 		_light = Sprite2D.new()
@@ -111,6 +132,8 @@ func setup(car_stats: CarStats, track_data: TrackData, skid_layer: SkidLayer) ->
 func place(pos: Vector2, rot: float) -> void:
 	position = pos
 	rotation = rot
+	_prev_pos = pos
+	_prev_rot = rot
 	velocity = Vector2.ZERO
 	angular = 0.0
 	drifting = false
@@ -125,7 +148,36 @@ func set_shake_callback(cb: Callable) -> void:
 
 # --- physics ----------------------------------------------------------------
 
+## Where the car is drawn this frame (between the last two physics steps).
+func visual_transform() -> Transform2D:
+	var a := Engine.get_physics_interpolation_fraction()
+	var pos := global_position if is_inside_tree() else position
+	return Transform2D(lerp_angle(_prev_rot, rotation, a), _prev_pos.lerp(pos, a))
+
+
+func visual_position() -> Vector2:
+	return visual_transform().origin
+
+
+func _snap_interpolation() -> void:
+	_prev_pos = global_position
+	_prev_rot = rotation
+
+
+func _process(delta: float) -> void:
+	queue_redraw()
+	for f in _floats:
+		f["t"] = float(f["t"]) + delta
+	while not _floats.is_empty() and float(_floats[0]["t"]) > 1.2:
+		_floats.pop_front()
+	if _light:
+		var local := get_global_transform().affine_inverse() * visual_transform()
+		_light.transform = local * Transform2D(0.0, Vector2(1.1, 0.9), 0.0, Vector2(stats.length * 0.5 - 1.0, 0))
+
+
 func _physics_process(delta: float) -> void:
+	_prev_pos = global_position
+	_prev_rot = rotation
 	if controller != null:
 		controller.update_inputs(self, delta)
 	_bump_cd = maxf(_bump_cd - delta, 0.0)
@@ -163,7 +215,10 @@ func _step_handling(dt: float) -> void:
 	var surf := _surface()
 	var grip_mult: float = surf["grip"]
 	grip_now = grip_mult
-	var maxs: float = st.max_speed * float(surf["speed"])
+	if boost_t > 0.0:
+		boost_t -= dt
+	var boost := _boost_power if boost_t > 0.0 else 0.0
+	var maxs: float = st.max_speed * float(surf["speed"]) * (1.0 + boost)
 	var thr := input_throttle
 	var brk := input_brake
 	var steer := input_steer
@@ -174,7 +229,7 @@ func _step_handling(dt: float) -> void:
 			vl += st.brake * thr * dt
 		else:
 			var f := maxf(0.0, 1.0 - pow(maxf(vl, 0.0) / maxs, 2.0))
-			vl += st.accel * thr * f * dt
+			vl += st.accel * (1.0 + boost * 3.0) * thr * f * dt
 	if brk > 0.0:
 		if vl > 5.0:
 			vl -= st.brake * brk * dt
@@ -191,16 +246,18 @@ func _step_handling(dt: float) -> void:
 	var slip_full := rad_to_deg(atan2(absf(vt), vl)) if speed > 1.0 else 0.0
 	slip_deg = minf(slip_full, 90.0)
 
-	# Drift state machine.
-	if hb and speed > 70.0:
+	# Drift state machine. Easy to start (handbrake from 50 px/s, or power
+	# oversteer), and sticky: the slide only ends once the car is straight.
+	var was_drifting := drifting
+	if hb and speed > 50.0:
 		drifting = true
-	if not drifting and speed > maxs * 0.5 and absf(steer) > 0.7 and thr > 0.8 \
-			and slip_deg > 18.0 - 12.0 * st.power_slide:
+	if not drifting and speed > maxs * 0.45 and absf(steer) > 0.7 and thr > 0.8 \
+			and slip_deg > 13.0 - 10.0 * st.power_slide:
 		drifting = true
 	if drifting:
-		if slip_deg < 9.0 and not hb:
+		if slip_deg < 7.0 and not hb:
 			_exit_t += dt
-			if _exit_t > 0.2:
+			if _exit_t > 0.3:
 				drifting = false
 		else:
 			_exit_t = 0.0
@@ -230,6 +287,12 @@ func _step_handling(dt: float) -> void:
 		target = steer * st.steer * sf * hs * dir_sign
 	angular += (target - angular) * (1.0 - exp(-resp * dt))
 
+	# Charge the drift boost while sliding well; release it when the slide ends.
+	if drifting and slip_deg > 12.0 and speed > 60.0:
+		drift_charge += dt
+	if was_drifting and not drifting:
+		_release_boost()
+
 	# Lateral grip. Gripping tyres kill sideways speed exponentially; sliding
 	# tyres give a roughly constant sideways force (past the grip peak), so a
 	# slide can still follow a tight corner.
@@ -251,15 +314,16 @@ func _step_handling(dt: float) -> void:
 	# Recompose in the frame the components were measured in; the heading
 	# turns afterwards, which is what opens up the slip angle.
 	velocity = fwd * vl + right * new_vt
-	var cap := st.max_speed * 1.05
+	var cap := st.max_speed * 1.05 * (1.0 + boost)
 	if velocity.length() > cap:
 		velocity = velocity.normalized() * cap
 	rotation += angular * dt
 	steer_visual = lerpf(steer_visual, steer * 0.5, 0.3)
 
-	# Spun out.
+	# Spun out: no boost for that.
 	if drifting and slip_full > 110.0:
 		drifting = false
+		drift_charge = 0.0
 		scoring.fail("SPIN OUT")
 
 	# Fake gearbox for the engine sound.
@@ -328,6 +392,8 @@ func _handle_collisions(pre: Vector2) -> void:
 				_shake_cb.call(clampf(impact / 60.0, 1.0, 4.0))
 		if impact > 110.0:
 			scoring.fail("CRASH")
+			drift_charge = 0.0
+			boost_t = 0.0
 		else:
 			scoring.touch()
 
@@ -388,8 +454,11 @@ func respawn() -> void:
 	velocity = Vector2.ZERO
 	angular = 0.0
 	drifting = false
+	drift_charge = 0.0
+	boost_t = 0.0
 	_last_wheels.clear()
 	_update_track()
+	_snap_interpolation()
 	_set_ghosting(true)
 	respawned.emit()
 
@@ -399,10 +468,52 @@ func respawn_soft() -> void:
 	scoring.fail("")
 	angular = 0.0
 	drifting = false
+	drift_charge = 0.0
 	track_idx = -1
 	_last_wheels.clear()
 	_update_track()
+	_snap_interpolation()
 	_set_ghosting(true)
+
+
+## Pixel text that rises above the car and fades (drift points, grades, boost).
+func add_float(text: String, col: Color) -> void:
+	_floats.append({"text": text, "color": col, "t": 0.0})
+	if _floats.size() > 3:
+		_floats.pop_front()
+
+
+func _on_score_popup(_text: String, pts: int, kind: String) -> void:
+	match kind:
+		"bank":
+			add_float("+%d" % pts, Color("ffd84a"))
+		"zone":
+			# World text uses the pixel font (Latin only): grade letter is the last char.
+			add_float("ZONE %s +%d" % [_text.right(1), pts], Color("3ee0ff"))
+		"fail":
+			add_float("-%d" % pts, Color("ff5a5a"))
+
+
+func charge_level() -> int:
+	var lvl := 0
+	for i in BOOST_CHARGE.size():
+		if drift_charge >= BOOST_CHARGE[i]:
+			lvl = i + 1
+	return lvl
+
+
+func _release_boost() -> void:
+	var lvl := charge_level()
+	drift_charge = 0.0
+	if lvl == 0:
+		return
+	boost_level = lvl
+	boost_t = BOOST_TIME[lvl - 1]
+	_boost_power = BOOST_POWER[lvl - 1]
+	boosted.emit(lvl)
+	add_float("BOOST" + "!".repeat(lvl), BOOST_COLORS[lvl - 1])
+	if _shake_cb.is_valid():
+		_shake_cb.call(0.8 + lvl * 0.4)
 
 
 func _set_ghosting(on: bool) -> void:
@@ -434,8 +545,16 @@ func _update_fx() -> void:
 		col = Color(0.62, 0.48, 0.32, 0.7)
 	elif surface_name in ["snow", "snowbank", "ice"]:
 		col = Color(0.92, 0.96, 1.0, 0.85)
+	elif player_index > 0:
+		# A hint of the player's colour makes each car's smoke its own.
+		col = col.lerp(Color(tag_color, col.a), 0.3)
 	for p in _smoke:
 		(p as CPUParticles2D).color = col
+	# Boost charge sparks under the rear: blue, orange, then pink.
+	var lvl := charge_level()
+	_charge_fx.emitting = drifting and lvl > 0
+	if lvl > 0:
+		_charge_fx.color = BOOST_COLORS[lvl - 1]
 	if skids == null:
 		return
 	var wheels: Array = []
@@ -463,8 +582,8 @@ func _spark_at(pos: Vector2, normal: Vector2) -> void:
 
 func _make_smoke() -> CPUParticles2D:
 	var p := CPUParticles2D.new()
-	p.amount = int(Game.by_quality([12, 24, 40]))
-	p.lifetime = 0.9
+	p.amount = int(Game.by_quality([16, 36, 60]))
+	p.lifetime = 1.2
 	p.local_coords = false
 	p.emitting = false
 	p.texture = FxTextures.puff()
@@ -480,13 +599,35 @@ func _make_smoke() -> CPUParticles2D:
 	var curve := Curve.new()
 	curve.max_value = 3.0
 	curve.add_point(Vector2(0.0, 0.6))
-	curve.add_point(Vector2(1.0, 2.4))
+	curve.add_point(Vector2(1.0, 3.0)) # puffs grow into big clouds
 	p.scale_amount_curve = curve
 	var ramp := Gradient.new()
 	ramp.set_color(0, Color(1, 1, 1, 0.8))
 	ramp.set_color(1, Color(1, 1, 1, 0.0))
 	p.color_ramp = ramp
 	p.z_index = -1
+	return p
+
+
+func _make_charge_fx() -> CPUParticles2D:
+	var p := CPUParticles2D.new()
+	p.amount = int(Game.by_quality([8, 14, 20]))
+	p.lifetime = 0.3
+	p.local_coords = false
+	p.emitting = false
+	p.texture = FxTextures.pixel()
+	p.direction = Vector2(-1, 0)
+	p.spread = 50.0
+	p.gravity = Vector2.ZERO
+	p.initial_velocity_min = 30.0
+	p.initial_velocity_max = 70.0
+	p.damping_min = 60.0
+	p.damping_max = 100.0
+	p.scale_amount_min = 0.5
+	p.scale_amount_max = 1.0
+	p.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
+	p.emission_rect_extents = Vector2(1, stats.width * 0.45)
+	p.z_index = 1
 	return p
 
 
@@ -519,14 +660,40 @@ func _make_sparks() -> CPUParticles2D:
 func _draw() -> void:
 	if stats == null:
 		return
-	var shadow_off := Vector2(1.5, 2.0).rotated(-rotation)
-	CarPainter.draw_shadow(self, Transform2D(0.0, shadow_off), stats.length, stats.width)
-	CarPainter.draw_car(self, Transform2D.IDENTITY, stats.shape, stats.length, stats.width,
+	# Draw at the interpolated pose, expressed in this node's local space.
+	var vis := visual_transform()
+	var inv := get_global_transform().affine_inverse()
+	var base := inv * vis
+	var shadow := inv * Transform2D(vis.get_rotation(), vis.origin + Vector2(1.5, 2.0))
+	CarPainter.draw_shadow(self, shadow, stats.length, stats.width)
+	if boost_t > 0.0:
+		_draw_flame(base)
+	CarPainter.draw_car(self, base, stats.shape, stats.length, stats.width,
 			stats.color, stats.rims, stats.decal, steer_visual, braking_visual, 1.0, _outline)
 	if player_index > 0 or display_name != "":
 		# Tag above the car, kept upright regardless of the car's rotation.
-		draw_set_transform(Vector2(0, -12).rotated(-rotation), -rotation, Vector2.ONE)
+		draw_set_transform_matrix(inv * Transform2D(0.0, vis.origin + Vector2(0, -12)))
 		draw_colored_polygon(PackedVector2Array([Vector2(-2.5, 3), Vector2(2.5, 3), Vector2(0, 6)]), tag_color)
 		var tag := "%dP" % player_index if player_index > 0 else display_name
 		PixelText.draw_centered(self, Vector2(0, -1), tag, tag_color)
+		for i in _floats.size():
+			var f: Dictionary = _floats[i]
+			var age: float = f["t"]
+			var fc: Color = f["color"]
+			fc.a = clampf(1.6 - age * 1.4, 0.0, 1.0)
+			PixelText.draw_centered(self, Vector2(0, -9 - age * 14.0 - (_floats.size() - 1 - i) * 7), str(f["text"]), fc)
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+## Exhaust flame while boosting: flickers and takes the boost level's colour.
+func _draw_flame(base: Transform2D) -> void:
+	var hl := stats.length * 0.5
+	var flick := 0.7 + 0.3 * sin(Time.get_ticks_msec() * 0.06)
+	var lvl_col: Color = BOOST_COLORS[clampi(boost_level - 1, 0, 2)]
+	var flame_len := (5.0 + boost_level * 2.0) * flick
+	draw_set_transform_matrix(base)
+	for side in [-1.5, 1.5]:
+		var y: float = side
+		draw_colored_polygon(PackedVector2Array([Vector2(-hl, y - 1.5), Vector2(-hl - flame_len, y), Vector2(-hl, y + 1.5)]), lvl_col)
+		draw_colored_polygon(PackedVector2Array([Vector2(-hl, y - 0.8), Vector2(-hl - flame_len * 0.55, y), Vector2(-hl, y + 0.8)]), Color("fff3b0"))
+	draw_set_transform_matrix(Transform2D.IDENTITY)

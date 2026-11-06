@@ -4,15 +4,21 @@ extends RefCounted
 ## drifting; short breaks between corners are allowed (CHAIN_WINDOW). The chain
 ## is banked as points x multiplier when it ends cleanly, and lost on a crash,
 ## a spin or leaving the road.
+##
+## Drift zones (the sharpest corners, marked on the road) double the points
+## earned inside them and give a grade S/A/B/C on exit for how much of the
+## zone was driven sideways. The zone bonus is paid at once and cannot be lost.
 
 signal popup(text: String, points: int, kind: String)
 
-const CHAIN_WINDOW := 1.4
+const CHAIN_WINDOW := 2.0
 const MIN_SLIP := 12.0
 const MIN_SPEED := 60.0
 const MAX_MULT := 5.0
-const MULT_RATE := 0.32       # multiplier gained per second of drifting
-const BASE_RATE := 140.0      # points per second at 45 degrees and ~200 px/s
+const MULT_RATE := 0.5        # multiplier gained per second of drifting
+const BASE_RATE := 220.0      # points per second at 45 degrees and ~200 px/s
+const ZONE_FACTOR := 2.0
+const ZONE_GRADES := [["S", 0.9, 1500], ["A", 0.75, 1000], ["B", 0.5, 600], ["C", 0.25, 300]]
 
 var enabled := false
 var total := 0
@@ -24,8 +30,14 @@ var chain_time := 0.0
 var clean := true
 var best_combo := 0
 var drifts_banked := 0
+var zones_s := 0
 var tandem := false          # set by the race in co-op when both cars drift close
 var proximity := false       # true this frame if hugging the road edge
+
+# Current drift zone (-1 outside) and how it is going.
+var zone_id := -1
+var zone_frames := 0
+var zone_drift_frames := 0
 
 
 func reset() -> void:
@@ -44,10 +56,23 @@ func _clear_chain() -> void:
 	clean = true
 
 
+## Share of the current zone driven sideways so far (0..1).
+func zone_ratio() -> float:
+	return float(zone_drift_frames) / maxf(float(zone_frames), 1.0)
+
+
+static func grade_for(ratio: float) -> String:
+	for g in ZONE_GRADES:
+		if ratio >= float(g[1]):
+			return g[0]
+	return "-"
+
+
 func update(dt: float, car: Car) -> void:
 	if not enabled:
 		return
 	var drifting_well := car.drifting and car.slip_deg > MIN_SLIP and car.speed > MIN_SPEED and car.on_road
+	_update_zone(car, drifting_well)
 	proximity = false
 	if drifting_well:
 		var angle_f := clampf((car.slip_deg - 8.0) / 37.0, 0.0, 1.4)
@@ -57,8 +82,9 @@ func update(dt: float, car: Car) -> void:
 			edge_f = 1.5
 			proximity = true
 		var tandem_f := 1.5 if tandem else 1.0
-		current += BASE_RATE * angle_f * speed_f * edge_f * tandem_f * dt
-		multiplier = minf(multiplier + MULT_RATE * dt * (1.0 + float(int(chain_time) / 4) * 0.25), MAX_MULT)
+		var zone_f := ZONE_FACTOR if zone_id >= 0 else 1.0
+		current += BASE_RATE * angle_f * speed_f * edge_f * tandem_f * zone_f * dt
+		multiplier = minf(multiplier + MULT_RATE * dt * (1.0 + float(int(chain_time) / 3) * 0.25), MAX_MULT)
 		chain_timer = CHAIN_WINDOW
 		chain_time += dt
 		in_chain = true
@@ -68,6 +94,32 @@ func update(dt: float, car: Car) -> void:
 		chain_timer -= dt
 		if chain_timer <= 0.0:
 			bank()
+
+
+func _update_zone(car: Car, drifting_well: bool) -> void:
+	var z := car.track.zone_at(car.track_idx) if car.track else -1
+	if z != zone_id:
+		if zone_id >= 0:
+			_finish_zone()
+		zone_id = z
+		zone_frames = 0
+		zone_drift_frames = 0
+	if zone_id >= 0:
+		zone_frames += 1
+		if drifting_well:
+			zone_drift_frames += 1
+
+
+func _finish_zone() -> void:
+	var ratio := zone_ratio()
+	for g in ZONE_GRADES:
+		if ratio >= float(g[1]):
+			var bonus := int(g[2])
+			total += bonus
+			if g[0] == "S":
+				zones_s += 1
+			popup.emit(Lang.t("ZONE %s") % g[0], bonus, "zone")
+			return
 
 
 func bank() -> void:

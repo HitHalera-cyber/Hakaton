@@ -105,7 +105,8 @@ const RU := {
 	"TEAM %s": "КОМАНДА %s", "GHOST %s": "ПРИЗРАК %s", "SET A LAP TO RACE YOUR GHOST": "ПРОЙДИТЕ КРУГ, ЧТОБЫ ПОЯВИЛСЯ ПРИЗРАК",
 	"PRACTICE — ESC TO LEAVE": "ТРЕНИРОВКА — ESC ДЛЯ ВЫХОДА", "SCORE ATTACK": "НАБОР ОЧКОВ", "FINISH IN %d": "ФИНИШ ЧЕРЕЗ %d",
 	"GREAT DRIFT": "ОТЛИЧНЫЙ ДРИФТ", "PERFECT DRIFT": "ИДЕАЛЬНЫЙ ДРИФТ", " CLEAN": " ЧИСТО", "CRASH": "АВАРИЯ",
-	"SPIN OUT": "РАЗВОРОТ", "1ST": "1-Й", "2ND": "2-Й", "3RD": "3-Й", "%dTH": "%d-Й",
+	"SPIN OUT": "РАЗВОРОТ", "BOOST": "УСКОР.", "BOOST!": "УСКОРЕНИЕ!", "DRIFT ZONE": "ДРИФТ-ЗОНА", "ZONE %s": "ЗОНА %s",
+	"Handbrake into corners to drift! Drifting charges a BOOST.": "Ручник в повороте — занос! Дрифт заряжает УСКОРЕНИЕ.", "1ST": "1-Й", "2ND": "2-Й", "3RD": "3-Й", "%dTH": "%d-Й",
 }
 
 const TABLES := {"ru": RU}

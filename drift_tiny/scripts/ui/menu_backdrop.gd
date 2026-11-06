@@ -55,6 +55,7 @@ func _build() -> void:
 	_cam.follow_speed = 3.0
 	_vp.add_child(_cam)
 	_cam.set_bounds(data.bounds)
+	_cam.post_material = (_vp.get_parent() as SubViewportContainer).material as ShaderMaterial
 	_cam.snap_to_targets()
 	var layer := CanvasLayer.new()
 	_vp.add_child(layer)

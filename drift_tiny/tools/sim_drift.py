@@ -11,11 +11,14 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 DT = 1 / 60
 DRAG = 0.22
 ROLL = 35.0
-DRIFT_YAW = 1.35
-ALIGN = 2.0
+DRIFT_YAW = 2.1
+ALIGN = 1.6
 HB_YAW = 1.8
 POWER_YAW = 1.4
 DRIFT_FRICTION = 130.0
+BOOST_CHARGE = [0.5, 1.2, 2.2]
+BOOST_POWER = [0.15, 0.25, 0.35]
+BOOST_TIME = [0.6, 0.9, 1.3]
 
 
 class Car:
@@ -28,6 +31,10 @@ class Car:
         s.exit_t = 0.0
         s.slip = 0.0
         s.spun = False
+        s.charge = 0.0
+        s.boost_t = 0.0
+        s.boost_p = 0.0
+        s.boosts = 0
 
     def step(s, thr, brk, steer, hb, grip_mult=1.0):
         st = s.st
@@ -37,13 +44,16 @@ class Car:
         rx, ry = -fy, fx
         vl = s.vx * fx + s.vy * fy
         vt = s.vx * rx + s.vy * ry
-        maxs = st["max_speed"]
+        if s.boost_t > 0:
+            s.boost_t -= DT
+        boost = s.boost_p if s.boost_t > 0 else 0.0
+        maxs = st["max_speed"] * (1 + boost)
         if thr > 0:
             if vl < -5:
                 vl += st["brake"] * thr * DT
             else:
                 f = max(0.0, 1 - (max(vl, 0) / maxs) ** 2)
-                vl += st["accel"] * thr * f * DT
+                vl += st["accel"] * (1 + boost * 3) * thr * f * DT
         if brk > 0:
             if vl > 5:
                 vl -= st["brake"] * brk * DT
@@ -57,15 +67,16 @@ class Car:
         slip_full = math.degrees(math.atan2(abs(vt), vl)) if speed > 1.0 else 0.0
         slip = min(slip_full, 90.0)
         # drift state
-        if hb and speed > 70:
+        was = s.drifting
+        if hb and speed > 50:
             s.drifting = True
-        if (not s.drifting and speed > maxs * 0.5 and abs(steer) > 0.7 and thr > 0.8
-                and slip > 18 - 12 * st["power_slide"]):
+        if (not s.drifting and speed > maxs * 0.45 and abs(steer) > 0.7 and thr > 0.8
+                and slip > 13 - 10 * st["power_slide"]):
             s.drifting = True
         if s.drifting:
-            if slip < 9 and not hb:
+            if slip < 7 and not hb:
                 s.exit_t += DT
-                if s.exit_t > 0.2:
+                if s.exit_t > 0.3:
                     s.drifting = False
             else:
                 s.exit_t = 0
@@ -92,6 +103,14 @@ class Car:
             target = steer * st["steer"] * sf * hs * dirs
             resp = 12.0
         s.ang += (target - s.ang) * (1 - math.exp(-resp * DT))
+        if s.drifting and slip > 12 and speed > 60:
+            s.charge += DT
+        if was and not s.drifting:
+            lvl = sum(1 for c in BOOST_CHARGE if s.charge >= c)
+            s.charge = 0.0
+            if lvl:
+                s.boost_t, s.boost_p = BOOST_TIME[lvl - 1], BOOST_POWER[lvl - 1]
+                s.boosts += 1
         # lateral grip
         if s.drifting:
             # Sliding tyres give a roughly constant sideways force (past the
@@ -115,14 +134,16 @@ class Car:
         s.vx = fx * vl + rx * vt
         s.vy = fy * vl + ry * vt
         sp = math.hypot(s.vx, s.vy)
-        if sp > maxs * 1.05:
-            s.vx *= maxs * 1.05 / sp
-            s.vy *= maxs * 1.05 / sp
+        cap = st["max_speed"] * 1.05 * (1 + boost)
+        if sp > cap:
+            s.vx *= cap / sp
+            s.vy *= cap / sp
         s.rot += s.ang * DT
         s.slip = slip
         if slip_full > 110 and s.drifting:
             s.spun = True
             s.drifting = False
+            s.charge = 0.0
         return speed
 
 

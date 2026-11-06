@@ -60,6 +60,15 @@ func _run() -> void:
 		await _race(2, "versus", "neon", "split", 12.0, "ru_race")
 		get_tree().quit()
 		return
+	if "drift" in OS.get_cmdline_user_args():
+		# A burst of frames from a drifting car, to check the drift effects.
+		SaveManager.data["settings"]["style"] = "neon_sunset"
+		await _race(1, "drift_attack", "mountain", "split", 6.0, "drift_00")
+		for i in 12:
+			await _wait(1.2)
+			await _shot("drift_%02d" % (i + 1))
+		get_tree().quit()
+		return
 	if "styles" in OS.get_cmdline_user_args():
 		var n := 1
 		for sid in GraphicsStyle.ORDER:

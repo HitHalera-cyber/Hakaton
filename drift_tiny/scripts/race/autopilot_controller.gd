@@ -40,6 +40,13 @@ func update_inputs(car: Car, delta: float) -> void:
 		var vel_ang := car.velocity.angle()
 		var beta := wrapf(car.rotation - vel_ang, -PI, PI)
 		var want := clampf(wrapf(to.angle() - vel_ang, -PI, PI) * 1.5, -0.6, 0.6)
+		if drift_happy >= 0.8:
+			# A keen drifter holds a big, showy angle through the whole bend.
+			# Only while the car is not already drifting wide of the line.
+			var turn := signf(t.curvature[t.advance(idx, look * 0.8)])
+			var wide := -car.lateral_off * turn
+			if turn != 0.0 and wide < 4.0 and (signf(want) == turn or absf(want) < 0.2):
+				want = turn * maxf(absf(want), 0.45)
 		car.input_steer = clampf((want - beta) * 2.5, -1.0, 1.0)
 
 	# How hard is the road ahead?
@@ -67,7 +74,13 @@ func update_inputs(car: Car, delta: float) -> void:
 		car.input_handbrake = true
 	else:
 		car.input_handbrake = false
-		if radius < 120.0 and car.speed > 150.0 and absf(diff) > 0.25 and _rng.randf() < drift_happy * delta * 6.0:
+		# Flick the handbrake into corners; a keen drifter (drift_happy near 1)
+		# throws the car sideways into almost every bend.
+		var keen := drift_happy >= 0.8
+		var tight := radius < (230.0 if keen else 120.0)
+		var fast := car.speed > (110.0 if keen else 150.0)
+		if tight and fast and not car.drifting and absf(diff) > (0.1 if keen else 0.25) \
+				and _rng.randf() < drift_happy * delta * 6.0:
 			_hb_t = 0.22
 	# Never sit still against a wall: reverse out.
 	if car.speed < 10.0 and absf(diff) > 1.6:

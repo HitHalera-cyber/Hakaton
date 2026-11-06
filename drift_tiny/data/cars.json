@@ -21,40 +21,40 @@
       "desc": "Honest city hatchback. Forgiving and easy to slide.",
       "length": 15, "width": 8, "mass": 1.0, "color": 0,
       "max_speed": 255, "accel": 230, "brake": 430,
-      "grip": 9.5, "drift_grip": 2.4, "steer": 3.0, "drift_steer": 1.25,
-      "power_slide": 0.25, "drift_keep": 0.55, "drift_stability": 1.0
+      "grip": 8.5, "drift_grip": 2.4, "steer": 3.0, "drift_steer": 1.25,
+      "power_slide": 0.5, "drift_keep": 0.55, "drift_stability": 1.0
     },
     {
       "id": "jdm", "name": "JDM", "shape": "coupe", "price": 0,
       "desc": "Rear-drive coupe made for long, technical drifts.",
       "length": 16, "width": 8, "mass": 1.05, "color": 2,
       "max_speed": 275, "accel": 260, "brake": 440,
-      "grip": 9.0, "drift_grip": 2.1, "steer": 3.1, "drift_steer": 1.45,
-      "power_slide": 0.8, "drift_keep": 0.7, "drift_stability": 1.2
+      "grip": 8.2, "drift_grip": 2.1, "steer": 3.1, "drift_steer": 1.45,
+      "power_slide": 0.9, "drift_keep": 0.7, "drift_stability": 1.2
     },
     {
       "id": "sport", "name": "Sport", "shape": "sport", "price": 1500,
       "desc": "Low, light and fast. Grips hard, slides sharp.",
       "length": 17, "width": 9, "mass": 0.95, "color": 1,
       "max_speed": 310, "accel": 300, "brake": 520,
-      "grip": 11.5, "drift_grip": 2.6, "steer": 3.2, "drift_steer": 1.2,
-      "power_slide": 0.45, "drift_keep": 0.6, "drift_stability": 0.95
+      "grip": 10.5, "drift_grip": 2.6, "steer": 3.2, "drift_steer": 1.2,
+      "power_slide": 0.6, "drift_keep": 0.6, "drift_stability": 0.95
     },
     {
       "id": "retro", "name": "Retro", "shape": "retro", "price": 900,
       "desc": "Tiny rounded classic. Slow, but rotates like a top.",
       "length": 13, "width": 8, "mass": 0.8, "color": 3,
       "max_speed": 235, "accel": 240, "brake": 400,
-      "grip": 8.5, "drift_grip": 1.9, "steer": 3.6, "drift_steer": 1.5,
-      "power_slide": 0.6, "drift_keep": 0.6, "drift_stability": 0.9
+      "grip": 7.8, "drift_grip": 1.9, "steer": 3.6, "drift_steer": 1.5,
+      "power_slide": 0.75, "drift_keep": 0.6, "drift_stability": 0.9
     },
     {
       "id": "rally", "name": "Rally", "shape": "rally", "price": 2200,
       "desc": "All-wheel drive. Keeps its grip on dirt and snow.",
       "length": 15, "width": 9, "mass": 1.15, "color": 4,
       "max_speed": 280, "accel": 285, "brake": 470,
-      "grip": 10.5, "drift_grip": 2.8, "steer": 3.0, "drift_steer": 1.3,
-      "power_slide": 0.5, "drift_keep": 0.65, "drift_stability": 1.1,
+      "grip": 9.5, "drift_grip": 2.8, "steer": 3.0, "drift_steer": 1.3,
+      "power_slide": 0.6, "drift_keep": 0.65, "drift_stability": 1.1,
       "loose_surface_bonus": 0.35
     },
     {
@@ -62,8 +62,8 @@
       "desc": "Wide-body project car. Upgrades give it more.",
       "length": 16, "width": 10, "mass": 1.1, "color": 5,
       "max_speed": 285, "accel": 270, "brake": 480,
-      "grip": 10.0, "drift_grip": 2.0, "steer": 3.1, "drift_steer": 1.4,
-      "power_slide": 0.7, "drift_keep": 0.7, "drift_stability": 1.1,
+      "grip": 9.0, "drift_grip": 2.0, "steer": 3.1, "drift_steer": 1.4,
+      "power_slide": 0.85, "drift_keep": 0.7, "drift_stability": 1.1,
       "upgrade_bonus": 1.5
     }
   ]

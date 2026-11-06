@@ -101,7 +101,10 @@ func _spawn_cars() -> void:
 			rc.display_name = RIVAL_NAMES[r]
 			rc.tag_color = Color(0.85, 0.85, 0.9)
 			var champ_round := int(Game.championship.get("index", 0))
-			rc.controller = AutopilotController.new(0.86 + 0.04 * r + 0.02 * champ_round, (r - 1.5) * 5.0, r * 31 + 7)
+			var ai := AutopilotController.new(0.86 + 0.04 * r + 0.02 * champ_round, (r - 1.5) * 5.0, r * 31 + 7)
+			# Rivals show off big drifts on asphalt; on dirt and snow they stay tidier.
+			ai.drift_happy = 0.9 if track_data.surface in ["asphalt", "wet"] else 0.6
+			rc.controller = ai
 			slot += 1
 	for c in cars:
 		racers[c] = {
@@ -130,6 +133,7 @@ func _make_car(car_id: String, slot: int) -> Car:
 	car.scoring.enabled = false
 	car.crashed.connect(_on_crash.bind(car))
 	car.bumped.connect(_on_bump)
+	car.boosted.connect(_on_boost.bind(car))
 	cars.append(car)
 	return car
 
@@ -158,6 +162,11 @@ func _build_overlays() -> void:
 	layer.add_child(_pause)
 	_pause.restart_requested.connect(Game.goto.bind("race"))
 	_pause.quit_requested.connect(Game.goto.bind("menu"))
+
+
+func _on_boost(level: int, car: Car) -> void:
+	if car.player_index > 0:
+		AudioManager.play("go", 1.1 + level * 0.15, -6.0)
 
 
 func _on_bump(_other: Car, impact: float) -> void:
@@ -242,6 +251,10 @@ func _start_race() -> void:
 		(c as Car).scoring.enabled = true
 	if ghost and _ghost_best > 0.0:
 		ghost.restart_lap()
+	# Teach the core mechanic in the first races.
+	if int(SaveManager.data["stats"]["races"]) < 5:
+		for h in humans:
+			views.message_for(h, tr("Handbrake into corners to drift! Drifting charges a BOOST."), UiTheme.CYAN, 5.0, false)
 
 
 func _tick_racing(delta: float) -> void:

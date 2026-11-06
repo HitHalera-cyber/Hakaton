@@ -12,6 +12,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import check_tracks as ct            # noqa: E402
 from sim_drift import Car, DT       # noqa: E402
+KEEN = os.environ.get("KEEN") == "1"   # simulate the keen-drifter CPU
 SPACING = 6.0
 
 
@@ -122,6 +123,12 @@ def run(track_def, car_def, skill=1.0, laps=2):
             vel_ang = math.atan2(c.vy, c.vx)
             beta = wrap(c.rot - vel_ang)
             want = max(-0.6, min(0.6, wrap(to_ang - vel_ang) * 1.5))
+            if KEEN:
+                cv = tr.curv[tr.advance(idx, look * 0.8)]
+                turn = (cv > 0) - (cv < 0)
+                lat = (x - tr.s[idx][0]) * tr.nor[idx][0] + (y - tr.s[idx][1]) * tr.nor[idx][1]
+                if turn and -lat * turn < 4 and ((want > 0) - (want < 0) == turn or abs(want) < 0.2):
+                    want = turn * max(abs(want), 0.45)
             steer = max(-1.0, min(1.0, (want - beta) * 2.5))
         bend = max(abs(tr.curv[tr.advance(idx, look * 0.6 * k)]) for k in (1, 2, 3, 4))
         radius = 1.0 / max(bend, 1e-4)
@@ -141,7 +148,9 @@ def run(track_def, car_def, skill=1.0, laps=2):
             hb = True
         else:
             hb = False
-            if radius < 120 and speed > 150 and abs(diff) > 0.25 and rnd.random() < 0.5 * DT * 6:
+            keen = KEEN
+            if (radius < (230 if keen else 120) and speed > (110 if keen else 150) and not c.drifting
+                    and abs(diff) > (0.1 if keen else 0.25) and rnd.random() < (0.9 if keen else 0.5) * DT * 6):
                 hb_t = 0.22
         c.step(thr, brk, steer, hb, grip_mult)
         x += c.vx * DT

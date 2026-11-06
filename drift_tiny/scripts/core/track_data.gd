@@ -27,6 +27,10 @@ var bounds := Rect2()
 
 ## Index ranges of samples covered with ice (snow track) — lower grip.
 var ice_ranges: Array = []
+## Drift zones: [start, end] sample index ranges around the sharpest corners
+## (end may run past the last sample; it wraps). Drifting through a whole zone
+## earns a grade and bonus points.
+var drift_zones: Array = []
 
 
 func setup(def: Dictionary) -> void:
@@ -44,6 +48,7 @@ func setup(def: Dictionary) -> void:
 	_sample(pts)
 	if surface == "snow":
 		_place_ice()
+	_place_drift_zones(4)
 
 
 func _sample(pts: PackedVector2Array) -> void:
@@ -108,6 +113,48 @@ func _place_ice() -> void:
 			ice_ranges.append([idx + 4, idx + 22])
 		if used.size() >= 3:
 			break
+
+
+## The sharpest corners, at least 90 samples apart, become drift zones.
+func _place_drift_zones(count: int) -> void:
+	var m := samples.size()
+	var scored: Array = []
+	for i in range(0, m, 4):
+		# Smoothed curvature so a long bend beats a single kink.
+		var k := 0.0
+		for o in range(-8, 9, 2):
+			k += absf(curvature[posmod(i + o, m)])
+		scored.append([k, i])
+	scored.sort_custom(func(a, b): return a[0] > b[0])
+	for entry in scored:
+		var idx: int = entry[1]
+		var far := true
+		for z in drift_zones:
+			var c: int = (int(z[0]) + int(z[1])) / 2
+			var d := absi(c - idx)
+			if mini(d, m - d) < 90:
+				far = false
+		# Keep zones off the start line.
+		if mini(idx, m - idx) < 40:
+			far = false
+		if far:
+			drift_zones.append([idx - 14, idx + 22])
+		if drift_zones.size() >= count:
+			break
+	drift_zones.sort_custom(func(a, b): return a[0] < b[0])
+
+
+## Index of the drift zone containing sample idx, or -1.
+func zone_at(idx: int) -> int:
+	if idx < 0:
+		return -1
+	var m := samples.size()
+	for z in drift_zones.size():
+		var a: int = drift_zones[z][0]
+		var b: int = drift_zones[z][1]
+		if posmod(idx - a, m) <= b - a:
+			return z
+	return -1
 
 
 func size() -> int:

@@ -75,6 +75,7 @@ func build_views() -> void:
 		cam.shake_enabled = bool(SaveManager.get_setting("camera_shake", true))
 		vp.add_child(cam)
 		cam.set_bounds(track_data.bounds)
+		cam.post_material = svc.material as ShaderMaterial
 		if view_count == 1:
 			cam.targets = humans.duplicate()
 		else:

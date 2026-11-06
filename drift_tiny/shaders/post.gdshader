@@ -3,6 +3,8 @@ shader_type canvas_item;
 // Each graphics style (scripts/core/graphics_style.gd) sets these uniforms.
 
 uniform vec2 source_size = vec2(480.0, 270.0);
+// Fraction of a world pixel the camera is ahead of the drawn frame.
+uniform vec2 subpixel = vec2(0.0);
 uniform float saturation = 1.0;
 uniform float contrast = 1.0;
 uniform float brightness = 0.0;
@@ -19,7 +21,7 @@ uniform float vignette = 0.0;
 uniform float aberration = 0.0;
 
 void fragment() {
-	vec2 uv = UV;
+	vec2 uv = UV + subpixel / source_size;
 	vec3 c;
 	if (aberration > 0.0) {
 		float o = aberration / source_size.x;

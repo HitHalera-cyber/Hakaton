@@ -51,7 +51,13 @@ func _on_popup(text: String, pts: int, kind: String) -> void:
 	_popups.push_front({"text": text, "pts": pts, "kind": kind, "t": 0.0})
 	if _popups.size() > 4:
 		_popups.pop_back()
-	AudioManager.play("drift_bank" if kind == "bank" else "drift_fail", 1.0 if kind == "bank" else 0.9, -4.0)
+	match kind:
+		"bank":
+			AudioManager.play("drift_bank", 1.0, -4.0)
+		"zone":
+			AudioManager.play("lap", 1.2, -2.0)
+		_:
+			AudioManager.play("drift_fail", 0.9, -4.0)
 
 
 func show_message(text: String, col := WHITE, duration := 1.2, big := true) -> void:
@@ -152,7 +158,7 @@ func _draw_bottom(w: float, h: float) -> void:
 
 	# --- current drift (bottom-right)
 	if car.scoring.in_chain:
-		var dr := Rect2(w - (190 if compact else 230), h - 66, 180 if compact else 220, 56)
+		var dr := Rect2(w - (190 if compact else 230), h - 84, 180 if compact else 220, 74)
 		_panel(dr, PINK)
 		var dlabel := tr("DRIFT")
 		_text(Vector2(dr.position.x + 12, dr.position.y + 26), dlabel, 20, PINK)
@@ -163,26 +169,43 @@ func _draw_bottom(w: float, h: float) -> void:
 			_text(Vector2(dr.position.x + 64, dr.position.y + 46), tr("CLOSE!"), 12, Color("ffd84a"))
 		if car.scoring.tandem:
 			_text(Vector2(dr.position.x + 120, dr.position.y + 46), tr("TANDEM"), 12, Color("3ee0ff"))
+		# Drift angle.
+		_text_r(Vector2(dr.end.x - 10, dr.position.y + 46), "%d°" % int(car.slip_deg), 16, Color("ffd84a"))
+		# Boost charge: three cells that light up blue, orange, pink.
+		var lvl := car.charge_level()
+		_text(Vector2(dr.position.x + 12, dr.position.y + 64), tr("BOOST"), 12, Color(WHITE, 0.7))
+		for i in 3:
+			var cc: Color = Car.BOOST_COLORS[i] if i < lvl else Color(1, 1, 1, 0.12)
+			draw_rect(Rect2(dr.position.x + 70 + i * 34, dr.position.y + 54, 30, 10), cc)
 		var k := car.scoring.chain_timer / DriftScoring.CHAIN_WINDOW
 		draw_rect(Rect2(dr.position.x, dr.end.y - 3, dr.size.x * k, 3), PINK)
+	if car.boost_t > 0.0:
+		var bc: Color = Car.BOOST_COLORS[clampi(car.boost_level - 1, 0, 2)]
+		bc.a = 0.6 + 0.4 * sin(Time.get_ticks_msec() * 0.03)
+		_text(Vector2(14, h - 66), tr("BOOST!") + " " + "+".repeat(car.boost_level), 22, bc)
+	# Drift zone banner with the grade earned so far.
+	if car.scoring.zone_id >= 0:
+		var grade := DriftScoring.grade_for(car.scoring.zone_ratio())
+		var zc := Color("3ee0ff") if grade in ["S", "A"] else (PINK if grade != "-" else Color(WHITE, 0.8))
+		_text_c(Vector2(w * 0.5, h * 0.24), tr("DRIFT ZONE") + "   " + grade, 26, zc, 5)
 
 	# --- popups (right side, stacked)
-	var py := h - 90.0
+	var py := h - 100.0
 	for p in _popups:
 		var age: float = p["t"]
 		var a := clampf(2.2 - age, 0.0, 1.0)
 		var kind: String = p["kind"]
-		var pc := Color("ffd84a") if kind == "bank" else Color("ff5a5a")
+		var pc := Color("ffd84a") if kind == "bank" else (Color("3ee0ff") if kind == "zone" else Color("ff5a5a"))
 		if str(p["text"]).begins_with("PERFECT"):
 			pc = Color("3ee0ff")
-		var line := "%s  %s%s" % [p["text"], "+" if kind == "bank" else "-", _fmt_points(p["pts"])]
+		var line := "%s  %s%s" % [p["text"], "-" if kind == "fail" else "+", _fmt_points(p["pts"])]
 		_text_r(Vector2(w - 14, py - age * 14.0), line, 16, Color(pc, a))
 		py -= 22.0
 
 	# --- centre messages
 	if _message_t > 0.0 and _message != "":
 		var a := clampf(_message_t * 3.0, 0.0, 1.0)
-		var fs := 56 if _message_big else 24
+		var fs := 56 if _message_big else 18
 		_text_c(Vector2(w * 0.5, h * 0.42), _message, fs, Color(_message_color, a), 6)
 	if info.get("wrong_way", false):
 		_text_c(Vector2(w * 0.5, h * 0.3), tr("WRONG WAY"), 30, Color("ff5a5a"), 4)

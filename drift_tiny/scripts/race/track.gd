@@ -342,6 +342,7 @@ func _draw_markings(ci: Node2D) -> void:
 		var cw := 6.0 if toy else 4.0
 		_quad(tb, i, j, hw, hw + cw, c)
 		_quad(tb, i, j, -hw - cw, -hw, c)
+	_draw_drift_zones(tb, hw)
 	# Start / finish: checker strip across the road at sample 0.
 	var s0 := data.samples[0]
 	var t0 := data.tangents[0]
@@ -364,6 +365,32 @@ func _draw_markings(ci: Node2D) -> void:
 		tb.rect(Rect2(-9, -6, 18, 12), Color(1, 1, 1, 0.7), false, 1.0)
 		tb.reset_transform()
 	tb.flush(ci)
+
+
+## Drift zones: tinted road, striped pink/white edges, entry and exit lines
+## and "DRIFT ZONE" painted across the asphalt at the entry.
+func _draw_drift_zones(tb: TriBatch, hw: float) -> void:
+	var m := data.size()
+	var pink := Color("ff3da5")
+	for z in data.drift_zones:
+		var a: int = z[0]
+		var b: int = z[1]
+		_band(tb, -hw, hw, Color(pink, 0.1), a, b)
+		for k in range(a, b):
+			var i := posmod(k, m)
+			var j := posmod(k + 1, m)
+			var stripe := (k / 2) % 2 == 0
+			var c := pink if stripe else Color("f4f4f4")
+			_quad(tb, i, j, hw - 3.0, hw - 1.0, c)
+			_quad(tb, i, j, -hw + 1.0, -hw + 3.0, c)
+		for edge in [a, b]:
+			var e := posmod(int(edge), m)
+			_quad(tb, e, (e + 1) % m, -hw, hw, Color(pink, 0.85))
+		var s := posmod(a + 3, m)
+		var ang := data.tangents[s].angle() + PI * 0.5
+		tb.set_transform(data.samples[s], ang)
+		PixelText.draw(tb, Vector2(-PixelText.width_of("DRIFT ZONE") * 0.5, -2.5), "DRIFT ZONE", Color(1, 1, 1, 0.75), 1.0, false)
+		tb.reset_transform()
 
 
 func _draw_barriers(ci: Node2D) -> void:
