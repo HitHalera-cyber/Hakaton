@@ -34,6 +34,7 @@ var mode := "time_attack"
 var track_id := "mountain"
 var laps := 3
 var view_mode := "split"
+var reverse := false        # drive the track the other way
 
 ## Championship state: {"tracks": [...], "index": int, "points": {name: int}}
 var championship: Dictionary = {}
@@ -99,12 +100,13 @@ func track_ids() -> Array:
 
 
 ## Built TrackData (spline samples etc.), cached because building takes a moment.
-func track_data(id: String) -> TrackData:
-	if not _track_cache.has(id):
+func track_data(id: String, reversed := false) -> TrackData:
+	var key := id + ("_rev" if reversed else "")
+	if not _track_cache.has(key):
 		var td := TrackData.new()
-		td.setup(track_def(id))
-		_track_cache[id] = td
-	return _track_cache[id]
+		td.setup(track_def(id), reversed)
+		_track_cache[key] = td
+	return _track_cache[key]
 
 
 func modes_for(player_count: int) -> Array:
@@ -135,8 +137,16 @@ func car_color(car_id: String) -> Color:
 
 # --- championship -------------------------------------------------------------
 
-func start_championship() -> void:
-	championship = {"tracks": track_ids(), "index": 0, "points": {}}
+## Tracks of the cup (groups of 4 in tracks.json order) that holds a track.
+func cup_tracks(any_track: String) -> Array:
+	var ids := track_ids()
+	var g := maxi(ids.find(any_track), 0) / 4
+	return ids.slice(g * 4, mini(g * 4 + 4, ids.size()))
+
+
+func start_championship(any_track := "") -> void:
+	championship = {"tracks": cup_tracks(any_track), "index": 0, "points": {}}
+	reverse = false
 	track_id = championship["tracks"][0]
 	mode = "championship"
 

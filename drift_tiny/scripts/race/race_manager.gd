@@ -40,7 +40,7 @@ var _achievement_notes: Array = []
 func _ready() -> void:
 	mode = Game.mode
 	laps_total = 0 if mode == "practice" else Game.laps
-	track_data = Game.track_data(Game.track_id)
+	track_data = Game.track_data(Game.track_id, Game.reverse)
 	shared_view = Game.players == 2 and Game.view_mode == "shared"
 	_build_world()
 	_spawn_cars()
@@ -415,7 +415,7 @@ func _end_race() -> void:
 		])
 		row_colors.append(c.tag_color if c.player_index > 0 else UiTheme.DIM)
 	if any_human_finished:
-		SaveManager.mark_track_finished(track_data.id, Game.tracks.size())
+		SaveManager.mark_track_finished(Game.track_id, Game.tracks.size())
 		if humans.size() == 2:
 			SaveManager.unlock_achievement("duo")
 	if _ghost_beaten:

@@ -5,6 +5,7 @@ var _players: Widgets.OptionCycler
 var _mode: Widgets.OptionCycler
 var _track: Widgets.OptionCycler
 var _laps: Widgets.OptionCycler
+var _dir: Widgets.OptionCycler
 var _view: Widgets.OptionCycler
 var _car1: Widgets.OptionCycler
 var _car2: Widgets.OptionCycler
@@ -45,6 +46,9 @@ func _ready() -> void:
 	_track = Widgets.OptionCycler.new("TRACK", tnames, Game.track_ids(), Game.track_ids().find(Game.track_id))
 	_track.changed.connect(func(_v): _refresh_info())
 	col.add_child(_track)
+	_dir = Widgets.OptionCycler.new("DIRECTION", ["Normal", "Reverse"], [false, true], 1 if Game.reverse else 0)
+	_dir.changed.connect(func(_v): _refresh_info())
+	col.add_child(_dir)
 	_laps = Widgets.OptionCycler.new("LAPS", ["1", "2", "3", "4", "5"], [1, 2, 3, 4, 5], Game.laps - 1)
 	col.add_child(_laps)
 	_view = Widgets.OptionCycler.new("2P SCREEN", ["Split screen", "Shared camera"], ["split", "shared"],
@@ -131,16 +135,19 @@ func _refresh_info() -> void:
 	_desc.text = tr(Game.MODES[m]["desc"])
 	_laps.visible = m != "practice" and m != "championship"
 	var tid: String = _track.value()
-	if m == "championship":
-		tid = Game.track_ids()[0]
-		_track.disabled = true
-	else:
-		_track.disabled = false
-	var td := Game.track_data(tid)
+	var rev: bool = _dir.value() and m != "championship"
+	_dir.visible = m != "championship"
+	var td := Game.track_data(tid, rev)
 	_preview.set_track(td)
-	_track_name.text = td.name if m != "championship" else tr("Championship: all %d tracks") % Game.tracks.size()
+	if m == "championship":
+		var names: PackedStringArray = []
+		for c in Game.cup_tracks(tid):
+			names.append(str(Game.track_def(c)["name"]))
+		_track_name.text = tr("Cup %d") % (Game.track_ids().find(tid) / 4 + 1) + ": " + ", ".join(names)
+	else:
+		_track_name.text = td.name
 	var lines: PackedStringArray = [tr(td.subtitle)]
-	var rec := SaveManager.get_record(tid, m if m != "practice" else "practice")
+	var rec := SaveManager.get_record(td.id, m if m != "practice" else "practice")
 	if rec.has("best_time"):
 		lines.append(tr("Best race (3 laps): %s") % RaceHUD.format_time(float(rec["best_time"])))
 	if rec.has("best_lap"):
@@ -162,7 +169,8 @@ func _on_start() -> void:
 	if Game.players == 2:
 		SaveManager.set_selected(2, _car2.value())
 	if Game.mode == "championship":
-		Game.start_championship()
+		Game.start_championship(_track.value())
 	else:
 		Game.track_id = _track.value()
+		Game.reverse = _dir.value()
 	Game.goto("race")

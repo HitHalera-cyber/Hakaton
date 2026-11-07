@@ -16,6 +16,10 @@ const CONFIGS := [
 	{"players": 1, "mode": "drift_attack", "track": "midnight"},
 	{"players": 2, "mode": "versus", "track": "vector", "view": "split"},
 	{"players": 1, "mode": "ghost", "track": "autumn"},
+	{"players": 1, "mode": "time_attack", "track": "sakura", "reverse": true},
+	{"players": 2, "mode": "versus", "track": "neonring", "view": "split"},
+	{"players": 1, "mode": "drift_attack", "track": "pines"},
+	{"players": 1, "mode": "championship", "track": "glacier"},
 ]
 const RACE_TIMEOUT := 90.0
 
@@ -54,8 +58,9 @@ func _race(cfg: Dictionary) -> void:
 	Game.mode = cfg["mode"]
 	Game.laps = 1
 	Game.view_mode = cfg.get("view", "split")
+	Game.reverse = cfg.get("reverse", false)
 	if Game.mode == "championship":
-		Game.start_championship()
+		Game.start_championship(cfg["track"])
 	else:
 		Game.track_id = cfg["track"]
 	Game.goto("race")

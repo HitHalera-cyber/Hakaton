@@ -37,7 +37,9 @@ const RU := {
 	"Dirt, trees, tight turns": "Грунт, деревья, узкие повороты", "Snow, ice, tricky corners": "Снег, лёд, коварные повороты",
 	"Toy track across a desk": "Игрушечная трасса по письменному столу", "Downtown at night, rain": "Ночной центр города под дождём",
 	"Light lines in a digital void": "Линии света в цифровой пустоте", "Autumn forest, creek, sunset": "Осенний лес, ручей, закат",
-	"Plastic": "Пластик",
+	"Plastic": "Пластик", "Cup %d": "Кубок %d", "DIRECTION": "НАПРАВЛЕНИЕ", "Normal": "Обычное", "Reverse": "Обратное",
+	"Tight hairpins under cherry blossom": "Крутые шпильки под цветущей сакурой", "Fast sweepers between towers": "Быстрые дуги между высотками",
+	"Dirt switchbacks through the pines": "Грунтовые серпантины среди сосен", "Long icy sweepers and a frozen lake": "Длинные ледяные дуги и замёрзшее озеро",
 	# garage
 	"TUNING": "ТЮНИНГ", "PAINT": "ПОКРАСКА", "RIMS": "ДИСКИ", "DECAL": "НАКЛЕЙКА",
 	"ENGINE": "ДВИГАТЕЛЬ", "TYRES": "ШИНЫ", "SUSPENSION": "ПОДВЕСКА", "BRAKES": "ТОРМОЗА",

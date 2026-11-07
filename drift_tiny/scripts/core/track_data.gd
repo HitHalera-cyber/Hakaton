@@ -33,9 +33,14 @@ var ice_ranges: Array = []
 var drift_zones: Array = []
 
 
-func setup(def: Dictionary) -> void:
+## reverse: drive the loop the other way (same start line). It gets its own
+## id ("<id>_rev"), so records, ghosts and scenery are separate.
+func setup(def: Dictionary, reverse := false) -> void:
 	id = def.get("id", "track")
 	name = def.get("name", id)
+	if reverse:
+		id += "_rev"
+		name += " (R)"
 	subtitle = def.get("subtitle", "")
 	theme = def.get("theme", "mountain")
 	surface = def.get("surface", "asphalt")
@@ -45,10 +50,16 @@ func setup(def: Dictionary) -> void:
 	var pts := PackedVector2Array()
 	for p in def.get("points", []):
 		pts.append(Vector2(float(p[0]), float(p[1])))
+	if reverse and pts.size() > 2:
+		var rev := PackedVector2Array([pts[0]])
+		for k in range(pts.size() - 1, 0, -1):
+			rev.append(pts[k])
+		pts = rev
 	_sample(pts)
 	if surface == "snow":
 		_place_ice()
-	_place_drift_zones(4)
+	# Roughly one zone every 600 px of road.
+	_place_drift_zones(clampi(int(total_len / 600.0), 7, 10))
 
 
 func _sample(pts: PackedVector2Array) -> void:
@@ -115,7 +126,7 @@ func _place_ice() -> void:
 			break
 
 
-## The sharpest corners, at least 90 samples apart, become drift zones.
+## The sharpest corners, at least 50 samples apart, become drift zones.
 func _place_drift_zones(count: int) -> void:
 	var m := samples.size()
 	var scored: Array = []
@@ -132,7 +143,7 @@ func _place_drift_zones(count: int) -> void:
 		for z in drift_zones:
 			var c: int = (int(z[0]) + int(z[1])) / 2
 			var d := absi(c - idx)
-			if mini(d, m - d) < 90:
+			if mini(d, m - d) < 50:
 				far = false
 		# Keep zones off the start line.
 		if mini(idx, m - idx) < 40:

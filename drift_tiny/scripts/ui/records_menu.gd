@@ -47,7 +47,9 @@ func _ready() -> void:
 			laps_note = tr(" (%s laps)") % mode_key.get_slice("_", mode_key.get_slice_count("_") - 1)
 			mode_key = mode_key.substr(0, mode_key.rfind("_"))
 		any = true
-		grid.add_child(UiTheme.label(Game.track_def(parts[0]).get("name", parts[0]), 16))
+		var base_id := parts[0].trim_suffix("_rev")
+		var tname := str(Game.track_def(base_id).get("name", base_id)) + (" (R)" if parts[0].ends_with("_rev") else "")
+		grid.add_child(UiTheme.label(tname, 16))
 		grid.add_child(UiTheme.label(tr(Game.mode_name(mode_key)) + laps_note, 16, UiTheme.CYAN))
 		grid.add_child(UiTheme.label(RaceHUD.format_time(float(rec.get("best_time", 0.0))), 16))
 		grid.add_child(UiTheme.label(RaceHUD.format_time(float(rec.get("best_lap", 0.0))), 16))

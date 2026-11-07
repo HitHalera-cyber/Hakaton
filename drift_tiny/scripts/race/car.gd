@@ -17,10 +17,10 @@ signal boosted(level: int)
 const DRAG := 0.22
 const ROLL := 35.0
 const PX_TO_KMH := 0.6
-const DRIFT_YAW := 2.1         # rad/s of yaw per full steer while drifting (x drift_steer)
+const DRIFT_YAW := 2.8         # rad/s of yaw per full steer while drifting (x drift_steer)
 const POWER_YAW := 1.4         # how hard throttle pushes the rear out (x power_slide)
-const ALIGN := 1.6             # tyres pulling the drift angle back to zero
-const HB_YAW := 1.8            # extra pivot while the handbrake is held
+const ALIGN := 1.2             # tyres pulling the drift angle back to zero
+const HB_YAW := 2.4            # extra pivot while the handbrake is held
 const DRIFT_FRICTION := 130.0  # sideways deceleration of sliding tyres (x drift_grip)
 # Drift boost ("mini-turbo"): seconds of drifting needed for levels 1..3, and
 # what each level gives when the drift ends cleanly.
