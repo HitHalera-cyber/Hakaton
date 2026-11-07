@@ -20,8 +20,12 @@ const CONFIGS := [
 	{"players": 2, "mode": "versus", "track": "neonring", "view": "split"},
 	{"players": 1, "mode": "drift_attack", "track": "pines"},
 	{"players": 1, "mode": "championship", "track": "glacier"},
+	{"players": 1, "mode": "gymkhana", "track": "arena"},
+	{"players": 2, "mode": "gymkhana", "track": "arena", "view": "split"},
+	{"players": 2, "mode": "tandem", "track": "mountain", "view": "split"},
+	{"players": 1, "mode": "training", "track": "arena", "runs_only": 15.0},
 ]
-const RACE_TIMEOUT := 90.0
+const RACE_TIMEOUT := 110.0
 
 var _failures := 0
 
@@ -73,16 +77,20 @@ func _race(cfg: Dictionary) -> void:
 	for h in race.humans:
 		(h as Car).controller = AutopilotController.new(0.95, 0.0, 5)
 	var t := 0.0
-	var limit := 45.0 if Game.mode == "practice" else RACE_TIMEOUT
-	while t < limit and race.state != "results":
+	var limit := 45.0 if Game.mode == "practice" else float(cfg.get("runs_only", RACE_TIMEOUT))
+	var replay_frames := 0
+	while t < limit + replay_frames / 60.0 and race.state != "results":
 		await get_tree().physics_frame
 		t += 1.0 / 60.0
-	var line := "%s %dP %s: state=%s t=%.1fs" % [Game.mode, Game.players, race.track_data.id, race.state, t]
+		if race.state == "replay":
+			replay_frames += 1
+	var line := "%s %dP %s: state=%s t=%.1fs replay=%.1fs" % [Game.mode, Game.players, race.track_data.id, race.state, t, replay_frames / 60.0]
 	for c in race.cars:
 		var info: Dictionary = race.racers[c]
 		line += " | %s laps=%d best=%.1f score=%d combo=%d" % [info["name"], int(info["laps_done"]),
 				float(info["best_lap"]), (c as Car).scoring.total, (c as Car).scoring.best_combo]
-	var ok := race.state == "results" or (Game.mode == "practice" and int(race.racers[race.humans[0]]["laps_done"]) >= 1)
+	var ok := race.state == "results" or (Game.mode == "practice" and int(race.racers[race.humans[0]]["laps_done"]) >= 1) \
+			or (cfg.has("runs_only") and race.state == "racing")
 	if not ok:
 		_failures += 1
 	print(("RACE ok: " if ok else "RACE FAIL: ") + line)

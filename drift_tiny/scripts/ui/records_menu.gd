@@ -49,6 +49,8 @@ func _ready() -> void:
 		any = true
 		var base_id := parts[0].trim_suffix("_rev")
 		var tname := str(Game.track_def(base_id).get("name", base_id)) + (" (R)" if parts[0].ends_with("_rev") else "")
+		if base_id == "arena":
+			tname = tr("Gymkhana lot")
 		grid.add_child(UiTheme.label(tname, 16))
 		grid.add_child(UiTheme.label(tr(Game.mode_name(mode_key)) + laps_note, 16, UiTheme.CYAN))
 		grid.add_child(UiTheme.label(RaceHUD.format_time(float(rec.get("best_time", 0.0))), 16))
@@ -65,6 +67,37 @@ func _ready() -> void:
 		var have: bool = id in got
 		col.add_child(UiTheme.label(("[x] " if have else "[ ] ") + tr(SaveManager.ACHIEVEMENTS[id]), 15,
 				UiTheme.TEXT if have else UiTheme.DIM))
+
+	# Couch duel table: 1P against 2P.
+	var duel: Dictionary = SaveManager.data["duel"]
+	var w := SaveManager.duel_wins()
+	var cups: Array = duel["cups"]
+	col.add_child(UiTheme.label(" ", 8))
+	col.add_child(UiTheme.label("2P DUEL — 1P VS 2P", 18, UiTheme.PINK))
+	col.add_child(UiTheme.label(tr("Wins: 1P %d : %d 2P    Draws: %d    Cup duels: 1P %d : %d 2P") % [
+		w[0], w[1], int(duel["draws"]), int(cups[0]), int(cups[1])], 15))
+	var per: Dictionary = duel["tracks"]
+	if not per.is_empty():
+		var parts: PackedStringArray = []
+		for tid in per.keys():
+			var t: Array = per[tid]
+			var base := str(tid).trim_suffix("_rev")
+			var nm := str(Game.track_def(base).get("name", base)) if base != "arena" else tr("Gymkhana lot")
+			parts.append("%s %d:%d" % [nm + (" (R)" if str(tid).ends_with("_rev") else ""), int(t[0]), int(t[1])])
+		var lbl := UiTheme.label("  ".join(parts), 14, UiTheme.DIM)
+		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		lbl.custom_minimum_size = Vector2(860, 0)
+		col.add_child(lbl)
+	for h in duel["history"]:
+		var e: Dictionary = h
+		var base := str(e["track"]).trim_suffix("_rev")
+		var nm := str(Game.track_def(base).get("name", base)) if base != "arena" else tr("Gymkhana lot")
+		var who := tr("Draw") if int(e["winner"]) < 0 else "%dP" % (int(e["winner"]) + 1)
+		col.add_child(UiTheme.label("  %s · %s · %s — %s" % [nm, tr(Game.mode_name(str(e["mode"]))), str(e["line"]), who], 14,
+				UiTheme.TEXT if int(e["winner"]) < 0 else ([UiTheme.PINK, UiTheme.CYAN][int(e["winner"])] as Color)))
+	if (duel["history"] as Array).is_empty():
+		col.add_child(UiTheme.label("No duels yet — play a two-player race.", 14, UiTheme.DIM))
+	col.add_child(UiTheme.label(tr("Challenge stars: %d / %d") % [SaveManager.star_count(), (Game.track_ids().size() * 2 + 1) * 3], 15, UiTheme.CYAN))
 
 	var st: Dictionary = SaveManager.data["stats"]
 	col.add_child(UiTheme.label(" ", 8))

@@ -46,6 +46,7 @@ var input_handbrake := false
 
 # State.
 var frozen := true
+var replaying := false       # pose comes from the best-drift replay
 var drifting := false
 var slip_deg := 0.0
 var speed := 0.0
@@ -77,6 +78,12 @@ var _light: Sprite2D
 var _shake_cb: Callable
 var _outline := GraphicsStyle.flag("outline")
 var _boost_power := 0.0
+var _pad_cd := 0.0
+var hazard := ""             # hazard under the car this frame
+var air_t := 0.0             # > 0 while flying off a ramp
+var touches := 0             # barrier contacts (for the clean-lap challenge)
+const AIR_TIME := 0.6
+signal jumped
 var _charge_fx: CPUParticles2D
 # Physics runs at 60 Hz; the car is drawn between the last two physics
 # positions so motion stays smooth at any frame rate.
@@ -92,7 +99,7 @@ func setup(car_stats: CarStats, track_data: TrackData, skid_layer: SkidLayer) ->
 	motion_mode = CharacterBody2D.MOTION_MODE_FLOATING
 	wall_min_slide_angle = deg_to_rad(5.0)
 	collision_layer = 2
-	collision_mask = 1 | 2
+	collision_mask = 1 | 2 | 4   # 4: drift-only shortcut gates
 	safe_margin = 0.5
 	var shape := CollisionShape2D.new()
 	var rect := RectangleShape2D.new()
@@ -111,8 +118,9 @@ func setup(car_stats: CarStats, track_data: TrackData, skid_layer: SkidLayer) ->
 	_charge_fx = _make_charge_fx()
 	_charge_fx.position = Vector2(-stats.length * 0.5, 0)
 	add_child(_charge_fx)
-	if night:
-		# Headlight beam: additive sprite, no 2D lights needed.
+	if night or Game.quality() > 0:
+		# Headlight beam: additive sprite, no 2D lights needed. Visible at
+		# night or when the day cycle gets dark.
 		_light = Sprite2D.new()
 		_light.texture = FxTextures.headlight_cone()
 		_light.centered = false
@@ -171,11 +179,17 @@ func _process(delta: float) -> void:
 	while not _floats.is_empty() and float(_floats[0]["t"]) > 1.2:
 		_floats.pop_front()
 	if _light:
+		_light.visible = night or Game.darkness > 0.35
 		var local := get_global_transform().affine_inverse() * visual_transform()
 		_light.transform = local * Transform2D(0.0, Vector2(1.1, 0.9), 0.0, Vector2(stats.length * 0.5 - 1.0, 0))
 
 
 func _physics_process(delta: float) -> void:
+	if replaying:
+		# The race sets the pose from the recording (and the previous pose).
+		_set_smoke(drifting and slip_deg > 8.0)
+		queue_redraw()
+		return
 	_prev_pos = global_position
 	_prev_rot = rotation
 	if controller != null:
@@ -194,10 +208,13 @@ func _physics_process(delta: float) -> void:
 		queue_redraw()
 		return
 	_step_handling(delta)
+	# Shortcut gates open only for a car that is sliding.
+	set_collision_mask_value(3, not drifting)
 	var pre := velocity
 	move_and_slide()
 	_handle_collisions(pre)
 	_update_track()
+	_check_hazards(delta)
 	_check_stuck(delta)
 	_update_fx()
 	distance_driven += velocity.length() * delta
@@ -293,6 +310,11 @@ func _step_handling(dt: float) -> void:
 	if was_drifting and not drifting:
 		_release_boost()
 
+	if air_t > 0.0:
+		# Flying: no grip, no steering, the car keeps its momentum and spin.
+		angular *= 0.995
+		rotation += angular * dt
+		return
 	# Lateral grip. Gripping tyres kill sideways speed exponentially; sliding
 	# tyres give a roughly constant sideways force (past the grip peak), so a
 	# slide can still follow a tight corner.
@@ -376,6 +398,21 @@ func _surface() -> Dictionary:
 			surface_name = "ice"
 			grip = 0.5
 			loose = true
+		match hazard:
+			"oil":
+				surface_name = "oil"
+				grip = 0.3
+			"gravel":
+				surface_name = "gravel"
+				grip *= 0.7
+				drag += 1.4
+				loose = true
+			"ice":
+				surface_name = "ice"
+				grip = 0.5
+				loose = true
+	if Game.raining and track.surface in ["asphalt", "plastic"]:
+		grip *= 0.88
 	if loose and stats.loose_surface_bonus > 0.0:
 		grip += (1.0 - grip) * stats.loose_surface_bonus
 	return {"grip": grip, "drag": drag, "speed": spd}
@@ -392,6 +429,7 @@ func _handle_collisions(pre: Vector2) -> void:
 		var impact := -pre.dot(n)
 		if impact < 20.0:
 			continue
+		touches += 1
 		velocity += n * impact * 0.35
 		velocity *= 0.9 if impact < 90.0 else 0.72
 		angular *= 0.5
@@ -439,6 +477,27 @@ func _update_track() -> void:
 	lateral_off = track.lateral(p, track_idx)
 	on_road = absf(lateral_off) <= track.width * 0.5 + 1.0
 	edge_dist = track.width * 0.5 - absf(lateral_off)
+	if not on_road and not track.shortcuts.is_empty() and track.in_shortcut(p):
+		on_road = true
+		edge_dist = 6.0
+
+
+func _check_hazards(dt: float) -> void:
+	_pad_cd = maxf(_pad_cd - dt, 0.0)
+	hazard = track.hazard_at(global_position, track_idx) if track else ""
+	if air_t > 0.0:
+		air_t -= dt
+	elif hazard == "ramp" and speed > 80.0:
+		air_t = AIR_TIME
+		jumped.emit()
+		add_float("AIR!", Color("ffd84a"))
+	if hazard == "boost" and _pad_cd <= 0.0:
+		_pad_cd = 1.0
+		boost_level = 2
+		boost_t = 0.8
+		_boost_power = 0.3
+		boosted.emit(2)
+		add_float("BOOST PAD", BOOST_COLORS[1])
 
 
 func _check_stuck(dt: float) -> void:
@@ -547,11 +606,11 @@ func kmh() -> int:
 func _update_fx() -> void:
 	var sliding := (drifting and slip_deg > 8.0 and speed > 40.0) or (input_handbrake and speed > 60.0)
 	var hard_brake := input_brake > 0.8 and speed > 120.0
-	var loose := surface_name in ["dirt", "grass", "sand", "snow", "snowbank"]
+	var loose := surface_name in ["dirt", "grass", "sand", "snow", "snowbank", "gravel"]
 	_set_smoke(sliding or (loose and speed > 110.0 and input_throttle > 0.5))
 	# Smoke colour follows the surface: white smoke, brown dust, snow spray.
 	var col := Color(1, 1, 1, 0.75)
-	if surface_name in ["dirt", "grass", "sand"]:
+	if surface_name in ["dirt", "grass", "sand", "gravel"]:
 		col = Color(0.62, 0.48, 0.32, 0.7)
 	elif surface_name in ["snow", "snowbank", "ice"]:
 		col = Color(0.92, 0.96, 1.0, 0.85)
@@ -674,6 +733,10 @@ func _draw() -> void:
 	var vis := visual_transform()
 	var inv := get_global_transform().affine_inverse()
 	var base := inv * vis
+	if air_t > 0.0:
+		# Airborne: the car looks bigger (closer to the camera) mid-jump.
+		var k := 1.0 + 0.35 * sin(PI * (1.0 - air_t / AIR_TIME))
+		base = base * Transform2D(0.0, Vector2(k, k), 0.0, Vector2.ZERO)
 	var shadow := inv * Transform2D(vis.get_rotation(), vis.origin + Vector2(1.5, 2.0))
 	CarPainter.draw_shadow(self, shadow, stats.length, stats.width)
 	if boost_t > 0.0:

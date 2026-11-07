@@ -107,6 +107,7 @@ var toy := false             # "Toy Racer" style: banners, tyre walls, more curb
 var _banners: Array = []
 var creek := PackedVector2Array()   # Golden Hour: water running across the map
 var bridges: Array = []             # road sample indices where it crosses the creek
+var spectators: Spectators
 
 
 func build(track_data: TrackData) -> void:
@@ -127,10 +128,18 @@ func build(track_data: TrackData) -> void:
 		var is_color: bool = typeof(raw[k]) == TYPE_STRING and k != "wall_style"
 		pal[k] = Color.html(raw[k]) if is_color else raw[k]
 	_rng.seed = hash(data.id)
+	if data.arena:
+		spectators = Spectators.new()
+		add_child(spectators)
+		Arena.build(self)
+		return
 	_shore = _compute_shore_y()
 	wall_left = data.wall_points(-1.0)
 	wall_right = data.wall_points(1.0)
 	_build_walls()
+	spectators = Spectators.new()
+	add_child(spectators)
+	spectators.populate(self)
 	_place_scenery()
 	_add_layer("Ground", -10, _draw_ground, true)
 	_add_layer("Road", -8, _draw_road)
@@ -193,6 +202,24 @@ func _build_walls() -> void:
 		var cs := CollisionShape2D.new()
 		cs.shape = shape
 		body.add_child(cs)
+	# Drift-only gates live on their own layer (3): cars stop colliding with
+	# it while they drift.
+	var gates := shortcut_gates()
+	if not gates.is_empty():
+		var gb := StaticBody2D.new()
+		gb.name = "ShortcutGates"
+		gb.collision_layer = 4
+		gb.collision_mask = 0
+		add_child(gb)
+		var gsegs := PackedVector2Array()
+		for g in gates:
+			gsegs.append(g[0])
+			gsegs.append(g[1])
+		var gshape := ConcavePolygonShape2D.new()
+		gshape.segments = gsegs
+		var gcs := CollisionShape2D.new()
+		gcs.shape = gshape
+		gb.add_child(gcs)
 
 
 ## Segment pairs along a wall polyline; gaps left by folded corners stay open.
@@ -204,9 +231,36 @@ func _segments(pts: PackedVector2Array) -> PackedVector2Array:
 		var b := pts[(i + 1) % n]
 		if a.distance_to(b) > 24.0:
 			continue
+		if _cuts_shortcut(a, b):
+			continue
 		segs.append(a)
 		segs.append(b)
 	return segs
+
+
+## Barrier pieces where a shortcut leaves the road are removed.
+func _cuts_shortcut(a: Vector2, b: Vector2) -> bool:
+	for sc in data.shortcuts:
+		var hw: float = sc["hw"]
+		for q in [a, b, (a + b) * 0.5]:
+			if Geometry2D.get_closest_point_to_segment(q, sc["a"], sc["b"]).distance_to(q) < hw + 3.0:
+				return true
+	return false
+
+
+## Gate lines across both ends of every shortcut (just outside the barriers).
+func shortcut_gates() -> Array:
+	var out: Array = []
+	var d := data.width * 0.5 + TrackData.WALL_MARGIN
+	for sc in data.shortcuts:
+		var a: Vector2 = sc["a"]
+		var b: Vector2 = sc["b"]
+		var hw: float = sc["hw"]
+		var dir := (b - a).normalized()
+		var perp := Vector2(-dir.y, dir.x)
+		for c in [a + dir * d, b - dir * d]:
+			out.append([c - perp * (hw + 2.0), c + perp * (hw + 2.0)])
+	return out
 
 
 # --- strip helpers (into a TriBatch) -------------------------------------------------------------
@@ -312,6 +366,7 @@ func _draw_road(ci: Node2D) -> void:
 	var tb := TriBatch.new()
 	var hw := data.width * 0.5
 	TrackWorlds.under_road(self, tb, hw)
+	_draw_shortcuts(tb)
 	_band(tb, -hw - 3.0, hw + 3.0, color("shoulder"))
 	_band(tb, -hw, hw, color("road"))
 	TrackWorlds.road_extra(self, tb, hw)
@@ -398,6 +453,7 @@ func _draw_markings(ci: Node2D) -> void:
 		_quad(tb, i, j, hw, hw + cw, c)
 		_quad(tb, i, j, -hw - cw, -hw, c)
 	_draw_drift_zones(tb, hw)
+	_draw_hazards(tb)
 	# Start / finish: checker strip across the road at sample 0.
 	var s0 := data.samples[0]
 	var t0 := data.tangents[0]
@@ -420,6 +476,76 @@ func _draw_markings(ci: Node2D) -> void:
 		tb.rect(Rect2(-9, -6, 18, 12), Color(1, 1, 1, 0.7), false, 1.0)
 		tb.reset_transform()
 	tb.flush(ci)
+
+
+## Shortcut road: narrow strip across the infield with pink dashed edges.
+func _draw_shortcuts(tb: TriBatch) -> void:
+	for sc in data.shortcuts:
+		var a: Vector2 = sc["a"]
+		var b: Vector2 = sc["b"]
+		var hw: float = sc["hw"]
+		var dir := (b - a).normalized()
+		var perp := Vector2(-dir.y, dir.x)
+		tb.quad(a - perp * (hw + 3), b - perp * (hw + 3), b + perp * (hw + 3), a + perp * (hw + 3), color("shoulder"))
+		tb.quad(a - perp * hw, b - perp * hw, b + perp * hw, a + perp * hw, color("road").darkened(0.08))
+		var L := a.distance_to(b)
+		var t := 0.0
+		while t < L:
+			for side in [-1.0, 1.0]:
+				var p: Vector2 = a + dir * t + perp * side * (hw - 1.5)
+				tb.line(p, p + dir * 5.0, Color("ff5fb8"), 1.0)
+			t += 10.0
+		var mid := (a + b) * 0.5
+		tb.set_transform(mid, dir.angle())
+		PixelText.draw(tb, Vector2(-PixelText.width_of("DRIFT ONLY") * 0.5, -2.5), "DRIFT ONLY", Color(1, 0.4, 0.75, 0.85), 1.0, false)
+		tb.reset_transform()
+
+
+## Oil slicks, gravel, ice patches and boost pads on the road.
+func _draw_hazards(tb: TriBatch) -> void:
+	for h in data.hazards:
+		var p: Vector2 = h["pos"]
+		var r: float = h["r"]
+		var rng := RandomNumberGenerator.new()
+		rng.seed = int(h["idx"]) * 7 + 1
+		match h["type"]:
+			"oil":
+				for k in 5:
+					var o := Vector2(rng.randf_range(-r * 0.4, r * 0.4), rng.randf_range(-r * 0.4, r * 0.4))
+					tb.circle(p + o, r * rng.randf_range(0.45, 0.7), Color(0.05, 0.04, 0.08, 0.9))
+				tb.circle(p + Vector2(-r * 0.2, -r * 0.25), r * 0.3, Color(0.45, 0.2, 0.6, 0.55))
+				tb.circle(p + Vector2(r * 0.15, -r * 0.1), r * 0.18, Color(0.2, 0.6, 0.55, 0.5))
+			"gravel":
+				tb.circle(p, r, Color(0.48, 0.42, 0.34, 0.85))
+				for k in 50:
+					var a := rng.randf() * TAU
+					var o := Vector2(cos(a), sin(a)) * r * sqrt(rng.randf())
+					tb.rect(Rect2((p + o).floor(), Vector2.ONE), Color("8a8070") if rng.randf() < 0.5 else Color("3e3830"))
+			"ice":
+				tb.circle(p, r, Color(0.75, 0.9, 1.0, 0.55))
+				for k in 4:
+					var a := p + Vector2(rng.randf_range(-r * 0.6, r * 0.4), rng.randf_range(-r * 0.6, r * 0.6))
+					tb.line(a, a + Vector2(r * 0.5, -r * 0.2), Color(1, 1, 1, 0.7), 1.0)
+			"ramp":
+				# Yellow-black kicker ramp; driving over it sends the car flying.
+				tb.circle(p + Vector2(2, 3), r, Color(0, 0, 0, 0.35))
+				tb.rect(Rect2(p - Vector2(r, r * 0.7), Vector2(r * 2, r * 1.4)), Color("1a1a1a"))
+				for k in 5:
+					var x := p.x - r + 1 + k * (r * 2 - 2) / 5.0
+					tb.rect(Rect2(x, p.y - r * 0.7 + 1, (r * 2 - 2) / 10.0, r * 1.4 - 2), Color("f2c230"))
+				tb.polygon(PackedVector2Array([p + Vector2(-4, 3), p + Vector2(0, -4), p + Vector2(4, 3)]), Color.WHITE)
+			"boost":
+				var i: int = h["idx"]
+				var ang := -PI * 0.5 if data.arena else data.tangents[i].angle()
+				tb.set_transform(p, ang)
+				tb.rect(Rect2(-11, -10, 22, 20), Color("141428"))
+				for k in 3:
+					var x := -7.0 + k * 6.0
+					var col := Color("3ee0ff") if k % 2 == 0 else Color("ff5fb8")
+					# Chevron as two parallelograms (the batch fans only convex shapes).
+					tb.quad(Vector2(x - 2, -8), Vector2(x, -8), Vector2(x + 5, 0), Vector2(x + 3, 0), col)
+					tb.quad(Vector2(x + 3, 0), Vector2(x + 5, 0), Vector2(x, 8), Vector2(x - 2, 8), col)
+				tb.reset_transform()
 
 
 ## Drift zones: tinted road, striped pink/white edges, entry and exit lines
@@ -493,6 +619,16 @@ func _draw_barriers(ci: Node2D) -> void:
 				tb.multiline(lines, color("wall"), 1.0)
 				for i in range(0, n, 2):
 					tb.rect(Rect2(pts[i] - Vector2(1.5, 1.5), Vector2(3, 3)), color("wall_dark"))
+	# Shortcut gates: striped laser bars.
+	for g in shortcut_gates():
+		var a: Vector2 = g[0]
+		var b: Vector2 = g[1]
+		var n := 6
+		for k in n:
+			var c := Color("ff3da5") if k % 2 == 0 else Color("f4f4f4")
+			tb.line(a.lerp(b, float(k) / n), a.lerp(b, float(k + 1) / n), c, 2.0)
+		tb.rect(Rect2(a - Vector2(1.5, 1.5), Vector2(3, 3)), Color("2a2a36"))
+		tb.rect(Rect2(b - Vector2(1.5, 1.5), Vector2(3, 3)), Color("2a2a36"))
 	# Chevron signs at sharp corners (yellow arrows like a real mountain road).
 	for ch in _chevrons:
 		var p: Vector2 = ch["pos"]
@@ -528,6 +664,9 @@ func _clear(p: Vector2, r: float, near_idx: int) -> bool:
 			return false
 	for k in range(0, creek.size(), 3):
 		if p.distance_to(creek[k]) < 18.0 + r:
+			return false
+	for sc in data.shortcuts:
+		if Geometry2D.get_closest_point_to_segment(p, sc["a"], sc["b"]).distance_to(p) < float(sc["hw"]) + 8.0 + r:
 			return false
 	return true
 
@@ -677,6 +816,7 @@ func _draw_banner(tb: TriBatch, b: Dictionary) -> void:
 
 func _draw_scenery(ci: Node2D) -> void:
 	var tb := TriBatch.new()
+	spectators.draw_crowd(tb)
 	for bn in _banners:
 		_draw_banner(tb, bn)
 	for b in _buildings:

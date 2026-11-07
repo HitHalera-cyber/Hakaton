@@ -86,13 +86,15 @@ func _ready() -> void:
 	add_child(_track_name)
 	_preview = Widgets.TrackPreview.new()
 	_preview.position = Vector2(520, 120)
-	_preview.size = Vector2(400, 230)
+	_preview.size = Vector2(400, 180)
 	add_child(_preview)
-	_record = UiTheme.label("", 15, UiTheme.CYAN)
-	_record.position = Vector2(520, 358)
+	_record = UiTheme.label("", 13, UiTheme.CYAN)
+	_record.position = Vector2(520, 306)
+	_record.size = Vector2(236, 230)
+	_record.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	add_child(_record)
 	_car_preview = Widgets.CarPreview.new()
-	_car_preview.position = Vector2(760, 380)
+	_car_preview.position = Vector2(764, 330)
 	_car_preview.size = Vector2(150, 140)
 	_car_preview.zoom = 5.0
 	add_child(_car_preview)
@@ -133,10 +135,12 @@ func _on_players_changed() -> void:
 func _refresh_info() -> void:
 	var m: String = _mode.value()
 	_desc.text = tr(Game.MODES[m]["desc"])
-	_laps.visible = m != "practice" and m != "championship"
-	var tid: String = _track.value()
+	var arena: bool = m in ["gymkhana", "training"]
+	_laps.visible = not (m in ["practice", "championship", "gymkhana", "training", "tandem"])
+	_track.visible = not arena
+	var tid: String = "arena" if arena else str(_track.value())
 	var rev: bool = _dir.value() and m != "championship"
-	_dir.visible = m != "championship"
+	_dir.visible = not (m in ["championship", "gymkhana", "training"])
 	var td := Game.track_data(tid, rev)
 	_preview.set_track(td)
 	if m == "championship":
@@ -154,7 +158,16 @@ func _refresh_info() -> void:
 		lines.append(tr("Best lap: %s") % RaceHUD.format_time(float(rec["best_lap"])))
 	if rec.has("best_score"):
 		lines.append(tr("Best drift score: %s") % RaceHUD._fmt_points(int(rec["best_score"])))
-	lines.append(tr("Surface: %s    Target lap: %s") % [tr(td.surface.capitalize()), RaceHUD.format_time(td.target_lap)])
+	if not td.arena:
+		lines.append(tr("Surface: %s    Target lap: %s") % [tr(td.surface.capitalize()), RaceHUD.format_time(td.target_lap)])
+	var st := SaveManager.get_stars(td.id)
+	var texts := RaceManager.star_texts(td.arena)
+	var n := 0
+	for k in 3:
+		n += 1 if st[k] else 0
+	lines.append(tr("Stars %d/3") % n + ":")
+	for k in 3:
+		lines.append(("  [x] " if st[k] else "  [ ] ") + tr(texts[k]))
 	_record.text = "\n".join(lines)
 	_car_preview.stats = CarStats.build(str(_car1.value()))
 

@@ -83,6 +83,8 @@ func _ready() -> void:
 		InputSetup.rebuild())
 	left.add_child(pads)
 	left.add_child(_toggle("Camera shake", "camera_shake", func(_on): pass))
+	left.add_child(_toggle("Changing weather and time of day", "dynamic_weather", func(_on): pass))
+	left.add_child(_toggle("Best drift replay after the race", "replays", func(_on): pass))
 
 	var ctl := UiTheme.label("CONTROLS (keyboard) — select and press a key", 16, UiTheme.DIM)
 	ctl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

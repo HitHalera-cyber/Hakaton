@@ -31,6 +31,10 @@ var clean := true
 var best_combo := 0
 var drifts_banked := 0
 var zones_s := 0
+var clock := 0.0              # race time, set by the race every tick
+var best_window := Vector2.ZERO   # race time span of the best combo (for the replay)
+var _chain_start := 0.0
+var _last_drift := 0.0
 var tandem := false          # set by the race in co-op when both cars drift close
 var proximity := false       # true this frame if hugging the road edge
 
@@ -87,6 +91,9 @@ func update(dt: float, car: Car) -> void:
 		multiplier = minf(multiplier + MULT_RATE * dt * (1.0 + float(int(chain_time) / 3) * 0.25), MAX_MULT)
 		chain_timer = CHAIN_WINDOW
 		chain_time += dt
+		if not in_chain:
+			_chain_start = clock
+		_last_drift = clock
 		in_chain = true
 	elif in_chain:
 		if not car.on_road:
@@ -134,6 +141,8 @@ func bank() -> void:
 	elif pts >= 1200:
 		label = "GREAT DRIFT"
 	total += pts
+	if pts > best_combo:
+		best_window = Vector2(_chain_start, _last_drift + 0.4)
 	best_combo = maxi(best_combo, pts)
 	drifts_banked += 1
 	if pts > 0:

@@ -69,7 +69,7 @@ func _fill(v: Voice) -> void:
 	var target_sq := 0.0
 	if car.drifting or (car.input_handbrake and car.speed > 50.0):
 		target_sq = clampf(car.slip_deg / 45.0, 0.2, 1.0) * clampf(car.speed / 150.0, 0.2, 1.0)
-	if car.surface_name in ["dirt", "grass", "sand", "snow", "snowbank"]:
+	if car.surface_name in ["dirt", "grass", "sand", "snow", "snowbank", "gravel"]:
 		target_sq *= 0.35   # loose surfaces hiss rather than squeal
 	var left := 1.0 - maxf(v.pan, 0.0)
 	var right := 1.0 + minf(v.pan, 0.0)

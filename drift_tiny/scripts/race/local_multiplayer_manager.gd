@@ -18,6 +18,7 @@ var ghost: Node2D
 var shared_view := false
 var cameras: Array = []
 var huds: Array = []
+var weathers: Array = []
 
 var _shared_far_t := 0.0
 
@@ -87,6 +88,7 @@ func build_views() -> void:
 		var weather := Weather.new()
 		layer.add_child(weather)
 		weather.setup(weather_kind, cam)
+		weathers.append(weather)
 		if view_count == 2 or humans.size() == 1:
 			_add_hud(slot, humans[i], view_count == 2)
 		else:

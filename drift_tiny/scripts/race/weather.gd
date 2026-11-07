@@ -12,6 +12,12 @@ var _last_cam := Vector2.ZERO
 var _flash := 0.0
 
 
+## Switches the weather during a race (day cycle: rain comes and goes).
+func set_kind(new_kind: String) -> void:
+	_parts.clear()
+	setup(new_kind, camera)
+
+
 func setup(weather_kind: String, cam: Camera2D) -> void:
 	kind = weather_kind
 	camera = cam

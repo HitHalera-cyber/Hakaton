@@ -31,6 +31,16 @@ var ice_ranges: Array = []
 ## (end may run past the last sample; it wraps). Drifting through a whole zone
 ## earns a grade and bonus points.
 var drift_zones: Array = []
+## Hazards on the road: {type: oil|gravel|ice|boost, idx, pos, r}.
+var hazards: Array = []
+## Drift-only shortcuts: {a, b (Vector2 ends on the centre line), i, j, hw}.
+var shortcuts: Array = []
+## Gymkhana arena: an open lot instead of a road loop.
+var arena := false
+var arena_rect := Rect2()
+var posts: Array = []        # donut posts (Vector2)
+var cones: Array = []        # slalom cones (Vector2)
+const SHORTCUT_HW := 17.0
 
 
 ## reverse: drive the loop the other way (same start line). It gets its own
@@ -60,6 +70,40 @@ func setup(def: Dictionary, reverse := false) -> void:
 		_place_ice()
 	# Roughly one zone every 600 px of road.
 	_place_drift_zones(clampi(int(total_len / 600.0), 7, 10))
+	_place_hazards()
+	_find_shortcuts()
+
+
+## The gymkhana lot. It still has a (hidden) loop of samples so the car's
+## track queries work; the loop's width covers the whole lot, so everywhere
+## counts as road.
+func setup_arena() -> void:
+	arena = true
+	id = "arena"
+	name = "Gymkhana Arena"
+	subtitle = "Donuts, figure eights, ramps"
+	theme = "arena"
+	surface = "asphalt"
+	music = "menu"
+	width = 1000.0
+	arena_rect = Rect2(0, 0, 1100, 760)
+	var c := arena_rect.get_center()
+	var pts := PackedVector2Array()
+	for k in 24:
+		var a := TAU * k / 24.0
+		pts.append(c + Vector2(cos(a) * 280.0, sin(a) * 170.0))
+	_sample(pts)
+	bounds = arena_rect.grow(140.0)
+	posts = [c + Vector2(-230, 0), c + Vector2(230, 0), c + Vector2(0, -230), c + Vector2(0, 230)]
+	for k in 7:
+		cones.append(Vector2(220 + k * 110, 90 + (k % 2) * 30))
+	hazards = [
+		{"type": "ramp", "idx": 0, "pos": c + Vector2(0, -20), "r": 13.0},
+		{"type": "ramp", "idx": 0, "pos": Vector2(150, 620), "r": 13.0},
+		{"type": "boost", "idx": 0, "pos": Vector2(950, 620), "r": 9.0},
+		{"type": "boost", "idx": 0, "pos": Vector2(950, 160), "r": 9.0},
+		{"type": "oil", "idx": 0, "pos": c + Vector2(-120, 150), "r": 14.0},
+	]
 
 
 func _sample(pts: PackedVector2Array) -> void:
@@ -155,6 +199,102 @@ func _place_drift_zones(count: int) -> void:
 	drift_zones.sort_custom(func(a, b): return a[0] < b[0])
 
 
+## Oil, gravel and ice patches plus boost pads, spread along the lap
+## (never on the start line). Boost pads sit on the straighter parts.
+func _place_hazards() -> void:
+	var m := samples.size()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(id) + 99
+	var plan := ["boost", "boost", "boost", "boost", "oil", "oil", "oil", "gravel", "gravel"]
+	if surface != "snow":
+		plan.append("ice")
+	var used: Array = []
+	for type in plan:
+		for attempt in 40:
+			var i := rng.randi_range(45, m - 45)
+			if type == "boost" and absf(curvature[i]) > 1.0 / 300.0:
+				continue
+			var far := true
+			for u in used:
+				var d := absi(int(u) - i)
+				if mini(d, m - d) < 35:
+					far = false
+			if not far:
+				continue
+			var r: float = {"boost": 9.0, "oil": 11.0, "gravel": 16.0, "ice": 15.0}[type]
+			var lat := 0.0 if type == "boost" else rng.randf_range(-width * 0.5 + r + 4.0, width * 0.5 - r - 4.0)
+			hazards.append({"type": type, "idx": i, "pos": samples[i] + normals[i] * lat, "r": r})
+			used.append(i)
+			break
+
+
+## Looks for a straight chord across the infield that skips a good piece of
+## road without touching any other part of the track. Gates at its ends only
+## let drifting cars through (see Track / Car).
+func _find_shortcuts() -> void:
+	var m := samples.size()
+	var clear_d := width * 0.5 + WALL_MARGIN + 6.0
+	var best := {}
+	var best_gain := 0.0
+	for i in range(30, m, 5):
+		for step in range(50, 340, 5):
+			var j := (i + step) % m
+			var along := fmod(cum_len[j] - cum_len[i] + total_len, total_len)
+			if along < 380.0 or along > 2000.0:
+				continue
+			var a := samples[i]
+			var b := samples[j]
+			var L := a.distance_to(b)
+			if L < width + 60.0 or L > 420.0:
+				continue
+			var dir := (b - a) / L
+			if tangents[i].dot(dir) < 0.1 or tangents[j].dot(dir) < 0.1:
+				continue
+			var gain := along - L
+			if gain <= best_gain:
+				continue
+			# The chord must keep clear of every other part of the road.
+			var ok := true
+			var t := clear_d + 10.0
+			while t < L - clear_d - 10.0 and ok:
+				var p := a + dir * t
+				for k in range(0, m, 3):
+					if p.distance_to(samples[k]) < clear_d:
+						ok = false
+						break
+				t += 8.0
+			if ok:
+				best_gain = gain
+				best = {"a": a, "b": b, "i": i, "j": j, "hw": SHORTCUT_HW}
+	if not best.is_empty() and (best["i"] < m - 20 and best["i"] > 20):
+		shortcuts.append(best)
+
+
+## True if p lies on a shortcut's road.
+func in_shortcut(p: Vector2) -> bool:
+	for sc in shortcuts:
+		if Geometry2D.get_closest_point_to_segment(p, sc["a"], sc["b"]).distance_to(p) < float(sc["hw"]):
+			return true
+	return false
+
+
+## Hazard under a point (searched near sample idx), or "".
+func hazard_at(pos: Vector2, idx: int) -> String:
+	var m := samples.size()
+	for h in hazards:
+		if arena:
+			if pos.distance_to(h["pos"]) < float(h["r"]):
+				return h["type"]
+			continue
+		var d := absi(int(h["idx"]) - idx)
+		if mini(d, m - d) > 12:
+			continue
+		var hp: Vector2 = h["pos"]
+		if pos.distance_to(hp) < float(h["r"]):
+			return h["type"]
+	return ""
+
+
 ## Index of the drift zone containing sample idx, or -1.
 func zone_at(idx: int) -> int:
 	if idx < 0:
@@ -215,6 +355,9 @@ func advance(idx: int, dist: float) -> int:
 
 ## Start grid slot: position and heading for slot n (0-based), behind the line.
 func grid_slot(n: int) -> Dictionary:
+	if arena:
+		var p := Vector2(arena_rect.get_center().x - 30.0 + n * 30.0, arena_rect.end.y - 70.0)
+		return {"position": p, "rotation": -PI * 0.5, "index": nearest(p)}
 	var row := n / 2
 	var side := -1.0 if n % 2 == 0 else 1.0
 	var idx := posmod(-6 - row * 6, samples.size())

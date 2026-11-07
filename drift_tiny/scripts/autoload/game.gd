@@ -19,6 +19,9 @@ const MODES := {
 	"ghost": {"name": "Ghost Race", "players": [1], "desc": "Race against the replay of your best lap."},
 	"versus": {"name": "Local Versus", "players": [2], "desc": "Head to head: first over the line wins, drift points break ties."},
 	"coop": {"name": "Local Co-op", "players": [2], "desc": "Team drift score. Drift side by side for the tandem bonus."},
+	"gymkhana": {"name": "Gymkhana", "players": [1, 2], "desc": "90 seconds on an open lot: donuts around the posts, figure eights, ramps and boost pads."},
+	"tandem": {"name": "Tandem Chase", "players": [2], "desc": "One leads, one chases: the chaser scores for drifting close behind. Roles swap every lap."},
+	"training": {"name": "Training", "players": [1], "desc": "Step-by-step lessons: throttle, steering, handbrake drift, boost and donuts."},
 }
 
 ## Championship points for places 1..4.
@@ -35,6 +38,9 @@ var track_id := "mountain"
 var laps := 3
 var view_mode := "split"
 var reverse := false        # drive the track the other way
+# Set by the race's day cycle: 0 = bright day, 1 = deep night; rain lowers grip.
+var darkness := 0.0
+var raining := false
 
 ## Championship state: {"tracks": [...], "index": int, "points": {name: int}}
 var championship: Dictionary = {}
@@ -66,6 +72,8 @@ func _load_json(path: String) -> Dictionary:
 
 func goto(scene_key: String) -> void:
 	get_tree().paused = false
+	darkness = 0.0
+	raining = false
 	get_tree().change_scene_to_file(SCENES[scene_key])
 
 
@@ -101,6 +109,12 @@ func track_ids() -> Array:
 
 ## Built TrackData (spline samples etc.), cached because building takes a moment.
 func track_data(id: String, reversed := false) -> TrackData:
+	if id == "arena":
+		if not _track_cache.has("arena"):
+			var a := TrackData.new()
+			a.setup_arena()
+			_track_cache["arena"] = a
+		return _track_cache["arena"]
 	var key := id + ("_rev" if reversed else "")
 	if not _track_cache.has(key):
 		var td := TrackData.new()

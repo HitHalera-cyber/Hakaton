@@ -17,6 +17,7 @@ var all_cars: Array = []
 var ghost: Node2D
 var track: TrackData
 var compact := false      # split screen: narrower layout
+var hint := ""               # training instructions, shown above the bottom panels
 var show_race_info := true  # timer, minimap, lap (off for the 2nd HUD of a shared screen)
 
 var _font: Font
@@ -124,7 +125,9 @@ func _draw_race_info(w: float, info: Dictionary) -> void:
 	if mode_line != "":
 		_text_c(Vector2(tr.get_center().x, tr.end.y + (32 if sub != "" else 16)), mode_line, 14, PINK)
 
-	# --- minimap + lap + position (top-right)
+	# --- minimap + lap + position (top-right); the gymkhana lot has no laps
+	if track != null and track.arena:
+		return
 	var mw := 104.0 if compact else 130.0
 	var mr := Rect2(w - mw - 10, 10, mw, mw * 0.72)
 	_panel(mr, EDGE)
@@ -188,6 +191,9 @@ func _draw_bottom(w: float, h: float) -> void:
 		var grade := DriftScoring.grade_for(car.scoring.zone_ratio())
 		var zc := Color("3ee0ff") if grade in ["S", "A"] else (PINK if grade != "-" else Color(WHITE, 0.8))
 		_text_c(Vector2(w * 0.5, h * 0.24), tr("DRIFT ZONE") + "   " + grade, 26, zc, 5)
+
+	if hint != "":
+		_text_c(Vector2(w * 0.5, h - 96), hint, 18, Color("ffd84a"), 4)
 
 	# --- popups (right side, stacked)
 	var py := h - 100.0

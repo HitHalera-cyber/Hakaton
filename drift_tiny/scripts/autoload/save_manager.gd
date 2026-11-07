@@ -36,6 +36,9 @@ func default_data() -> Dictionary:
 		"records": {},
 		"finished_tracks": [],
 		"achievements": [],
+		"stars": {},
+		# Couch duels: 1P against 2P across all two-player races.
+		"duel": {"wins": [0, 0], "draws": 0, "cups": [0, 0], "tracks": {}, "history": []},
 		"stats": {"races": 0, "drift_points": 0, "best_combo": 0, "distance": 0.0},
 		"bindings": {},
 		"settings": {
@@ -54,6 +57,8 @@ func default_data() -> Dictionary:
 			"quality": 2,
 			"style": "neon_sunset",
 			"show_fps": false,
+			"dynamic_weather": true,
+			"replays": true,
 		},
 	}
 
@@ -191,6 +196,65 @@ func submit_record(track_id: String, mode: String, result: Dictionary) -> Array:
 	data["records"][key] = rec
 	save_game()
 	return improved
+
+
+## Challenge stars per track id (reverse tracks have their own): 3 bools.
+func get_stars(track_id: String) -> Array:
+	var all: Dictionary = data["stars"]
+	if not all.has(track_id):
+		return [false, false, false]
+	return all[track_id]
+
+
+## Marks star k; returns true if it is new.
+func award_star(track_id: String, k: int) -> bool:
+	var st := get_stars(track_id).duplicate()
+	if st[k]:
+		return false
+	st[k] = true
+	data["stars"][track_id] = st
+	save_game()
+	return true
+
+
+## Adds a 1P-vs-2P result. winner: 0 = 1P, 1 = 2P, -1 = draw.
+func record_duel(track_id: String, mode: String, winner: int, line: String) -> void:
+	var d: Dictionary = data["duel"]
+	if winner < 0:
+		d["draws"] = int(d["draws"]) + 1
+	else:
+		var w: Array = d["wins"]
+		w[winner] = int(w[winner]) + 1
+		var per: Dictionary = d["tracks"]
+		var t: Array = per.get(track_id, [0, 0])
+		t[winner] = int(t[winner]) + 1
+		per[track_id] = t
+	var hist: Array = d["history"]
+	hist.push_front({"track": track_id, "mode": mode, "winner": winner, "line": line})
+	while hist.size() > 8:
+		hist.pop_back()
+	save_game()
+
+
+func record_cup_duel(winner: int) -> void:
+	if winner >= 0:
+		var c: Array = data["duel"]["cups"]
+		c[winner] = int(c[winner]) + 1
+		save_game()
+
+
+func duel_wins() -> Array:
+	var w: Array = data["duel"]["wins"]
+	return [int(w[0]), int(w[1])]
+
+
+func star_count() -> int:
+	var n := 0
+	for v in data["stars"].values():
+		for b in v:
+			if b:
+				n += 1
+	return n
 
 
 func mark_track_finished(track_id: String, track_count: int) -> void:

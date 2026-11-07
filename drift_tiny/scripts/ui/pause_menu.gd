@@ -4,6 +4,7 @@ extends Control
 
 signal restart_requested
 signal quit_requested
+signal photo_requested
 
 var _box: VBoxContainer
 var _first: Button
@@ -31,6 +32,9 @@ func _ready() -> void:
 	_box.add_child(UiTheme.button("Restart race", func():
 		close()
 		restart_requested.emit()))
+	_box.add_child(UiTheme.button("Photo mode (F2)", func():
+		close()
+		photo_requested.emit()))
 	_box.add_child(UiTheme.button("Quit to menu", func():
 		close()
 		quit_requested.emit()))
@@ -39,10 +43,10 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("pause"):
+	if event.is_action_pressed("pause") and (visible or can_pause):
 		if visible:
 			close()
-		elif can_pause:
+		else:
 			open()
 		get_viewport().set_input_as_handled()
 

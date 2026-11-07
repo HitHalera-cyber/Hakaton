@@ -18,6 +18,7 @@ var cars: Array = []
 var humans: Array = []
 var racers: Dictionary = {}     # Car -> info Dictionary
 var views: LocalMultiplayerManager
+var day_cycle: DayCycle
 var engine_audio: EngineAudio
 
 var mode := "time_attack"
@@ -35,17 +36,52 @@ var _ghost_beaten := false
 var _pause: PauseMenu
 var _results: ResultsScreen
 var _achievement_notes: Array = []
+const GYMKHANA_TIME := 90.0
+var gyms: Dictionary = {}           # Car -> Gymkhana (arena modes)
+var training: TrainingDirector
+var tandem_round := 1
+var tandem_leader := 0              # index into humans
+# Best-drift replay: every car's pose is recorded each physics tick.
+const REPLAY_SPEED := 0.35
+const REC_MAX := 72000                 # 20 minutes at 60 Hz
+var _rec_t := PackedFloat32Array()
+var _rec: Dictionary = {}              # Car -> CarTape
+
+
+## One car's recorded poses. Packed arrays as members are changed in place
+## (inside a Dictionary they would be copied on every append).
+class CarTape:
+	var pos := PackedVector2Array()
+	var rot := PackedFloat32Array()
+	var slip := PackedFloat32Array()
+
+var _rf := 0
+var _rf_end := 0
+var _replay_car: Car
+var photo: PhotoMode
 
 
 func _ready() -> void:
 	mode = Game.mode
-	laps_total = 0 if mode == "practice" else Game.laps
-	track_data = Game.track_data(Game.track_id, Game.reverse)
+	laps_total = 0 if mode in ["practice", "gymkhana", "training", "tandem"] else Game.laps
+	if mode in ["gymkhana", "training"]:
+		track_data = Game.track_data("arena")
+	else:
+		track_data = Game.track_data(Game.track_id, Game.reverse)
 	shared_view = Game.players == 2 and Game.view_mode == "shared"
 	_build_world()
 	_spawn_cars()
 	_build_views()
 	_build_overlays()
+	track.spectators.cars = cars
+	if track_data.arena:
+		for h in humans:
+			gyms[h] = Gymkhana.new(h, track_data.posts)
+		if mode == "training":
+			training = TrainingDirector.new(humans[0], gyms[humans[0]])
+	day_cycle = DayCycle.new()
+	add_child(day_cycle)
+	day_cycle.setup(self, track, views)
 	engine_audio = EngineAudio.new()
 	add_child(engine_audio)
 	for i in humans.size():
@@ -56,6 +92,7 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	Engine.time_scale = 1.0
 	if SaveManager.achievement_unlocked.is_connected(_on_achievement):
 		SaveManager.achievement_unlocked.disconnect(_on_achievement)
 
@@ -88,7 +125,8 @@ func _build_world() -> void:
 func _spawn_cars() -> void:
 	var slot := 0
 	for p in Game.players:
-		var car := _make_car(SaveManager.get_selected(p + 1), slot)
+		# In tandem the chaser (2P) starts one row behind the leader.
+		var car := _make_car(SaveManager.get_selected(p + 1), 2 if mode == "tandem" and p == 1 else slot)
 		car.player_index = p + 1
 		car.tag_color = Color("ff5fb8") if p == 0 else Color("3ee0ff")
 		car.controller = PlayerController.new(p + 1, Game.players == 1)
@@ -114,12 +152,19 @@ func _spawn_cars() -> void:
 			"racers": cars.size(), "laps_total": laps_total, "recorder": null,
 		}
 		var info: Dictionary = racers[c]
-		info["prev_d"] = track_data.cum_len[maxi(c.track_idx, 0)]
-		info["travelled"] = -(track_data.total_len - float(info["prev_d"])) if float(info["prev_d"]) > track_data.total_len * 0.5 else float(info["prev_d"])
+		_reset_progress(c, info)
 		if mode == "ghost" and c.player_index > 0:
 			var rec := GhostCar.Recorder.new()
 			rec.start()
 			info["recorder"] = rec
+
+
+func _reset_progress(c: Car, info: Dictionary) -> void:
+	info["prev_d"] = track_data.cum_len[maxi(c.track_idx, 0)]
+	info["travelled"] = -(track_data.total_len - float(info["prev_d"])) if float(info["prev_d"]) > track_data.total_len * 0.5 else float(info["prev_d"])
+	info["laps_done"] = 0
+	info["lap"] = 1
+	info["lap_start"] = race_time
 
 
 func _make_car(car_id: String, slot: int) -> Car:
@@ -162,6 +207,10 @@ func _build_overlays() -> void:
 	layer.add_child(_pause)
 	_pause.restart_requested.connect(Game.goto.bind("race"))
 	_pause.quit_requested.connect(Game.goto.bind("menu"))
+	photo = PhotoMode.new()
+	photo.race = self
+	layer.add_child(photo)
+	_pause.photo_requested.connect(photo.open)
 
 
 func _on_boost(level: int, car: Car) -> void:
@@ -193,11 +242,21 @@ func elapsed_for(car: Car) -> float:
 
 
 func is_over() -> bool:
-	return state == "results"
+	return state in ["results", "replay"]
 
 
 func mode_line(car: Car) -> String:
 	match mode:
+		"gymkhana":
+			var g: Gymkhana = gyms.get(car)
+			return tr("TIME %d   DONUTS %d   EIGHTS %d") % [ceili(maxf(GYMKHANA_TIME - race_time, 0.0)), g.donuts, g.eights]
+		"training":
+			return tr("TRAINING")
+		"tandem":
+			var lead := humans[tandem_leader] as Car
+			if car == lead:
+				return tr("ROUND %d — YOU LEAD") % tandem_round
+			return tr("ROUND %d — CHASE! %d px") % [tandem_round, int(car.global_position.distance_to(lead.global_position))]
 		"coop":
 			var team := 0
 			for h in humans:
@@ -224,7 +283,10 @@ func _physics_process(delta: float) -> void:
 			_tick_countdown(delta)
 		"racing":
 			race_time += delta
+			_record()
 			_tick_racing(delta)
+		"replay":
+			_tick_replay()
 		"results":
 			pass
 
@@ -244,15 +306,15 @@ func _tick_countdown(delta: float) -> void:
 
 
 func _start_race() -> void:
+	var first := race_time == 0.0
 	state = "racing"
-	race_time = 0.0
 	for c in cars:
 		(c as Car).frozen = false
 		(c as Car).scoring.enabled = true
 	if ghost and _ghost_best > 0.0:
 		ghost.restart_lap()
 	# Teach the core mechanic in the first races.
-	if int(SaveManager.data["stats"]["races"]) < 5:
+	if first and mode != "training" and int(SaveManager.data["stats"]["races"]) < 5:
 		for h in humans:
 			views.message_for(h, tr("Handbrake into corners to drift! Drifting charges a BOOST."), UiTheme.CYAN, 5.0, false)
 
@@ -261,6 +323,19 @@ func _tick_racing(delta: float) -> void:
 	for c in cars:
 		_update_progress(c as Car, delta)
 	_update_positions()
+	for g in gyms.values():
+		(g as Gymkhana).update(delta)
+	if mode == "gymkhana" and race_time >= GYMKHANA_TIME:
+		_end_race()
+		return
+	if training:
+		if training.update(delta):
+			AudioManager.play("lap")
+			views.message_all(tr("GOOD!"), UiTheme.CYAN, 1.0)
+		for h in views.huds:
+			(h as RaceHUD).hint = training.hint()
+	if mode == "tandem" and humans.size() == 2:
+		_tandem_tick(delta)
 	if mode == "coop" and humans.size() == 2:
 		var a := humans[0] as Car
 		var b := humans[1] as Car
@@ -303,16 +378,65 @@ func _update_progress(car: Car, delta: float) -> void:
 		info["wrong_t"] = float(info["wrong_t"]) + delta
 	else:
 		info["wrong_t"] = 0.0
-	info["wrong_way"] = float(info["wrong_t"]) > 1.0 and car.player_index > 0
+	info["wrong_way"] = float(info["wrong_t"]) > 1.0 and car.player_index > 0 and not track_data.arena
 	# Lap completed?
 	var done := int(info["laps_done"])
 	if float(info["travelled"]) >= (done + 1) * track_data.total_len:
 		_complete_lap(car, info)
 
 
+## Tandem: the chaser scores for drifting close behind the drifting leader.
+func _tandem_tick(_delta: float) -> void:
+	var lead := humans[tandem_leader] as Car
+	var chase := humans[1 - tandem_leader] as Car
+	var d := lead.global_position.distance_to(chase.global_position)
+	var close := d < 80.0 and chase.drifting and lead.drifting
+	chase.scoring.tandem = close
+	lead.scoring.tandem = false
+	if close:
+		# Extra chase points on top of the normal drift chain.
+		chase.scoring.current += 260.0 * (1.0 - d / 80.0) * get_physics_process_delta_time()
+
+
+func _tandem_round_over() -> void:
+	for c in cars:
+		(c as Car).scoring.bank()
+	if tandem_round >= 2:
+		_end_race()
+		return
+	tandem_round += 1
+	tandem_leader = 1 - tandem_leader
+	# Swap places on the grid and restart with a countdown.
+	var slots := {humans[tandem_leader]: 0, humans[1 - tandem_leader]: 2}
+	for h in humans:
+		var car := h as Car
+		var g := track_data.grid_slot(int(slots[car]))
+		car.global_position = g["position"]
+		car.rotation = g["rotation"]
+		car.velocity = Vector2.ZERO
+		car.respawn_soft()
+		car.frozen = true
+		_reset_progress(car, racers[car])
+	state = "countdown"
+	_countdown = 3.6
+	_last_count = 4
+	views.message_all(tr("ROLES SWAP!"), UiTheme.PINK, 2.0)
+
+
 func _complete_lap(car: Car, info: Dictionary) -> void:
+	if track_data.arena:
+		return
+	if mode == "tandem":
+		info["laps_done"] = int(info["laps_done"]) + 1
+		if car == humans[tandem_leader]:
+			_tandem_round_over()
+		return
 	var lap_time := race_time - float(info["lap_start"])
 	info["lap_start"] = race_time
+	# Clean lap: no barrier touched since the last line crossing.
+	if car.player_index > 0 and int(info["laps_done"]) > 0 and car.touches == int(info.get("touch0", 0)):
+		info["clean_lap"] = true
+	info["touch0"] = car.touches
 	info["laps_done"] = int(info["laps_done"]) + 1
 	info["last_lap"] = lap_time
 	(info["laps"] as Array).append(lap_time)
@@ -376,13 +500,122 @@ func _update_positions() -> void:
 
 
 func _end_race() -> void:
-	if state == "results":
+	if state in ["results", "replay"]:
 		return
-	state = "results"
 	_pause.can_pause = false
 	for c in cars:
 		(c as Car).scoring.bank()
 		(c as Car).scoring.enabled = false
+	if not _begin_replay():
+		_show_results()
+
+
+# --- best-drift replay ----------------------------------------------------------
+
+func _record() -> void:
+	if _rec_t.size() >= REC_MAX:
+		return
+	_rec_t.append(race_time)
+	for c in cars:
+		var car := c as Car
+		car.scoring.clock = race_time
+		if not _rec.has(car):
+			_rec[car] = CarTape.new()
+		var r: CarTape = _rec[car]
+		r.pos.append(car.global_position)
+		r.rot.append(car.rotation)
+		r.slip.append(car.slip_deg if car.drifting else -1.0)
+
+
+func _frame_at(t: float) -> int:
+	return clampi(_rec_t.bsearch(t), 0, _rec_t.size() - 1)
+
+
+## Plays the best combo of the race in slow motion; false if there is none.
+func _begin_replay() -> bool:
+	var best: Car = null
+	for h in humans:
+		if best == null or (h as Car).scoring.best_combo > best.scoring.best_combo:
+			best = h
+	if best == null or best.scoring.best_combo < 500 or _rec_t.size() < 60 or not SaveManager.get_setting("replays", true):
+		return false
+	var w := best.scoring.best_window
+	_rf = _frame_at(maxf(w.x - 1.0, w.y - 7.0))
+	_rf_end = _frame_at(w.y + 0.6)
+	if _rf_end - _rf < 40:
+		return false
+	state = "replay"
+	_replay_car = best
+	if ghost:
+		ghost.visible = false
+	for c in cars:
+		var car := c as Car
+		car.replaying = true
+		car.boost_t = 0.0
+		car.air_t = 0.0
+		_apply_frame(car, _rf)
+		car._snap_interpolation()
+	for cam in views.cameras:
+		(cam as CameraController).targets = [best]
+		(cam as CameraController).snap_to_targets()
+	views.message_all(tr("REPLAY"), UiTheme.PINK, 1.5)
+	var label := tr("Best drift %s: %s · Enter — skip") % ["%dP" % best.player_index, RaceHUD._fmt_points(best.scoring.best_combo)]
+	for h in views.huds:
+		(h as RaceHUD).hint = label
+	Engine.time_scale = REPLAY_SPEED
+	return true
+
+
+func _apply_frame(car: Car, f: int) -> void:
+	var r: CarTape = _rec.get(car)
+	if r == null or f >= r.pos.size():
+		return
+	var pos := r.pos
+	car.global_position = pos[f]
+	car.rotation = r.rot[f]
+	var slip: float = r.slip[f]
+	car.drifting = slip >= 0.0
+	car.slip_deg = maxf(slip, 0.0)
+	car.velocity = (pos[f] - pos[maxi(f - 1, 0)]) * 60.0
+	car.speed = car.velocity.length()
+
+
+func _tick_replay() -> void:
+	_rf += 1
+	for c in cars:
+		var car := c as Car
+		car._snap_interpolation()
+		_apply_frame(car, _rf)
+	if _rf >= _rf_end:
+		_finish_replay()
+
+
+func _finish_replay() -> void:
+	if state != "replay":
+		return
+	Engine.time_scale = 1.0
+	for c in cars:
+		(c as Car).replaying = false
+		(c as Car).frozen = true
+	for h in views.huds:
+		(h as RaceHUD).hint = ""
+		(h as RaceHUD).show_message("", Color.WHITE, 0.0)
+	_show_results()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo and (event as InputEventKey).keycode == KEY_F2:
+		if state in ["racing", "countdown", "replay"] and not get_tree().paused:
+			photo.open()
+			get_viewport().set_input_as_handled()
+			return
+	if state == "replay" and (event.is_action_pressed("ui_accept") or event.is_action_pressed("pause")):
+		get_viewport().set_input_as_handled()
+		_finish_replay()
+
+
+func _show_results() -> void:
+	state = "results"
 	var rows: Array = []
 	var row_colors: Array = []
 	var notes: Array = []
@@ -420,6 +653,7 @@ func _end_race() -> void:
 			SaveManager.unlock_achievement("duo")
 	if _ghost_beaten:
 		SaveManager.unlock_achievement("ghost_buster")
+	_duel_notes(ranked, notes)
 	var title := tr("RESULTS")
 	match mode:
 		"coop":
@@ -458,6 +692,34 @@ func _end_race() -> void:
 	})
 
 
+## 1P against 2P: who placed higher, saved to the duel table.
+func _duel_notes(ranked: Array, notes: Array) -> void:
+	if humans.size() != 2 or mode in ["coop", "practice", "training"]:
+		return
+	var a := humans[0] as Car
+	var b := humans[1] as Car
+	var by_score: bool = mode in ["drift_attack", "gymkhana", "tandem"]
+	var winner := 0 if ranked.find(a) < ranked.find(b) else 1
+	if by_score and a.scoring.total == b.scoring.total:
+		winner = -1
+	var line := ""
+	if by_score or laps_total == 0:
+		line = "1P %s — 2P %s" % [RaceHUD._fmt_points(a.scoring.total), RaceHUD._fmt_points(b.scoring.total)]
+	else:
+		var ta := RaceHUD.format_time(float(racers[a]["finish_time"])) if racers[a]["finished"] else tr("DNF")
+		var tb := RaceHUD.format_time(float(racers[b]["finish_time"])) if racers[b]["finished"] else tr("DNF")
+		line = "1P %s — 2P %s" % [ta, tb]
+	SaveManager.record_duel(track_data.id, mode, winner, line)
+	if Game.championship_active():
+		var cd: Array = Game.championship.get("duel", [0, 0])
+		if winner >= 0:
+			cd[winner] = int(cd[winner]) + 1
+		Game.championship["duel"] = cd
+	var w := SaveManager.duel_wins()
+	var head := tr("DRAW") if winner < 0 else tr("%dP WINS THE DUEL") % (winner + 1)
+	notes.append(tr("DUEL: %s (%s) · overall 1P %d : %d 2P") % [head, line, w[0], w[1]])
+
+
 func _next_championship_race() -> void:
 	Game.advance_championship()
 	Game.goto("race")
@@ -466,7 +728,7 @@ func _next_championship_race() -> void:
 func _ranking() -> Array:
 	var order := cars.duplicate()
 	match mode:
-		"drift_attack", "coop", "practice":
+		"drift_attack", "coop", "practice", "gymkhana", "tandem", "training":
 			order.sort_custom(func(a, b): return (a as Car).scoring.total > (b as Car).scoring.total)
 		_:
 			order.sort_custom(func(a, b): return int(racers[a]["position"]) < int(racers[b]["position"]))
@@ -485,7 +747,28 @@ func _reward(c: Car, info: Dictionary, place: int) -> int:
 	return r
 
 
+## The three challenge stars of a track. Arena modes have their own set.
+static func star_texts(arena: bool) -> Array:
+	if arena:
+		return ["Finish a gymkhana run", "3 donuts in one run", "A figure eight"]
+	return ["Finish a race", "Grade S in 5 drift zones in one race", "A clean lap: no barrier touched"]
+
+
+func _check_stars(c: Car, info: Dictionary, notes: Array) -> void:
+	var got: Array = [false, false, false]
+	if track_data.arena:
+		var g: Gymkhana = gyms.get(c)
+		got = [mode == "gymkhana", g != null and g.donuts >= 3, g != null and g.eights >= 1]
+	else:
+		got = [bool(info["finished"]) or (mode == "tandem"), c.scoring.zones_s >= 5, bool(info.get("clean_lap", false))]
+	var texts := star_texts(track_data.arena)
+	for k in 3:
+		if got[k] and SaveManager.award_star(track_data.id, k):
+			notes.append(tr("NEW STAR: %s") % tr(texts[k]))
+
+
 func _save_records(c: Car, info: Dictionary, notes: Array) -> void:
+	_check_stars(c, info, notes)
 	var result := {
 		"time": float(info["finish_time"]) if info["finished"] and laps_total > 0 else 0.0,
 		"best_lap": float(info["best_lap"]),
@@ -523,5 +806,30 @@ func _championship_final() -> Array:
 		SaveManager.unlock_achievement("champion")
 		SaveManager.add_currency(500)
 		out.append(tr("Champion bonus: +500 CR"))
+	if humans.size() == 2:
+		out.append_array(_cup_duel(table))
 	Game.championship = {}
+	return out
+
+
+## The final duel of a two-player cup: total cup points of 1P against 2P.
+func _cup_duel(table: Dictionary) -> Array:
+	var pts := [0, 0]
+	for key in table.keys():
+		for k in 2:
+			if str(key).begins_with("%dP" % (k + 1)):
+				pts[k] = int(table[key])
+	var races: Array = Game.championship.get("duel", [0, 0])
+	var winner := -1
+	if pts[0] != pts[1]:
+		winner = 0 if pts[0] > pts[1] else 1
+	elif int(races[0]) != int(races[1]):
+		winner = 0 if int(races[0]) > int(races[1]) else 1
+	SaveManager.record_cup_duel(winner)
+	var out: Array = [tr("CUP DUEL: 1P %d pts — 2P %d pts · races won %d : %d") % [pts[0], pts[1], int(races[0]), int(races[1])]]
+	if winner < 0:
+		out.append(tr("THE DUEL IS A DRAW!"))
+	else:
+		out.append(tr("%dP WINS THE CUP DUEL! (+300 CR)") % (winner + 1))
+		SaveManager.add_currency(300)
 	return out

@@ -48,6 +48,7 @@ func _build() -> void:
 	_car.place(g["position"], g["rotation"])
 	_car.frozen = false
 	_car.controller = AutopilotController.new(0.9, 0.0, 11)
+	track.spectators.cars = [_car]
 	(_car.controller as AutopilotController).drift_happy = 1.0
 	_vp.add_child(world)
 	_cam = CameraController.new()
