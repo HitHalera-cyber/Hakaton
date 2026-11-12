@@ -139,6 +139,19 @@ class TrackPreview:
 		data = d
 		queue_redraw()
 
+	## City map: asphalt, building blocks and parks.
+	func _draw_city() -> void:
+		var r := data.arena_rect
+		var s := minf((size.x - 16.0) / r.size.x, (size.y - 16.0) / r.size.y)
+		var off := (size - r.size * s) * 0.5
+		draw_rect(Rect2(off, r.size * s), Color("4a4b55"))
+		for b in data.blocks:
+			var br := b as Rect2
+			draw_rect(Rect2(off + br.position * s, br.size * s), Color("8a8494"))
+		for b in data.parks:
+			var br := b as Rect2
+			draw_rect(Rect2(off + br.position * s, br.size * s), Color("3f7a3a"))
+
 	func _draw() -> void:
 		var bg := Color("17142e")
 		var road := Color("5a5568")
@@ -151,6 +164,9 @@ class TrackPreview:
 		draw_rect(Rect2(Vector2.ZERO, size), bg)
 		draw_rect(Rect2(Vector2.ZERO, size), Color("3b2d6b"), false, 2.0)
 		if data == null:
+			return
+		if data.city:
+			_draw_city()
 			return
 		var b := Rect2(data.samples[0], Vector2.ZERO)
 		for p in data.samples:

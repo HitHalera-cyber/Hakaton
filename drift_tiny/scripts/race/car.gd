@@ -36,6 +36,10 @@ var skids: SkidLayer
 var player_index := 0               # 1 / 2 for humans, 0 for CPU
 var display_name := ""
 var tag_color := Color.WHITE
+var siren := false                  # police light bar on the roof
+var badge := ""                     # small text above the tag (bomb timer, "$")
+var badge_color := Color.WHITE
+var out := false                    # busted / knocked out: parked, no collisions
 var night := false
 
 # Inputs, written by the controller every physics frame.
@@ -517,9 +521,9 @@ func respawn() -> void:
 		return
 	_stuck_t = 0.0
 	scoring.fail("")
-	var idx := track.nearest(global_position, track_idx)
-	global_position = track.samples[idx]
-	rotation = track.tangents[idx].angle()
+	var pose := track.respawn_pose(global_position)
+	global_position = pose["position"]
+	rotation = pose["rotation"]
 	velocity = Vector2.ZERO
 	angular = 0.0
 	drifting = false
@@ -743,12 +747,16 @@ func _draw() -> void:
 		_draw_flame(base)
 	CarPainter.draw_car(self, base, stats.shape, stats.length, stats.width,
 			stats.color, stats.rims, stats.decal, steer_visual, braking_visual, 1.0, _outline)
+	if siren:
+		_draw_siren(base)
 	if player_index > 0 or display_name != "":
 		# Tag above the car, kept upright regardless of the car's rotation.
 		draw_set_transform_matrix(inv * Transform2D(0.0, vis.origin + Vector2(0, -12)))
 		draw_colored_polygon(PackedVector2Array([Vector2(-2.5, 3), Vector2(2.5, 3), Vector2(0, 6)]), tag_color)
 		var tag := "%dP" % player_index if player_index > 0 else display_name
 		PixelText.draw_centered(self, Vector2(0, -1), tag, tag_color)
+		if badge != "":
+			PixelText.draw_centered(self, Vector2(0, -8), badge, badge_color)
 		for i in _floats.size():
 			var f: Dictionary = _floats[i]
 			var age: float = f["t"]
@@ -756,6 +764,21 @@ func _draw() -> void:
 			fc.a = clampf(1.6 - age * 1.4, 0.0, 1.0)
 			PixelText.draw_centered(self, Vector2(0, -9 - age * 14.0 - (_floats.size() - 1 - i) * 7), str(f["text"]), fc)
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+## Police light bar: red and blue blink in turn, with a soft glow around.
+func _draw_siren(base: Transform2D) -> void:
+	draw_set_transform_matrix(base)
+	var on := int(Time.get_ticks_msec() / 160) % 2 == 0
+	var red := Color("ff3040")
+	var blue := Color("3a7bff")
+	var w := stats.width * 0.5 - 1.0
+	draw_rect(Rect2(-1.5, -w, 3, w * 2.0), Color("1a1a22"))
+	draw_rect(Rect2(-1.0, -w + 0.5, 2, w - 0.5), red if on else red.darkened(0.6))
+	draw_rect(Rect2(-1.0, 0.0, 2, w - 0.5), blue.darkened(0.6) if on else blue)
+	var glow := Color(red, 0.22) if on else Color(blue, 0.22)
+	draw_circle(Vector2(0, -w * 0.5 if on else w * 0.5), 9.0, glow)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 ## Exhaust flame while boosting: flickers and takes the boost level's colour.

@@ -22,6 +22,9 @@ const MODES := {
 	"gymkhana": {"name": "Gymkhana", "players": [1, 2], "desc": "90 seconds on an open lot: donuts around the posts, figure eights, ramps and boost pads."},
 	"tandem": {"name": "Tandem Chase", "players": [2], "desc": "One leads, one chases: the chaser scores for drifting close behind. Roles swap every lap."},
 	"training": {"name": "Training", "players": [1], "desc": "Step-by-step lessons: throttle, steering, handbrake drift, boost and donuts."},
+	"police": {"name": "Police Chase", "players": [1, 2], "desc": "Downtown: robbers grab cash and stay free for 2:30, cops box them in. Pick your side; bots take the rest."},
+	"bomb": {"name": "Hot Potato", "players": [1, 2], "desc": "Downtown: the bomb passes on contact. Get rid of it before the fuse runs out. Last car left wins."},
+	"elimination": {"name": "Elimination", "players": [1, 2], "desc": "Every 20 seconds the last car is knocked out. Be the last one standing."},
 }
 
 ## Championship points for places 1..4.
@@ -38,6 +41,10 @@ var track_id := "mountain"
 var laps := 3
 var view_mode := "split"
 var reverse := false        # drive the track the other way
+var bots := 3               # CPU cars in race modes / hot potato
+var bot_skill := 1          # 0 easy, 1 normal, 2 hard
+var roles: Array = ["robber", "cop"]   # police chase: side of 1P and 2P
+var cops := 3               # police chase: cops in total (players + bots)
 # Set by the race's day cycle: 0 = bright day, 1 = deep night; rain lowers grip.
 var darkness := 0.0
 var raining := false
@@ -115,6 +122,12 @@ func track_data(id: String, reversed := false) -> TrackData:
 			a.setup_arena()
 			_track_cache["arena"] = a
 		return _track_cache["arena"]
+	if id == "city":
+		if not _track_cache.has("city"):
+			var cdata := TrackData.new()
+			cdata.setup_city()
+			_track_cache["city"] = cdata
+		return _track_cache["city"]
 	var key := id + ("_rev" if reversed else "")
 	if not _track_cache.has(key):
 		var td := TrackData.new()

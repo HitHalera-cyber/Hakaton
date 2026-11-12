@@ -107,17 +107,26 @@ func set_setting(key: String, value: Variant) -> void:
 
 # --- currency & cars ------------------------------------------------------
 
+## Test build: every car, upgrade and paint is free and open. Set to false
+## for the release so cars and upgrades are earned again.
+const UNLOCK_ALL := true
+
+
 func get_currency() -> int:
+	if UNLOCK_ALL:
+		return 999999
 	return int(data["currency"])
 
 
 func add_currency(amount: int) -> void:
-	data["currency"] = get_currency() + amount
+	data["currency"] = int(data["currency"]) + amount
 	currency_changed.emit(get_currency())
 	save_game()
 
 
 func spend(amount: int) -> bool:
+	if UNLOCK_ALL:
+		return true
 	if amount > get_currency():
 		return false
 	data["currency"] = get_currency() - amount
@@ -127,7 +136,7 @@ func spend(amount: int) -> bool:
 
 
 func is_unlocked(car_id: String) -> bool:
-	return car_id in data["unlocked"]
+	return UNLOCK_ALL or car_id in data["unlocked"]
 
 
 func unlock_car(car_id: String) -> void:

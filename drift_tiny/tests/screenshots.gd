@@ -67,6 +67,10 @@ func _run() -> void:
 			await _race(1, "time_attack", tid, "split", 12.0, "world_%s" % tid)
 		get_tree().quit()
 		return
+	if "city" in OS.get_cmdline_user_args():
+		await _city()
+		get_tree().quit()
+		return
 	if "features" in OS.get_cmdline_user_args():
 		await _features()
 		get_tree().quit()
@@ -169,3 +173,53 @@ func _features() -> void:
 			(n as ScrollContainer).scroll_vertical = 100000
 	await _wait(0.3)
 	await _shot("f_records")
+
+
+func _city() -> void:
+	SaveManager.data["settings"]["style"] = "neon_sunset"
+	Lang.apply("ru")
+	Game.players = 1
+	Game.mode = "police"
+	Game.roles = ["robber", "cop"]
+	Game.cops = 4
+	Game.goto("setup")
+	await _wait(0.6)
+	await _shot("c_setup")
+	Game.mode = "elimination"
+	Game.goto("setup")
+	await _wait(0.6)
+	await _shot("c_setup_elim")
+	Game.goto("garage")
+	await _wait(0.6)
+	await _shot("c_garage")
+	Game.mode = "police"
+	Game.goto("race")
+	await _wait(0.1)
+	var race := get_tree().current_scene as RaceManager
+	for h in race.humans:
+		(h as Car).controller = CityDriver.new(race.track_data, 9, 0.95)
+	race.game.call("_update_drivers")
+	for i in 5:
+		await _wait(3.0)
+		await _shot("c_police_%d" % i)
+		print("t=", race.race_time, " state=", race.state, " bust=", (race.game as PoliceChase).bust.values())
+	race.photo.open()
+	race.photo._cam.zoom = Vector2(0.6, 0.6)
+	await _wait(0.3)
+	await _shot("c_overview")
+	race.photo.close()
+	Game.mode = "bomb"
+	Game.bots = 4
+	Game.goto("race")
+	await _wait(0.1)
+	race = get_tree().current_scene as RaceManager
+	for h in race.humans:
+		(h as Car).controller = CityDriver.new(race.track_data, 9, 0.95)
+	await _wait(9.0)
+	await _shot("c_bomb")
+	Game.players = 2
+	Game.mode = "police"
+	Game.roles = ["robber", "cop"]
+	Game.goto("race")
+	await _wait(8.0)
+	await _shot("c_police_2p")

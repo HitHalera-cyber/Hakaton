@@ -140,6 +140,21 @@ const RU := {
 	"THE DUEL IS A DRAW!": "ДУЭЛЬ ВНИЧЬЮ!", "%dP WINS THE CUP DUEL! (+300 CR)": "%dP ПОБЕДИЛ В ДУЭЛИ КУБКА! (+300 CR)",
 	"2P DUEL — 1P VS 2P": "ДУЭЛЬ ВДВОЁМ — 1P ПРОТИВ 2P", "Wins: 1P %d : %d 2P    Draws: %d    Cup duels: 1P %d : %d 2P": "Победы: 1P %d : %d 2P    Ничьи: %d    Дуэли кубков: 1P %d : %d 2P",
 	"Draw": "Ничья", "No duels yet — play a two-player race.": "Дуэлей пока нет — сыграйте гонку вдвоём.", "Challenge stars: %d / %d": "Звёзды испытаний: %d / %d",
+	"Police Chase": "Полицейская погоня", "Hot Potato": "Бомба", "Elimination": "На выбывание",
+	"Downtown: robbers grab cash and stay free for 2:30, cops box them in. Pick your side; bots take the rest.": "Город: грабители собирают деньги и 2:30 уходят от погони, полиция их зажимает. Выберите сторону — за остальных играют боты.",
+	"Downtown: the bomb passes on contact. Get rid of it before the fuse runs out. Last car left wins.": "Город: бомба передаётся касанием. Избавьтесь от неё, пока не догорел фитиль. Побеждает последний уцелевший.",
+	"Every 20 seconds the last car is knocked out. Be the last one standing.": "Каждые 20 секунд последняя машина выбывает. Останьтесь последним в игре.",
+	"1P ROLE": "РОЛЬ 1P", "2P ROLE": "РОЛЬ 2P", "COPS": "ПОЛИЦЕЙСКИХ", "BOTS": "БОТЫ", "BOT LEVEL": "УРОВЕНЬ БОТОВ",
+	"Robber": "Грабитель", "Cop": "Полицейский", "Rookie": "Новичок", "Pro": "Профи", "Ace": "Ас",
+	"CASH": "ДЕНЬГИ", "BUSTED!": "АРЕСТ!", "%s BUSTED!": "%s АРЕСТОВАН!", "BUSTED — WAIT FOR THE OTHERS": "АРЕСТОВАН — ЖДИТЕ ОСТАЛЬНЫХ",
+	"ESCAPE %s   BUST %d%%": "УХОДИ %s   АРЕСТ %d%%", "CATCH THEM %s   LEFT %d   %d m": "ЛОВИ %s   ОСТАЛОСЬ %d   %d м",
+	"BUSTED! THE COPS WIN": "АРЕСТ! ПОБЕДА ПОЛИЦИИ", "THE ROBBERS GOT AWAY!": "ГРАБИТЕЛИ УШЛИ!",
+	"%s HAS THE BOMB!": "БОМБА У %s!", "BOOM! %s IS OUT": "БУМ! %s ВЫБЫВАЕТ", "OUT — WAIT FOR THE OTHERS": "ВЫБЫЛ — ЖДИТЕ ОСТАЛЬНЫХ",
+	"NEW BOMB SOON   ALIVE %d": "СКОРО НОВАЯ БОМБА   В ИГРЕ %d", "YOU HAVE THE BOMB! %d s — TOUCH SOMEONE": "БОМБА У ВАС! %d с — КОСНИТЕСЬ ДРУГОГО",
+	"RUN! BOMB: %s %d s   ALIVE %d": "УДИРАЙ! БОМБА: %s %d с   В ИГРЕ %d", "%s SURVIVES!": "%s ВЫЖИЛ!",
+	"%s IS OUT!": "%s ВЫБЫВАЕТ!", "NEXT OUT IN %d s   ALIVE %d": "ВЫБЫВАНИЕ ЧЕРЕЗ %d с   В ИГРЕ %d", "YOU ARE LAST!": "ВЫ ПОСЛЕДНИЙ!",
+	"%s IS THE LAST ONE STANDING!": "%s — ПОСЛЕДНИЙ В ИГРЕ!", "OUT %s": "ВЫБЫЛ %s", "COP": "ПОЛИЦИЯ", "FREE": "НА СВОБОДЕ", "ALIVE": "В ИГРЕ",
+	"Downtown": "Центр города", "KNOCKED OUT!": "ВЫ ВЫБЫЛИ!", "Streets, blocks and alleys": "Улицы, кварталы и переулки",
 }
 
 const TABLES := {"ru": RU}

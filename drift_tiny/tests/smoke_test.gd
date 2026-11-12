@@ -24,6 +24,13 @@ const CONFIGS := [
 	{"players": 2, "mode": "gymkhana", "track": "arena", "view": "split"},
 	{"players": 2, "mode": "tandem", "track": "mountain", "view": "split"},
 	{"players": 1, "mode": "training", "track": "arena", "runs_only": 15.0},
+	{"players": 1, "mode": "time_attack", "track": "neonring", "bots": 5},
+	{"players": 2, "mode": "versus", "track": "mountain", "view": "split", "bots": 2},
+	{"players": 1, "mode": "elimination", "track": "pines", "bots": 3, "timeout": 120.0},
+	{"players": 1, "mode": "police", "track": "city", "roles": ["robber", "cop"], "cops": 4, "timeout": 170.0},
+	{"players": 1, "mode": "police", "track": "city", "roles": ["cop", "cop"], "cops": 3, "timeout": 170.0},
+	{"players": 2, "mode": "police", "track": "city", "roles": ["robber", "cop"], "cops": 2, "view": "shared", "timeout": 170.0},
+	{"players": 1, "mode": "bomb", "track": "city", "bots": 4, "timeout": 170.0},
 ]
 const RACE_TIMEOUT := 110.0
 
@@ -51,8 +58,11 @@ func _run() -> void:
 		Game.goto(key)
 		await _frames(30)
 		print("SCENE ok: ", key, " -> ", get_tree().current_scene.name)
-	for cfg in CONFIGS:
-		await _race(cfg)
+	var only_new := "new" in OS.get_cmdline_user_args()
+	for k in CONFIGS.size():
+		if only_new and k < 20:
+			continue
+		await _race(CONFIGS[k])
 	print("SMOKE DONE, failures: ", _failures)
 	get_tree().quit(1 if _failures > 0 else 0)
 
@@ -63,6 +73,9 @@ func _race(cfg: Dictionary) -> void:
 	Game.laps = 1
 	Game.view_mode = cfg.get("view", "split")
 	Game.reverse = cfg.get("reverse", false)
+	Game.bots = cfg.get("bots", 0)
+	Game.roles = cfg.get("roles", ["robber", "cop"])
+	Game.cops = cfg.get("cops", 3)
 	if Game.mode == "championship":
 		Game.start_championship(cfg["track"])
 	else:
@@ -75,9 +88,14 @@ func _race(cfg: Dictionary) -> void:
 		print("FAIL no race scene for ", cfg)
 		return
 	for h in race.humans:
-		(h as Car).controller = AutopilotController.new(0.95, 0.0, 5)
+		if race.track_data.city:
+			(h as Car).controller = CityDriver.new(race.track_data, 9, 0.9)
+		else:
+			(h as Car).controller = AutopilotController.new(0.95, 0.0, 5)
+	if race.game and race.game.has_method("_update_drivers"):
+		race.game.call("_update_drivers")
 	var t := 0.0
-	var limit := 45.0 if Game.mode == "practice" else float(cfg.get("runs_only", RACE_TIMEOUT))
+	var limit := 45.0 if Game.mode == "practice" else float(cfg.get("runs_only", cfg.get("timeout", RACE_TIMEOUT)))
 	var replay_frames := 0
 	while t < limit + replay_frames / 60.0 and race.state != "results":
 		await get_tree().physics_frame
@@ -87,8 +105,10 @@ func _race(cfg: Dictionary) -> void:
 	var line := "%s %dP %s: state=%s t=%.1fs replay=%.1fs" % [Game.mode, Game.players, race.track_data.id, race.state, t, replay_frames / 60.0]
 	for c in race.cars:
 		var info: Dictionary = race.racers[c]
-		line += " | %s laps=%d best=%.1f score=%d combo=%d" % [info["name"], int(info["laps_done"]),
-				float(info["best_lap"]), (c as Car).scoring.total, (c as Car).scoring.best_combo]
+		line += " | %s laps=%d score=%d%s" % [info["name"], int(info["laps_done"]), (c as Car).scoring.total,
+				(" out@%.0f" % float(info["out_at"])) if info.has("out_at") else ""]
+	if race.game:
+		line += " | " + str(race.game.title())
 	var ok := race.state == "results" or (Game.mode == "practice" and int(race.racers[race.humans[0]]["laps_done"]) >= 1) \
 			or (cfg.has("runs_only") and race.state == "racing")
 	if not ok:

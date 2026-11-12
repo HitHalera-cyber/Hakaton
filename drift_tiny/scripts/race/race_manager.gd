@@ -4,8 +4,12 @@ extends Node
 ## sets up the views (one, split or shared screen), counts laps and
 ## positions, applies the rules of the selected mode and shows results.
 
-const RIVAL_NAMES := ["NEKO", "BOLT", "VEGA", "MIRA"]
-const RIVAL_CARS := ["sport", "retro", "rally", "custom"]
+const RIVAL_NAMES := ["NEKO", "BOLT", "VEGA", "MIRA", "ZED", "KIRA", "RYU", "SOL"]
+const RIVAL_CARS := ["sport", "retro", "rally", "custom", "jdm", "classic"]
+## Modes on the city map, and the track modes where bots can join.
+const CITY_MODES := ["police", "bomb"]
+const BOT_MODES := ["time_attack", "drift_attack", "practice", "versus", "coop", "elimination"]
+const BOT_SKILL := [0.82, 0.92, 1.02]
 const FINISH_GRACE := 20.0
 const COOP_TARGETS := [1500, 3500, 6000]   # team points per lap: bronze/silver/gold
 
@@ -59,22 +63,28 @@ var _rf := 0
 var _rf_end := 0
 var _replay_car: Car
 var photo: PhotoMode
+var game: RefCounted                 # PoliceChase / HotPotato / Elimination
+var _cash_layer: Node2D
 
 
 func _ready() -> void:
 	mode = Game.mode
-	laps_total = 0 if mode in ["practice", "gymkhana", "training", "tandem"] else Game.laps
+	laps_total = 0 if mode in ["practice", "gymkhana", "training", "tandem", "elimination"] + CITY_MODES else Game.laps
 	if mode in ["gymkhana", "training"]:
 		track_data = Game.track_data("arena")
+	elif mode in CITY_MODES:
+		track_data = Game.track_data("city")
 	else:
 		track_data = Game.track_data(Game.track_id, Game.reverse)
-	shared_view = Game.players == 2 and Game.view_mode == "shared"
+	# The city is too big for one shared camera: always split there.
+	shared_view = Game.players == 2 and Game.view_mode == "shared" and not (mode in CITY_MODES)
 	_build_world()
 	_spawn_cars()
 	_build_views()
 	_build_overlays()
 	track.spectators.cars = cars
-	if track_data.arena:
+	_setup_game()
+	if mode in ["gymkhana", "training"]:
 		for h in humans:
 			gyms[h] = Gymkhana.new(h, track_data.posts)
 		if mode == "training":
@@ -123,6 +133,9 @@ func _build_world() -> void:
 
 
 func _spawn_cars() -> void:
+	if track_data.city:
+		_spawn_city()
+		return
 	var slot := 0
 	for p in Game.players:
 		# In tandem the chaser (2P) starts one row behind the leader.
@@ -144,6 +157,129 @@ func _spawn_cars() -> void:
 			ai.drift_happy = 0.9 if track_data.surface in ["asphalt", "wet"] else 0.6
 			rc.controller = ai
 			slot += 1
+	elif mode in BOT_MODES:
+		var n := Game.bots
+		if mode == "elimination":
+			n = maxi(n, 4 - Game.players)
+		for r in n:
+			_add_bot(r, slot)
+			slot += 1
+	_init_racers()
+
+
+func _add_bot(r: int, slot: int) -> Car:
+	var rc := _make_car(RIVAL_CARS[r % RIVAL_CARS.size()], slot)
+	rc.display_name = RIVAL_NAMES[r % RIVAL_NAMES.size()]
+	rc.tag_color = Color(0.85, 0.85, 0.9)
+	var skill: float = BOT_SKILL[clampi(Game.bot_skill, 0, 2)] + 0.02 * (r % 3)
+	var ai := AutopilotController.new(skill, (r % 4 - 1.5) * 6.0, r * 31 + 7)
+	ai.drift_happy = 0.9 if track_data.surface in ["asphalt", "wet"] else 0.6
+	rc.controller = ai
+	return rc
+
+
+## City modes: humans pick robber or cop; bots fill the other places.
+func _spawn_city() -> void:
+	var d := track_data
+	var cops_spots := [d.node_index(0, 0), d.node_index(7, 5), d.node_index(7, 0), d.node_index(0, 5),
+			d.node_index(0, 2), d.node_index(7, 3), d.node_index(3, 0), d.node_index(4, 5)]
+	var mid_spots := [d.node_index(3, 2), d.node_index(4, 3), d.node_index(4, 2), d.node_index(3, 3)]
+	for p in Game.players:
+		var car := _make_car(SaveManager.get_selected(p + 1), 0)
+		car.player_index = p + 1
+		car.tag_color = Color("ff5fb8") if p == 0 else Color("3ee0ff")
+		car.controller = PlayerController.new(p + 1, Game.players == 1)
+		humans.append(car)
+	var skill: float = [0.8, 0.88, 0.96][clampi(Game.bot_skill, 0, 2)]
+	if mode == "police":
+		var robbers: Array = []
+		var cop_cars: Array = []
+		for k in humans.size():
+			if str(Game.roles[k]) == "cop":
+				cop_cars.append(humans[k])
+			else:
+				robbers.append(humans[k])
+		if robbers.is_empty():
+			var rb := _make_car("jdm", 0)
+			rb.display_name = "ROBBER"
+			rb.tag_color = Color("7dff8a")
+			# The getaway driver is a bit quicker than the patrol cars.
+			rb.controller = CityDriver.new(d, 5, skill + 0.1)
+			robbers.append(rb)
+		var bot_cops := maxi(Game.cops - cop_cars.size(), 0)
+		for k in bot_cops:
+			var cc := _make_car("sport" if k % 2 == 0 else "classic", 0)
+			cc.display_name = "COP %d" % (k + 1)
+			cc.tag_color = Color("6aa0ff")
+			cc.controller = CityDriver.new(d, k * 13 + 3, skill)
+			cop_cars.append(cc)
+		for c in cop_cars:
+			(c as Car).stats.color = Color("f2f2f2")
+			(c as Car).stats.decal = 1
+		for k in robbers.size():
+			_place_at_node(robbers[k], mid_spots[k % mid_spots.size()])
+		for k in cop_cars.size():
+			_place_at_node(cop_cars[k], cops_spots[k % cops_spots.size()])
+		var pc := PoliceChase.new()
+		game = pc
+		_init_racers()
+		pc.setup(self, robbers, cop_cars)
+	else:
+		for k in maxi(Game.bots, 4 - Game.players):
+			var bc := _make_car(RIVAL_CARS[k % RIVAL_CARS.size()], 0)
+			bc.display_name = RIVAL_NAMES[k % RIVAL_NAMES.size()]
+			bc.tag_color = Color(0.85, 0.85, 0.9)
+			bc.controller = CityDriver.new(d, k * 17 + 1, skill)
+		var spots := [d.node_index(1, 1), d.node_index(6, 4), d.node_index(6, 1), d.node_index(1, 4),
+				d.node_index(3, 2), d.node_index(4, 3), d.node_index(3, 5), d.node_index(4, 0)]
+		for k in cars.size():
+			_place_at_node(cars[k], spots[k % spots.size()])
+		var hp := HotPotato.new()
+		game = hp
+		_init_racers()
+		hp.setup(self, cars)
+
+
+func _setup_game() -> void:
+	if mode == "elimination":
+		var el := Elimination.new()
+		el.setup(self, cars)
+		game = el
+	if game is PoliceChase:
+		_cash_layer = Node2D.new()
+		_cash_layer.z_index = 4
+		world.add_child(_cash_layer)
+		_cash_layer.draw.connect(func(): (game as PoliceChase).draw_cash(_cash_layer))
+
+
+## Takes a car out of the game (busted, blown up, eliminated). hide: also
+## remove it from the screen (on a race track it would block the road).
+func knock_out(c: Car, hide: bool) -> void:
+	c.scoring.bank()
+	c.scoring.enabled = false
+	c.out = true
+	c.frozen = true
+	c.siren = false
+	c.collision_layer = 0
+	c.collision_mask = 0
+	c.modulate = Color(0.45, 0.45, 0.5, 0.8)
+	if hide:
+		c.visible = false
+	racers[c]["out_at"] = race_time
+
+
+func short_name(c: Car) -> String:
+	return "%dP" % c.player_index if c.player_index > 0 else c.display_name
+
+
+func _place_at_node(c: Car, n: int) -> void:
+	var nb: Array = track_data.links[n]
+	var to: Vector2 = track_data.nodes[int(nb[0])]
+	c.place(track_data.nodes[n], (to - track_data.nodes[n]).angle())
+	c._update_track()
+
+
+func _init_racers() -> void:
 	for c in cars:
 		racers[c] = {
 			"car": c, "name": _car_label(c), "lap": 1, "laps_done": 0, "travelled": 0.0,
@@ -246,6 +382,8 @@ func is_over() -> bool:
 
 
 func mode_line(car: Car) -> String:
+	if game:
+		return game.mode_line(car)
 	match mode:
 		"gymkhana":
 			var g: Gymkhana = gyms.get(car)
@@ -328,6 +466,13 @@ func _tick_racing(delta: float) -> void:
 	if mode == "gymkhana" and race_time >= GYMKHANA_TIME:
 		_end_race()
 		return
+	if game:
+		game.tick(delta)
+		if _cash_layer:
+			_cash_layer.queue_redraw()
+		if game.is_done():
+			_end_race()
+			return
 	if training:
 		if training.update(delta):
 			AudioManager.play("lap")
@@ -342,7 +487,8 @@ func _tick_racing(delta: float) -> void:
 		var tandem := a.drifting and b.drifting and a.global_position.distance_to(b.global_position) < 70.0
 		a.scoring.tandem = tandem
 		b.scoring.tandem = tandem
-	views.keep_together(delta, func(c): return racers[c]["travelled"])
+	if not track_data.city:
+		views.keep_together(delta, func(c): return racers[c]["travelled"])
 	if _grace > 0.0:
 		_grace -= delta
 		if _grace <= 0.0:
@@ -641,7 +787,7 @@ func _show_results() -> void:
 			pts = "+%d (%d)" % [gained, table[key]]
 		rows.append([
 			"%d." % (i + 1), info["name"],
-			RaceHUD.format_time(float(info["finish_time"])) if info["finished"] else tr("DNF") if laps_total > 0 else "-",
+			_time_cell(c, info),
 			RaceHUD.format_time(float(info["best_lap"])),
 			RaceHUD._fmt_points(c.scoring.total), RaceHUD._fmt_points(c.scoring.best_combo),
 			pts if mode == "championship" else ("+%d CR" % reward if reward > 0 else ""),
@@ -671,6 +817,8 @@ func _show_results() -> void:
 			title = tr("TEAM %s — %s") % [RaceHUD._fmt_points(team), tr(medal)]
 		"versus", "drift_attack", "championship", "time_attack", "ghost":
 			title = tr("%s WINS!") % (racers[winner]["name"] as String) if cars.size() > 1 else tr("FINISHED")
+		"police", "bomb", "elimination":
+			title = game.title()
 	var columns := ["#", "DRIVER", "TIME", "BEST LAP", "DRIFT", "BEST COMBO", "CHAMP" if mode == "championship" else "REWARD"]
 	var buttons: Array = []
 	if Game.championship_active():
@@ -685,7 +833,9 @@ func _show_results() -> void:
 		buttons.append(["Garage", Game.goto.bind("garage")])
 		buttons.append(["Menu", Game.goto.bind("menu")])
 	notes.append_array(_achievement_notes)
-	var sub := "%s · %s · %s" % [track_data.name, tr(Game.mode_name(mode)), tr("%d laps") % laps_total if laps_total > 0 else tr("free run")]
+	var sub := "%s · %s" % [tr(track_data.name), tr(Game.mode_name(mode))]
+	if game == null:
+		sub += " · " + (tr("%d laps") % laps_total if laps_total > 0 else tr("free run"))
 	_results.show_results({
 		"title": title, "subtitle": sub, "columns": columns, "rows": rows,
 		"row_colors": row_colors, "notes": notes, "buttons": buttons,
@@ -698,9 +848,15 @@ func _duel_notes(ranked: Array, notes: Array) -> void:
 		return
 	var a := humans[0] as Car
 	var b := humans[1] as Car
-	var by_score: bool = mode in ["drift_attack", "gymkhana", "tandem"]
+	var by_score: bool = mode in ["drift_attack", "gymkhana", "tandem", "police"]
 	var winner := 0 if ranked.find(a) < ranked.find(b) else 1
-	if by_score and a.scoring.total == b.scoring.total:
+	if game is PoliceChase:
+		# Different sides: the side that won the chase wins the duel.
+		var pc := game as PoliceChase
+		var a_cop: bool = a in pc.cops
+		if a_cop != (b in pc.cops):
+			winner = 0 if a_cop == (pc.winner == "cops") else 1
+	if by_score and a.scoring.total == b.scoring.total and not (game is PoliceChase and (a in (game as PoliceChase).cops) != (b in (game as PoliceChase).cops)):
 		winner = -1
 	var line := ""
 	if by_score or laps_total == 0:
@@ -720,6 +876,18 @@ func _duel_notes(ranked: Array, notes: Array) -> void:
 	notes.append(tr("DUEL: %s (%s) · overall 1P %d : %d 2P") % [head, line, w[0], w[1]])
 
 
+func _time_cell(c: Car, info: Dictionary) -> String:
+	if info.has("out_at"):
+		return tr("OUT %s") % RaceHUD.format_time(float(info["out_at"]))
+	if game is PoliceChase:
+		return tr("COP") if c in (game as PoliceChase).cops else tr("FREE")
+	if game:
+		return tr("ALIVE")
+	if info["finished"]:
+		return RaceHUD.format_time(float(info["finish_time"]))
+	return tr("DNF") if laps_total > 0 else "-"
+
+
 func _next_championship_race() -> void:
 	Game.advance_championship()
 	Game.goto("race")
@@ -727,8 +895,19 @@ func _next_championship_race() -> void:
 
 func _ranking() -> Array:
 	var order := cars.duplicate()
+	if mode in ["bomb", "elimination"]:
+		# Survivors first, then by how long each car lasted.
+		order.sort_custom(func(a, b):
+			var oa: float = racers[a].get("out_at", INF)
+			var ob: float = racers[b].get("out_at", INF)
+			if oa != ob:
+				return oa > ob
+			if mode == "elimination":
+				return int(racers[a]["position"]) < int(racers[b]["position"])
+			return (a as Car).scoring.total > (b as Car).scoring.total)
+		return order
 	match mode:
-		"drift_attack", "coop", "practice", "gymkhana", "tandem", "training":
+		"drift_attack", "coop", "practice", "gymkhana", "tandem", "training", "police":
 			order.sort_custom(func(a, b): return (a as Car).scoring.total > (b as Car).scoring.total)
 		_:
 			order.sort_custom(func(a, b): return int(racers[a]["position"]) < int(racers[b]["position"]))
@@ -755,6 +934,8 @@ static func star_texts(arena: bool) -> Array:
 
 
 func _check_stars(c: Car, info: Dictionary, notes: Array) -> void:
+	if track_data.city or mode == "elimination":
+		return
 	var got: Array = [false, false, false]
 	if track_data.arena:
 		var g: Gymkhana = gyms.get(c)

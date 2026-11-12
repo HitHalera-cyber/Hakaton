@@ -126,6 +126,12 @@ func _draw_race_info(w: float, info: Dictionary) -> void:
 		_text_c(Vector2(tr.get_center().x, tr.end.y + (32 if sub != "" else 16)), mode_line, 14, PINK)
 
 	# --- minimap + lap + position (top-right); the gymkhana lot has no laps
+	if track != null and track.city:
+		var cw := 120.0 if compact else 160.0
+		var cr := Rect2(w - cw - 10, 10, cw, cw * track.arena_rect.size.y / track.arena_rect.size.x)
+		_panel(cr, EDGE)
+		_draw_city_map(cr.grow(-4))
+		return
 	if track != null and track.arena:
 		return
 	var mw := 104.0 if compact else 130.0
@@ -250,6 +256,35 @@ func _draw_minimap(r: Rect2) -> void:
 		draw_circle(cc.global_position * s + off, 2.5, dc)
 	draw_circle(car.global_position * s + off, 3.5, Color.BLACK)
 	draw_circle(car.global_position * s + off, 2.5, car.tag_color)
+
+
+## City minimap: blocks, parks and every car (cops blink red/blue).
+func _draw_city_map(r: Rect2) -> void:
+	var ar := track.arena_rect
+	var s := r.size.x / ar.size.x
+	draw_rect(r, Color("4a4b55"))
+	for b in track.blocks:
+		var br := b as Rect2
+		draw_rect(Rect2(r.position + br.position * s, br.size * s), Color("272632"))
+	for b in track.parks:
+		var br := b as Rect2
+		draw_rect(Rect2(r.position + br.position * s, br.size * s), Color("2f5a2c"))
+	var blink := int(Time.get_ticks_msec() / 200) % 2 == 0
+	for c in all_cars:
+		var cc := c as Car
+		var p := r.position + cc.global_position * s
+		var col := cc.tag_color if cc.player_index > 0 else Color(0.85, 0.85, 0.9)
+		if cc.siren:
+			col = Color("ff3040") if blink else Color("3a7bff")
+		elif cc.badge.begins_with("$"):
+			col = Color("7dff8a") if cc.player_index == 0 else col
+		elif cc.badge != "":
+			col = Color("ff7a1a")
+		if cc.out:
+			col = Color(0.4, 0.4, 0.45)
+		var rad := 3.0 if cc == car else 2.2
+		draw_circle(p, rad + 1.0, Color.BLACK)
+		draw_circle(p, rad, col)
 
 
 # --- drawing helpers ----------------------------------------------------------

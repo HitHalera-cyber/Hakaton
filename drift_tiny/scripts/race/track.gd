@@ -131,7 +131,10 @@ func build(track_data: TrackData) -> void:
 	if data.arena:
 		spectators = Spectators.new()
 		add_child(spectators)
-		Arena.build(self)
+		if data.city:
+			City.build(self)
+		else:
+			Arena.build(self)
 		return
 	_shore = _compute_shore_y()
 	wall_left = data.wall_points(-1.0)

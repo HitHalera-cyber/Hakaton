@@ -41,6 +41,18 @@ var arena_rect := Rect2()
 var posts: Array = []        # donut posts (Vector2)
 var cones: Array = []        # slalom cones (Vector2)
 const SHORTCUT_HW := 17.0
+## City (police chase, hot potato): a grid of streets between building blocks.
+var city := false
+var blocks: Array = []       # Rect2: solid building blocks
+var parks: Array = []        # Rect2: open parks (drivable, trees are solid)
+var trees: Array = []        # Vector2: park trees
+var nodes := PackedVector2Array()   # street intersections
+var links: Array = []        # per node: Array of neighbour node indices
+const CITY_COLS := 7
+const CITY_ROWS := 5
+const STREET := 96.0
+const BLOCK_W := 250.0
+const BLOCK_H := 200.0
 
 
 ## reverse: drive the loop the other way (same start line). It gets its own
@@ -104,6 +116,160 @@ func setup_arena() -> void:
 		{"type": "boost", "idx": 0, "pos": Vector2(950, 160), "r": 9.0},
 		{"type": "oil", "idx": 0, "pos": c + Vector2(-120, 150), "r": 14.0},
 	]
+
+
+## The city: CITY_COLS x CITY_ROWS blocks with streets between them, a few
+## blocks are parks. Like the arena it keeps a hidden, very wide loop, so
+## everywhere counts as road for the car's track queries.
+func setup_city() -> void:
+	arena = true
+	city = true
+	id = "city"
+	name = "Downtown"
+	subtitle = "Streets, blocks and alleys"
+	theme = "city"
+	surface = "asphalt"
+	music = "neon"
+	width = 6000.0
+	var w := STREET + CITY_COLS * (BLOCK_W + STREET)
+	var h := STREET + CITY_ROWS * (BLOCK_H + STREET)
+	arena_rect = Rect2(0, 0, w, h)
+	bounds = arena_rect.grow(120.0)
+	var park_cells := [Vector2i(3, 2), Vector2i(1, 1), Vector2i(5, 3)]
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 77
+	for j in CITY_ROWS:
+		for i in CITY_COLS:
+			var r := Rect2(STREET + i * (BLOCK_W + STREET), STREET + j * (BLOCK_H + STREET), BLOCK_W, BLOCK_H)
+			if Vector2i(i, j) in park_cells:
+				parks.append(r)
+				for k in 7:
+					trees.append(r.position + Vector2(rng.randf_range(30, BLOCK_W - 30), rng.randf_range(30, BLOCK_H - 30)))
+			else:
+				blocks.append(r)
+	for j in CITY_ROWS + 1:
+		for i in CITY_COLS + 1:
+			nodes.append(Vector2(STREET * 0.5 + i * (BLOCK_W + STREET), STREET * 0.5 + j * (BLOCK_H + STREET)))
+			var nb: Array = []
+			if i > 0:
+				nb.append(j * (CITY_COLS + 1) + i - 1)
+			if i < CITY_COLS:
+				nb.append(j * (CITY_COLS + 1) + i + 1)
+			if j > 0:
+				nb.append((j - 1) * (CITY_COLS + 1) + i)
+			if j < CITY_ROWS:
+				nb.append((j + 1) * (CITY_COLS + 1) + i)
+			links.append(nb)
+	var c := arena_rect.get_center()
+	var pts := PackedVector2Array()
+	for k in 24:
+		var a := TAU * k / 24.0
+		pts.append(c + Vector2(cos(a) * w * 0.3, sin(a) * h * 0.3))
+	_sample(pts)
+	bounds = arena_rect.grow(120.0)
+	# A few things on the streets: boost pads on long avenues, oil, gravel.
+	for k in 6:
+		var n := rng.randi_range(0, nodes.size() - 1)
+		var nb: Array = links[n]
+		var m: int = nb[rng.randi_range(0, nb.size() - 1)]
+		var mid := nodes[n].lerp(nodes[m], 0.5)
+		hazards.append({"type": ["boost", "boost", "oil", "gravel", "boost", "oil"][k], "idx": 0, "pos": mid, "r": 9.0 if k % 2 == 0 else 15.0})
+
+
+func node_index(i: int, j: int) -> int:
+	return j * (CITY_COLS + 1) + i
+
+
+func nearest_node(p: Vector2) -> int:
+	var best := 0
+	var best_d := INF
+	for k in nodes.size():
+		var d := p.distance_squared_to(nodes[k])
+		if d < best_d:
+			best_d = d
+			best = k
+	return best
+
+
+## True if p is inside a building block (or off the map).
+func blocked(p: Vector2) -> bool:
+	if not arena_rect.has_point(p):
+		return true
+	for r in blocks:
+		if (r as Rect2).has_point(p):
+			return true
+	return false
+
+
+## Nothing solid on the straight line a-b (checked every 12 px).
+func clear_line(a: Vector2, b: Vector2) -> bool:
+	var n := maxi(1, int(a.distance_to(b) / 12.0))
+	for k in range(1, n):
+		if blocked(a.lerp(b, float(k) / n)):
+			return false
+	return true
+
+
+## Shortest street path between two nodes (node indices, from a to b).
+## avoid: positions to stay away from (edges near them cost a lot more).
+func city_path(from: int, to: int, avoid: Array = []) -> Array:
+	var n := nodes.size()
+	var dist: Array = []
+	var prev: Array = []
+	var done: Array = []
+	dist.resize(n)
+	prev.resize(n)
+	done.resize(n)
+	for k in n:
+		dist[k] = INF
+		prev[k] = -1
+		done[k] = false
+	dist[from] = 0.0
+	for _it in n:
+		var u := -1
+		var best := INF
+		for k in n:
+			if not done[k] and float(dist[k]) < best:
+				best = dist[k]
+				u = k
+		if u < 0 or u == to:
+			break
+		done[u] = true
+		for v in links[u]:
+			var mid := nodes[u].lerp(nodes[v], 0.5)
+			var cost := nodes[u].distance_to(nodes[v])
+			for a: Vector2 in avoid:
+				var d := mid.distance_to(a)
+				if d < 260.0:
+					cost += (260.0 - d) * 6.0
+				var dn := nodes[v].distance_to(a)
+				if dn < 220.0:
+					cost += (220.0 - dn) * 10.0
+			var nd: float = float(dist[u]) + cost
+			if nd < float(dist[v]):
+				dist[v] = nd
+				prev[v] = u
+	var path: Array = []
+	var k := to
+	while k >= 0:
+		path.push_front(k)
+		if k == from:
+			break
+		k = prev[k]
+	if path.is_empty() or path[0] != from:
+		return [to]
+	return path
+
+
+## Where a car goes back on the map: nearest street node, facing along a street.
+func respawn_pose(p: Vector2) -> Dictionary:
+	if not city:
+		var idx := nearest(p)
+		return {"position": samples[idx], "rotation": tangents[idx].angle()}
+	var n := nearest_node(p)
+	var nb: Array = links[n]
+	var to: Vector2 = nodes[nb[0]]
+	return {"position": nodes[n], "rotation": (to - nodes[n]).angle()}
 
 
 func _sample(pts: PackedVector2Array) -> void:
