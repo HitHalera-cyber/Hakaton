@@ -43,6 +43,10 @@ var cones: Array = []        # slalom cones (Vector2)
 const SHORTCUT_HW := 17.0
 ## City (police chase, hot potato): a grid of streets between building blocks.
 var city := false
+## Open fields: "stadium" (car soccer, gate rush) or "sumo" (round platform).
+var field := ""
+var goal_h := 180.0          # stadium: goal mouth height
+var ring_r := 330.0          # sumo: platform radius
 var blocks: Array = []       # Rect2: solid building blocks
 var parks: Array = []        # Rect2: open parks (drivable, trees are solid)
 var trees: Array = []        # Vector2: park trees
@@ -259,6 +263,34 @@ func city_path(from: int, to: int, avoid: Array = []) -> Array:
 	if path.is_empty() or path[0] != from:
 		return [to]
 	return path
+
+
+## Stadium (car soccer, gate rush) and the sumo platform: open lots with no
+## loop to follow. Like the arena they keep a hidden, very wide loop.
+func setup_field(kind: String) -> void:
+	arena = true
+	field = kind
+	id = kind
+	surface = "asphalt"
+	music = "menu"
+	width = 6000.0
+	if kind == "stadium":
+		name = "Stadium"
+		subtitle = "A football pitch for cars"
+		theme = "stadium"
+		arena_rect = Rect2(0, 0, 1040, 640)
+	else:
+		name = "Sumo Ring"
+		subtitle = "A round platform above the void"
+		theme = "sumo"
+		arena_rect = Rect2(0, 0, 800, 800)
+	var c := arena_rect.get_center()
+	var pts := PackedVector2Array()
+	for k in 24:
+		var a := TAU * k / 24.0
+		pts.append(c + Vector2(cos(a) * 200.0, sin(a) * 120.0))
+	_sample(pts)
+	bounds = arena_rect.grow(150.0 if kind == "sumo" else 120.0)
 
 
 ## Where a car goes back on the map: nearest street node, facing along a street.

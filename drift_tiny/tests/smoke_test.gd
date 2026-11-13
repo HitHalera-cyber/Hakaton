@@ -31,6 +31,11 @@ const CONFIGS := [
 	{"players": 1, "mode": "police", "track": "city", "roles": ["cop", "cop"], "cops": 3, "timeout": 170.0},
 	{"players": 2, "mode": "police", "track": "city", "roles": ["robber", "cop"], "cops": 2, "view": "shared", "timeout": 170.0},
 	{"players": 1, "mode": "bomb", "track": "city", "bots": 4, "timeout": 170.0},
+	{"players": 1, "mode": "delivery", "track": "city", "bots": 2, "timeout": 200.0},
+	{"players": 2, "mode": "koth", "track": "city", "bots": 2, "view": "split", "timeout": 170.0},
+	{"players": 1, "mode": "soccer", "track": "stadium", "bots": 3, "timeout": 200.0},
+	{"players": 2, "mode": "sumo", "track": "sumo", "bots": 2, "view": "shared", "timeout": 220.0},
+	{"players": 1, "mode": "gates", "track": "stadium", "bots": 2, "timeout": 200.0},
 ]
 const RACE_TIMEOUT := 110.0
 
@@ -90,6 +95,8 @@ func _race(cfg: Dictionary) -> void:
 	for h in race.humans:
 		if race.track_data.city:
 			(h as Car).controller = CityDriver.new(race.track_data, 9, 0.9)
+		elif race.track_data.field != "":
+			(h as Car).controller = FieldDriver.new(0.9)
 		else:
 			(h as Car).controller = AutopilotController.new(0.95, 0.0, 5)
 	if race.game and race.game.has_method("_update_drivers"):

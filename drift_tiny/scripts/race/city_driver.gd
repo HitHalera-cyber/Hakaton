@@ -7,6 +7,7 @@ extends RefCounted
 ##  * "flee": run from threats (robbers, everyone without the bomb): picks a
 ##    junction far from all threats that it can reach first, prefers routes
 ##    away from them, and grabs cash on the way.
+##  * "goto": drive to goal_pos (a delivery spot, the hill zone).
 ##  * "cruise": wander to random junctions.
 
 var city: TrackData
@@ -14,6 +15,7 @@ var mode := "cruise"
 var target: Car                  # chase
 var threats: Array = []          # flee: cars to run from
 var goodies: Array = []          # flee: positions worth visiting (cash)
+var goal_pos := Vector2.ZERO     # goto
 var skill := 1.0                 # top speed share
 var enabled := true
 
@@ -115,6 +117,19 @@ func _plan(car: Car) -> void:
 	var p := car.global_position
 	var here := city.nearest_node(p)
 	match mode:
+		"goto":
+			var gd := p.distance_to(goal_pos)
+			if gd < 420.0 and city.clear_line(p, goal_pos):
+				_direct = true
+				_aim = goal_pos
+				_path.clear()
+				return
+			_direct = false
+			_path = city.city_path(_start_node(car, here), city.nearest_node(goal_pos))
+			# The spot is between junctions: finish the trip straight to it.
+			if _path.size() == 1 and p.distance_to(city.nodes[int(_path[0])]) < 60.0:
+				_direct = true
+				_aim = goal_pos
 		"chase":
 			if target == null or not is_instance_valid(target):
 				_cruise(here)

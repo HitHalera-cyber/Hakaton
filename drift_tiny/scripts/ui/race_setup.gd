@@ -159,13 +159,13 @@ func _refresh_info() -> void:
 	var m: String = _mode.value()
 	_desc.text = tr(Game.MODES[m]["desc"])
 	var arena: bool = m in ["gymkhana", "training"]
-	var city: bool = m in RaceManager.CITY_MODES
+	var city: bool = m in RaceManager.CITY_MODES or RaceManager.FIELD_MODES.has(m)
 	_laps.visible = not (m in ["practice", "championship", "gymkhana", "training", "tandem", "elimination"] or city)
 	_track.visible = not (arena or city)
-	var tid: String = "arena" if arena else ("city" if city else str(_track.value()))
+	var tid: String = "arena" if arena else (("city" if m in RaceManager.CITY_MODES else str(RaceManager.FIELD_MODES.get(m, "city"))) if city else str(_track.value()))
 	var rev: bool = _dir.value() and m != "championship" and not city
 	_dir.visible = not (m in ["championship", "gymkhana", "training"] or city)
-	_bots.visible = m in RaceManager.BOT_MODES or m == "bomb"
+	_bots.visible = m in RaceManager.BOT_MODES or (city and m != "police")
 	_skill.visible = _bots.visible or m == "police"
 	_role1.visible = m == "police"
 	_role2.visible = m == "police" and _players.value() == 2

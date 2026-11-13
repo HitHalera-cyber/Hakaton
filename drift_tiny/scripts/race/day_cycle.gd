@@ -31,7 +31,7 @@ func setup(the_race: Node, the_track: Track, the_views: LocalMultiplayerManager)
 	Game.darkness = 0.0
 	Game.raining = false
 	# Tracks that are always night, or the digital void, keep their light.
-	if track.theme_name in ["neon", "midnight", "vector"] or not bool(SaveManager.get_setting("dynamic_weather", true)):
+	if track.theme_name in ["neon", "midnight", "vector", "sumo"] or not bool(SaveManager.get_setting("dynamic_weather", true)):
 		enabled = false
 		Game.darkness = 1.0 if track.night else 0.0
 		return

@@ -7,7 +7,11 @@ extends Node
 const RIVAL_NAMES := ["NEKO", "BOLT", "VEGA", "MIRA", "ZED", "KIRA", "RYU", "SOL"]
 const RIVAL_CARS := ["sport", "retro", "rally", "custom", "jdm", "classic"]
 ## Modes on the city map, and the track modes where bots can join.
-const CITY_MODES := ["police", "bomb"]
+const CITY_MODES := ["police", "bomb", "delivery", "koth"]
+## Modes on the open maps, and which map each one uses.
+const FIELD_MODES := {"soccer": "stadium", "gates": "stadium", "sumo": "sumo"}
+## Smallest number of cars a party mode makes sense with (bots fill up).
+const MIN_CARS := {"bomb": 4, "koth": 3, "soccer": 2, "sumo": 3, "elimination": 4}
 const BOT_MODES := ["time_attack", "drift_attack", "practice", "versus", "coop", "elimination"]
 const BOT_SKILL := [0.82, 0.92, 1.02]
 const FINISH_GRACE := 20.0
@@ -69,11 +73,13 @@ var _cash_layer: Node2D
 
 func _ready() -> void:
 	mode = Game.mode
-	laps_total = 0 if mode in ["practice", "gymkhana", "training", "tandem", "elimination"] + CITY_MODES else Game.laps
+	laps_total = 0 if mode in ["practice", "gymkhana", "training", "tandem", "elimination"] + CITY_MODES + FIELD_MODES.keys() else Game.laps
 	if mode in ["gymkhana", "training"]:
 		track_data = Game.track_data("arena")
 	elif mode in CITY_MODES:
 		track_data = Game.track_data("city")
+	elif FIELD_MODES.has(mode):
+		track_data = Game.track_data(FIELD_MODES[mode])
 	else:
 		track_data = Game.track_data(Game.track_id, Game.reverse)
 	# The city is too big for one shared camera: always split there.
@@ -135,6 +141,9 @@ func _build_world() -> void:
 func _spawn_cars() -> void:
 	if track_data.city:
 		_spawn_city()
+		return
+	if track_data.field != "":
+		_spawn_field()
 		return
 	var slot := 0
 	for p in Game.players:
@@ -225,7 +234,7 @@ func _spawn_city() -> void:
 		_init_racers()
 		pc.setup(self, robbers, cop_cars)
 	else:
-		for k in maxi(Game.bots, 4 - Game.players):
+		for k in maxi(Game.bots, int(MIN_CARS.get(mode, 0)) - Game.players):
 			var bc := _make_car(RIVAL_CARS[k % RIVAL_CARS.size()], 0)
 			bc.display_name = RIVAL_NAMES[k % RIVAL_NAMES.size()]
 			bc.tag_color = Color(0.85, 0.85, 0.9)
@@ -234,10 +243,70 @@ func _spawn_city() -> void:
 				d.node_index(3, 2), d.node_index(4, 3), d.node_index(3, 5), d.node_index(4, 0)]
 		for k in cars.size():
 			_place_at_node(cars[k], spots[k % spots.size()])
-		var hp := HotPotato.new()
-		game = hp
 		_init_racers()
-		hp.setup(self, cars)
+		match mode:
+			"bomb":
+				game = HotPotato.new()
+			"delivery":
+				game = Delivery.new()
+			_:
+				game = KingHill.new()
+		game.setup(self, cars)
+
+
+## Stadium and sumo ring: open maps, bots use the field driver.
+func _spawn_field() -> void:
+	for p in Game.players:
+		var car := _make_car(SaveManager.get_selected(p + 1), p)
+		car.player_index = p + 1
+		car.tag_color = Color("ff5fb8") if p == 0 else Color("3ee0ff")
+		car.controller = PlayerController.new(p + 1, Game.players == 1)
+		humans.append(car)
+	var skill: float = [0.8, 0.9, 1.0][clampi(Game.bot_skill, 0, 2)]
+	for k in maxi(Game.bots, int(MIN_CARS.get(mode, 0)) - Game.players):
+		var bc := _make_car(RIVAL_CARS[k % RIVAL_CARS.size()], k + Game.players)
+		bc.display_name = RIVAL_NAMES[k % RIVAL_NAMES.size()]
+		bc.tag_color = Color(0.85, 0.85, 0.9)
+		bc.controller = FieldDriver.new(skill)
+	_init_racers()
+	match mode:
+		"soccer":
+			# 1P blue; 2P red; bots join whichever team is smaller.
+			var blue: Array = [humans[0]]
+			var red: Array = []
+			if humans.size() == 2:
+				red.append(humans[1])
+			for c in cars:
+				if c in humans:
+					continue
+				if red.size() <= blue.size():
+					red.append(c)
+				else:
+					blue.append(c)
+			var cs := CarSoccer.new()
+			game = cs
+			cs.setup(self, blue, red)
+		"sumo":
+			game = Sumo.new()
+			game.setup(self, cars)
+		_:
+			game = GateRush.new()
+			game.setup(self, cars)
+
+
+## Back into the game after a knock-out (next sumo round).
+func revive(c: Car) -> void:
+	if not c.out:
+		return
+	c.out = false
+	c.frozen = state != "racing"
+	var col: Array = c.get_meta("col", [2, 7])
+	c.collision_layer = int(col[0])
+	c.collision_mask = int(col[1])
+	c.modulate = Color.WHITE
+	c.visible = true
+	c.scoring.enabled = state == "racing"
+	racers[c].erase("out_at")
 
 
 func _setup_game() -> void:
@@ -245,11 +314,14 @@ func _setup_game() -> void:
 		var el := Elimination.new()
 		el.setup(self, cars)
 		game = el
-	if game is PoliceChase:
+	if game is PoliceChase or (game and game.has_method("draw_world")):
 		_cash_layer = Node2D.new()
 		_cash_layer.z_index = 4
 		world.add_child(_cash_layer)
-		_cash_layer.draw.connect(func(): (game as PoliceChase).draw_cash(_cash_layer))
+		if game is PoliceChase:
+			_cash_layer.draw.connect(func(): (game as PoliceChase).draw_cash(_cash_layer))
+		else:
+			_cash_layer.draw.connect(func(): game.draw_world(_cash_layer))
 
 
 ## Takes a car out of the game (busted, blown up, eliminated). hide: also
@@ -260,6 +332,8 @@ func knock_out(c: Car, hide: bool) -> void:
 	c.out = true
 	c.frozen = true
 	c.siren = false
+	if not c.has_meta("col"):
+		c.set_meta("col", [c.collision_layer, c.collision_mask])
 	c.collision_layer = 0
 	c.collision_mask = 0
 	c.modulate = Color(0.45, 0.45, 0.5, 0.8)
@@ -487,7 +561,7 @@ func _tick_racing(delta: float) -> void:
 		var tandem := a.drifting and b.drifting and a.global_position.distance_to(b.global_position) < 70.0
 		a.scoring.tandem = tandem
 		b.scoring.tandem = tandem
-	if not track_data.city:
+	if game == null:
 		views.keep_together(delta, func(c): return racers[c]["travelled"])
 	if _grace > 0.0:
 		_grace -= delta
@@ -817,7 +891,7 @@ func _show_results() -> void:
 			title = tr("TEAM %s — %s") % [RaceHUD._fmt_points(team), tr(medal)]
 		"versus", "drift_attack", "championship", "time_attack", "ghost":
 			title = tr("%s WINS!") % (racers[winner]["name"] as String) if cars.size() > 1 else tr("FINISHED")
-		"police", "bomb", "elimination":
+		"police", "bomb", "elimination", "delivery", "koth", "soccer", "sumo", "gates":
 			title = game.title()
 	var columns := ["#", "DRIVER", "TIME", "BEST LAP", "DRIFT", "BEST COMBO", "CHAMP" if mode == "championship" else "REWARD"]
 	var buttons: Array = []
@@ -877,6 +951,8 @@ func _duel_notes(ranked: Array, notes: Array) -> void:
 
 
 func _time_cell(c: Car, info: Dictionary) -> String:
+	if game and game.has_method("cell"):
+		return game.cell(c)
 	if info.has("out_at"):
 		return tr("OUT %s") % RaceHUD.format_time(float(info["out_at"]))
 	if game is PoliceChase:
@@ -895,6 +971,8 @@ func _next_championship_race() -> void:
 
 func _ranking() -> Array:
 	var order := cars.duplicate()
+	if game and game.has_method("ranked"):
+		return game.ranked()
 	if mode in ["bomb", "elimination"]:
 		# Survivors first, then by how long each car lasted.
 		order.sort_custom(func(a, b):
@@ -907,7 +985,7 @@ func _ranking() -> Array:
 			return (a as Car).scoring.total > (b as Car).scoring.total)
 		return order
 	match mode:
-		"drift_attack", "coop", "practice", "gymkhana", "tandem", "training", "police":
+		"drift_attack", "coop", "practice", "gymkhana", "tandem", "training", "police", "delivery", "koth", "soccer", "sumo", "gates":
 			order.sort_custom(func(a, b): return (a as Car).scoring.total > (b as Car).scoring.total)
 		_:
 			order.sort_custom(func(a, b): return int(racers[a]["position"]) < int(racers[b]["position"]))
@@ -934,7 +1012,7 @@ static func star_texts(arena: bool) -> Array:
 
 
 func _check_stars(c: Car, info: Dictionary, notes: Array) -> void:
-	if track_data.city or mode == "elimination":
+	if track_data.city or track_data.field != "" or mode == "elimination":
 		return
 	var got: Array = [false, false, false]
 	if track_data.arena:

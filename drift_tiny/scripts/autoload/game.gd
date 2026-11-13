@@ -25,6 +25,11 @@ const MODES := {
 	"police": {"name": "Police Chase", "players": [1, 2], "desc": "Downtown: robbers grab cash and stay free for 2:30, cops box them in. Pick your side; bots take the rest."},
 	"bomb": {"name": "Hot Potato", "players": [1, 2], "desc": "Downtown: the bomb passes on contact. Get rid of it before the fuse runs out. Last car left wins."},
 	"elimination": {"name": "Elimination", "players": [1, 2], "desc": "Every 20 seconds the last car is knocked out. Be the last one standing."},
+	"delivery": {"name": "Courier Rush", "players": [1, 2], "desc": "Downtown: pick up parcels and deliver them before their timers run out. Quick drops pay more. 3:00."},
+	"koth": {"name": "King of the Hill", "players": [1, 2], "desc": "Downtown: hold the glowing zone. Alone inside you score fast, crowded it barely counts - push them out. It moves every 25 s."},
+	"soccer": {"name": "Car Soccer", "players": [1, 2], "desc": "Stadium: blue against red, push the ball into the other goal. Bots fill both teams. First to 5 or 3:00."},
+	"sumo": {"name": "Sumo", "players": [1, 2], "desc": "A round platform above the void, no walls. Push the others off, stay on yourself. 3 rounds."},
+	"gates": {"name": "Gate Rush", "players": [1, 2], "desc": "Stadium slalom: drive through the cone gates in order. Every gate adds time, a gate taken in a drift adds more."},
 }
 
 ## Championship points for places 1..4.
@@ -122,6 +127,12 @@ func track_data(id: String, reversed := false) -> TrackData:
 			a.setup_arena()
 			_track_cache["arena"] = a
 		return _track_cache["arena"]
+	if id in ["stadium", "sumo"]:
+		if not _track_cache.has(id):
+			var fdata := TrackData.new()
+			fdata.setup_field(id)
+			_track_cache[id] = fdata
+		return _track_cache[id]
 	if id == "city":
 		if not _track_cache.has("city"):
 			var cdata := TrackData.new()

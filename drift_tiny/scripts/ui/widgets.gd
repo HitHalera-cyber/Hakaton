@@ -139,6 +139,26 @@ class TrackPreview:
 		data = d
 		queue_redraw()
 
+	## Stadium pitch or the sumo ring.
+	func _draw_field() -> void:
+		var r := data.arena_rect
+		var s := minf((size.x - 16.0) / r.size.x, (size.y - 16.0) / r.size.y)
+		var off := (size - r.size * s) * 0.5
+		var c := off + r.get_center() * s
+		if data.field == "sumo":
+			draw_rect(Rect2(Vector2.ZERO, size), Color("0b0a16"))
+			draw_circle(c, data.ring_r * s + 3.0, Color(1.0, 0.35, 0.75, 0.4))
+			draw_circle(c, data.ring_r * s, Color("d9b77c"))
+			draw_arc(c, data.ring_r * s - 4.0, 0, TAU, 48, Color("8a5a30"), 2.0)
+			return
+		draw_rect(Rect2(off, r.size * s), Color("4a9c42"))
+		draw_rect(Rect2(off, r.size * s), Color.WHITE, false, 1.0)
+		draw_line(Vector2(c.x, off.y), Vector2(c.x, off.y + r.size.y * s), Color.WHITE, 1.0)
+		draw_arc(c, 80.0 * s, 0, TAU, 32, Color.WHITE, 1.0)
+		var gh := data.goal_h * s * 0.5
+		draw_rect(Rect2(off.x - 8.0, c.y - gh, 8.0, gh * 2.0), Color("3a7bff"))
+		draw_rect(Rect2(off.x + r.size.x * s, c.y - gh, 8.0, gh * 2.0), Color("ff3a4a"))
+
 	## City map: asphalt, building blocks and parks.
 	func _draw_city() -> void:
 		var r := data.arena_rect
@@ -167,6 +187,9 @@ class TrackPreview:
 			return
 		if data.city:
 			_draw_city()
+			return
+		if data.field != "":
+			_draw_field()
 			return
 		var b := Rect2(data.samples[0], Vector2.ZERO)
 		for p in data.samples:

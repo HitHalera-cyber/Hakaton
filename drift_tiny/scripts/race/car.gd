@@ -521,6 +521,8 @@ func respawn() -> void:
 		return
 	_stuck_t = 0.0
 	scoring.fail("")
+	if track.field == "sumo":
+		return    # no rescue from the edge of the ring
 	var pose := track.respawn_pose(global_position)
 	global_position = pose["position"]
 	rotation = pose["rotation"]

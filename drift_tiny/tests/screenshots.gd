@@ -67,6 +67,10 @@ func _run() -> void:
 			await _race(1, "time_attack", tid, "split", 12.0, "world_%s" % tid)
 		get_tree().quit()
 		return
+	if "modes" in OS.get_cmdline_user_args():
+		await _modes()
+		get_tree().quit()
+		return
 	if "city" in OS.get_cmdline_user_args():
 		await _city()
 		get_tree().quit()
@@ -223,3 +227,37 @@ func _city() -> void:
 	Game.goto("race")
 	await _wait(8.0)
 	await _shot("c_police_2p")
+
+
+## One shot of each party mode in play, plus the setup screen of two.
+func _modes() -> void:
+	SaveManager.data["settings"]["style"] = "neon_sunset"
+	Lang.apply("ru")
+	Game.players = 1
+	Game.bots = 3
+	for m in ["soccer", "sumo"]:
+		Game.mode = m
+		Game.goto("setup")
+		await _wait(0.6)
+		await _shot("m_setup_" + m)
+	for m in ["delivery", "koth", "soccer", "sumo", "gates"]:
+		Game.mode = m
+		Game.goto("race")
+		await _wait(0.1)
+		var race := get_tree().current_scene as RaceManager
+		for h in race.humans:
+			if race.track_data.city:
+				(h as Car).controller = CityDriver.new(race.track_data, 9, 0.95)
+			else:
+				(h as Car).controller = FieldDriver.new(0.95)
+		if race.game.has_method("_update_drivers"):
+			race.game.call("_update_drivers")
+		await _wait(11.0)
+		await _shot("m_" + m)
+		if m == "soccer" or m == "sumo":
+			race.photo.open()
+			race.photo._cam.zoom = Vector2(0.6, 0.6)
+			race.photo._cam.global_position = race.track_data.arena_rect.get_center()
+			await _wait(0.3)
+			await _shot("m_%s_wide" % m)
+			race.photo.close()

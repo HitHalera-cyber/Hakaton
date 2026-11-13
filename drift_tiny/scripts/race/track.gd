@@ -133,6 +133,8 @@ func build(track_data: TrackData) -> void:
 		add_child(spectators)
 		if data.city:
 			City.build(self)
+		elif data.field != "":
+			Fields.build(self)
 		else:
 			Arena.build(self)
 		return

@@ -270,6 +270,13 @@ func _draw_city_map(r: Rect2) -> void:
 		var br := b as Rect2
 		draw_rect(Rect2(r.position + br.position * s, br.size * s), Color("2f5a2c"))
 	var blink := int(Time.get_ticks_msec() / 200) % 2 == 0
+	var game: Variant = race.get("game")
+	if game != null and game.has_method("map_marks"):
+		for m in game.map_marks(car):
+			var mp: Vector2 = r.position + (m[0] as Vector2) * s
+			var big: bool = m[2]
+			var sz := 5.0 if big else 3.0
+			draw_rect(Rect2(mp - Vector2(sz, sz) * 0.5, Vector2(sz, sz)), m[1])
 	for c in all_cars:
 		var cc := c as Car
 		var p := r.position + cc.global_position * s
